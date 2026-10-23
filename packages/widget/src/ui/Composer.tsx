@@ -30,7 +30,7 @@ const NAME_ERROR = "Add your name so the team knows who left this.";
 const BODY_ERROR = "Write a comment before posting.";
 
 function messageOf(error: unknown): string {
-  return error instanceof Error && error.message ? error.message : "Something went wrong.";
+  return error instanceof Error && error.message ? error.message : "Something went wrong";
 }
 
 /** Popover form for a new pin: name, comment, optional priority. */
@@ -160,7 +160,7 @@ export function Composer({
 
         {submitError ? (
           <p className="pp-form-error" role="alert">
-            Couldn&apos;t post your comment: {submitError} Try again.
+            Couldn&apos;t post your comment ({submitError}). Try again.
           </p>
         ) : null}
 

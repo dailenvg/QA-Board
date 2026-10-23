@@ -53,7 +53,7 @@ export function Thread({
       // <body> and out of the dialog's focus trap. Park it on a control that stays.
       closeRef.current?.focus();
     } catch (error) {
-      setResolveError(error instanceof Error ? error.message : "Something went wrong.");
+      setResolveError(error instanceof Error ? error.message : "Something went wrong");
     } finally {
       setResolving(false);
     }
@@ -65,7 +65,7 @@ export function Thread({
       <img
         className="pp-screenshot"
         src={pin.screenshotUrl}
-        alt={`Screenshot when pin ${number} was left`}
+        alt={`Screenshot taken when pin ${number} was left`}
         decoding="async"
         onError={() => setScreenshotFailed(true)}
       />
@@ -114,8 +114,8 @@ export function Thread({
 
       {detached ? (
         <p className="pp-notice">
-          The element this pin was attached to has changed. It is shown at its original screen
-          position.
+          The element this pin was attached to has changed, so the pin is shown at its original
+          screen position.
         </p>
       ) : null}
 
@@ -130,7 +130,7 @@ export function Thread({
       {/* Error state: e.g. a private-repo image for a reviewer not signed in to GitHub. */}
       {screenshotFailed ? (
         <p className="pp-notice">
-          The screenshot could not be shown here.{" "}
+          Couldn&apos;t show the screenshot here.{" "}
           {linkable && pin.screenshotUrl ? (
             <a href={pin.screenshotUrl} target="_blank" rel="noreferrer">
               Open it in a new tab
@@ -153,7 +153,7 @@ export function Thread({
 
       {resolveError ? (
         <p className="pp-form-error" role="alert">
-          Couldn&apos;t resolve: {resolveError} Try again.
+          Couldn&apos;t resolve this comment ({resolveError}). Try again.
         </p>
       ) : null}
 

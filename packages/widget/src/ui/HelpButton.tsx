@@ -75,13 +75,13 @@ export function HelpButton({ branch }: HelpButtonProps) {
         {...{ [HELP_OPEN_ATTRIBUTE]: "" }}
       >
         <p>
-          <strong>Pinpoint</strong> collects feedback on this preview
+          <strong>pinpoint</strong> collects feedback on this preview
           {branch ? ` (${branch})` : ""}.
         </p>
         <ol>
           <li>Press Comment.</li>
           <li>Click any element, or choose one with Tab or arrow keys and press Enter.</li>
-          <li>Write your note and post it. It lands on the pull request.</li>
+          <li>Write your comment and post it. It lands in the pull request.</li>
         </ol>
       </div>
     </>

@@ -38,7 +38,8 @@ export default async function ReviewLinkPage() {
             data-testid="review-link-missing-token"
           >
             <Icon name="alert" className="size-5 shrink-0 text-accent" />
-            Set PINPOINT_REVIEW_TOKEN on this deployment to generate a review link.
+            No review token is set. Set PINPOINT_REVIEW_TOKEN on this deployment to generate a
+            review link.
           </p>
         )}
 

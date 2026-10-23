@@ -13,7 +13,7 @@ export function Faq() {
       className="border-t border-rule bg-sunken py-section"
     >
       <div className="container-page grid gap-12 lg:grid-cols-[1fr_1.4fr]">
-        <SectionHeading id="faq" eyebrow="FAQ" title="Questions reviewers ask." />
+        <SectionHeading id="faq" eyebrow="FAQ" title="Questions teams ask." />
         <Reveal className="border-t border-rule">
           {FAQS.map((faq) => (
             <RevealItem key={faq.question}>

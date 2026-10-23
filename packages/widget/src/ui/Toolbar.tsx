@@ -51,7 +51,7 @@ export function Toolbar({
       {commentMode ? <CommentHint /> : null}
       {/* A labelled region, not role="toolbar": arrow keys belong to comment mode, so the
           toolbar pattern's arrow-key roving would be a broken promise. */}
-      <div className="pp-toolbar" role="region" aria-label="Pinpoint feedback">
+      <div className="pp-toolbar" role="region" aria-label="pinpoint feedback">
         <button
           ref={commentButtonRef}
           type="button"

@@ -23,7 +23,7 @@ export const STEPS: readonly Step[] = [
   {
     icon: "link",
     title: "Share the preview",
-    body: "Send reviewers the preview URL with a review token. No accounts, no browser extension, nothing to install.",
+    body: "Send reviewers the review link: your preview URL with the review token added. No accounts, no browser extension, nothing to install.",
   },
   {
     icon: "pointer",
@@ -47,7 +47,7 @@ export const FEATURES: readonly Feature[] = [
   {
     icon: "anchor",
     title: "Anchored to elements",
-    body: "Pins follow a robust CSS selector plus an offset inside the element, so they survive scrolling, resizing and redeploys.",
+    body: "Each pin stores a robust CSS selector plus its offset inside the element, so it survives scrolling, resizing and redeploys.",
   },
   {
     icon: "layers",
@@ -144,7 +144,7 @@ export const FAQS: readonly Faq[] = [
   {
     question: "Do reviewers need a GitHub account?",
     answer:
-      "No. Anyone with the review link can leave pins. Comments are posted to GitHub by the token you configure, with the reviewer's name in the body.",
+      "No. Anyone with the review link can leave pins. Comments are posted to GitHub under the account of the token you configure, with the reviewer's name in the comment body.",
   },
   {
     question: "What happens when the page changes after a pin is left?",

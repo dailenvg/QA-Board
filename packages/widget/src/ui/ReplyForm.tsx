@@ -37,7 +37,7 @@ export function ReplyForm({ reviewerName, onReply }: ReplyFormProps) {
       setBody("");
       setShowErrors(false);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Something went wrong.");
+      setError(caught instanceof Error ? caught.message : "Something went wrong");
     } finally {
       setSending(false);
     }
@@ -73,7 +73,7 @@ export function ReplyForm({ reviewerName, onReply }: ReplyFormProps) {
       />
       {error ? (
         <p className="pp-form-error" role="alert">
-          Couldn&apos;t send your reply: {error} Try again.
+          Couldn&apos;t send your reply ({error}). Try again.
         </p>
       ) : null}
       <div className="pp-actions">

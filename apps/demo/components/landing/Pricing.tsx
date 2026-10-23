@@ -36,7 +36,7 @@ export function Pricing() {
             id="pricing"
             eyebrow="Pricing"
             title="Free to host. Fair when you scale."
-            lead="pinpoint is MIT licensed and runs on your own infrastructure. These plans are illustrative, for the demo."
+            lead="pinpoint is MIT licensed and runs on your own infrastructure. The plans below are illustrative and exist only for this demo."
           />
           <BillingToggle value={billing} onChange={changeBilling} />
         </div>
