@@ -2,7 +2,7 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PinpointUnauthorizedError, type PinpointClient } from "../core/client";
 import { HOST_TAG } from "../core/host";
-import { TOKEN_STORAGE_KEY } from "../core/token";
+import { storeToken, TOKEN_STORAGE_KEY, TOKEN_TTL_MS } from "../core/token";
 import { pinFixture } from "../test/fixtures";
 import { PinpointProvider } from "./PinpointProvider";
 import { reviewTokenStore } from "./hooks/use-review-token";
@@ -72,6 +72,26 @@ describe("PinpointProvider", () => {
     expect(createPin).not.toHaveBeenCalled();
   });
 
+  it("makes zero client calls when the remembered token has expired", async () => {
+    storeToken("stale", Date.now() - TOKEN_TTL_MS - 1);
+    const { client, listPins } = spyClient();
+    render(<PinpointProvider enabled client={client} />);
+    await settle();
+
+    expect(host()).toBeNull();
+    expect(listPins).not.toHaveBeenCalled();
+    expect(localStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
+  });
+
+  it("uses a remembered token from an earlier visit", async () => {
+    storeToken("remembered");
+    const { client, listPins } = spyClient();
+    render(<PinpointProvider enabled client={client} />);
+    await settle();
+
+    expect(listPins).toHaveBeenCalledWith("remembered", { path: "/" });
+  });
+
   it("captures the token, strips it, and loads pins for the page", async () => {
     window.history.replaceState(null, "", "/pricing?review=tok");
     const { client, listPins } = spyClient(
@@ -88,7 +108,7 @@ describe("PinpointProvider", () => {
   });
 
   it("clears the token and hides itself on 401", async () => {
-    sessionStorage.setItem(TOKEN_STORAGE_KEY, "expired");
+    storeToken("revoked");
     const { client, listPins } = spyClient(
       vi.fn<PinpointClient["listPins"]>().mockRejectedValue(new PinpointUnauthorizedError()),
     );
@@ -97,11 +117,11 @@ describe("PinpointProvider", () => {
 
     expect(listPins).toHaveBeenCalledOnce();
     await waitFor(() => expect(host()).toBeNull());
-    expect(sessionStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
+    expect(localStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
   });
 
   it("shows a retry action when loading fails", async () => {
-    sessionStorage.setItem(TOKEN_STORAGE_KEY, "tok");
+    storeToken("tok");
     const listPins = vi
       .fn<PinpointClient["listPins"]>()
       .mockRejectedValueOnce(new Error("Network down"))
