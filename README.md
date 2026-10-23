@@ -28,10 +28,10 @@ Anyone with the preview URL and a review token can click an element on the page 
                                                                └─ memory (dev, tests)
 ```
 
-1. **Activation.** The widget renders nothing unless it is enabled (by default only on Vercel preview deployments) and a review token is present. Without a token it makes zero network requests.
+1. **Activation.** The widget renders nothing unless it is enabled (by default only on Vercel preview deployments) and a review token is present. Without a token it makes zero network requests. Outside previews, visitors only get a small provider shell in the main bundle. The overlay is a separate chunk (about 16 KB gzipped) that downloads only when a review token is present, and `html-to-image` loads when a reviewer posts their first comment.
 2. **Pinning.** Comment mode outlines the element under the cursor. A click (or Tab/arrow keys and Enter) drops a numbered pin. The pin stores a robust CSS selector for the element plus the click position as a percentage of that element's box, so it follows the element through scrolling, resizing and redeploys. If the element disappears, the pin falls back to its original viewport position and is marked as changed.
 3. **Submitting.** The widget captures the visible viewport with `html-to-image`, marks the pin on it, and posts the comment together with viewport size, user agent and page path.
-4. **Storage.** By default each pin becomes one comment on the open PR for the branch (or on a `[pinpoint] <branch>` issue when there is no PR). Replies and resolves edit that same comment. Pins are keyed by branch and page path, so they persist across redeploys of the same branch.
+4. **Storage.** By default each pin becomes one comment on the open PR for the branch (or on a `[pinpoint] <branch>` issue when there is no PR). Replies and resolves update that same comment; pinpoint does not create GitHub review threads. Pins are keyed by branch and page path, so they persist across redeploys of the same branch.
 5. **Deep links.** Every pin has a deep link with `?pin=<id>`. Opening it scrolls to the pin and opens its thread.
 
 ## Quick start (Next.js App Router)
@@ -118,6 +118,7 @@ Responses: `200`/`201` on success, `400` invalid input, `401` missing or wrong t
 | `DATABASE_URL`                      | server | for Postgres storage | Connection string for `pg`.                                       |
 | `NEXT_PUBLIC_VERCEL_ENV`            | client | set by Vercel        | `preview` enables the widget through `@pinpoint/widget/next`.     |
 | `NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF` | client | set by Vercel        | Branch name shown in the toolbar.                                 |
+| `VERCEL_ENV`                        | server | set by Vercel        | `preview` enables the demo's `/review-link` page.                 |
 | `VERCEL_GIT_COMMIT_REF`             | server | set by Vercel        | Branch pins are stored under.                                     |
 | `VERCEL_URL`, `VERCEL_BRANCH_URL`   | server | set by Vercel        | Deployment URL recorded on pins and stable origin for deep links. |
 
@@ -167,7 +168,7 @@ With GitHub storage, screenshots are committed to an orphan branch named `pinpoi
 ## Postgres
 
 ```ts
-import { createGitHubStorage, createPinpointHandler } from "@pinpoint/server";
+import { createGitHubStorage } from "@pinpoint/server";
 import { createPostgresStorage, migrate } from "@pinpoint/server/postgres";
 import pg from "pg";
 
@@ -190,7 +191,7 @@ const storage = createPostgresStorage({
 ## Security model
 
 - **The token gates the API, not the page.** Every API request must carry the review token in `x-pinpoint-token` (or `Authorization: Bearer`). It is compared in constant time. The pages themselves stay public unless you protect them.
-- **`/review-link` exposes the token** to anyone who can load the preview deployment. Turn on [Vercel Deployment Protection](https://vercel.com/docs/security/deployment-protection) for previews of private work. The page returns 404 outside previews.
+- **`/review-link` exposes the token** to anyone who can load the preview deployment. Turn on [Vercel Deployment Protection](https://vercel.com/docs/security/deployment-protection) for previews of private work. The page returns 404 outside previews unless `PINPOINT_ENABLE_REVIEW_LINK=1`.
 - **Token handling in the browser.** The token is read from `?review=`, stored in `localStorage` for 14 days, and removed from the address bar immediately. A 401 response clears it. Visiting a review link again refreshes it.
 - **Silent without a token.** With no valid token the widget renders nothing and makes no requests. Outside preview deployments it is disabled entirely.
 - **Rate limits are per instance.** POSTs are limited to 10 per minute per IP and failed auth to 20 per 10 minutes per IP, in memory. Each serverless instance keeps its own counters and they reset on cold start, so treat them as abuse dampening, not a hard guarantee.
@@ -206,6 +207,14 @@ const storage = createPostgresStorage({
 - Screenshots do not correct for `position: fixed` elements, which can appear shifted, and cross-origin images that block CORS may render blank.
 - A single pin thread is limited by GitHub's 65,536-character comment limit; replies beyond it return 413.
 - `@pinpoint/server` ships ESM and CJS. The CJS build loads the ESM-only `@octokit/rest`, which needs Node.js 22.12 or later.
+
+### Caching and timing
+
+- With GitHub storage, each server instance caches a branch's pin list for 15 seconds. Writes through that instance clear the cache.
+- A reviewer's own pins, replies and resolves appear right away.
+- Comments from other reviewers, writes handled by a different serverless instance, and edits made directly on GitHub can take up to 15 seconds to appear after a reload.
+- Replying to or resolving a pin the cache hasn't seen yet triggers one fresh fetch from GitHub.
+- Screenshot capture gives up after 10 seconds, on failure (for example, cross-origin assets), or when the image is still over 1.5 MB after downscaling. The comment is then posted without a screenshot, so posting on a heavy page can take about 10 seconds.
 
 ## Development
 

@@ -45,7 +45,7 @@ export function BillingToggle({ value, onChange }: BillingToggleProps) {
             <span className="relative">
               {option.label}
               {option.value === "yearly" ? (
-                <span className={selected ? "ml-2" : "ml-2 text-accent"}>-17%</span>
+                <span className={selected ? "ml-2" : "ml-2 text-accent"}>Save 17%</span>
               ) : null}
             </span>
           </button>

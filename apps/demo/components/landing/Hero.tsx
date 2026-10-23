@@ -33,8 +33,8 @@ export function Hero() {
             Feedback pinned <em className="text-accent">exactly</em> where it belongs.
           </motion.h1>
           <motion.p variants={item} className="mt-8 max-w-xl text-lead text-muted text-pretty">
-            Reviewers click any element on your Vercel preview and leave feedback. It shows up as a
-            threaded comment on the pull request, with a screenshot and a link back to the spot.
+            Reviewers click any element on your Vercel preview and leave feedback. Each pin becomes
+            one comment on the pull request, with a screenshot and a link back to the spot.
           </motion.p>
           <motion.div variants={item} className="mt-10 flex flex-wrap gap-3">
             <ButtonLink href="#pricing" testId="hero-cta">

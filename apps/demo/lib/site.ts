@@ -33,7 +33,7 @@ export const STEPS: readonly Step[] = [
   {
     icon: "pullRequest",
     title: "It lands in the PR",
-    body: "Each pin becomes a threaded comment on the pull request, with a screenshot and a link straight back to the spot.",
+    body: "Each pin becomes one comment on the pull request, with a screenshot and a link straight back to the spot. Replies and resolves update that same comment.",
   },
 ];
 
@@ -52,12 +52,12 @@ export const FEATURES: readonly Feature[] = [
   {
     icon: "layers",
     title: "Shadow DOM isolation",
-    body: "The overlay lives in a shadow root on a fixed layer. Your styles never leak in, and its styles never leak out.",
+    body: "The overlay lives in a shadow root on a fixed layer. Shadow DOM keeps the page's styles out of the widget and the widget's styles out of the page.",
   },
   {
     icon: "camera",
-    title: "Screenshot on every pin",
-    body: "The visible viewport is captured with the pin marked, then stored next to the code on an orphan branch.",
+    title: "Screenshots with the pin marked",
+    body: "Each comment captures the visible viewport with the pin marked. Capture is best-effort, and with GitHub storage the image is committed to an orphan branch in your repository.",
   },
   {
     icon: "keyboard",
@@ -144,7 +144,7 @@ export const FAQS: readonly Faq[] = [
   {
     question: "Do reviewers need a GitHub account?",
     answer:
-      "No. Anyone with the review link can leave pins. Comments are posted to GitHub under the account of the token you configure, with the reviewer's name in the comment body.",
+      "No. Anyone with the review link can leave pins. With GitHub storage (or the Postgres GitHub mirror) configured, comments are posted to GitHub under the account of the token you configure, with the reviewer's name in the comment body.",
   },
   {
     question: "What happens when the page changes after a pin is left?",
@@ -159,6 +159,6 @@ export const FAQS: readonly Faq[] = [
   {
     question: "Does it slow down production?",
     answer:
-      "The widget is disabled outside preview deployments by default and renders nothing without a token, so production visitors never load the overlay.",
+      "No. Outside previews, visitors only get a tiny provider shell inside your normal bundle. It does no token check, touches no storage and makes no network calls. The overlay is a separate chunk of about 16 KB gzipped that downloads only on a preview with a review token, and html-to-image downloads only when a reviewer posts their first comment.",
   },
 ];
