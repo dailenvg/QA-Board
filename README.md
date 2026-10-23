@@ -102,7 +102,7 @@ The demo app also ships a `/review-link` page that builds this link for you on p
 | `reviewToken`      | `process.env.PINPOINT_REVIEW_TOKEN`. When missing, every request returns 500 with a configuration message. |
 | `branch`           | `VERCEL_GIT_COMMIT_REF`, else `"local"`                                                                    |
 | `deploymentUrl`    | `https://$VERCEL_URL`, else `https://$VERCEL_BRANCH_URL`, else the request origin. Recorded on each pin.   |
-| `linkBaseUrl`      | `https://$VERCEL_BRANCH_URL`, else the request origin. Origin for deep links.                              |
+| `linkBaseUrl`      | `https://$VERCEL_BRANCH_URL`, else `https://$VERCEL_URL`, else the request origin. Origin for deep links.  |
 | `rateLimit`        | 10 POSTs per minute per IP. `false` disables it.                                                           |
 | `authFailureLimit` | 20 failed auth attempts per 10 minutes per IP, across all methods. `false` disables it.                    |
 

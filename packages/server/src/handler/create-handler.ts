@@ -23,9 +23,9 @@ export interface PinpointHandlerOptions {
   authFailureLimit?: RateLimitOptions | false;
   /** Branch pins are keyed by. Defaults to `VERCEL_GIT_COMMIT_REF`, else "local". */
   branch?: string;
-  /** Recorded on each pin. Defaults to `VERCEL_URL`, else the request origin. */
+  /** Recorded on each pin. Defaults to `VERCEL_URL`, else `VERCEL_BRANCH_URL`, else the request origin. */
   deploymentUrl?: string;
-  /** Origin for deep links. Defaults to `VERCEL_BRANCH_URL`, else the request origin. */
+  /** Origin for deep links. Defaults to `VERCEL_BRANCH_URL`, else `VERCEL_URL`, else the request origin. */
   linkBaseUrl?: string;
   /** Clock and id generator, injectable for tests. */
   now?: () => number;
