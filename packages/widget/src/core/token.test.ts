@@ -49,6 +49,37 @@ describe("captureToken", () => {
     expect(window.history.state).toEqual({ __router: 1 });
   });
 
+  it("re-strips after a router restores the token, and lets a patched router sync", () => {
+    vi.useFakeTimers();
+    try {
+      window.history.replaceState({ __NA: true, tree: "t" }, "", "/?review=abc&x=1");
+      captureToken(window, NOW);
+      expect(window.location.search).toBe("?x=1");
+
+      // A router (as Next.js does on hydration) re-applies its stale URL...
+      window.history.replaceState({ __NA: true, tree: "t" }, "", "/?review=abc&x=1");
+      // ...and patches replaceState, skipping sync for writes marked as its own.
+      const seen: unknown[] = [];
+      window.history.replaceState = function patched(
+        this: History,
+        data: unknown,
+        unused: string,
+        url?: string | URL | null,
+      ) {
+        seen.push(data);
+        History.prototype.replaceState.call(this, data, unused, url);
+      };
+
+      vi.runAllTimers();
+
+      expect(window.location.search).toBe("?x=1");
+      expect(seen).toEqual([{ tree: "t" }]);
+    } finally {
+      vi.useRealTimers();
+      Reflect.deleteProperty(window.history, "replaceState");
+    }
+  });
+
   it("falls back to a remembered token that has not expired", () => {
     storeToken("earlier", NOW);
     expect(captureToken(window, NOW + TOKEN_TTL_MS - 1)).toBe("earlier");

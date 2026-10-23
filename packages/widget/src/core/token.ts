@@ -1,5 +1,5 @@
 import { readStorage, removeStorage, writeStorage } from "./storage";
-import { removeSearchParams, toRelativeUrl } from "./url";
+import { removeSearchParams, replaceUrl, toRelativeUrl } from "./url";
 
 export const REVIEW_PARAM = "review";
 export const TOKEN_STORAGE_KEY = "pinpoint:review-token";
@@ -49,6 +49,10 @@ export function clearStoredToken(): void {
   removeStorage("localStorage", TOKEN_STORAGE_KEY);
 }
 
+function stripReviewParam(win: Window): void {
+  replaceUrl(win, toRelativeUrl(removeSearchParams(win.location.href, [REVIEW_PARAM])));
+}
+
 /**
  * Reads `?review=<token>` from the current URL, remembers it for 14 days
  * (refreshing any earlier token and expiry), and strips it from the address
@@ -59,8 +63,11 @@ export function captureToken(win: Window = window, now: number = Date.now()): st
   if (!url.searchParams.has(REVIEW_PARAM)) return readStoredToken(now);
 
   const fromUrl = url.searchParams.get(REVIEW_PARAM)?.trim() ?? "";
-  const stripped = toRelativeUrl(removeSearchParams(url.toString(), [REVIEW_PARAM]));
-  win.history.replaceState(win.history.state, "", stripped);
+  stripReviewParam(win);
+  // Routers install their history patches in effects that can run after ours
+  // (parents run after children). Strip again once they are in place so the
+  // router learns the clean URL and never restores the token later.
+  win.setTimeout(() => stripReviewParam(win), 0);
 
   if (fromUrl === "") return readStoredToken(now);
   storeToken(fromUrl, now);
