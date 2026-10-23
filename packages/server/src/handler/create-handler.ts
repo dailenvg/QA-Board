@@ -16,6 +16,11 @@ export interface PinpointHandlerOptions {
   reviewToken?: string;
   /** POST limit per IP. Defaults to 10 per minute; `false` disables it. */
   rateLimit?: RateLimitOptions | false;
+  /**
+   * Failed-auth limit per IP across GET, POST and PATCH. Defaults to 20
+   * failures per 10 minutes, then 429 until the window slides; `false` disables it.
+   */
+  authFailureLimit?: RateLimitOptions | false;
   /** Branch pins are keyed by. Defaults to `VERCEL_GIT_COMMIT_REF`, else "local". */
   branch?: string;
   /** Recorded on each pin. Defaults to `VERCEL_URL`, else the request origin. */
@@ -95,13 +100,27 @@ export function createPinpointHandler(options: PinpointHandlerOptions): Pinpoint
   const generateId = options.generateId ?? (() => crypto.randomUUID());
   const limiter =
     options.rateLimit === false ? null : createRateLimiter({ now, ...options.rateLimit });
+  const authFailures =
+    options.authFailureLimit === false
+      ? null
+      : createRateLimiter({ limit: 20, windowMs: 10 * 60_000, now, ...options.authFailureLimit });
 
   if (!reviewToken) console.error(`[pinpoint] ${NOT_CONFIGURED}`);
 
+  function tooMany(message: string, retryAfterSeconds: number): Response {
+    return errorResponse(429, message, { "retry-after": String(retryAfterSeconds) });
+  }
+
   async function authorize(request: Request): Promise<Response | null> {
     if (!reviewToken) return errorResponse(500, NOT_CONFIGURED);
+    const ip = clientIp(request.headers);
+    const blocked = authFailures?.check(ip);
+    if (blocked && !blocked.allowed) {
+      return tooMany("Too many failed attempts, try again later", blocked.retryAfterSeconds);
+    }
     const provided = readToken(request.headers);
     if (!provided || !(await tokensMatch(provided, reviewToken))) {
+      authFailures?.hit(ip);
       return errorResponse(401, UNAUTHORIZED);
     }
     return null;
@@ -110,9 +129,7 @@ export function createPinpointHandler(options: PinpointHandlerOptions): Pinpoint
   function rateLimited(request: Request): Response | null {
     const result = limiter?.hit(clientIp(request.headers));
     if (!result || result.allowed) return null;
-    return errorResponse(429, "Too many comments, try again shortly", {
-      "retry-after": String(result.retryAfterSeconds),
-    });
+    return tooMany("Too many comments, try again shortly", result.retryAfterSeconds);
   }
 
   const GET: RouteHandler = async (request) => {

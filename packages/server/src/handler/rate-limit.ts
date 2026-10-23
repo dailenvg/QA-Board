@@ -10,7 +10,10 @@ export interface RateLimitOptions {
 export type RateLimitResult = { allowed: true } | { allowed: false; retryAfterSeconds: number };
 
 export interface RateLimiter {
+  /** Records an attempt and reports whether it was within the limit. */
   hit(key: string): RateLimitResult;
+  /** Reports whether `key` is currently over the limit without recording anything. */
+  check(key: string): RateLimitResult;
 }
 
 const SWEEP_THRESHOLD = 10_000;
@@ -32,24 +35,28 @@ export function createRateLimiter({
     }
   };
 
-  return {
-    hit(key) {
-      const current = now();
-      const cutoff = current - windowMs;
-      if (hits.size > SWEEP_THRESHOLD) sweep(cutoff);
+  const evaluate = (key: string, record: boolean): RateLimitResult => {
+    const current = now();
+    const cutoff = current - windowMs;
+    if (hits.size > SWEEP_THRESHOLD) sweep(cutoff);
 
-      const recent = (hits.get(key) ?? []).filter((stamp) => stamp > cutoff);
-      if (recent.length >= limit) {
-        hits.set(key, recent);
-        const oldest = recent[0] ?? current;
-        return {
-          allowed: false,
-          retryAfterSeconds: Math.max(1, Math.ceil((oldest + windowMs - current) / 1000)),
-        };
-      }
-      recent.push(current);
+    const recent = (hits.get(key) ?? []).filter((stamp) => stamp > cutoff);
+    if (recent.length >= limit) {
       hits.set(key, recent);
-      return { allowed: true };
-    },
+      const oldest = recent[0] ?? current;
+      return {
+        allowed: false,
+        retryAfterSeconds: Math.max(1, Math.ceil((oldest + windowMs - current) / 1000)),
+      };
+    }
+    if (record) recent.push(current);
+    if (recent.length > 0) hits.set(key, recent);
+    else hits.delete(key);
+    return { allowed: true };
+  };
+
+  return {
+    hit: (key) => evaluate(key, true),
+    check: (key) => evaluate(key, false),
   };
 }

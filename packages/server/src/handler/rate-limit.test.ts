@@ -26,6 +26,14 @@ describe("createRateLimiter", () => {
     expect(limiter.hit("ip").allowed).toBe(false);
   });
 
+  it("check reports the state without recording an attempt", () => {
+    const limiter = createRateLimiter({ limit: 1, now: () => 0 });
+    expect(limiter.check("ip").allowed).toBe(true);
+    expect(limiter.check("ip").allowed).toBe(true);
+    limiter.hit("ip");
+    expect(limiter.check("ip")).toEqual({ allowed: false, retryAfterSeconds: 60 });
+  });
+
   it("tracks keys independently", () => {
     const limiter = createRateLimiter({ limit: 1, now: () => 0 });
     expect(limiter.hit("a").allowed).toBe(true);

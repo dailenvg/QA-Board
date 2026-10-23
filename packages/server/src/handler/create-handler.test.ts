@@ -297,3 +297,42 @@ describe("storage error mapping", () => {
     expect(response.status).toBe(404);
   });
 });
+
+describe("failed-auth limit", () => {
+  it("returns 429 after repeated failures from one IP, across methods", async () => {
+    let now = 0;
+    const { handler } = setup({
+      authFailureLimit: { limit: 3, windowMs: 60_000 },
+      now: () => now,
+    });
+    const from = (ip: string, token: string | null) => ({
+      token,
+      headers: { "x-real-ip": ip },
+      query: "?path=/",
+    });
+
+    expect((await handler.GET(request(from("9.9.9.9", "bad")))).status).toBe(401);
+    expect(
+      (await handler.PATCH(request({ ...from("9.9.9.9", null), method: "PATCH", body: {} })))
+        .status,
+    ).toBe(401);
+    expect(
+      (await handler.POST(request({ ...from("9.9.9.9", "bad"), method: "POST", body: {} }))).status,
+    ).toBe(401);
+
+    const blocked = await handler.GET(request(from("9.9.9.9", TOKEN)));
+    expect(blocked.status).toBe(429);
+    expect(blocked.headers.get("retry-after")).toBe("60");
+    expect((await handler.GET(request(from("8.8.8.8", TOKEN)))).status).toBe(200);
+
+    now = 60_001;
+    expect((await handler.GET(request(from("9.9.9.9", TOKEN)))).status).toBe(200);
+  });
+
+  it("does not count successful requests", async () => {
+    const { handler } = setup({ authFailureLimit: { limit: 1, windowMs: 60_000 } });
+    for (let i = 0; i < 5; i += 1) {
+      expect((await handler.GET(request({ query: "?path=/" }))).status).toBe(200);
+    }
+  });
+});

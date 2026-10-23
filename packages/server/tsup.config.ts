@@ -8,4 +8,5 @@ export default defineConfig({
   clean: true,
   target: "es2022",
   platform: "node",
+  loader: { ".sql": "text" },
 });
