@@ -3,6 +3,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      "env": ["NEXT_PUBLIC_*", "NEXT_DIST_DIR"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
     "lint": {
@@ -16,8 +17,17 @@
       "outputs": []
     },
     "dev": {
+      "dependsOn": ["^build"],
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "passThroughEnv": [
+        "NEXT_PUBLIC_*",
+        "PINPOINT_*",
+        "VERCEL_*",
+        "GITHUB_TOKEN",
+        "GITHUB_REPO",
+        "DATABASE_URL"
+      ]
     }
   }
 }

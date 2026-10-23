@@ -24,3 +24,8 @@ test-results/
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# next.js (demo)
+.next-e2e/
+.next-dev/
+next-env.d.ts

@@ -1,4 +1,5 @@
 import js from "@eslint/js";
+import nextPlugin from "@next/eslint-plugin-next";
 import { defineConfig, globalIgnores } from "eslint/config";
 import prettier from "eslint-config-prettier";
 import reactHooks from "eslint-plugin-react-hooks";
@@ -10,6 +11,10 @@ export default defineConfig(
     "**/node_modules/**",
     "**/dist/**",
     "**/.next/**",
+    "**/.next-e2e/**",
+    "**/.next-dev/**",
+    "**/playwright-report/**",
+    "**/test-results/**",
     "**/.turbo/**",
     "**/coverage/**",
     "**/next-env.d.ts",
@@ -35,6 +40,17 @@ export default defineConfig(
     },
   },
   reactHooks.configs.flat["recommended-latest"],
+  {
+    files: ["apps/demo/**/*.{ts,tsx}"],
+    plugins: { "@next/next": nextPlugin },
+    rules: {
+      ...nextPlugin.configs.recommended.rules,
+      ...nextPlugin.configs["core-web-vitals"].rules,
+      // App Router only; this rule looks for a pages/ directory.
+      "@next/next/no-html-link-for-pages": "off",
+    },
+    settings: { next: { rootDir: `${import.meta.dirname}/apps/demo/` } },
+  },
   {
     files: ["**/*.{js,mjs,cjs}", "**/*.config.{ts,mts}"],
     extends: [tseslint.configs.disableTypeChecked],

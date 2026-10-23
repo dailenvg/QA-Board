@@ -1,0 +1,20 @@
+import Link from "next/link";
+
+/** Wordmark with the pin glyph used by the widget's badges. */
+export function Logo() {
+  return (
+    <Link
+      href="/"
+      className="inline-flex min-h-11 items-center gap-2.5 rounded-control pr-2 font-display text-h3"
+      aria-label="pinpoint home"
+    >
+      <span
+        aria-hidden="true"
+        className="grid size-8 place-items-center rounded-[16px_16px_16px_4px] bg-accent text-label font-sans font-bold text-on-accent"
+      >
+        p
+      </span>
+      pinpoint
+    </Link>
+  );
+}
