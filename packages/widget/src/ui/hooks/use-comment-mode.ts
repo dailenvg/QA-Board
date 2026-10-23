@@ -25,6 +25,27 @@ interface CommentModeOptions {
 }
 
 const CURSOR_STYLE_ATTRIBUTE = "data-pinpoint-cursor";
+/** A detail-0 click counts as keyboard activation only this soon after Enter/Space on it. */
+export const KEYBOARD_CLICK_WINDOW_MS = 500;
+
+interface KeyActivation {
+  target: EventTarget | null;
+  at: number;
+}
+
+/**
+ * Clicks with `detail === 0` come from keyboard activation (Space or Enter on
+ * a focused control) or from scripts calling `element.click()`. Only the
+ * former is a reviewer choosing an element.
+ */
+export function isKeyboardClick(
+  click: Pick<MouseEvent, "detail" | "target">,
+  activation: KeyActivation | null,
+  now: number,
+): boolean {
+  if (click.detail !== 0 || !activation) return false;
+  return activation.target === click.target && now - activation.at <= KEYBOARD_CLICK_WINDOW_MS;
+}
 const BLOCKED_POINTER_EVENTS = [
   "pointerdown",
   "pointerup",
@@ -61,6 +82,7 @@ export function useCommentMode({ active, host, onPick }: CommentModeOptions): Co
       setTarget(next);
     };
     let pointer: Point | null = null;
+    let lastKeyActivation: KeyActivation | null = null;
     const scheduler = createFrameScheduler(() => {
       const element = pointer ? elementAtPoint(pointer, host) : null;
       update(element ? { element, source: "pointer" } : null);
@@ -81,11 +103,15 @@ export function useCommentMode({ active, host, onPick }: CommentModeOptions): Co
     const onClick = (event: MouseEvent) => {
       if (isFromHost(event, host)) return;
       block(event);
-      // detail === 0 means a keyboard-activated click (Space on a focused page
-      // button). Its coordinates are 0,0, so pin the focused target at its centre
-      // instead of whatever sits in the viewport's top-left corner.
-      if (event.detail === 0 && event.target instanceof Element) {
-        pick.current(event.target, centerOf(event.target));
+      if (event.detail === 0) {
+        // Keyboard activation reports 0,0 coordinates, so pin the focused control
+        // at its centre. Script-dispatched clicks (`el.click()`) are swallowed
+        // without a pin: comment mode still blocks their navigation.
+        const keyboard = isKeyboardClick(event, lastKeyActivation, performance.now());
+        lastKeyActivation = null;
+        if (keyboard && event.target instanceof Element) {
+          pick.current(event.target, centerOf(event.target));
+        }
         return;
       }
       const point = { x: event.clientX, y: event.clientY };
@@ -101,6 +127,9 @@ export function useCommentMode({ active, host, onPick }: CommentModeOptions): Co
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.altKey || event.ctrlKey || event.metaKey) return;
+      if (event.key === " " || event.key === "Enter") {
+        lastKeyActivation = { target: event.target, at: performance.now() };
+      }
       const current = targetRef.current?.element ?? null;
       if (isWalkKey(event.key)) {
         event.preventDefault();
