@@ -39,7 +39,7 @@ export function CopyLinkButton({ url }: CopyLinkButtonProps) {
 
   return (
     <button type="button" className="pp-btn pp-btn--secondary" onClick={() => void copy()}>
-      <Icon name={state === "copied" ? "check" : "link"} />
+      <Icon name={state === "copied" ? "check" : state === "failed" ? "alert" : "link"} />
       <span aria-live="polite">{LABELS[state]}</span>
     </button>
   );

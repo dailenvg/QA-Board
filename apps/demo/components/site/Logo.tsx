@@ -5,7 +5,7 @@ export function Logo() {
   return (
     <Link
       href="/"
-      className="inline-flex min-h-11 items-center gap-2.5 rounded-control pr-2 font-display text-h3"
+      className="inline-flex min-h-11 items-center gap-3 rounded-control pr-2 font-display text-h3"
       aria-label="pinpoint home"
     >
       <span

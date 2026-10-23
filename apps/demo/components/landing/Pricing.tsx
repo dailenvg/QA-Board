@@ -27,7 +27,7 @@ export function Pricing() {
           />
           <BillingToggle value={billing} onChange={setBilling} />
         </div>
-        <Reveal className="mt-16 grid gap-5 lg:grid-cols-3">
+        <Reveal className="mt-16 grid gap-6 lg:grid-cols-3">
           {PLANS.map((plan) => (
             <PricingCard key={plan.id} plan={plan} billing={billing} />
           ))}

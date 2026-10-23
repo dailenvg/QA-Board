@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { duration, ease } from "@/lib/motion";
 import { NAV_SECTIONS, SITE } from "@/lib/site";
 import { useActiveSection } from "@/lib/use-active-section";
@@ -17,6 +17,19 @@ export function SiteHeader() {
   const active = useActiveSection(SECTION_IDS);
   const [open, setOpen] = useState(false);
   const reduce = useReducedMotion();
+  const toggleRef = useRef<HTMLButtonElement>(null);
+
+  // Escape closes the open menu and hands focus back to its toggle.
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      toggleRef.current?.focus();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open]);
 
   return (
     <header className="sticky top-0 z-40 border-b border-rule bg-paper/85 backdrop-blur-md">
@@ -39,10 +52,11 @@ export function SiteHeader() {
             GitHub
           </ButtonLink>
           <button
+            ref={toggleRef}
             type="button"
-            className="grid size-11 place-items-center rounded-control ring-1 ring-rule-strong ring-inset transition-colors hover:bg-sunken md:hidden"
+            className="grid size-11 place-items-center rounded-control ring-1 ring-rule-strong ring-inset transition-colors hover:bg-sunken active:bg-sunken md:hidden"
             aria-expanded={open}
-            aria-controls="mobile-menu"
+            aria-controls={open ? "mobile-menu" : undefined}
             aria-label={open ? "Close menu" : "Open menu"}
             onClick={() => setOpen((value) => !value)}
           >

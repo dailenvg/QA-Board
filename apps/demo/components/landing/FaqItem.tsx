@@ -22,9 +22,9 @@ export function FaqItem({ faq }: FaqItemProps) {
         <button
           type="button"
           aria-expanded={open}
-          aria-controls={panelId}
+          aria-controls={open ? panelId : undefined}
           onClick={() => setOpen((value) => !value)}
-          className="flex min-h-16 w-full items-center justify-between gap-6 py-5 text-left text-lead font-medium transition-colors hover:text-accent"
+          className="flex min-h-16 w-full items-center justify-between gap-6 py-5 text-left text-lead font-medium transition-colors hover:text-accent-text"
         >
           {faq.question}
           <motion.span

@@ -17,6 +17,9 @@ export const spring = {
   soft: { type: "spring", stiffness: 220, damping: 26 },
 } as const satisfies Record<string, Transition>;
 
+/** Reduced-motion replacement for springs on `layout` / `layoutId` elements: jump, don't glide. */
+export const instant = { duration: 0 } as const satisfies Transition;
+
 /** Micro-interactions for buttons and toggles. */
 export const press = {
   whileHover: { scale: 1.03 },

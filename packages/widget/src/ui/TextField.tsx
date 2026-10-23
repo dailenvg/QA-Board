@@ -13,6 +13,8 @@ interface TextFieldProps {
   placeholder?: string;
   autoComplete?: string;
   maxLength?: number;
+  /** Exposed as aria-required; forms here use noValidate and validate inline. */
+  required?: boolean;
   inputRef?: Ref<HTMLInputElement & HTMLTextAreaElement>;
 }
 
@@ -29,6 +31,7 @@ export function TextField({
   placeholder,
   autoComplete,
   maxLength,
+  required = false,
   inputRef,
 }: TextFieldProps) {
   const id = useId();
@@ -42,6 +45,7 @@ export function TextField({
     maxLength,
     onBlur,
     onKeyDown,
+    "aria-required": required ? true : undefined,
     "aria-invalid": error ? true : undefined,
     "aria-describedby": error ? errorId : undefined,
     onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>

@@ -1,7 +1,7 @@
 "use client";
 
-import { motion } from "motion/react";
-import { spring } from "@/lib/motion";
+import { motion, useReducedMotion } from "motion/react";
+import { instant, spring } from "@/lib/motion";
 import type { Billing } from "@/lib/site";
 
 const OPTIONS: ReadonlyArray<{ value: Billing; label: string }> = [
@@ -16,6 +16,7 @@ interface BillingToggleProps {
 
 /** Segmented control; the selected pill glides between options via `layoutId`. */
 export function BillingToggle({ value, onChange }: BillingToggleProps) {
+  const reduce = useReducedMotion();
   return (
     <div
       role="group"
@@ -37,14 +38,14 @@ export function BillingToggle({ value, onChange }: BillingToggleProps) {
             {selected ? (
               <motion.span
                 layoutId="billing-indicator"
-                transition={spring.snappy}
+                transition={reduce ? instant : spring.snappy}
                 className="absolute inset-0 rounded-control bg-accent"
               />
             ) : null}
             <span className="relative">
               {option.label}
               {option.value === "yearly" ? (
-                <span className={selected ? "ml-2 opacity-80" : "ml-2 text-accent"}>-17%</span>
+                <span className={selected ? "ml-2" : "ml-2 text-accent"}>-17%</span>
               ) : null}
             </span>
           </button>

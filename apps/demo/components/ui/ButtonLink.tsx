@@ -46,6 +46,7 @@ export function ButtonLink({
       {...(external ? { target: "_blank", rel: "noreferrer" } : {})}
     >
       {children}
+      {external ? <span className="sr-only"> (opens in a new tab)</span> : null}
     </MotionLink>
   );
 }

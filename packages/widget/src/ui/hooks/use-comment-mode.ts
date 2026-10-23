@@ -81,6 +81,13 @@ export function useCommentMode({ active, host, onPick }: CommentModeOptions): Co
     const onClick = (event: MouseEvent) => {
       if (isFromHost(event, host)) return;
       block(event);
+      // detail === 0 means a keyboard-activated click (Space on a focused page
+      // button). Its coordinates are 0,0, so pin the focused target at its centre
+      // instead of whatever sits in the viewport's top-left corner.
+      if (event.detail === 0 && event.target instanceof Element) {
+        pick.current(event.target, centerOf(event.target));
+        return;
+      }
       const point = { x: event.clientX, y: event.clientY };
       const element =
         elementAtPoint(point, host) ?? (event.target instanceof Element ? event.target : null);

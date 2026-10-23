@@ -122,6 +122,7 @@ export function Composer({
           error={authorError}
           autoComplete="name"
           maxLength={MAX_NAME_LENGTH}
+          required
           inputRef={nameRef}
         />
         <TextField
@@ -136,6 +137,7 @@ export function Composer({
           error={bodyError}
           placeholder="What should change here?"
           maxLength={MAX_BODY_LENGTH}
+          required
           inputRef={bodyRef}
         />
         <PriorityField value={priority} onChange={setPriority} />

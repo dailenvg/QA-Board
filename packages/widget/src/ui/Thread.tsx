@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import type { RectLike } from "../core/geometry";
 import type { Pin } from "../core/types";
 import { CopyLinkButton } from "./CopyLinkButton";
@@ -37,8 +37,10 @@ export function Thread({
   onClose,
 }: ThreadProps) {
   const titleId = useId();
+  const closeRef = useRef<HTMLButtonElement>(null);
   const [resolving, setResolving] = useState(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
+  const [screenshotFailed, setScreenshotFailed] = useState(false);
 
   const resolve = async () => {
     if (resolving) return;
@@ -46,6 +48,9 @@ export function Thread({
     setResolveError(null);
     try {
       await onResolve();
+      // The Resolve button is replaced by static text, which would drop focus to
+      // <body> and out of the dialog's focus trap. Park it on a control that stays.
+      closeRef.current?.focus();
     } catch (error) {
       setResolveError(error instanceof Error ? error.message : "Something went wrong.");
     } finally {
@@ -53,13 +58,17 @@ export function Thread({
     }
   };
 
-  const screenshot = pin.screenshotUrl ? (
-    <img
-      className="pp-screenshot"
-      src={pin.screenshotUrl}
-      alt={`Screenshot when pin ${number} was left`}
-    />
-  ) : null;
+  const linkable = pin.screenshotUrl !== null && isLinkable(pin.screenshotUrl);
+  const screenshot =
+    pin.screenshotUrl && !screenshotFailed ? (
+      <img
+        className="pp-screenshot"
+        src={pin.screenshotUrl}
+        alt={`Screenshot when pin ${number} was left`}
+        decoding="async"
+        onError={() => setScreenshotFailed(true)}
+      />
+    ) : null;
 
   return (
     <Popover
@@ -76,6 +85,7 @@ export function Thread({
           Comment {number}
         </h2>
         <button
+          ref={closeRef}
           type="button"
           className="pp-btn pp-btn--icon pp-popover__close"
           aria-label="Close thread"
@@ -106,13 +116,25 @@ export function Thread({
         </p>
       ) : null}
 
-      {screenshot && pin.screenshotUrl && isLinkable(pin.screenshotUrl) ? (
-        <a href={pin.screenshotUrl} target="_blank" rel="noreferrer">
+      {screenshot && linkable && pin.screenshotUrl ? (
+        <a className="pp-screenshot-link" href={pin.screenshotUrl} target="_blank" rel="noreferrer">
           {screenshot}
         </a>
       ) : (
         screenshot
       )}
+
+      {/* Error state: e.g. a private-repo image for a reviewer not signed in to GitHub. */}
+      {screenshotFailed ? (
+        <p className="pp-notice">
+          The screenshot could not be shown here.{" "}
+          {linkable && pin.screenshotUrl ? (
+            <a href={pin.screenshotUrl} target="_blank" rel="noreferrer">
+              Open it in a new tab
+            </a>
+          ) : null}
+        </p>
+      ) : null}
 
       {pin.replies.length > 0 ? (
         <ol className="pp-replies" aria-label="Replies">

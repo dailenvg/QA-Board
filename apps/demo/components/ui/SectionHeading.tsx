@@ -13,7 +13,7 @@ export function SectionHeading({ id, eyebrow, title, lead }: SectionHeadingProps
   return (
     <Reveal className="max-w-3xl">
       <RevealItem>
-        <p className="label-caps flex items-center gap-3 text-accent">
+        <p className="label-caps flex items-center gap-3 text-accent-text">
           <span aria-hidden="true" className="h-px w-8 bg-accent" />
           {eyebrow}
         </p>

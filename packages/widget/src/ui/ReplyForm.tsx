@@ -57,6 +57,7 @@ export function ReplyForm({ reviewerName, onReply }: ReplyFormProps) {
           error={showErrors && author.trim() === "" ? NAME_ERROR : null}
           autoComplete="name"
           maxLength={MAX_NAME_LENGTH}
+          required
         />
       ) : null}
       <TextField
@@ -68,6 +69,7 @@ export function ReplyForm({ reviewerName, onReply }: ReplyFormProps) {
         onKeyDown={submitOnModEnter}
         error={showErrors && body.trim() === "" ? BODY_ERROR : null}
         maxLength={MAX_BODY_LENGTH}
+        required
       />
       {error ? (
         <p className="pp-form-error" role="alert">

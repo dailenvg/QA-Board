@@ -38,10 +38,20 @@ export function Toolbar({
   branch,
   onRetry,
 }: ToolbarProps) {
+  const resolvedUnavailable = resolvedCount === 0 && !showResolved;
+
+  // The retry button unmounts once loading restarts; keep keyboard focus in the widget.
+  const retry = () => {
+    onRetry();
+    commentButtonRef.current?.focus();
+  };
+
   return (
     <>
       {commentMode ? <CommentHint /> : null}
-      <div className="pp-toolbar" role="toolbar" aria-label="Pinpoint feedback">
+      {/* A labelled region, not role="toolbar": arrow keys belong to comment mode, so the
+          toolbar pattern's arrow-key roving would be a broken promise. */}
+      <div className="pp-toolbar" role="region" aria-label="Pinpoint feedback">
         <button
           ref={commentButtonRef}
           type="button"
@@ -76,9 +86,10 @@ export function Toolbar({
             </span>
             <button
               type="button"
-              className="pp-btn pp-btn--icon"
+              className="pp-btn pp-btn--icon pp-btn--danger"
               aria-label="Retry loading comments"
-              onClick={onRetry}
+              title="Retry loading comments"
+              onClick={retry}
             >
               <Icon name="retry" />
             </button>
@@ -91,18 +102,24 @@ export function Toolbar({
           type="button"
           className="pp-btn pp-btn--icon"
           aria-label="Show pins"
+          title="Show pins"
           aria-pressed={showPins}
           onClick={onToggleShowPins}
         >
           <Icon name={showPins ? "eye" : "eyeOff"} />
         </button>
+        {/* aria-disabled, not disabled: a disabled button drops focus to <body> when it
+            disables itself under the keyboard, and stays discoverable this way. */}
         <button
           type="button"
           className="pp-btn pp-btn--icon"
           aria-label={`Show resolved (${resolvedCount})`}
+          title={`Show resolved (${resolvedCount})`}
           aria-pressed={showResolved}
-          disabled={resolvedCount === 0 && !showResolved}
-          onClick={onToggleShowResolved}
+          aria-disabled={resolvedUnavailable}
+          onClick={() => {
+            if (!resolvedUnavailable) onToggleShowResolved();
+          }}
         >
           <Icon name="checkCircle" />
         </button>

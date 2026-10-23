@@ -33,6 +33,9 @@ interface OverlayProps {
   path?: string;
 }
 
+/** U+00A0, appended to repeat an identical live-region message. */
+const NO_BREAK_SPACE = String.fromCharCode(0xa0);
+
 type OpenPopover =
   | { kind: "composer"; anchor: PinAnchor; number: number; key: number }
   | { kind: "thread"; pinId: string };
@@ -56,10 +59,18 @@ export function Overlay({ host, client, token, branch, path: pathOverride }: Ove
   const [showPins, setShowPins] = useState(true);
   const [showResolved, setShowResolved] = useState(false);
   const [announcement, setAnnouncement] = useState("");
+  // A live region only speaks when its text changes, so a repeat of the same
+  // message ("Reply sent." twice) toggles a trailing no-break space.
+  const announce = useCallback(
+    (text: string) =>
+      setAnnouncement((previous) => (previous === text ? text + NO_BREAK_SPACE : text)),
+    [],
+  );
   const commentButtonRef = useRef<HTMLButtonElement>(null);
   const deepLinkHandled = useRef(false);
   const focusToolbar = useCallback(() => commentButtonRef.current, []);
   const popover = useClosable<OpenPopover>(EXIT_DURATION_MS, focusToolbar);
+  const latestPopover = useLatest({ value: popover.value, closing: popover.closing });
 
   const openDeepLinkedPin = (pins: Pin[]) => {
     if (deepLinkHandled.current) return;
@@ -68,7 +79,7 @@ export function Overlay({ host, client, token, branch, path: pathOverride }: Ove
     if (!pinId) return;
     const pin = pins.find((candidate) => candidate.id === pinId);
     if (!pin) {
-      setAnnouncement("The linked comment is not on this page.");
+      announce("The linked comment is not on this page.");
       return;
     }
     if (pin.resolved) setShowResolved(true);
@@ -116,7 +127,7 @@ export function Overlay({ host, client, token, branch, path: pathOverride }: Ove
     const next = !commentMode;
     if (next && popover.value) popover.close({ restoreFocus: false });
     setCommentMode(next);
-    setAnnouncement(
+    announce(
       next
         ? "Comment mode on. Click an element, or use Tab or arrow keys and press Enter."
         : "Comment mode off.",
@@ -131,7 +142,7 @@ export function Overlay({ host, client, token, branch, path: pathOverride }: Ove
     } else if (commentMode) {
       event.stopPropagation();
       setCommentMode(false);
-      setAnnouncement("Comment mode off.");
+      announce("Comment mode off.");
       commentButtonRef.current?.focus();
     }
   });
@@ -142,7 +153,7 @@ export function Overlay({ host, client, token, branch, path: pathOverride }: Ove
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [handleEscape]);
 
-  const submitComment = async (anchor: PinAnchor, values: ComposerValues) => {
+  const submitComment = async (composerKey: number, anchor: PinAnchor, values: ComposerValues) => {
     rememberName(values.author);
     const screenshot = await captureViewport({
       exclude: host,
@@ -158,19 +169,24 @@ export function Overlay({ host, client, token, branch, path: pathOverride }: Ove
       screenshot,
       context: { viewport: viewportSize(), userAgent: navigator.userAgent },
     });
-    setAnnouncement(`Comment by ${pin.author} posted.`);
-    popover.close();
+    announce(`Comment by ${pin.author} posted.`);
+    // Screenshot + request can take seconds. If the reviewer cancelled, or opened
+    // a pin or comment mode meanwhile, do not close (or steal focus from) that.
+    const latest = latestPopover.current;
+    if (latest.value?.kind === "composer" && latest.value.key === composerKey && !latest.closing) {
+      popover.close();
+    }
   };
 
   const replyTo = async (pinId: string, values: ReplyValues) => {
     rememberName(values.author);
     await pinsApi.addReply({ pinId, author: values.author, body: values.body });
-    setAnnouncement("Reply sent.");
+    announce("Reply sent.");
   };
 
   const resolve = async (pinId: string) => {
     await pinsApi.resolvePin({ pinId, author: reviewerName || "Anonymous" });
-    setAnnouncement("Comment resolved.");
+    announce("Comment resolved.");
   };
 
   const openThread = (pinId: string, trigger: HTMLElement) => {
@@ -219,7 +235,7 @@ export function Overlay({ host, client, token, branch, path: pathOverride }: Ove
             anchor={badgeRect(composerPosition)}
             closing={popover.closing}
             defaultName={reviewerName}
-            onSubmit={(values) => submitComment(current.anchor, values)}
+            onSubmit={(values) => submitComment(current.key, current.anchor, values)}
             onClose={popover.close}
           />
         </>

@@ -24,6 +24,8 @@ export const WIDGET_CSS = /* css */ `
   --pp-text-muted: #5f5f5a;
   --pp-border: rgb(24 24 26 / 0.08);
   --pp-border-strong: rgb(24 24 26 / 0.18);
+  /* Form-control boundaries need 3:1 against the surface (WCAG 1.4.11). */
+  --pp-border-input: #8c8c86;
   --pp-danger: #b42318;
   --pp-danger-soft: rgb(180 35 24 / 0.1);
   --pp-inverse: #18181a;
@@ -84,6 +86,7 @@ export const WIDGET_CSS = /* css */ `
     --pp-text-muted: #a3a39c;
     --pp-border: rgb(255 255 255 / 0.08);
     --pp-border-strong: rgb(255 255 255 / 0.18);
+    --pp-border-input: #7a7a76;
     --pp-danger: #ff8f85;
     --pp-danger-soft: rgb(255 143 133 / 0.14);
     --pp-inverse: #f4f4f2;
@@ -97,6 +100,10 @@ export const WIDGET_CSS = /* css */ `
 .pp-root *::before,
 .pp-root *::after {
   box-sizing: border-box;
+}
+
+.pp-root [hidden] {
+  display: none !important;
 }
 
 .pp-sr-only {
@@ -145,9 +152,19 @@ export const WIDGET_CSS = /* css */ `
 .pp-btn:focus-visible,
 .pp-input:focus-visible,
 .pp-choice input:focus-visible + span,
-.pp-pin:focus-visible .pp-pin__badge {
+.pp-pin:focus-visible .pp-pin__badge,
+.pp-root a:focus-visible {
   outline: 2px solid var(--pp-accent);
   outline-offset: 2px;
+}
+
+.pp-root a {
+  color: var(--pp-accent);
+  border-radius: var(--pp-radius-sm);
+}
+
+.pp-screenshot-link {
+  display: block;
 }
 
 .pp-btn:disabled,
@@ -180,8 +197,12 @@ export const WIDGET_CSS = /* css */ `
   background: var(--pp-surface-2);
 }
 
-.pp-btn--secondary:hover:not(:disabled) {
+.pp-btn--secondary:hover:not(:disabled, [aria-disabled="true"]) {
   background: var(--pp-surface-3);
+}
+
+.pp-btn--danger {
+  color: var(--pp-danger);
 }
 
 .pp-btn[aria-pressed="true"]:not(.pp-btn--toggle-primary) {
@@ -223,9 +244,9 @@ export const WIDGET_CSS = /* css */ `
 .pp-count {
   display: inline-grid;
   place-items: center;
-  min-width: 22px;
-  height: 22px;
-  padding: 0 6px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 var(--pp-space-2);
   border-radius: var(--pp-radius-pill);
   background: var(--pp-accent-soft);
   color: var(--pp-accent);
@@ -233,15 +254,16 @@ export const WIDGET_CSS = /* css */ `
   font-variant-numeric: tabular-nums;
 }
 
+/* Inverted chip: white-on-tinted-orange measured 3.6:1 in light mode. */
 .pp-btn[aria-pressed="true"] .pp-count {
-  background: rgb(255 255 255 / 0.22);
-  color: inherit;
+  background: var(--pp-on-accent);
+  color: var(--pp-accent);
 }
 
 .pp-skeleton {
   display: inline-block;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border-radius: var(--pp-radius-pill);
   background: var(--pp-surface-3);
   animation: pp-pulse 1.2s ease-in-out infinite;
@@ -257,7 +279,7 @@ export const WIDGET_CSS = /* css */ `
 .pp-branch {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--pp-space-2);
   max-width: 160px;
   min-height: 44px;
   padding: 0 var(--pp-space-2);
@@ -284,8 +306,30 @@ export const WIDGET_CSS = /* css */ `
 @media (max-width: 479px) {
   .pp-branch,
   .pp-divider--branch,
-  .pp-label-wide {
+  .pp-status-error .pp-icon {
     display: none;
+  }
+
+  /* Visually hidden, but still read by the alert (display: none would mute it). */
+  .pp-label-wide {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .pp-status-error {
+    padding-left: 0;
+  }
+}
+
+/* Keeps the error state (retry button added) inside a 320px viewport. */
+@media (max-width: 359px) {
+  .pp-toolbar .pp-btn:not(.pp-btn--icon) {
+    padding: 0 var(--pp-space-3);
   }
 }
 
@@ -324,14 +368,14 @@ export const WIDGET_CSS = /* css */ `
 
 .pp-bubble ol {
   margin-bottom: 0;
-  padding-left: 18px;
+  padding-left: var(--pp-space-5);
 }
 
 .pp-kbd {
   display: inline-block;
   min-width: 20px;
-  padding: 1px 5px;
-  border-radius: 5px;
+  padding: 0 var(--pp-space-1);
+  border-radius: 4px;
   background: rgb(127 127 127 / 0.28);
   font: 500 var(--pp-text-xs) / 1.4 var(--pp-mono);
   text-align: center;
@@ -355,11 +399,12 @@ export const WIDGET_CSS = /* css */ `
   position: absolute;
   bottom: calc(100% + 4px);
   left: -2px;
-  padding: 2px 6px;
+  padding: 0 var(--pp-space-2);
   border-radius: 6px;
   background: var(--pp-accent);
   color: var(--pp-on-accent);
-  font: 600 11px / 1.4 var(--pp-mono);
+  /* 20px line + 4px offset = HoverOutline's 24px LABEL_SPACE. */
+  font: 600 var(--pp-text-xs) / 20px var(--pp-mono);
   white-space: nowrap;
 }
 
@@ -419,7 +464,9 @@ export const WIDGET_CSS = /* css */ `
   color: var(--pp-accent);
 }
 
+/* Grey fill alone is about 1.2:1 against a white page; the rim keeps 3:1. */
 .pp-pin--resolved .pp-pin__badge {
+  border-color: var(--pp-text-muted);
   background: var(--pp-surface-3);
   color: var(--pp-text-muted);
 }
@@ -449,6 +496,8 @@ export const WIDGET_CSS = /* css */ `
   flex-direction: column;
   gap: var(--pp-space-3);
   max-height: min(560px, calc(100vh - 24px));
+  /* dvh tracks mobile browser chrome, so the panel never hides beneath it. */
+  max-height: min(560px, calc(100dvh - 24px));
   overflow: auto;
   overscroll-behavior: contain;
   padding: var(--pp-space-4);
@@ -487,7 +536,8 @@ export const WIDGET_CSS = /* css */ `
 }
 
 .pp-popover__close {
-  margin: -6px -8px -6px 0;
+  margin: calc(-1 * var(--pp-space-2)) calc(-1 * var(--pp-space-2))
+    calc(-1 * var(--pp-space-2)) 0;
 }
 
 .pp-number {
@@ -514,7 +564,7 @@ export const WIDGET_CSS = /* css */ `
 .pp-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--pp-space-2);
   margin: 0;
   padding: 0;
   border: 0;
@@ -529,7 +579,7 @@ export const WIDGET_CSS = /* css */ `
 }
 
 legend.pp-label {
-  margin-bottom: 6px;
+  margin-bottom: var(--pp-space-2);
 }
 
 .pp-label__hint {
@@ -540,8 +590,8 @@ legend.pp-label {
 .pp-input {
   width: 100%;
   min-height: 44px;
-  padding: 10px 12px;
-  border: 1px solid var(--pp-border-strong);
+  padding: var(--pp-space-2) var(--pp-space-3);
+  border: 1px solid var(--pp-border-input);
   border-radius: var(--pp-radius-md);
   background: var(--pp-surface);
   color: var(--pp-text);
@@ -593,8 +643,8 @@ textarea.pp-input {
 .pp-choices {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 2px;
-  padding: 2px;
+  gap: var(--pp-space-1);
+  padding: var(--pp-space-1);
   border-radius: var(--pp-radius-md);
   background: var(--pp-surface-2);
 }
@@ -615,7 +665,7 @@ textarea.pp-input {
   display: grid;
   place-items: center;
   min-height: 44px;
-  border-radius: 12px;
+  border-radius: 10px;
   color: var(--pp-text-muted);
   font-size: var(--pp-text-sm);
   font-weight: 500;
@@ -630,10 +680,14 @@ textarea.pp-input {
   transform: scale(0.97);
 }
 
+/* Selection is shown by rim and weight, not by a near-identical fill alone. */
 .pp-choice input:checked + span {
   background: var(--pp-surface);
   color: var(--pp-text);
-  box-shadow: var(--pp-shadow-1);
+  font-weight: 600;
+  box-shadow:
+    var(--pp-shadow-1),
+    inset 0 0 0 1px var(--pp-border-input);
 }
 
 .pp-actions {
@@ -648,7 +702,7 @@ textarea.pp-input {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: var(--pp-space-2);
   color: var(--pp-text-muted);
   font-size: var(--pp-text-xs);
 }
@@ -693,6 +747,12 @@ textarea.pp-input {
   font-size: var(--pp-text-md);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+@media (max-width: 479px) {
+  .pp-message__body {
+    font-size: var(--pp-text-lg);
+  }
 }
 
 .pp-replies {
@@ -795,6 +855,7 @@ textarea.pp-input {
 
 @media (prefers-reduced-motion: reduce) {
   .pp-root *,
+  .pp-root *::before,
   .pp-root *::after {
     transition-duration: 1ms !important;
   }

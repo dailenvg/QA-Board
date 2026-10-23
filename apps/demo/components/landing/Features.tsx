@@ -18,7 +18,7 @@ export function Features() {
           title="Precise by design, quiet by default."
           lead="Built for agencies and product teams who review a lot of previews and want feedback they can act on without a meeting."
         />
-        <Reveal className="mt-16 grid gap-5 sm:grid-cols-2 xl:grid-cols-3" stagger={0.06}>
+        <Reveal className="mt-16 grid gap-6 sm:grid-cols-2 xl:grid-cols-3" stagger={0.06}>
           {FEATURES.map((feature) => (
             <FeatureCard key={feature.title} feature={feature} />
           ))}

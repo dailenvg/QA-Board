@@ -6,6 +6,12 @@ import type { Billing, Plan } from "@/lib/site";
 import { ButtonLink } from "../ui/ButtonLink";
 import { Icon } from "../ui/Icon";
 
+/**
+ * Inverted card. The accent focus ring is about 2:1 on this surface in dark mode
+ * (light ink), so focus inside the card uses the paper colour instead.
+ */
+const FEATURED_SURFACE = "bg-ink text-paper shadow-lift ring-ink [&_:focus-visible]:outline-paper";
+
 interface PricingCardProps {
   plan: Plan;
   billing: Billing;
@@ -24,11 +30,11 @@ export function PricingCard({ plan, billing }: PricingCardProps) {
       data-testid={`pricing-card-${plan.id}`}
       aria-labelledby={`plan-${plan.id}`}
       className={`relative flex flex-col rounded-card p-8 ring-1 lg:p-10 ${
-        featured ? "bg-ink text-paper shadow-lift ring-ink" : "bg-raised shadow-soft ring-rule"
+        featured ? FEATURED_SURFACE : "bg-raised shadow-soft ring-rule"
       }`}
     >
       {featured ? (
-        <p className="label-caps absolute top-8 right-8 rounded-control bg-accent px-3 py-1.5 text-on-accent">
+        <p className="label-caps absolute top-8 right-8 rounded-control bg-accent px-3 py-2 text-on-accent">
           Popular
         </p>
       ) : null}
