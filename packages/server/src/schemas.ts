@@ -14,15 +14,15 @@ const isoDate = z.iso.datetime({ offset: true });
 
 /**
  * A single leading slash, then no whitespace, backslashes or control
- * characters. `//host` and `/\host` would read as protocol-relative URLs.
+ * characters (C0 and C1, via `\p{Cc}`). `//host` and `/\host` would read as
+ * protocol-relative URLs.
  */
 export const pathSchema = z
   .string()
   .min(1)
   .max(2048)
   .regex(
-    // eslint-disable-next-line no-control-regex -- control characters are exactly what is rejected
-    /^\/(?![/\\])[^\s\\\u0000-\u001f\u007f]*$/,
+    /^\/(?![/\\])[^\s\\\p{Cc}]*$/u,
     "Path must start with a single / and contain no whitespace, backslashes or control characters",
   );
 

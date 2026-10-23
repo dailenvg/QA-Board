@@ -36,6 +36,16 @@ describe("buildDeepLink", () => {
     },
   );
 
+  it.each(["/..//evil.example", "/./..//evil.example", "/a/../..//evil.example"])(
+    "collapses dot segments in %s so the pathname never starts with //",
+    (path) => {
+      const link = new URL(buildDeepLink(ORIGIN, path, PAGE, "p1"));
+      expect(link.origin).toBe(ORIGIN);
+      expect(link.pathname.startsWith("//")).toBe(false);
+      expect(link.pathname).toBe("/evil.example");
+    },
+  );
+
   it("ignores any query or hash embedded in the path", () => {
     const link = buildDeepLink(ORIGIN, "/pricing?pin=forged#x", PAGE, "p1");
     expect(link).toBe("https://feature-x.preview.app/pricing?plan=pro&pin=p1");

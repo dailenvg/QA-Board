@@ -19,6 +19,9 @@ export function buildDeepLink(
   const page = new URL(pageUrl);
   const link = new URL(origin);
   link.pathname = path.split(/[?#]/, 1)[0] ?? "/";
+  // Dot segments can normalise to a `//x` path (`/..//x`); a host app that
+  // redirects such paths would turn it into an open redirect, so collapse them.
+  link.pathname = link.pathname.replace(/^\/+/, "/");
   link.search = "";
   link.hash = "";
   for (const [key, value] of page.searchParams) {
