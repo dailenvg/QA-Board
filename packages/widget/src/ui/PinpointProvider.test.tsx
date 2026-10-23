@@ -26,9 +26,12 @@ function shadowText(): string {
   return host()?.shadowRoot?.textContent ?? "";
 }
 
+/** Lets effects, the lazy overlay import, and client promises all resolve. */
 async function settle(): Promise<void> {
   await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    for (let tick = 0; tick < 5; tick += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
   });
 }
 
@@ -87,9 +90,8 @@ describe("PinpointProvider", () => {
     storeToken("remembered");
     const { client, listPins } = spyClient();
     render(<PinpointProvider enabled client={client} />);
-    await settle();
 
-    expect(listPins).toHaveBeenCalledWith("remembered", { path: "/" });
+    await waitFor(() => expect(listPins).toHaveBeenCalledWith("remembered", { path: "/" }));
   });
 
   it("captures the token, strips it, and loads pins for the page", async () => {
@@ -98,10 +100,9 @@ describe("PinpointProvider", () => {
       vi.fn<PinpointClient["listPins"]>().mockResolvedValue([pinFixture({ path: "/pricing" })]),
     );
     render(<PinpointProvider enabled client={client} branch="feat/pins" />);
-    await settle();
 
+    await waitFor(() => expect(listPins).toHaveBeenCalledWith("tok", { path: "/pricing" }));
     expect(window.location.search).toBe("");
-    expect(listPins).toHaveBeenCalledWith("tok", { path: "/pricing" });
     expect(host()?.shadowRoot).toBeTruthy();
     await waitFor(() => expect(shadowText()).toContain("1 open comment on this page"));
     expect(shadowText()).toContain("feat/pins");
@@ -113,9 +114,8 @@ describe("PinpointProvider", () => {
       vi.fn<PinpointClient["listPins"]>().mockRejectedValue(new PinpointUnauthorizedError()),
     );
     render(<PinpointProvider enabled client={client} />);
-    await settle();
 
-    expect(listPins).toHaveBeenCalledOnce();
+    await waitFor(() => expect(listPins).toHaveBeenCalledOnce());
     await waitFor(() => expect(host()).toBeNull());
     expect(localStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
   });
@@ -127,12 +127,14 @@ describe("PinpointProvider", () => {
       .mockRejectedValueOnce(new Error("Network down"))
       .mockResolvedValue([]);
     render(<PinpointProvider enabled client={spyClient(listPins).client} />);
-    await settle();
 
-    const retry = host()?.shadowRoot?.querySelector<HTMLButtonElement>(
-      'button[aria-label="Retry loading comments"]',
-    );
-    expect(retry).toBeTruthy();
+    const retry = await waitFor(() => {
+      const button = host()?.shadowRoot?.querySelector<HTMLButtonElement>(
+        'button[aria-label="Retry loading comments"]',
+      );
+      expect(button).toBeTruthy();
+      return button;
+    });
     act(() => retry?.click());
     await settle();
     expect(listPins).toHaveBeenCalledTimes(2);

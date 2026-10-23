@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { PinpointWidget, type PinpointWidgetProps } from "./PinpointWidget";
+import type { PinpointWidgetProps } from "./PinpointWidget";
+import { WidgetLoader } from "./WidgetLoader";
 
 export interface PinpointProviderProps extends PinpointWidgetProps {
   children?: ReactNode;
@@ -12,7 +13,10 @@ export interface PinpointProviderProps extends PinpointWidgetProps {
   enabled?: boolean;
 }
 
-/** Wraps the app and mounts the feedback overlay when enabled. */
+/**
+ * Wraps the app. A tiny shell: the overlay itself is code-split and only
+ * downloaded when `enabled` is true and a valid review token is present.
+ */
 export function PinpointProvider({
   children,
   enabled = false,
@@ -21,7 +25,7 @@ export function PinpointProvider({
   return (
     <>
       {children}
-      {enabled ? <PinpointWidget {...widgetProps} /> : null}
+      {enabled ? <WidgetLoader {...widgetProps} /> : null}
     </>
   );
 }

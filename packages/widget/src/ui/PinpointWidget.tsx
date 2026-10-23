@@ -3,7 +3,6 @@ import { createHttpClient } from "../core/api-client";
 import type { PinpointClient } from "../core/client";
 import { Overlay } from "./Overlay";
 import { ShadowPortal } from "./ShadowPortal";
-import { useReviewToken } from "./hooks/use-review-token";
 
 export interface PinpointWidgetProps {
   /** Custom transport, e.g. `createMemoryClient()`. Takes precedence over `endpoint`. */
@@ -16,15 +15,27 @@ export interface PinpointWidgetProps {
   path?: string;
 }
 
-/** Token gate: renders nothing, and makes no requests, until a review token exists. */
-export function PinpointWidget({ client, endpoint, branch = null, path }: PinpointWidgetProps) {
-  const token = useReviewToken();
+interface LoadedWidgetProps extends PinpointWidgetProps {
+  /** A captured, non-expired review token; `WidgetLoader` only renders this with one. */
+  token: string;
+}
+
+/**
+ * The full overlay (shadow root, styles, toolbar, pins, popovers). Loaded on
+ * demand by `WidgetLoader`, so pages without a review token never download it.
+ */
+export function PinpointWidget({
+  token,
+  client,
+  endpoint,
+  branch = null,
+  path,
+}: LoadedWidgetProps) {
   const resolvedClient = useMemo(
     () => client ?? createHttpClient(endpoint === undefined ? {} : { endpoint }),
     [client, endpoint],
   );
 
-  if (!token) return null;
   return (
     <ShadowPortal>
       {(host) => (

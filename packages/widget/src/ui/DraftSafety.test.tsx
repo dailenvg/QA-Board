@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { HOST_TAG } from "../core/host";
 import { storeToken } from "../core/token";
@@ -33,7 +33,9 @@ async function openComposer(): Promise<HTMLTextAreaElement> {
       </main>
     </PinpointProvider>,
   );
-  await wait(10);
+  await waitFor(() =>
+    expect(document.querySelector(HOST_TAG)?.shadowRoot?.querySelector(".pp-count")).toBeTruthy(),
+  );
   act(() => query("button.pp-btn--toggle-primary")?.click());
   press("ArrowDown");
   press("Enter");
