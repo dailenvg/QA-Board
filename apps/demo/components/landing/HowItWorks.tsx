@@ -27,7 +27,7 @@ export function HowItWorks() {
               className="flex flex-col gap-6 bg-raised p-8 lg:p-10"
             >
               <div className="flex items-center justify-between">
-                <span className="grid size-12 place-items-center rounded-2xl bg-accent-soft text-accent">
+                <span className="grid size-12 place-items-center rounded-tile bg-accent-soft text-accent">
                   <Icon name={step.icon} className="size-6" />
                 </span>
                 <span className="font-display text-h3 text-muted">0{index + 1}</span>

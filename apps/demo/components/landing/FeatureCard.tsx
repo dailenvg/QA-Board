@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "motion/react";
-import { lift, useRevealVariants } from "@/lib/motion";
+import { hoverLift, useRevealVariants } from "@/lib/motion";
 import type { Feature } from "@/lib/site";
 import { Icon } from "../ui/Icon";
 
@@ -16,10 +16,10 @@ export function FeatureCard({ feature }: FeatureCardProps) {
   return (
     <motion.article
       variants={variants}
-      {...(reduce ? {} : lift)}
+      {...(reduce ? {} : hoverLift)}
       className="rounded-card bg-raised p-8 shadow-soft ring-1 ring-rule"
     >
-      <span className="grid size-11 place-items-center rounded-xl bg-paper text-accent ring-1 ring-rule">
+      <span className="grid size-11 place-items-center rounded-tile bg-paper text-accent ring-1 ring-rule">
         <Icon name={feature.icon} />
       </span>
       <h3 className="mt-8 text-lead font-semibold">{feature.title}</h3>

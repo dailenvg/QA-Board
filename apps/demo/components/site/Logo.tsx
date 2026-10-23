@@ -10,7 +10,7 @@ export function Logo() {
     >
       <span
         aria-hidden="true"
-        className="grid size-8 place-items-center rounded-[16px_16px_16px_4px] bg-accent text-label font-sans font-bold text-on-accent"
+        className="grid size-8 place-items-center rounded-pin bg-accent text-label font-sans font-bold text-on-accent"
       >
         p
       </span>

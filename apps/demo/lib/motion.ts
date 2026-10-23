@@ -27,10 +27,9 @@ export const press = {
   transition: spring.snappy,
 } as const;
 
-/** Micro-interactions for cards. */
-export const lift = {
-  whileHover: { scale: 1.02 },
-  whileTap: { scale: 0.98 },
+/** Hover feedback for non-interactive cards: a subtle lift, no press state. */
+export const hoverLift = {
+  whileHover: { y: -4 },
   transition: spring.soft,
 } as const;
 

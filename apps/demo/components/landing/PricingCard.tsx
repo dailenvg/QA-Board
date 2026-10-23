@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { duration, ease, lift, useRevealVariants } from "@/lib/motion";
+import { duration, ease, hoverLift, useRevealVariants } from "@/lib/motion";
 import type { Billing, Plan } from "@/lib/site";
 import { ButtonLink } from "../ui/ButtonLink";
 import { Icon } from "../ui/Icon";
@@ -26,7 +26,7 @@ export function PricingCard({ plan, billing }: PricingCardProps) {
   return (
     <motion.article
       variants={variants}
-      {...(reduce ? {} : lift)}
+      {...(reduce ? {} : hoverLift)}
       data-testid={`pricing-card-${plan.id}`}
       aria-labelledby={`plan-${plan.id}`}
       className={`relative flex flex-col rounded-card p-8 ring-1 lg:p-10 ${
@@ -45,7 +45,7 @@ export function PricingCard({ plan, billing }: PricingCardProps) {
         {plan.description}
       </p>
 
-      <div className="mt-10 flex h-20 items-end gap-3" aria-live="polite">
+      <div className="mt-10 flex h-20 items-end gap-3">
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.span
             key={`${plan.id}-${billing}`}
@@ -63,7 +63,7 @@ export function PricingCard({ plan, billing }: PricingCardProps) {
         </span>
       </div>
 
-      <ul className="mt-8 flex-1 space-y-3 border-t border-current/15 pt-8 text-small">
+      <ul className="mt-8 flex-1 space-y-3 border-t border-current/15 pt-8 text-body sm:text-small">
         {plan.features.map((feature) => (
           <li key={feature} className="flex gap-3">
             <Icon name="check" className="mt-0.5 size-4 shrink-0 text-accent" />
@@ -73,7 +73,8 @@ export function PricingCard({ plan, billing }: PricingCardProps) {
       </ul>
 
       <ButtonLink
-        href="#faq"
+        href={plan.href}
+        external={plan.external === true}
         variant={featured ? "primary" : "secondary"}
         className="mt-10 w-full"
         testId={`pricing-cta-${plan.id}`}

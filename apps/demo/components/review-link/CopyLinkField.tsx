@@ -24,6 +24,8 @@ export function CopyLinkField({ url }: CopyLinkFieldProps) {
   const inputId = useId();
   const [state, setState] = useState<CopyState>("idle");
   const timer = useRef<number | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const hintId = useId();
   const reduce = useReducedMotion();
 
   useEffect(
@@ -34,14 +36,18 @@ export function CopyLinkField({ url }: CopyLinkFieldProps) {
   );
 
   const copy = async () => {
+    if (timer.current !== null) window.clearTimeout(timer.current);
     try {
       await navigator.clipboard.writeText(url);
       setState("copied");
+      timer.current = window.setTimeout(() => setState("idle"), RESET_MS);
     } catch {
+      // Clipboard access can be denied (permissions, insecure context). Select the
+      // text so a manual copy is one keystroke away; the hint stays until the next try.
       setState("error");
+      inputRef.current?.focus();
+      inputRef.current?.select();
     }
-    if (timer.current !== null) window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setState("idle"), RESET_MS);
   };
 
   const label = LABELS[state];
@@ -53,12 +59,14 @@ export function CopyLinkField({ url }: CopyLinkFieldProps) {
       </label>
       <div className="mt-3 flex flex-col gap-3 sm:flex-row">
         <input
+          ref={inputRef}
           id={inputId}
+          aria-describedby={state === "error" ? hintId : undefined}
           data-testid="review-link-url"
           readOnly
           value={url}
           onFocus={(event) => event.currentTarget.select()}
-          className="min-h-12 flex-1 rounded-2xl bg-raised px-4 font-mono text-small ring-1 ring-rule-strong ring-inset focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+          className="min-h-12 flex-1 rounded-tile bg-raised px-4 font-mono text-small ring-1 ring-rule-strong ring-inset focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
         />
         <motion.button
           type="button"
@@ -85,11 +93,16 @@ export function CopyLinkField({ url }: CopyLinkFieldProps) {
           </AnimatePresence>
         </motion.button>
       </div>
+      {state === "error" ? (
+        <p id={hintId} className="mt-3 text-small text-muted" data-testid="copy-fallback-hint">
+          Copying was blocked. The link is selected: press Ctrl/⌘+C to copy.
+        </p>
+      ) : null}
       <p aria-live="polite" className="sr-only">
         {state === "copied"
           ? "Link copied to clipboard"
           : state === "error"
-            ? "Could not copy the link"
+            ? "Could not copy automatically. The link is selected; press Control or Command plus C to copy."
             : ""}
       </p>
       <a

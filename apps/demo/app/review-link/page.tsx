@@ -33,7 +33,7 @@ export default async function ReviewLinkPage() {
           <CopyLinkField url={url} />
         ) : (
           <p
-            role="alert"
+            role="status"
             className="mt-10 flex gap-3 rounded-card bg-accent-soft p-6 text-body"
             data-testid="review-link-missing-token"
           >

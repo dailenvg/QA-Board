@@ -88,8 +88,11 @@
   --spacing-section: clamp(5rem, 3.5rem + 6vw, 10rem);
   --spacing-gutter: clamp(1.25rem, 0.75rem + 2.5vw, 3rem);
 
+  /* Radius scale: cards, inner tiles and fields, pill controls, and the pin glyph. */
   --radius-card: 1.75rem;
+  --radius-tile: 0.875rem;
   --radius-control: 999px;
+  --radius-pin: 1rem 1rem 1rem 0.25rem;
 
   --breakpoint-3xl: 96rem;
 }

@@ -86,8 +86,14 @@ export interface Plan {
   cadence: Record<Billing, string>;
   features: readonly string[];
   cta: string;
+  href: string;
+  external?: boolean;
   featured?: boolean;
 }
+
+/** Anchor of the contact block in the site footer. */
+export const CONTACT_ID = "contact";
+export const CONTACT_EMAIL = "hello@pinpoint.example";
 
 export const PLANS: readonly Plan[] = [
   {
@@ -98,6 +104,8 @@ export const PLANS: readonly Plan[] = [
     cadence: { monthly: "forever", yearly: "forever" },
     features: ["Unlimited pins and reviewers", "GitHub or Postgres storage", "MIT licensed"],
     cta: "Deploy it",
+    href: `${SITE.repoUrl}#quick-start`,
+    external: true,
   },
   {
     id: "team",
@@ -112,6 +120,7 @@ export const PLANS: readonly Plan[] = [
       "Priority support",
     ],
     cta: "Start a trial",
+    href: `#${CONTACT_ID}`,
     featured: true,
   },
   {
@@ -122,6 +131,7 @@ export const PLANS: readonly Plan[] = [
     cadence: { monthly: "talk to us", yearly: "talk to us" },
     features: ["Everything in Team", "SAML single sign-on", "Audit log export", "Uptime SLA"],
     cta: "Contact sales",
+    href: `#${CONTACT_ID}`,
   },
 ];
 

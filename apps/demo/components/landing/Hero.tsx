@@ -20,7 +20,7 @@ export function Hero() {
         className="grid-paper absolute inset-0 -z-10 [mask-image:radial-gradient(ellipse_at_top,black_20%,transparent_70%)]"
       />
       <div className="container-page grid items-center gap-16 pt-16 pb-section lg:grid-cols-[1.1fr_1fr] lg:pt-24">
-        <motion.div initial="hidden" animate="visible" variants={staggerGroup(0.09, 0.15)}>
+        <motion.div initial="hidden" animate="visible" variants={staggerGroup(0.06, 0.08)}>
           <motion.p variants={item} className="label-caps flex items-center gap-3 text-accent">
             <Icon name="pin" className="size-4" />
             Open source · Self-hosted
@@ -61,7 +61,7 @@ export function Hero() {
           data-testid="hero-illustration"
           initial={{ opacity: 0, y: reduce ? 0 : 32, scale: reduce ? 1 : 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: duration.page, ease: ease.out, delay: reduce ? 0 : 0.3 }}
+          transition={{ duration: duration.page, ease: ease.out, delay: reduce ? 0 : 0.2 }}
         >
           <HeroIllustration />
         </motion.div>
