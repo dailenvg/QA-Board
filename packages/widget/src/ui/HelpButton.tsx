@@ -1,5 +1,8 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Icon } from "./Icon";
+
+/** Marks the help tooltip so Escape handling elsewhere can defer to it while it is open. */
+export const HELP_OPEN_ATTRIBUTE = "data-pp-help";
 
 interface HelpButtonProps {
   branch: string | null;
@@ -22,6 +25,20 @@ export function HelpButton({ branch }: HelpButtonProps) {
     setPinned(false);
     setDismissed(true);
   };
+
+  // Escape closes the tooltip wherever focus is (it can be open on hover alone).
+  // The overlay's own Escape handler stands aside while this is open.
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      setPinned(false);
+      setDismissed(true);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [open]);
 
   return (
     <>
@@ -46,16 +63,17 @@ export function HelpButton({ branch }: HelpButtonProps) {
           setPinned(false);
           setDismissed(false);
         }}
-        onKeyDown={(event) => {
-          if (event.key !== "Escape" || !open) return;
-          event.stopPropagation();
-          dismiss();
-        }}
       >
         <Icon name="help" />
       </button>
       {/* Always mounted so aria-describedby resolves on first focus; hidden when closed. */}
-      <div id={id} className="pp-bubble" role="tooltip" hidden={!open}>
+      <div
+        id={id}
+        className="pp-bubble pp-help"
+        role="tooltip"
+        hidden={!open}
+        {...{ [HELP_OPEN_ATTRIBUTE]: "" }}
+      >
         <p>
           <strong>Pinpoint</strong> collects feedback on this preview
           {branch ? ` (${branch})` : ""}.

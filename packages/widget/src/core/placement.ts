@@ -31,7 +31,7 @@ function pickSide(input: Required<PlacementInput>): Placement["side"] {
  * it always stays inside the viewport.
  */
 export function placePopover(input: PlacementInput): Placement {
-  const resolved: Required<PlacementInput> = { gap: 10, margin: 12, ...input };
+  const resolved: Required<PlacementInput> = { gap: 8, margin: 16, ...input };
   const { anchor, size, viewport, gap, margin } = resolved;
   const side = pickSide(resolved);
 
@@ -47,4 +47,50 @@ export function placePopover(input: PlacementInput): Placement {
     y: clamp(preferredY, margin, Math.max(margin, viewport.height - size.height - margin)),
     side,
   };
+}
+
+/** Below this width popovers become bottom sheets. */
+export const SHEET_BREAKPOINT = 480;
+/** Space between a sheet and the screen edges (and the keyboard). */
+export const SHEET_GUTTER = 8;
+
+export function isSheetViewport(width: number): boolean {
+  return width < SHEET_BREAKPOINT;
+}
+
+export interface VisualViewportLike {
+  height: number;
+  offsetTop: number;
+}
+
+export interface SheetMetrics {
+  /** Distance from the bottom of the layout viewport, clearing any on-screen keyboard. */
+  bottom: number;
+  /** Tallest the sheet may be and still fit inside the visible area. */
+  maxHeight: number;
+}
+
+/**
+ * Positions a bottom sheet inside the visual viewport. On mobile the
+ * keyboard shrinks the visual viewport but not the layout viewport that
+ * `position: fixed` uses, so the difference is lifted out of the way.
+ */
+export function sheetMetrics(
+  layoutHeight: number,
+  visual: VisualViewportLike | null,
+  gutter: number = SHEET_GUTTER,
+): SheetMetrics {
+  const visibleTop = visual?.offsetTop ?? 0;
+  const visibleHeight = visual?.height ?? layoutHeight;
+  const keyboard = Math.max(0, layoutHeight - (visibleTop + visibleHeight));
+  return { bottom: keyboard + gutter, maxHeight: Math.max(0, visibleHeight - 2 * gutter) };
+}
+
+/** Pixels to scroll so `rect` ends `gap` above `limitTop`; 0 when it already does. */
+export function scrollToClear(
+  rect: RectLike,
+  limitTop: number,
+  gap: number = SHEET_GUTTER,
+): number {
+  return Math.max(0, rect.top + rect.height + gap - limitTop);
 }

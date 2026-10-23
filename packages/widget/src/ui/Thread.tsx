@@ -38,6 +38,7 @@ export function Thread({
 }: ThreadProps) {
   const titleId = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const [resolving, setResolving] = useState(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
   const [screenshotFailed, setScreenshotFailed] = useState(false);
@@ -75,13 +76,15 @@ export function Thread({
       anchor={anchor}
       closing={closing}
       labelledBy={titleId}
+      initialFocusRef={headingRef}
       onDismiss={() => onClose({ restoreFocus: false })}
     >
       <div className="pp-popover__header">
         <span className="pp-number" aria-hidden="true">
           {number}
         </span>
-        <h2 id={titleId} className="pp-popover__title">
+        {/* Focused on open so screen readers start at the title, not at "Close". */}
+        <h2 id={titleId} ref={headingRef} tabIndex={-1} className="pp-popover__title">
           Comment {number}
         </h2>
         <button

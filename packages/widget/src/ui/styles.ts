@@ -487,7 +487,7 @@ export const WIDGET_CSS = /* css */ `
   top: 0;
   left: 0;
   z-index: 4;
-  width: min(340px, calc(100vw - 24px));
+  width: min(340px, calc(100vw - 2 * var(--pp-space-4)));
   pointer-events: auto;
 }
 
@@ -495,9 +495,9 @@ export const WIDGET_CSS = /* css */ `
   display: flex;
   flex-direction: column;
   gap: var(--pp-space-3);
-  max-height: min(560px, calc(100vh - 24px));
+  max-height: min(560px, calc(100vh - 2 * var(--pp-space-4)));
   /* dvh tracks mobile browser chrome, so the panel never hides beneath it. */
-  max-height: min(560px, calc(100dvh - 24px));
+  max-height: min(560px, calc(100dvh - 2 * var(--pp-space-4)));
   overflow: auto;
   overscroll-behavior: contain;
   padding: var(--pp-space-4);
@@ -506,6 +506,28 @@ export const WIDGET_CSS = /* css */ `
   background: var(--pp-surface);
   box-shadow: var(--pp-shadow-2);
   animation: pp-enter var(--pp-dur) var(--pp-ease) both;
+}
+
+.pp-popover[data-sheet] {
+  top: auto;
+  right: var(--pp-space-2);
+  bottom: calc(var(--pp-sheet-bottom, 8px) + env(safe-area-inset-bottom));
+  left: var(--pp-space-2);
+  width: auto;
+  transform: none;
+}
+
+.pp-popover[data-sheet] .pp-popover__panel {
+  max-height: calc(var(--pp-sheet-max, 80dvh) - env(safe-area-inset-bottom));
+  animation-name: pp-enter-up;
+}
+
+.pp-popover__title:focus {
+  outline: none;
+}
+
+.pp-root:has([data-pp-help]:not([hidden])) .pp-hint {
+  display: none;
 }
 
 .pp-popover[data-side="top"] .pp-popover__panel {
@@ -772,6 +794,11 @@ textarea.pp-input {
   background: var(--pp-surface-2);
   color: var(--pp-text-muted);
   font-size: var(--pp-text-sm);
+}
+
+.pp-notice--warning {
+  background: var(--pp-accent-soft);
+  color: var(--pp-text);
 }
 
 .pp-screenshot {

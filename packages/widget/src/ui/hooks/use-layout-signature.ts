@@ -1,13 +1,18 @@
 import { useSyncExternalStore } from "react";
 import { createFrameScheduler } from "../../core/frame-scheduler";
 
-let version = 0;
 const listeners = new Set<() => void>();
 let stop: (() => void) | null = null;
 
+/**
+ * Attribute changes that can move or resize something: inline styles (which
+ * is how animation libraries write transforms), classes, and visibility.
+ * Everything else (aria-*, data-*, value...) is ignored.
+ */
+const LAYOUT_ATTRIBUTES = ["style", "class", "hidden", "open"];
+
 function start(): () => void {
   const scheduler = createFrameScheduler(() => {
-    version += 1;
     for (const listener of listeners) listener();
   });
   const onChange = scheduler.schedule;
@@ -22,8 +27,8 @@ function start(): () => void {
   observer.observe(document.body, {
     subtree: true,
     childList: true,
-    attributes: true,
     characterData: true,
+    attributeFilter: LAYOUT_ATTRIBUTES,
   });
   onChange();
 
@@ -38,7 +43,10 @@ function start(): () => void {
   };
 }
 
-/** Subscribes to scroll, resize, navigation, and DOM mutation, throttled to one call per frame. */
+/**
+ * Subscribes to scroll, resize, navigation and layout-relevant DOM mutation.
+ * Bursts are coalesced: listeners run at most once per animation frame.
+ */
 export function subscribeToLayout(listener: () => void): () => void {
   listeners.add(listener);
   if (listeners.size === 1) stop = start();
@@ -51,11 +59,11 @@ export function subscribeToLayout(listener: () => void): () => void {
   };
 }
 
-/** Increments whenever page layout may have changed; read it to re-resolve positions. */
-export function useLayoutVersion(): number {
-  return useSyncExternalStore(
-    subscribeToLayout,
-    () => version,
-    () => 0,
-  );
+/**
+ * Re-renders only when `measure()` returns a different string. Measure what
+ * the overlay actually draws (pin positions, the outline target, the visual
+ * viewport) so a host animation that moves nothing we show costs no render.
+ */
+export function useLayoutSignature(measure: () => string): string {
+  return useSyncExternalStore(subscribeToLayout, measure, () => "");
 }

@@ -18,6 +18,10 @@ interface ComposerProps {
   anchor: RectLike;
   closing: boolean;
   defaultName: string;
+  /** True after a first Escape on a non-empty draft; a second Escape discards. */
+  confirmDiscard: boolean;
+  /** Reports whether the draft has unsent text, so Escape can ask before discarding. */
+  onDraftChange: (hasText: boolean) => void;
   onSubmit: (values: ComposerValues) => Promise<void>;
   onClose: (options?: CloseOptions) => void;
 }
@@ -35,6 +39,8 @@ export function Composer({
   anchor,
   closing,
   defaultName,
+  confirmDiscard,
+  onDraftChange,
   onSubmit,
   onClose,
 }: ComposerProps) {
@@ -78,7 +84,9 @@ export function Composer({
   const changeBody = (value: string) => {
     setBody(value);
     setEdited((current) => ({ ...current, body: true }));
+    onDraftChange(value.trim() !== "");
   };
+  const hasDraft = body.trim() !== "";
 
   const submitOnModEnter = (event: KeyboardEvent) => {
     if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) void submit();
@@ -91,8 +99,10 @@ export function Composer({
       labelledBy={titleId}
       initialFocusRef={defaultName ? bodyRef : nameRef}
       onDismiss={() => {
-        if (body.trim() === "" && !submitting) onClose({ restoreFocus: false });
+        if (!hasDraft && !submitting) onClose({ restoreFocus: false });
       }}
+      guardOutside={hasDraft}
+      onOutsideBlocked={() => bodyRef.current?.focus({ preventScroll: true })}
     >
       <div className="pp-popover__header">
         <span className="pp-number" aria-hidden="true">
@@ -141,6 +151,12 @@ export function Composer({
           inputRef={bodyRef}
         />
         <PriorityField value={priority} onChange={setPriority} />
+
+        {confirmDiscard ? (
+          <p className="pp-notice pp-notice--warning" data-testid="pp-discard-notice">
+            Press Esc again to discard this comment.
+          </p>
+        ) : null}
 
         {submitError ? (
           <p className="pp-form-error" role="alert">

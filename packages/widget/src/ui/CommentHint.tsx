@@ -1,7 +1,7 @@
 /** Instructions shown above the toolbar while comment mode is on. */
 export function CommentHint() {
   return (
-    <div className="pp-bubble" aria-hidden="true">
+    <div className="pp-bubble pp-hint" aria-hidden="true">
       <p>
         <strong>Click or tap</strong> any element to pin a comment.
       </p>

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { subscribeToLayout } from "./use-layout-version";
+import { subscribeToLayout } from "./use-layout-signature";
 
 function getPath(): string {
   return window.location.pathname;

@@ -4,10 +4,12 @@ import type { PinpointClient } from "../core/client";
 import { cleanPageUrl, readPinParam } from "../core/deeplink";
 import { deepActiveElement, describeElement } from "../core/dom";
 import { viewportSize, type Point } from "../core/geometry";
+import { layoutSignature } from "../core/layout-signature";
 import { captureViewport } from "../core/screenshot";
 import { resolveSelector } from "../core/selector";
 import type { Pin, PinAnchor } from "../core/types";
 import { Composer, type ComposerValues } from "./Composer";
+import { HELP_OPEN_ATTRIBUTE } from "./HelpButton";
 import { HoverOutline } from "./HoverOutline";
 import { PinBadge } from "./PinBadge";
 import { Thread } from "./Thread";
@@ -17,7 +19,7 @@ import { useClosable } from "./hooks/use-closable";
 import { useCommentMode } from "./hooks/use-comment-mode";
 import { useCurrentPath } from "./hooks/use-current-path";
 import { useLatest } from "./hooks/use-latest";
-import { useLayoutVersion } from "./hooks/use-layout-version";
+import { useLayoutSignature } from "./hooks/use-layout-signature";
 import { usePins } from "./hooks/use-pins";
 import { useReducedMotion } from "./hooks/use-reduced-motion";
 import { reviewTokenStore } from "./hooks/use-review-token";
@@ -40,6 +42,11 @@ type OpenPopover =
   | { kind: "composer"; anchor: PinAnchor; number: number; key: number }
   | { kind: "thread"; pinId: string };
 
+/** The help tooltip handles its own Escape; it is checked through the shadow DOM it lives in. */
+function isHelpOpen(host: HTMLElement): boolean {
+  return host.shadowRoot?.querySelector(`[${HELP_OPEN_ATTRIBUTE}]:not([hidden])`) != null;
+}
+
 function byCreatedAt(a: Pin, b: Pin): number {
   return a.createdAt.localeCompare(b.createdAt);
 }
@@ -51,7 +58,6 @@ function pinLabel(pin: Pin, number: number, detached: boolean): string {
 
 /** Everything rendered inside the shadow root once a review token is present. */
 export function Overlay({ host, client, token, branch, path: pathOverride }: OverlayProps) {
-  useLayoutVersion();
   const path = useCurrentPath(pathOverride);
   const reducedMotion = useReducedMotion();
   const [reviewerName, rememberName] = useReviewerName();
@@ -59,6 +65,8 @@ export function Overlay({ host, client, token, branch, path: pathOverride }: Ove
   const [showPins, setShowPins] = useState(true);
   const [showResolved, setShowResolved] = useState(false);
   const [announcement, setAnnouncement] = useState("");
+  const [draftHasText, setDraftHasText] = useState(false);
+  const [discardArmed, setDiscardArmed] = useState(false);
   // A live region only speaks when its text changes, so a repeat of the same
   // message ("Reply sent." twice) toggles a trailing no-break space.
   const announce = useCallback(
@@ -111,6 +119,8 @@ export function Overlay({ host, client, token, branch, path: pathOverride }: Ove
   const startComposer = (element: Element, point: Point) => {
     const trigger = deepActiveElement();
     setCommentMode(false);
+    setDraftHasText(false);
+    setDiscardArmed(false);
     popover.open(
       {
         kind: "composer",
@@ -123,6 +133,26 @@ export function Overlay({ host, client, token, branch, path: pathOverride }: Ove
   };
   const target = useCommentMode({ active: commentMode, host, onPick: startComposer });
 
+  // Re-render on scroll, resize and DOM changes only when something drawn here
+  // actually moved: visible pins, the open popover's anchor, the outline target.
+  useLayoutSignature(() => {
+    const view = viewportSize();
+    const open = popover.value;
+    const anchors = visible.map(({ pin }) => pin.anchor);
+    if (open?.kind === "composer") anchors.push(open.anchor);
+    const threadPin = open?.kind === "thread" ? ordered.find((pin) => pin.id === open.pinId) : null;
+    if (threadPin) anchors.push(threadPin.anchor);
+    const visual = window.visualViewport;
+    return layoutSignature({
+      viewport: view,
+      visual: visual
+        ? { width: visual.width, height: visual.height, offsetTop: visual.offsetTop }
+        : null,
+      points: anchors.map((anchor) => resolveAnchor(anchor, view)),
+      rects: [target?.element.getBoundingClientRect()],
+    });
+  });
+
   const toggleCommentMode = () => {
     const next = !commentMode;
     if (next && popover.value) popover.close({ restoreFocus: false });
@@ -134,10 +164,22 @@ export function Overlay({ host, client, token, branch, path: pathOverride }: Ove
     );
   };
 
+  const updateDraft = (hasText: boolean) => {
+    setDraftHasText(hasText);
+    setDiscardArmed(false);
+  };
+
+  // Escape peels one layer at a time: help tooltip, then the open popover
+  // (asking once before discarding a non-empty draft), then comment mode.
   const handleEscape = useLatest((event: KeyboardEvent) => {
-    if (event.key !== "Escape") return;
+    if (event.key !== "Escape" || isHelpOpen(host)) return;
     if (popover.value && !popover.closing) {
       event.stopPropagation();
+      if (popover.value.kind === "composer" && draftHasText && !discardArmed) {
+        setDiscardArmed(true);
+        announce("Press Escape again to discard this comment.");
+        return;
+      }
       popover.close();
     } else if (commentMode) {
       event.stopPropagation();
@@ -235,6 +277,8 @@ export function Overlay({ host, client, token, branch, path: pathOverride }: Ove
             anchor={badgeRect(composerPosition)}
             closing={popover.closing}
             defaultName={reviewerName}
+            confirmDiscard={discardArmed}
+            onDraftChange={updateDraft}
             onSubmit={(values) => submitComment(current.key, current.anchor, values)}
             onClose={popover.close}
           />

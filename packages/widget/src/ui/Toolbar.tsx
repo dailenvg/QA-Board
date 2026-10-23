@@ -59,8 +59,9 @@ export function Toolbar({
           aria-pressed={commentMode}
           onClick={onToggleComment}
         >
-          <Icon name={commentMode ? "close" : "message"} />
-          {commentMode ? "Cancel" : "Comment"}
+          {/* Constant label: the pressed state is carried by aria-pressed and styling. */}
+          <Icon name="message" />
+          Comment
           {status === "loading" ? (
             <>
               <span className="pp-skeleton" aria-hidden="true" />
