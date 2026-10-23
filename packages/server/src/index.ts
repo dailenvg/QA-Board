@@ -23,5 +23,12 @@ export {
 } from "./storage";
 export { createMemoryStorage, type MemoryStorageOptions } from "./storage/memory-storage";
 
+export { createGitHubStorage, type GitHubStorageOptions } from "./github/github-storage";
+export {
+  createGitBranchScreenshotStore,
+  DEFAULT_ASSETS_BRANCH,
+  type GitBranchScreenshotStoreOptions,
+} from "./github/git-branch-screenshot-store";
+
 export { createPinInputSchema, pinSchema, updatePinRequestSchema } from "./schemas";
 export * from "./types";
