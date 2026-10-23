@@ -12,11 +12,19 @@ const percent = z.number().finite().min(0).max(100);
 const dimension = z.number().int().min(0).max(100_000);
 const isoDate = z.iso.datetime({ offset: true });
 
+/**
+ * A single leading slash, then no whitespace, backslashes or control
+ * characters. `//host` and `/\host` would read as protocol-relative URLs.
+ */
 export const pathSchema = z
   .string()
   .min(1)
   .max(2048)
-  .regex(/^\/[^\s]*$/, "Path must start with / and contain no whitespace");
+  .regex(
+    // eslint-disable-next-line no-control-regex -- control characters are exactly what is rejected
+    /^\/(?![/\\])[^\s\\\u0000-\u001f\u007f]*$/,
+    "Path must start with a single / and contain no whitespace, backslashes or control characters",
+  );
 
 export const nameSchema = z.string().trim().min(1).max(MAX_NAME_LENGTH);
 export const bodySchema = z.string().trim().min(1).max(MAX_BODY_LENGTH);

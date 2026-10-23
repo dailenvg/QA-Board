@@ -101,7 +101,7 @@ The demo app also ships a `/review-link` page that builds this link for you on p
 | `storage`          | required: a `StorageAdapter`                                                                               |
 | `reviewToken`      | `process.env.PINPOINT_REVIEW_TOKEN`. When missing, every request returns 500 with a configuration message. |
 | `branch`           | `VERCEL_GIT_COMMIT_REF`, else `"local"`                                                                    |
-| `deploymentUrl`    | `https://$VERCEL_URL`, else the request origin. Recorded on each pin.                                      |
+| `deploymentUrl`    | `https://$VERCEL_URL`, else `https://$VERCEL_BRANCH_URL`, else the request origin. Recorded on each pin.   |
 | `linkBaseUrl`      | `https://$VERCEL_BRANCH_URL`, else the request origin. Origin for deep links.                              |
 | `rateLimit`        | 10 POSTs per minute per IP. `false` disables it.                                                           |
 | `authFailureLimit` | 20 failed auth attempts per 10 minutes per IP, across all methods. `false` disables it.                    |
@@ -195,6 +195,7 @@ const storage = createPostgresStorage({
 - **Token handling in the browser.** The token is read from `?review=`, stored in `localStorage` for 14 days, and removed from the address bar immediately. A 401 response clears it. Visiting a review link again refreshes it.
 - **Silent without a token.** With no valid token the widget renders nothing and makes no requests. Outside preview deployments it is disabled entirely.
 - **Rate limits are per instance.** POSTs are limited to 10 per minute per IP and failed auth to 20 per 10 minutes per IP, in memory. Each serverless instance keeps its own counters and they reset on cold start, so treat them as abuse dampening, not a hard guarantee.
+- **Client IP for rate limiting** is read from the first `x-forwarded-for` entry (then `x-real-ip`). That is trustworthy on Vercel, which sets the header itself, but can be spoofed behind proxies that pass the client's value through.
 - **Untrusted input.** Payloads are validated with zod. Names and comment bodies are HTML-encoded and Markdown-escaped before they reach GitHub, and @mentions are neutralized. The hidden JSON block escapes `<`, `>` and `&`, so user text cannot terminate it. Deep links are built from the server's own origin, never from a URL the client sends. Screenshots must be a single PNG or JPEG data URL whose bytes match the declared type.
 - **Names are self-reported.** Everyone shares one token, so the author name on a pin is whatever the reviewer typed.
 

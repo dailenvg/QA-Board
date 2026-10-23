@@ -179,6 +179,35 @@ describe("POST", () => {
     expect(response.status).toBe(400);
   });
 
+  it.each(["//evil.example", "/\\evil.example/login", "/a\\b", "/tab\there"])(
+    "returns 400 for a path that could escape the origin or is malformed: %j",
+    async (path) => {
+      const { handler } = setup();
+      const response = await handler.POST(request({ method: "POST", body: createInput({ path }) }));
+      expect(response.status).toBe(400);
+      expect((await readBody<ErrorResponse>(response)).error).toContain("path");
+    },
+  );
+
+  it("rejects protocol-relative paths on GET too", async () => {
+    const { handler } = setup();
+    const response = await handler.GET(
+      request({ query: `?path=${encodeURIComponent("//evil.example")}` }),
+    );
+    expect(response.status).toBe(400);
+  });
+
+  it("accepts a normal path with a query string", async () => {
+    const { handler } = setup();
+    const response = await handler.POST(
+      request({ method: "POST", body: createInput({ path: "/pricing?x=1" }) }),
+    );
+    expect(response.status).toBe(201);
+    expect(new URL((await readBody<PinResponse>(response)).pin.deepLink).origin).toBe(
+      "https://feature-x.preview.app",
+    );
+  });
+
   it("returns 400 for invalid JSON and schema violations without echoing input", async () => {
     const { handler } = setup();
     expect((await handler.POST(request({ method: "POST", body: "{not json" }))).status).toBe(400);

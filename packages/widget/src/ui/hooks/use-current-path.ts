@@ -1,8 +1,9 @@
 import { useSyncExternalStore } from "react";
+import { normalizePagePath } from "../../core/url";
 import { subscribeToLayout } from "./use-layout-signature";
 
 function getPath(): string {
-  return window.location.pathname;
+  return normalizePagePath(window.location.pathname);
 }
 
 /**
@@ -12,5 +13,5 @@ function getPath(): string {
  */
 export function useCurrentPath(override?: string): string {
   const detected = useSyncExternalStore(subscribeToLayout, getPath, () => "/");
-  return override ?? detected;
+  return override === undefined ? detected : normalizePagePath(override);
 }

@@ -36,3 +36,13 @@ export function replaceUrl(win: Window, url: string): void {
   const state: unknown = win.history.state;
   win.history.replaceState(patched ? withoutRouterMarkers(state) : state, "", url);
 }
+
+/**
+ * Page path pins are keyed by. Browsers keep repeated leading slashes
+ * (`https://host//a` has pathname `//a`), which the server rejects because
+ * `//a` reads as a protocol-relative URL, so collapse them to one.
+ */
+export function normalizePagePath(pathname: string): string {
+  const path = pathname.replace(/^\/+/, "/");
+  return path.startsWith("/") ? path : `/${path}`;
+}
