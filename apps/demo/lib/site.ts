@@ -3,7 +3,7 @@ import type { IconName } from "@/components/ui/Icon";
 export const SITE = {
   name: "pinpoint",
   tagline: "Visual feedback for preview deployments",
-  repoUrl: "https://github.com/pinpoint-dev/pinpoint",
+  repoUrl: "https://github.com/dailenvg/QA-Board",
 } as const;
 
 export const NAV_SECTIONS = [
