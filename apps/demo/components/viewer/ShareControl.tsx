@@ -76,7 +76,8 @@ export function ShareControl({ data, project }: ShareControlProps) {
       unshareProject(project.id);
       resetSync(project.id);
     }
-    const created = await ownerApi.create(state);
+    // Just the project: the sync that follows sends everything else in batches.
+    const created = await ownerApi.create({ project: state.project, snapshots: [], comments: [] });
     setCreating(false);
     if (!created.ok) {
       setError(CREATE_FAILED);

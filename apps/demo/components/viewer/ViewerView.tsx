@@ -27,6 +27,7 @@ import { useCommentActions } from "./use-comment-actions";
 import { useViewerSurface } from "./use-viewer-surface";
 import { ViewerStage } from "./ViewerStage";
 import { ViewerTopBar } from "./ViewerTopBar";
+import type { DraftStorage } from "@/lib/share-client/draft-storage";
 import type { CommentTab, Draft, PinPoint, ScreenshotHandler } from "./types";
 
 /** One celebration: the mascot's hop plus its rest beat. */
@@ -43,6 +44,16 @@ interface ViewerViewProps {
   panelNotice?: ReactNode;
   /** Its short form, shown in the comments sheet's header on phones (visible while collapsed). */
   panelNote?: string;
+  /** Keeps an unsent draft across reloads (shared links), and warns before leaving it. */
+  draftStorage?: DraftStorage;
+}
+
+const RESTORED = "This comment wasn't sent before the page closed. Post it now, or cancel it.";
+
+/** A draft kept from before a reload, shown as unsent until it's posted. */
+function restoreDraft(storage: DraftStorage | undefined): Draft | null {
+  const stored = storage?.load();
+  return stored ? { ...stored, sending: false, error: RESTORED, crop: null } : null;
 }
 
 type ScrollRequest = { id: string; target: "pin" | "card"; nonce: number } | null;
@@ -59,6 +70,7 @@ export function ViewerView({
   actions,
   panelNotice,
   panelNote,
+  draftStorage,
 }: ViewerViewProps) {
   const toast = useToast();
   const backend = useViewerBackend();
@@ -66,10 +78,13 @@ export function ViewerView({
   const now = useNow();
   const reduce = useReducedMotion();
   const docked = !useMediaQuery("(min-width: 1024px)");
-  const view = useViewerSurface(project, data);
+  const [draft, setDraft] = useState<Draft | null>(() => restoreDraft(draftStorage));
+  const view = useViewerSurface(project, data, {
+    mode: draft ? "comment" : "browse",
+    snapshotId: draft?.snapshotId ?? null,
+  });
   const [tab, setTab] = useState<CommentTab>("active");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<Draft | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [scrollRequest, setScrollRequest] = useState<ScrollRequest>(null);
   /** Bumped whenever an image surface finishes loading, so pins drawn on it can be found. */
@@ -108,6 +123,37 @@ export function ViewerView({
 
   useShortcut("c", () => setMode(mode === "comment" ? "browse" : "comment"));
   useShortcut("escape", () => setMode("browse"), mode === "comment" && !stageDraft);
+
+  const unsent = Boolean(draftStorage && draft?.body.trim());
+
+  // Keep the draft with text across a reload; drop it once posted or cancelled.
+  useEffect(() => {
+    if (!draftStorage) return;
+    if (!draft?.body.trim()) {
+      draftStorage.save(null);
+      return;
+    }
+    const { x, y, body, surfaceKey, snapshotId, commentId, author } = draft;
+    draftStorage.save({
+      x,
+      y,
+      body,
+      surfaceKey,
+      snapshotId,
+      commentId,
+      ...(author ? { author } : {}),
+    });
+  }, [draft, draftStorage]);
+
+  // Leaving with an unsent comment asks first.
+  useEffect(() => {
+    if (!unsent) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [unsent]);
 
   /** After the composer closes, keyboard users carry on from the canvas instead of the page top. */
   const returnFocusToCanvas = () => overlayRef.current?.focus({ preventScroll: true });
@@ -251,6 +297,9 @@ export function ViewerView({
       onPlace={place}
       onExitComment={() => setMode("browse")}
       onDraftChange={(body) => setDraft((current) => (current ? { ...current, body } : current))}
+      onDraftAuthorChange={(author) =>
+        setDraft((current) => (current ? { ...current, author } : current))
+      }
       onDraftSubmit={(body, author) => void submitDraft(body, author)}
       onDraftCancel={() => {
         // A draft being posted can't be cancelled: it would still arrive.

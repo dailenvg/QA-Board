@@ -97,3 +97,21 @@ export interface CreatedShare {
   ownerKey: string;
   missingBlobs: string[];
 }
+
+/** What the server holds, by content digest, so the owner can send only what changed. */
+export interface ShareManifest {
+  project: string;
+  snapshots: Array<{ id: string; digest: string }>;
+  comments: Array<{ id: string; digest: string }>;
+  missingBlobs: string[];
+}
+
+/** One batch of owner changes (see `changeSchema`). */
+export interface ShareChange {
+  project?: SharedProject;
+  snapshots: SharedSnapshot[];
+  comments: SharedComment[];
+  deleteSnapshots: string[];
+  deleteComments: string[];
+  cursor: number;
+}

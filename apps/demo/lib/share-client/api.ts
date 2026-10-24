@@ -4,7 +4,9 @@ import type {
   CreatedShare,
   SharedComment,
   SharedSnapshot,
+  ShareChange,
   ShareChanges,
+  ShareManifest,
   ShareState,
 } from "../share/types";
 import type { ProjectShare } from "../store/types";
@@ -41,10 +43,12 @@ const blobPath = (key: string) => encodeURIComponent(key);
 /** The owner's calls: everything needs the owner key. */
 export const ownerApi = {
   create: (state: ShareState) => call<CreatedShare>("/api/shares", jsonInit("POST", state)),
-  push: (share: ProjectShare, state: ShareState) =>
+  manifest: (share: ProjectShare) =>
+    call<ShareManifest>(`/api/shares/${share.id}/manifest`, { headers: owner(share) }),
+  change: (share: ProjectShare, change: ShareChange) =>
     call<{ missingBlobs: string[] }>(
       `/api/shares/${share.id}`,
-      jsonInit("PUT", { state, cursor: share.cursor }, owner(share)),
+      jsonInit("PATCH", change, owner(share)),
     ),
   /** Uploads in parts of at most 4 MB; resolves with the last part's answer. */
   async upload(share: ProjectShare, key: string, blob: Blob) {

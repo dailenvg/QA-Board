@@ -22,6 +22,8 @@ export interface Draft extends PinPoint {
   error: string | null;
   /** The screenshot taken on the first try, reused by retries. */
   crop: PendingCrop | null;
+  /** The name typed in this draft, kept with it (a reload restores both). */
+  author?: string;
 }
 
 /** Saves an uploaded screenshot as the project's image; resolves to an error message, or null. */

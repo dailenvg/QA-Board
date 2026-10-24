@@ -5,7 +5,8 @@ import { snapshotsFor } from "../store/snapshots";
 import { dispatch, getSnapshot } from "../store/store";
 import type { Comment, Project, ProjectShare, Snapshot } from "../store/types";
 import { ownerApi } from "./api";
-import type { ShareChanges } from "../share/types";
+import type { ShareChanges, ShareState } from "../share/types";
+import { batchChange, diffState } from "./diff";
 import { fromSharedComment, fromSharedSnapshot, localBlobKey, toShareState } from "./share-state";
 
 export type SyncPhase = "idle" | "syncing" | "error" | "gone";
@@ -115,9 +116,10 @@ function scheduleRetry(projectId: string): void {
 }
 
 /**
- * Sends the project's whole state; the server matches it and lists the images
- * it lacks, which are uploaded next. Failures retry with backoff; a 404 means
- * the link was revoked (or the server forgot it).
+ * Brings the share up to date with the owner's state: reads the server's
+ * manifest, sends only what differs, in batches small enough for any request
+ * limit, then uploads the images the server still lacks. Failures retry with
+ * backoff; a 404 means the link was revoked (or the server forgot it).
  */
 export async function pushNow(projectId: string): Promise<void> {
   const entry = controller(projectId);
@@ -130,15 +132,13 @@ export async function pushNow(projectId: string): Promise<void> {
   if (!found || !state) return;
   entry.pushing = true;
   update(projectId, { phase: "syncing" });
-  const result = await ownerApi.push(found.share, state);
-  const uploaded =
-    result.ok && (await uploadMissing(found.project, found.share, result.value.missingBlobs));
+  const outcome = await sendChanges(found.project, found.share, state);
   entry.pushing = false;
-  if (!result.ok && result.status === 404) {
+  if (outcome === "gone") {
     update(projectId, { phase: "gone", uploading: null });
     return;
   }
-  if (!uploaded) {
+  if (outcome === "failed") {
     update(projectId, { phase: "error", uploading: null });
     scheduleRetry(projectId);
     return;
@@ -151,6 +151,22 @@ export async function pushNow(projectId: string): Promise<void> {
     entry.dirty = false;
     void pushNow(projectId);
   }
+}
+
+async function sendChanges(
+  project: Project,
+  share: ProjectShare,
+  state: ShareState,
+): Promise<"done" | "failed" | "gone"> {
+  const manifest = await ownerApi.manifest(share);
+  if (!manifest.ok) return manifest.status === 404 ? "gone" : "failed";
+  let missing = manifest.value.missingBlobs;
+  for (const batch of batchChange(diffState(state, manifest.value), share.cursor)) {
+    const applied = await ownerApi.change(share, batch);
+    if (!applied.ok) return applied.status === 404 ? "gone" : "failed";
+    missing = applied.value.missingBlobs;
+  }
+  return (await uploadMissing(project, share, missing)) ? "done" : "failed";
 }
 
 type Copied = "copied" | "missing" | "retry";

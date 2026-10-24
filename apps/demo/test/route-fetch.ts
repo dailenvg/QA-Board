@@ -4,6 +4,7 @@ import * as clientCommentsRoute from "@/app/api/s/[token]/comments/route";
 import * as shareRoute from "@/app/api/shares/[shareId]/route";
 import * as ownerBlobRoute from "@/app/api/shares/[shareId]/blobs/[key]/route";
 import * as changesRoute from "@/app/api/shares/[shareId]/changes/route";
+import * as manifestRoute from "@/app/api/shares/[shareId]/manifest/route";
 import * as createRoute from "@/app/api/shares/route";
 
 type Call = (request: Request, params: Record<string, string>) => Promise<Response>;
@@ -37,10 +38,11 @@ function route<P extends string>(
 const ROUTES: Route[] = [
   route(/^\/api\/shares$/, [], { POST: (request) => createRoute.POST(request) }),
   route(/^\/api\/shares\/(?<shareId>[^/]+)$/, ["shareId"], {
-    PUT: shareRoute.PUT,
+    PATCH: shareRoute.PATCH,
     DELETE: shareRoute.DELETE,
   }),
   route(/^\/api\/shares\/(?<shareId>[^/]+)\/changes$/, ["shareId"], { GET: changesRoute.GET }),
+  route(/^\/api\/shares\/(?<shareId>[^/]+)\/manifest$/, ["shareId"], { GET: manifestRoute.GET }),
   route(/^\/api\/shares\/(?<shareId>[^/]+)\/blobs\/(?<key>[^/]+)$/, ["shareId", "key"], {
     GET: ownerBlobRoute.GET,
     PUT: ownerBlobRoute.PUT,

@@ -5,9 +5,12 @@ import { blobKind, SHARE_LIMITS, type BlobKind } from "./schemas";
 import { sniffImageType } from "./sniff";
 import type { ShareStore } from "./store";
 import { createSecret, createShareId, hashSecret, isSecretShape, secretMatches } from "./tokens";
+import { digest } from "./digest";
 import type {
   ClientView,
   CreatedShare,
+  ShareChange,
+  ShareManifest,
   Sequenced,
   SharedComment,
   SharedProject,
@@ -141,43 +144,78 @@ export async function createShare(
   return { shareId: share.id, token, ownerKey, missingBlobs: await missingBlobs(store, share) };
 }
 
-/** Rows the owner's state leaves out that it has seen, so may delete: its own, and pulled client rows. */
-function omitted<T extends { id: string }>(
+/** Of `ids`, the rows the owner may delete: its own, and client rows it has pulled (seq ≤ cursor). */
+function deletable<T extends { id: string }>(
   rows: readonly Sequenced<T>[],
-  kept: readonly T[],
+  ids: readonly string[],
   cursor: number,
 ): string[] {
-  const ids = new Set(kept.map((item) => item.id));
+  const wanted = new Set(ids);
   return rows
-    .filter((row) => !ids.has(row.item.id) && (row.origin === "owner" || row.seq <= cursor))
+    .filter((row) => wanted.has(row.item.id) && (row.origin === "owner" || row.seq <= cursor))
     .map((row) => row.item.id);
 }
 
+/** How many rows remain after upserting and deleting. */
+function countAfter<T extends { id: string }>(
+  rows: readonly Sequenced<T>[],
+  upserts: readonly T[],
+  deletes: readonly string[],
+): number {
+  const ids = new Set(rows.map((row) => row.item.id));
+  for (const item of upserts) ids.add(item.id);
+  for (const deleted of deletes) ids.delete(deleted);
+  return ids.size;
+}
+
+/** What the server holds, by content digest, plus the images it still lacks. */
+export async function shareManifest(store: ShareStore, share: ShareRecord): Promise<ShareManifest> {
+  const [snapshots, comments] = await Promise.all([
+    store.snapshots(share.id),
+    store.comments(share.id),
+  ]);
+  const digests = <T extends { id: string }>(rows: readonly Sequenced<T>[]) =>
+    rows.map((row) => ({ id: row.item.id, digest: digest(row.item) }));
+  return {
+    project: digest(share.project),
+    snapshots: digests(snapshots),
+    comments: digests(comments),
+    missingBlobs: await missingBlobs(store, share),
+  };
+}
+
 /**
- * Makes the server match the owner's state: the owner wins on everything it
- * sends. Client additions the owner hasn't pulled yet (seq above `cursor`)
- * are kept even though the state leaves them out.
+ * Applies one batch of the owner's changes. The owner wins on everything it
+ * sends; deletes reach only rows it has seen, so client additions it hasn't
+ * pulled yet survive. A share holds at most 200 snapshots and 1000 comments.
  */
-export async function pushState(
+export async function applyChanges(
   services: ShareServices,
   share: ShareRecord,
-  state: ShareState,
-  cursor: number,
+  change: ShareChange,
   now: number,
-): Promise<{ missingBlobs: string[] }> {
+): Promise<Outcome<{ missingBlobs: string[] }>> {
   const { store } = services;
   const [snapshots, comments] = await Promise.all([
     store.snapshots(share.id),
     store.comments(share.id),
   ]);
-  await store.setProject(share.id, state.project, now);
-  for (const snapshot of state.snapshots) await store.upsertSnapshot(share.id, snapshot, "owner");
-  for (const comment of state.comments) await store.upsertComment(share.id, comment, "owner");
-  await store.deleteSnapshots(share.id, omitted(snapshots, state.snapshots, cursor));
-  await store.deleteComments(share.id, omitted(comments, state.comments, cursor));
-  const updated = { ...share, project: state.project };
+  const deleteSnapshots = deletable(snapshots, change.deleteSnapshots, change.cursor);
+  const deleteComments = deletable(comments, change.deleteComments, change.cursor);
+  if (
+    countAfter(snapshots, change.snapshots, deleteSnapshots) > SHARE_LIMITS.snapshots ||
+    countAfter(comments, change.comments, deleteComments) > SHARE_LIMITS.comments
+  ) {
+    return fail(413, "share-full");
+  }
+  if (change.project) await store.setProject(share.id, change.project, now);
+  for (const snapshot of change.snapshots) await store.upsertSnapshot(share.id, snapshot, "owner");
+  for (const comment of change.comments) await store.upsertComment(share.id, comment, "owner");
+  await store.deleteSnapshots(share.id, deleteSnapshots);
+  await store.deleteComments(share.id, deleteComments);
+  const updated = change.project ? { ...share, project: change.project } : share;
   await dropUnreferenced(services, updated);
-  return { missingBlobs: await missingBlobs(store, updated) };
+  return ok({ missingBlobs: await missingBlobs(store, updated) });
 }
 
 /** Client additions after `since`, in order, with the cursor to ask from next time. */
@@ -310,6 +348,7 @@ export async function addClientComment(
   // Taken ids are refused before anything is stored, so a crop never overwrites another's.
   const existing = await store.comments(share.id);
   if (existing.some((row) => row.item.id === input.id)) return fail(409, "exists");
+  if (existing.length >= SHARE_LIMITS.comments) return fail(413, "share-full");
   // The crop is stored first: if it doesn't fit (share full) or storage fails, no row exists,
   // so a retry gets the same real error, and no comment ever points at a missing image.
   if (crop) {
@@ -334,6 +373,9 @@ export async function captureForClient(
 ): Promise<Outcome<SharedSnapshot>> {
   const { source } = share.project;
   if (source.kind !== "url") return fail(422, "not-a-website");
+  if ((await services.store.snapshots(share.id)).length >= SHARE_LIMITS.snapshots) {
+    return fail(413, "share-full");
+  }
   const image = await capture(new URL(source.url), width);
   const snapshot: SharedSnapshot = {
     id: randomUUID(),

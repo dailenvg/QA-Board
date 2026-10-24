@@ -19,4 +19,6 @@ export const SHARE_LIMITS = {
    * byte ranges (downloads) of at most this size.
    */
   transferBytes: 4 * MB,
+  /** Largest batch of owner changes the browser sends in one request (well under `jsonBytes`). */
+  changeBatchBytes: 512 * 1024,
 } as const;

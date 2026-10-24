@@ -34,11 +34,11 @@ async function create(): Promise<CreatedShare> {
 /** Every owner route, called with `ownerKey` (or none). */
 function ownerCalls(share: CreatedShare, ownerKey?: string) {
   const id = share.shareId;
-  const push = JSON.stringify({ state: STATE, cursor: 0 });
+  const push = JSON.stringify({ project: STATE.project, cursor: 0 });
   return {
     push: () =>
-      shareRoute.PUT(
-        request(`/api/shares/${id}`, { method: "PUT", body: push, ownerKey }),
+      shareRoute.PATCH(
+        request(`/api/shares/${id}`, { method: "PATCH", body: push, ownerKey }),
         params({ shareId: id }),
       ),
     pull: () =>

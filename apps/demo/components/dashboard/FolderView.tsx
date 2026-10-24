@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { holdBlobs } from "@/lib/store/blob-sweep";
+import { referencedBlobKeys } from "@/lib/store/snapshots";
 import {
   deleteProject,
   finalizeProjectDelete,
@@ -106,8 +108,13 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
           projectDelete.close();
           const comments = data.comments.filter((comment) => comment.projectId === project.id);
           const snapshots = data.snapshots.filter((snapshot) => snapshot.projectId === project.id);
+          // Its images stay while Undo is offered, however long the toast is held open.
+          const release = holdBlobs(
+            referencedBlobKeys({ ...data, projects: [project], comments, snapshots }),
+          );
           const result = deleteProject(project.id);
           if (!result.ok) {
+            release();
             report(result);
             return;
           }
@@ -115,11 +122,16 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
             message: `Deleted ${project.name}`,
             action: {
               label: "Undo",
-              onAction: () =>
-                report(restoreProject(project, comments, snapshots), `Restored ${project.name}`),
+              onAction: () => {
+                report(restoreProject(project, comments, snapshots), `Restored ${project.name}`);
+                release();
+              },
             },
             // Undo is gone, so the delete is final: a shared link is revoked now.
-            onDismiss: () => finalizeProjectDelete(project.id),
+            onDismiss: () => {
+              release();
+              finalizeProjectDelete(project.id);
+            },
           });
         }}
       />

@@ -10,10 +10,15 @@ import type { ViewerMode } from "./types";
  * Mode, the snapshot being viewed, and snapshot capture for one project.
  * Leaving Comment mode on a website returns to the latest snapshot next time.
  */
-export function useViewerSurface(project: Project, data: SquintData) {
+export function useViewerSurface(
+  project: Project,
+  data: SquintData,
+  /** Where to start, such as a restored draft's snapshot. */
+  initial: { mode: ViewerMode; snapshotId: string | null } = { mode: "browse", snapshotId: null },
+) {
   const kind = project.source.kind;
-  const [mode, setModeState] = useState<ViewerMode>("browse");
-  const [viewedId, setViewedId] = useState<string | null>(null);
+  const [mode, setModeState] = useState<ViewerMode>(initial.mode);
+  const [viewedId, setViewedId] = useState<string | null>(initial.snapshotId);
   const list = useMemo(() => snapshotsFor(data, project.id), [data, project.id]);
   const snapshots = useMemo(() => new Map(list.map((entry) => [entry.id, entry])), [list]);
   const latest = list.at(-1) ?? null;

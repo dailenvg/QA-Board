@@ -74,9 +74,16 @@ export const stateSchema = z.object({
   comments: z.array(commentSchema).max(SHARE_LIMITS.comments),
 });
 
-export const pushSchema = z.object({
-  state: stateSchema,
-  /** The owner's pull cursor: client additions up to here may be deleted by omission. */
+/**
+ * A batch of owner changes: upserts, and deletes the server applies only to
+ * rows the owner has seen (its own, and client rows up to `cursor`).
+ */
+export const changeSchema = z.object({
+  project: projectSchema.optional(),
+  snapshots: z.array(snapshotSchema).max(SHARE_LIMITS.snapshots).default([]),
+  comments: z.array(commentSchema).max(SHARE_LIMITS.comments).default([]),
+  deleteSnapshots: z.array(id).max(SHARE_LIMITS.snapshots).default([]),
+  deleteComments: z.array(id).max(SHARE_LIMITS.comments).default([]),
   cursor: z.number().int().nonnegative(),
 });
 

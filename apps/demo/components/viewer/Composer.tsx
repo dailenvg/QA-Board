@@ -16,6 +16,8 @@ interface ComposerProps {
   authorName: string | null;
   textareaRef: Ref<HTMLTextAreaElement>;
   onChange: (body: string) => void;
+  /** The name as it's typed, so it stays with the draft. */
+  onAuthorChange: (author: string) => void;
   onSubmit: (body: string, author: string) => void;
   onCancel: () => void;
 }
@@ -38,12 +40,13 @@ export function Composer({
   authorName,
   textareaRef,
   onChange,
+  onAuthorChange,
   onSubmit,
   onCancel,
 }: ComposerProps) {
   const docked = !useMediaQuery("(min-width: 640px)");
   const variants = usePopVariants();
-  const [author, setAuthor] = useState(authorName ?? "");
+  const [author, setAuthor] = useState(draft.author ?? authorName ?? "");
   const [editingName, setEditingName] = useState(!authorName);
   const [error, setError] = useState<{ field: "name" | "body"; message: string } | null>(null);
   const titleId = useId();
@@ -128,6 +131,7 @@ export function Composer({
               aria-describedby={nameErrorId}
               onChange={(event) => {
                 setAuthor(event.target.value);
+                onAuthorChange(event.target.value);
                 setError((current) => (current?.field === "name" ? null : current));
               }}
               onBlur={() => {

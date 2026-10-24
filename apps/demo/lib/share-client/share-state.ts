@@ -3,7 +3,11 @@ import { SHARE_LIMITS } from "../share/limits";
 import type { SharedComment, SharedSnapshot, ShareState } from "../share/types";
 import type { Comment, Project, Snapshot } from "../store/types";
 
-const cap = (text: string, max: number) => (text.length > max ? text.slice(0, max) : text);
+/**
+ * Trimmed and capped exactly as the server's schema stores it, so content
+ * digests match and unchanged items are never sent again.
+ */
+const cap = (text: string, max: number) => text.trim().slice(0, max).trim();
 
 function sharedComment(comment: Comment): SharedComment {
   return {

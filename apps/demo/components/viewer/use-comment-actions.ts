@@ -1,3 +1,4 @@
+import { holdBlobs } from "@/lib/store/blob-sweep";
 import type { Comment } from "@/lib/store/types";
 import type { ToastInput } from "../ui/ToastProvider";
 import type { ViewerBackend } from "@/lib/viewer-backend/backend";
@@ -41,10 +42,22 @@ export function useCommentActions({
     },
     remove: (target: Comment) => {
       onRemoved(target.id);
-      if (!report(backend.deleteComment(target.id))) return;
+      // Its screenshot stays while Undo is offered, however long the toast is held open.
+      const release = holdBlobs(target.crop ? [target.crop.blobKey] : []);
+      if (!report(backend.deleteComment(target.id))) {
+        release();
+        return;
+      }
       toast({
         message: "Comment deleted",
-        action: { label: "Undo", onAction: () => void report(backend.restoreComment(target)) },
+        action: {
+          label: "Undo",
+          onAction: () => {
+            report(backend.restoreComment(target));
+            release();
+          },
+        },
+        onDismiss: release,
       });
     },
   };

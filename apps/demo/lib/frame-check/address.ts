@@ -70,13 +70,19 @@ function embeddedV4(high: number, low: number): number {
 function blockedV6(groups: number[]): boolean {
   const [g0 = 0, g1 = 0, g2 = 0, g3 = 0, g4 = 0, g5 = 0, g6 = 0, g7 = 0] = groups;
   const firstFiveZero = g0 === 0 && g1 === 0 && g2 === 0 && g3 === 0 && g4 === 0;
-  if (firstFiveZero && g5 === 0 && g6 === 0 && (g7 === 0 || g7 === 1)) return true;
+  // ::/96 holds ::, ::1 and the deprecated IPv4-compatible ::a.b.c.d: none is a public target.
+  if (firstFiveZero && g5 === 0) return true;
   if (firstFiveZero && g5 === 0xffff) return blockedV4(embeddedV4(g6, g7));
   if (g0 === 0x64 && g1 === 0xff9b && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0) {
     return blockedV4(embeddedV4(g6, g7));
   }
   if (g0 === 0x2002) return blockedV4(embeddedV4(g1, g2));
-  return (g0 & 0xfe00) === 0xfc00 || (g0 & 0xffc0) === 0xfe80 || (g0 & 0xff00) === 0xff00;
+  return (
+    (g0 & 0xfe00) === 0xfc00 || // unique local fc00::/7
+    (g0 & 0xffc0) === 0xfe80 || // link-local fe80::/10
+    (g0 & 0xffc0) === 0xfec0 || // site-local fec0::/10 (deprecated)
+    (g0 & 0xff00) === 0xff00 // multicast ff00::/8
+  );
 }
 
 /** True for loopback, private, link-local, multicast and other non-public IP addresses. */

@@ -22,6 +22,7 @@ interface CanvasLayerProps {
   onPlace: (point: PinPoint) => void;
   onExitComment: () => void;
   onDraftChange: (body: string) => void;
+  onDraftAuthorChange: (author: string) => void;
   onDraftSubmit: (body: string, author: string) => void;
   onDraftCancel: () => void;
 }
@@ -45,6 +46,7 @@ export function CanvasLayer({
   onPlace,
   onExitComment,
   onDraftChange,
+  onDraftAuthorChange,
   onDraftSubmit,
   onDraftCancel,
 }: CanvasLayerProps) {
@@ -94,6 +96,7 @@ export function CanvasLayer({
               authorName={authorName}
               textareaRef={composerRef}
               onChange={onDraftChange}
+              onAuthorChange={onDraftAuthorChange}
               onSubmit={onDraftSubmit}
               onCancel={onDraftCancel}
             />

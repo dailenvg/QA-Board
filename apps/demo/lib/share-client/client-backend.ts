@@ -23,6 +23,9 @@ const NOT_SENT: Record<number, string> = {
 /** 413 with room for no more images: the share is at its 40 MB limit. */
 const SHARE_FULL =
   "Your comment wasn't sent: this review is out of space for screenshots. Ask the project owner to make room, then retry.";
+/** 413 on a capture: the share holds its maximum of snapshots (or bytes). */
+const SNAPSHOTS_FULL =
+  "This review is out of space for snapshots. Ask the project owner to make room, then retry.";
 const NOT_SENT_DEFAULT = "Your comment wasn't sent. Retry in a moment.";
 
 interface ClientBackendOptions {
@@ -125,6 +128,7 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
         store.markGone();
         return { ok: false, message: GONE };
       }
+      if (result.error === "share-full") return { ok: false, message: SNAPSHOTS_FULL };
       const code = isCaptureErrorCode(result.error)
         ? result.error
         : result.status === 0

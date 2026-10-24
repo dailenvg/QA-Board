@@ -43,6 +43,7 @@ export async function POST(request: Request) {
       headers: {
         ...NO_STORE,
         "content-type": image.contentType,
+        "x-content-type-options": "nosniff",
         [CAPTURE_HEADERS.width]: String(image.width),
         [CAPTURE_HEADERS.height]: String(image.height),
         [CAPTURE_HEADERS.scale]: String(image.scale),

@@ -3,7 +3,9 @@ import { COMMENT, JPEG, PNG, SNAPSHOT, STATE } from "@/test/share-fixture";
 import { inlineBackend } from "./blob-backend";
 import { createMemoryStore } from "./memory-store";
 import { SHARE_LIMITS } from "./schemas";
+import { batchChange, diffState } from "../share-client/diff";
 import type { ShareServices } from "./server";
+import type { ShareRecord, ShareState } from "./types";
 import {
   addClientComment,
   captureForClient,
@@ -12,11 +14,28 @@ import {
   createShare,
   ownerShare,
   pullChanges,
-  pushState,
+  applyChanges,
+  shareManifest,
   putOwnerBlob,
   readBlob,
   revokeShare,
 } from "./service";
+
+/** The owner's whole state, sent the way the browser does: diffed and batched. */
+async function pushState(
+  services: ShareServices,
+  share: ShareRecord,
+  state: ShareState,
+  cursor: number,
+  now: number,
+) {
+  const manifest = await shareManifest(services.store, share);
+  for (const batch of batchChange(diffState(state, manifest), cursor)) {
+    const applied = await applyChanges(services, share, batch, now);
+    if (!applied.ok) return applied;
+  }
+  return { ok: true as const };
+}
 
 async function shared() {
   const services: ShareServices = { store: createMemoryStore(), blobs: inlineBackend };
@@ -274,5 +293,71 @@ describe("client writes", () => {
     });
     const changes = await pullChanges(services.store, share, 0);
     expect(changes.snapshots).toHaveLength(1);
+  });
+});
+
+describe("owner changes", () => {
+  it("sends nothing when nothing changed, and only what changed otherwise", async () => {
+    const { services, share } = await shared();
+    const manifest = await shareManifest(services.store, share);
+    expect(batchChange(diffState(STATE, manifest), 0)).toEqual([]);
+    const edited = { ...STATE, comments: [{ ...COMMENT, body: "Edited" }] };
+    const batches = batchChange(diffState(edited, manifest), 0);
+    expect(batches).toHaveLength(1);
+    expect(batches[0]?.comments.map((c) => c.body)).toEqual(["Edited"]);
+    expect(batches[0]?.snapshots).toEqual([]);
+  });
+
+  it("keeps every batch small, however large the state", async () => {
+    const { services, share } = await shared();
+    const comments = Array.from({ length: 300 }, (_, index) => ({
+      ...COMMENT,
+      id: `big-${index}`,
+      body: "x".repeat(SHARE_LIMITS.body),
+    }));
+    const manifest = await shareManifest(services.store, share);
+    const batches = batchChange(diffState({ ...STATE, comments }, manifest), 0);
+    expect(batches.length).toBeGreaterThan(2);
+    for (const batch of batches) {
+      expect(JSON.stringify(batch).length).toBeLessThanOrEqual(SHARE_LIMITS.changeBatchBytes);
+    }
+    expect((await pushState(services, share, { ...STATE, comments }, 0, 200)).ok).toBe(true);
+    expect((await clientView(services.store, share)).comments).toHaveLength(300);
+  });
+
+  it("refuses changes that would take a share past 1000 comments", async () => {
+    const { services, share } = await shared();
+    const comments = Array.from({ length: SHARE_LIMITS.comments + 1 }, (_, index) => ({
+      ...COMMENT,
+      id: `n-${index}`,
+    }));
+    expect(await pushState(services, share, { ...STATE, comments }, 0, 200)).toMatchObject({
+      ok: false,
+      status: 413,
+      error: "share-full",
+    });
+  });
+
+  it("caps client additions too: a full share refuses comments and snapshots", async () => {
+    const { services, share } = await shared();
+    const comments = Array.from({ length: SHARE_LIMITS.comments }, (_, index) => ({
+      ...COMMENT,
+      id: `n-${index}`,
+    }));
+    await pushState(services, share, { ...STATE, comments }, 0, 200);
+    expect(await addClientComment(services, share, clientComment("k-1"), null, 300)).toMatchObject({
+      status: 413,
+      error: "share-full",
+    });
+    const snapshots = Array.from({ length: SHARE_LIMITS.snapshots }, (_, index) => ({
+      ...SNAPSHOT,
+      id: `m-${index}`,
+    }));
+    await pushState(services, share, { ...STATE, snapshots, comments }, 0, 300);
+    const capture = () => Promise.reject(new Error("must not capture"));
+    expect(await captureForClient(services, share, 800, capture, 400)).toMatchObject({
+      status: 413,
+      error: "share-full",
+    });
   });
 });

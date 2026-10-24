@@ -52,21 +52,53 @@ function commentForm(id: string, withCrop: boolean): FormData {
 }
 
 let failCrops = false;
+/** Every request body sent, with its method and path. */
+const sent: Array<{ method: string; path: string; bytes: number }> = [];
 
 beforeEach(() => {
   failCrops = false;
+  sent.length = 0;
   vi.resetModules();
   vi.stubGlobal("localStorage", fakeStorage());
   vi.stubGlobal("window", { addEventListener: () => {}, removeEventListener: () => {} });
-  vi.stubGlobal(
-    "fetch",
-    routeFetch((request) =>
-      failCrops && request.method === "GET" && request.url.includes("/blobs/crop")
-        ? new Response(null, { status: 503 })
-        : null,
-    ),
+  const fetch = routeFetch((request) =>
+    failCrops && request.method === "GET" && request.url.includes("/blobs/crop")
+      ? new Response(null, { status: 503 })
+      : null,
   );
+  vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+    const body = typeof init?.body === "string" ? init.body.length : 0;
+    sent.push({
+      method: init?.method ?? "GET",
+      path: new URL(input instanceof Request ? input.url : input.toString(), "http://x").pathname,
+      bytes: body,
+    });
+    return fetch(input, init);
+  });
 });
+
+/** The owner's browser, with project p1 shared as `share`. */
+function ownerData(share: ProjectShare): SquintData {
+  return {
+    version: 2,
+    folders: [{ id: "default", name: "My projects", createdAt: 0 }],
+    projects: [
+      {
+        id: "p1",
+        folderId: "default",
+        name: "Acme",
+        source: { kind: "url", url: SITE },
+        createdAt: 0,
+        updatedAt: 0,
+        share,
+      },
+    ],
+    comments: [],
+    snapshots: [],
+    revocations: [],
+    authorName: null,
+  };
+}
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Qanto's scenario: a full share and a client crop", () => {
@@ -157,5 +189,57 @@ describe("Qanto's scenario: a full share and a client crop", () => {
     expect(merged.find((c) => c.id === "k-orphan")).not.toHaveProperty("crop");
     expect(local().projects[0]?.share?.cursor).toBeGreaterThan(0);
     expect(sync.syncStatus("p1").pullHeld).toBe(false);
+  }, 30_000);
+});
+
+describe("Qanto's scenario: many long client comments", () => {
+  it("never makes the owner's push outgrow a request: unchanged items aren't resent", async () => {
+    const { ownerApi, clientApi } = await import("./api");
+    const created = await ownerApi.create({ ...STATE, snapshots: [] });
+    if (!created.ok) throw new Error("create failed");
+    const { shareId, token, ownerKey } = created.value;
+    const share: ProjectShare = { id: shareId, token, ownerKey, createdAt: 0, cursor: 0 };
+    const client = clientApi(token);
+    for (let index = 0; index < 220; index += 1) {
+      const form = new FormData();
+      form.set(
+        "comment",
+        JSON.stringify({
+          id: `long-${index}`,
+          x: 1,
+          y: 1,
+          body: "x".repeat(SHARE_LIMITS.body),
+          author: "Cleo",
+        }),
+      );
+      expect((await client.addComment(form)).ok).toBe(true);
+    }
+
+    localStorage.setItem("squint:v2", JSON.stringify(ownerData(share)));
+    const sync = await import("./owner-sync");
+    const { dispatch, getSnapshot } = await import("../store/store");
+    await sync.pullNow("p1");
+    const state = getSnapshot();
+    expect(state.status === "ready" && state.data.comments).toHaveLength(220);
+
+    sent.length = 0;
+    await sync.pushNow("p1");
+    expect(sync.syncStatus("p1").phase).toBe("idle");
+    // Nothing changed on the owner's side: the manifest only, no changes sent.
+    expect(sent.filter((request) => request.method === "PATCH")).toEqual([]);
+
+    // Resolving one sends just that one, well under the 1 MB body limit.
+    dispatch({ type: "comment/set-status", id: "long-7", status: "resolved", at: 99 });
+    sent.length = 0;
+    await sync.pushNow("p1");
+    const patches = sent.filter((request) => request.method === "PATCH");
+    expect(patches).toHaveLength(1);
+    expect(patches[0]?.bytes).toBeLessThan(SHARE_LIMITS.body + 2_000);
+    expect(Math.max(...sent.map((request) => request.bytes))).toBeLessThanOrEqual(
+      SHARE_LIMITS.jsonBytes,
+    );
+    const { shareServices } = await import("../share/server");
+    const rows = await (await shareServices()).store.comments(shareId);
+    expect(rows.find((row) => row.item.id === "long-7")?.item.status).toBe("resolved");
   }, 30_000);
 });

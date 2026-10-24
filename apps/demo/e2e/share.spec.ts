@@ -111,7 +111,7 @@ test("an owner shares a project, a client comments, and the owner resolves and r
   // Owner resolves it; the change is pushed.
   const pushed = page.waitForResponse(
     (response) =>
-      /\/api\/shares\/[^/]+$/.test(response.url()) && response.request().method() === "PUT",
+      /\/api\/shares\/[^/]+$/.test(response.url()) && response.request().method() === "PATCH",
   );
   await clientNote.getByRole("button", { name: "Resolve" }).click();
   expect((await pushed).status()).toBe(200);
@@ -289,5 +289,47 @@ test("a client comment that fails to send keeps its text until Retry gets it thr
   await expect(client.getByTestId("draft-pin")).toHaveCount(0);
   await showComments(client);
   await expect(client.getByTestId("comment-card")).toHaveCount(1);
+  await clientContext.close();
+});
+
+test("an unsent client comment survives a reload, with a warning before leaving", async ({
+  page,
+  browser,
+  baseURL,
+}) => {
+  const link = await sharedProject(page, baseURL, "Draft keeper");
+  const clientContext = await browser.newContext();
+  const client = await clientContext.newPage();
+  await mockFrameCheck(client, {
+    verdict: "embeddable",
+    finalUrl: `${baseURL}/sandbox`,
+    status: 200,
+  });
+  await client.goto(link);
+  await client.getByTestId("mode-comment").click();
+  await expect(client.getByRole("img", { name: /^Snapshot of/ })).toBeVisible();
+  await client.getByTestId("comment-overlay").click({ position: { x: 180, y: 150 } });
+  const composer = client.getByTestId("composer");
+  await composer.getByLabel("Your name").fill("Cleo");
+  await composer.getByLabel("Comment", { exact: true }).fill("Half-written thought");
+
+  // Leaving asks first while the comment is unsent.
+  const warned = new Promise<string>((resolve) =>
+    client.once("dialog", (dialog) => {
+      resolve(dialog.type());
+      void dialog.accept();
+    }),
+  );
+  await client.reload();
+  expect(await warned).toBe("beforeunload");
+
+  // Back after the reload: the text, its pin and the snapshot it was on.
+  await expect(composer.getByLabel("Comment", { exact: true })).toHaveValue("Half-written thought");
+  await expect(composer.getByTestId("composer-send-error")).toContainText("wasn't sent");
+  await expect(client.getByTestId("draft-pin")).toHaveAttribute("data-status", "unsent");
+  await composer.getByRole("button", { name: "Retry" }).click();
+  await expect(composer).toHaveCount(0);
+  await showComments(client);
+  await expect(card(client, "Half-written thought")).toHaveCount(1);
   await clientContext.close();
 });
