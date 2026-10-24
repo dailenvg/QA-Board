@@ -8,6 +8,12 @@ import { dispatch, getSnapshot } from "./store";
  */
 export const BLOB_GRACE_MS = 60_000;
 
+/** End-to-end tests shorten the grace with `window.__squintBlobGraceMs`; everything else uses a minute. */
+function graceMs(): number {
+  const override: unknown = (globalThis as { __squintBlobGraceMs?: unknown }).__squintBlobGraceMs;
+  return typeof override === "number" && override >= 0 ? override : BLOB_GRACE_MS;
+}
+
 let timer: ReturnType<typeof setTimeout> | null = null;
 
 /** Keys a pending Undo still needs, with how many holds each has. */
@@ -56,7 +62,7 @@ export function staleBlobKeys(
 }
 
 async function sweep(): Promise<void> {
-  dispatch({ type: "snapshot/prune" });
+  dispatch({ type: "snapshot/prune", held: [...heldBlobKeys()] });
   const state = getSnapshot();
   // Unreadable data might still be recovered, and its images with it.
   if (state.status !== "ready") return;
@@ -73,5 +79,5 @@ export function scheduleBlobSweep(): void {
   timer = setTimeout(() => {
     timer = null;
     void sweep();
-  }, BLOB_GRACE_MS);
+  }, graceMs());
 }

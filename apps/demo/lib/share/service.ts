@@ -88,12 +88,18 @@ async function missingBlobs(store: ShareStore, share: ShareRecord): Promise<stri
   return [...referenced].filter((key) => !have.has(key)).sort();
 }
 
-/** Stored blobs nothing points at any more, deleted along with their files. */
+/**
+ * Stored blobs nothing points at any more, deleted along with their files.
+ * Pending comments count, so a crop stored a moment before its row is
+ * confirmed is never swept.
+ */
 async function dropUnreferenced({ store, blobs }: ShareServices, share: ShareRecord) {
-  const [referenced, stored] = await Promise.all([
-    currentKeys(store, share),
+  const [snapshots, comments, stored] = await Promise.all([
+    store.snapshots(share.id),
+    store.comments(share.id, { includePending: true }),
     store.blobSizes(share.id),
   ]);
+  const referenced = referencedKeys(share.project, items(snapshots), items(comments));
   const stale = stored.map((blob) => blob.key).filter((key) => !referenced.has(key));
   await blobs.discard(await store.deleteBlobs(share.id, stale));
 }
@@ -345,18 +351,29 @@ export async function addClientComment(
     if (crop.length > SHARE_LIMITS.blobBytes.crop) return fail(413, "too-large");
     if (!sniffImageType(crop)) return fail(415, "not-an-image");
   }
-  // Taken ids are refused before anything is stored, so a crop never overwrites another's.
   const existing = await store.comments(share.id);
-  if (existing.some((row) => row.item.id === input.id)) return fail(409, "exists");
   if (existing.length >= SHARE_LIMITS.comments) return fail(413, "share-full");
-  // The crop is stored first: if it doesn't fit (share full) or storage fails, no row exists,
-  // so a retry gets the same real error, and no comment ever points at a missing image.
-  if (crop) {
-    const stored = await storeBlob(services, share, `crop:${input.id}`, crop);
-    if (!stored.ok) return stored;
-  }
   const comment: SharedComment = { ...input, status: "active", createdAt: now, updatedAt: now };
-  if (!(await store.insertComment(share.id, comment, "client"))) return fail(409, "exists");
+  // The insert claims the id atomically: of two posts with the same id, exactly one gets
+  // here, so only the winner ever writes `crop:<id>`. With a crop, the row stays pending
+  // (invisible) until its image is stored, so no comment ever points at a missing crop.
+  if (!(await store.insertComment(share.id, comment, "client", { pending: Boolean(crop) }))) {
+    return fail(409, "exists");
+  }
+  if (crop) {
+    const stored = await storeBlob(services, share, `crop:${comment.id}`, crop).catch(
+      async (error: unknown) => {
+        await store.deleteComments(share.id, [comment.id]);
+        throw error;
+      },
+    );
+    if (!stored.ok) {
+      // Nothing stays behind: a retry gets the same real error (such as share-full).
+      await store.deleteComments(share.id, [comment.id]);
+      return stored;
+    }
+    await store.confirmComment(share.id, comment.id);
+  }
   return ok(comment);
 }
 

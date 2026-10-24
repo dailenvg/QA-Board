@@ -1,4 +1,4 @@
-import { json, rateLimit, readJson } from "@/lib/share/http";
+import { guardStorage, json, rateLimit, readJson } from "@/lib/share/http";
 import { stateSchema } from "@/lib/share/schemas";
 import { shareServices } from "@/lib/share/server";
 import { createShare } from "@/lib/share/service";
@@ -15,5 +15,8 @@ export async function POST(request: Request) {
   if (limited) return limited;
   const body = await readJson(request, stateSchema);
   if (!body.ok) return body.response;
-  return json(await createShare(await shareServices(), body.value, Date.now()), 201);
+  const state = body.value;
+  return guardStorage(async () =>
+    json(await createShare(await shareServices(), state, Date.now()), 201),
+  );
 }

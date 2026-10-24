@@ -1,5 +1,6 @@
 import shares from "../../migrations/001_squint_shares.sql";
 import blobParts from "../../migrations/002_squint_share_blob_parts.sql";
+import pendingComments from "../../migrations/003_squint_share_pending_comments.sql";
 
 /** The slice of `pg.Pool` the share store uses (PGlite matches it in tests). */
 export interface Queryable {
@@ -10,6 +11,7 @@ export interface Queryable {
 export const MIGRATIONS: ReadonlyArray<{ id: string; sql: string }> = [
   { id: "001_squint_shares", sql: shares },
   { id: "002_squint_share_blob_parts", sql: blobParts },
+  { id: "003_squint_share_pending_comments", sql: pendingComments },
 ];
 
 /**

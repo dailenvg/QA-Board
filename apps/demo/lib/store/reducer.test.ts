@@ -53,9 +53,17 @@ describe("snapshots in the reducer", () => {
     let data = withSnapshots(snap("a", 1), snap("b", 2), snap("c", 3));
     data = reduce(data, { type: "comment/add", comment: comment("on-a", "a") });
     expect([...prunableSnapshotIds(data)]).toEqual(["b"]);
-    const pruned = reduce(data, { type: "snapshot/prune" });
+    const pruned = reduce(data, { type: "snapshot/prune", held: [] });
     expect(snapshotsFor(pruned, "site").map((entry) => entry.id)).toEqual(["a", "c"]);
-    expect(reduce(pruned, { type: "snapshot/prune" })).toBe(pruned);
+    expect(reduce(pruned, { type: "snapshot/prune", held: [] })).toBe(pruned);
+  });
+
+  it("keeps a snapshot whose image a pending Undo holds", () => {
+    // "b" lost its only comment; while that delete can be undone, its image is held.
+    const data = withSnapshots(snap("a", 1), snap("b", 2), snap("c", 3));
+    const pruned = reduce(data, { type: "snapshot/prune", held: ["snapshot:b"] });
+    expect(snapshotsFor(pruned, "site").map((entry) => entry.id)).toEqual(["b", "c"]);
+    expect([...prunableSnapshotIds(data, new Set(["snapshot:b"]))]).toEqual(["a"]);
   });
 
   it("deletes and restores a project's snapshots with it", () => {

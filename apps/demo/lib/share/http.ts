@@ -32,6 +32,19 @@ export function failure({ status, error }: Failure): Response {
   return json({ error }, status);
 }
 
+/**
+ * Runs a route's work; if storage throws (database down, Blob upload refused),
+ * answers a JSON 500 `{ error: "storage" }` instead of an empty error page.
+ */
+export async function guardStorage(run: () => Promise<Response>): Promise<Response> {
+  try {
+    return await run();
+  } catch (error) {
+    console.error("Squint share storage failed", error);
+    return json({ error: "storage" }, 500);
+  }
+}
+
 /** A 429 when the caller is over `name`'s limit, else null. */
 export function rateLimit(request: Request, name: LimitName): Response | null {
   const decision = LIMITS[name](clientAddress(request.headers), Date.now());

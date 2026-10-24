@@ -1,3 +1,4 @@
+import { snapshotBlobKey } from "@/lib/blob-store/keys";
 import { holdBlobs } from "@/lib/store/blob-sweep";
 import type { Comment } from "@/lib/store/types";
 import type { ToastInput } from "../ui/ToastProvider";
@@ -42,8 +43,12 @@ export function useCommentActions({
     },
     remove: (target: Comment) => {
       onRemoved(target.id);
-      // Its screenshot stays while Undo is offered, however long the toast is held open.
-      const release = holdBlobs(target.crop ? [target.crop.blobKey] : []);
+      // Its screenshot, and the snapshot it sits on (which could otherwise be pruned once no
+      // comment points at it), stay while Undo is offered, however long the toast is held open.
+      const release = holdBlobs([
+        ...(target.crop ? [target.crop.blobKey] : []),
+        ...(target.snapshotId ? [snapshotBlobKey(target.snapshotId)] : []),
+      ]);
       if (!report(backend.deleteComment(target.id))) {
         release();
         return;

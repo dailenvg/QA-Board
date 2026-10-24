@@ -31,8 +31,11 @@ export type Action =
   /** Attaches the picture saved after posting. Not an edit: timestamps stay as they are. */
   | { type: "comment/set-crop"; id: string; crop: CommentCrop }
   | { type: "snapshot/add"; snapshot: Snapshot }
-  /** Drops snapshots that are neither a project's latest nor under any comment. */
-  | { type: "snapshot/prune" }
+  /**
+   * Drops snapshots that are neither a project's latest nor under any comment,
+   * except those whose image a pending Undo holds (`held` blob keys).
+   */
+  | { type: "snapshot/prune"; held: readonly string[] }
   | { type: "author/set"; name: string }
   | { type: "project/share"; id: string; share: ProjectShare }
   | { type: "project/unshare"; id: string }
@@ -246,7 +249,7 @@ export function reduce(data: SquintData, action: Action): SquintData {
       if (data.snapshots.some((snapshot) => snapshot.id === action.snapshot.id)) return data;
       return { ...data, snapshots: [...data.snapshots, action.snapshot] };
     case "snapshot/prune": {
-      const prunable = prunableSnapshotIds(data);
+      const prunable = prunableSnapshotIds(data, new Set(action.held));
       if (prunable.size === 0) return data;
       return {
         ...data,

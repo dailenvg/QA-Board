@@ -18,13 +18,22 @@ function latestByProject(snapshots: readonly Snapshot[]): Map<string, Snapshot> 
   return latest;
 }
 
-/** Older snapshots nobody commented on: replaced by a newer one and safe to drop. */
-export function prunableSnapshotIds(data: SquintData): Set<string> {
+/**
+ * Older snapshots nobody commented on: replaced by a newer one and safe to
+ * drop, unless a pending Undo holds their image (`held` blob keys).
+ */
+export function prunableSnapshotIds(
+  data: SquintData,
+  held: ReadonlySet<string> = new Set(),
+): Set<string> {
   const latest = new Set([...latestByProject(data.snapshots).values()].map((s) => s.id));
   const referenced = new Set(data.comments.flatMap((comment) => comment.snapshotId ?? []));
   return new Set(
     data.snapshots
-      .filter((snapshot) => !latest.has(snapshot.id) && !referenced.has(snapshot.id))
+      .filter(
+        (snapshot) =>
+          !latest.has(snapshot.id) && !referenced.has(snapshot.id) && !held.has(snapshot.blobKey),
+      )
       .map((snapshot) => snapshot.id),
   );
 }

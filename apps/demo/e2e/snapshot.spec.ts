@@ -228,3 +228,41 @@ test("projects saved before snapshots still load, with website pins labelled Liv
   expect(stored.v2.projects[1]?.source).toMatchObject({ kind: "image", blobKey: "image:mock" });
   expect(stored.v2.projects[1]?.source).not.toHaveProperty("dataUrl");
 });
+
+test("undoing a delete keeps the earlier snapshot it was on, however long Undo waits", async ({
+  page,
+  baseURL,
+}) => {
+  // The sweep (and snapshot pruning) runs after 300 ms here instead of a minute.
+  await page.addInitScript(() => {
+    (window as Window & { __squintBlobGraceMs?: number }).__squintBlobGraceMs = 300;
+  });
+  await mockCapture(page);
+  await sandboxProject(page, baseURL, "Undo keeper");
+  await page.getByTestId("mode-comment").click();
+  await expect(snapshotImage(page)).toBeVisible();
+  await postComment(page, "On the first snapshot", { x: 140, y: 120 }, "Ana");
+  await page.getByRole("button", { name: "Refresh snapshot" }).click();
+  await expect(page.getByRole("button", { name: "Comment 1 by Ana", exact: true })).toHaveCount(0);
+
+  await showComments(page);
+  const card = onlyCommentCard(page);
+  await expect(card.getByTestId("placement-chip")).toHaveAttribute("data-placement", "earlier");
+  await card.getByRole("button", { name: "Delete comment 1" }).click();
+  await page
+    .getByRole("dialog", { name: "Delete comment 1?" })
+    .getByRole("button", { name: "Delete comment" })
+    .click();
+
+  // Hold the Undo toast open well past the (shortened) grace, so the sweep runs meanwhile.
+  const toast = page.getByTestId("toast").filter({ hasText: "Comment deleted" });
+  await toast.hover();
+  await page.waitForTimeout(1_500);
+  await toast.getByRole("button", { name: "Undo" }).click();
+
+  await expect(card.getByTestId("placement-chip")).toHaveAttribute("data-placement", "earlier");
+  await card.getByRole("button", { name: /Comment 1 by Ana/ }).click();
+  await expect(page.getByTestId("snapshot-bar")).toContainText("Earlier snapshot");
+  await expect(snapshotImage(page)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Comment 1 by Ana", exact: true })).toBeVisible();
+});

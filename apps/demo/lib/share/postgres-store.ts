@@ -70,9 +70,9 @@ export function createPostgresStore(db: Queryable): ShareStore {
     );
     return rows[0] ? toRecord(rows[0]) : null;
   };
-  const list = async <T>(table: string, id: string) => {
+  const list = async <T>(table: string, id: string, filter = "") => {
     const { rows } = await db.query<ItemRow<T>>(
-      `SELECT data, origin, seq FROM ${table} WHERE share_id = $1 ORDER BY seq`,
+      `SELECT data, origin, seq FROM ${table} WHERE share_id = $1 ${filter} ORDER BY seq`,
       [id],
     );
     return rows.map(toSequenced);
@@ -115,7 +115,12 @@ export function createPostgresStore(db: Queryable): ShareStore {
       return found;
     },
     snapshots: (id) => list<SharedSnapshot>("squint_share_snapshots", id),
-    comments: (id) => list<SharedComment>("squint_share_comments", id),
+    comments: (id, options) =>
+      list<SharedComment>(
+        "squint_share_comments",
+        id,
+        options?.includePending ? "" : "AND NOT pending",
+      ),
     async upsertSnapshot(id, snapshot, origin) {
       await db.query(upsertSql("squint_share_snapshots"), [
         id,
@@ -132,13 +137,20 @@ export function createPostgresStore(db: Queryable): ShareStore {
         origin,
       ]);
     },
-    async insertComment(id, comment, origin) {
+    async insertComment(id, comment, origin, options) {
       const { rows } = await db.query(
-        `INSERT INTO squint_share_comments (share_id, id, data, origin)
-         VALUES ($1, $2, $3::jsonb, $4) ON CONFLICT (share_id, id) DO NOTHING RETURNING id`,
-        [id, comment.id, JSON.stringify(comment), origin],
+        `INSERT INTO squint_share_comments (share_id, id, data, origin, pending)
+         VALUES ($1, $2, $3::jsonb, $4, $5) ON CONFLICT (share_id, id) DO NOTHING RETURNING id`,
+        [id, comment.id, JSON.stringify(comment), origin, options?.pending ?? false],
       );
       return rows.length === 1;
+    },
+    async confirmComment(id, commentId) {
+      await db.query(
+        `UPDATE squint_share_comments SET pending = false, seq = nextval('squint_share_seq')
+         WHERE share_id = $1 AND id = $2 AND pending`,
+        [id, commentId],
+      );
     },
     async deleteSnapshots(id, ids) {
       await db.query("DELETE FROM squint_share_snapshots WHERE share_id = $1 AND id = ANY($2)", [

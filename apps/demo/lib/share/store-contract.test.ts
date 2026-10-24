@@ -4,6 +4,9 @@ import { COMMENT, PNG, RECORD, SNAPSHOT } from "@/test/share-fixture";
 import { createMemoryStore } from "./memory-store";
 import { migrate, type Queryable } from "./migrate";
 import { createPostgresStore } from "./postgres-store";
+import { inlineBackend } from "./blob-backend";
+import type { ShareServices } from "./server";
+import { addClientComment, readBlob } from "./service";
 import type { ShareStore } from "./store";
 
 /**
@@ -81,6 +84,22 @@ describe.each(stores)("%s share store", (_name, make) => {
     expect(await store.snapshots(RECORD.id)).toEqual([]);
   });
 
+  it("keeps a pending comment invisible but claimed, then confirms it with a fresh seq", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    expect(await store.insertComment(RECORD.id, COMMENT, "client", { pending: true })).toBe(true);
+    expect(await store.comments(RECORD.id)).toEqual([]);
+    expect(await store.comments(RECORD.id, { includePending: true })).toHaveLength(1);
+    expect(await store.insertComment(RECORD.id, COMMENT, "client")).toBe(false);
+    await store.upsertSnapshot(RECORD.id, SNAPSHOT, "client");
+    const [snapshot] = await store.snapshots(RECORD.id);
+    await store.confirmComment(RECORD.id, COMMENT.id);
+    const [confirmed] = await store.comments(RECORD.id);
+    expect(confirmed?.item).toEqual(COMMENT);
+    // Confirmed after the snapshot was added, so a pull at the snapshot's seq still sees it.
+    expect(confirmed?.seq).toBeGreaterThan(snapshot?.seq ?? Infinity);
+  });
+
   it("keeps upload parts in order until they're deleted", async () => {
     const store = await make();
     await store.create(RECORD);
@@ -116,7 +135,44 @@ describe.each(stores)("%s share store", (_name, make) => {
 describe("migrate", () => {
   it("is idempotent", async () => {
     const db = adapt(new PGlite());
-    expect(await migrate(db)).toEqual(["001_squint_shares", "002_squint_share_blob_parts"]);
+    expect(await migrate(db)).toEqual([
+      "001_squint_shares",
+      "002_squint_share_blob_parts",
+      "003_squint_share_pending_comments",
+    ]);
     expect(await migrate(db)).toEqual([]);
+  });
+});
+
+describe.each(stores)("%s store: two posts with the same id at once", (_name, make) => {
+  it("lets exactly one win, stores its crop, and leaves nothing of the other", async () => {
+    const services: ShareServices = { store: await make(), blobs: inlineBackend };
+    const { store } = services;
+    await store.create(RECORD);
+    const input = {
+      id: "same",
+      x: 1,
+      y: 1,
+      body: "Hi",
+      author: "Cleo",
+      crop: { rect: { x: 0, y: 0, width: 4, height: 4 } },
+    };
+    const cropA = new Uint8Array([...PNG, 0xaa]);
+    const cropB = new Uint8Array([...PNG, 0xbb]);
+    const [a, b] = await Promise.all([
+      addClientComment(services, RECORD, input, cropA, 1),
+      addClientComment(services, RECORD, input, cropB, 2),
+    ]);
+    expect([a.ok, b.ok].filter(Boolean)).toHaveLength(1);
+    const loser = a.ok ? b : a;
+    expect(loser).toMatchObject({ ok: false, status: 409 });
+    const winnerCrop = a.ok ? cropA : cropB;
+    const stored = await readBlob(services, RECORD, "crop:same");
+    expect([...(stored?.bytes ?? [])]).toEqual([...winnerCrop]);
+    expect(await store.blobSizes(RECORD.id)).toEqual([
+      { key: "crop:same", size: winnerCrop.length },
+    ]);
+    const visible = await store.comments(RECORD.id);
+    expect(visible.map((row) => row.item.createdAt)).toEqual([a.ok ? 1 : 2]);
   });
 });

@@ -15,6 +15,8 @@ interface Entry {
   comments: Map<string, Sequenced<SharedComment>>;
   blobs: Map<string, StoredBlob>;
   parts: Map<string, Map<number, Uint8Array>>;
+  /** Comment ids claimed but not yet confirmed. */
+  pending: Set<string>;
 }
 
 const bySeq = <T>(a: Sequenced<T>, b: Sequenced<T>) => a.seq - b.seq;
@@ -53,6 +55,7 @@ export function createMemoryStore(): ShareStore {
         comments: new Map(),
         blobs: new Map(),
         parts: new Map(),
+        pending: new Set(),
       });
       return done(undefined);
     },
@@ -72,7 +75,13 @@ export function createMemoryStore(): ShareStore {
       return done([...(entry?.blobs.values() ?? [])].map((blob) => blob.location));
     },
     snapshots: (id) => done([...(shares.get(id)?.snapshots.values() ?? [])].sort(bySeq)),
-    comments: (id) => done([...(shares.get(id)?.comments.values() ?? [])].sort(bySeq)),
+    comments(id, options) {
+      const entry = shares.get(id);
+      const visible = [...(entry?.comments.values() ?? [])].filter(
+        (row) => options?.includePending || !entry?.pending.has(row.item.id),
+      );
+      return done(visible.sort(bySeq));
+    },
     upsertSnapshot(id, snapshot, origin) {
       upsert(shares.get(id)?.snapshots, snapshot, origin);
       return done(undefined);
@@ -81,18 +90,30 @@ export function createMemoryStore(): ShareStore {
       upsert(shares.get(id)?.comments, comment, origin);
       return done(undefined);
     },
-    insertComment(id, comment, origin) {
-      const comments = shares.get(id)?.comments;
-      if (!comments || comments.has(comment.id)) return done(false);
-      upsert(comments, comment, origin);
+    insertComment(id, comment, origin, options) {
+      const entry = shares.get(id);
+      if (!entry || entry.comments.has(comment.id)) return done(false);
+      upsert(entry.comments, comment, origin);
+      if (options?.pending) entry.pending.add(comment.id);
       return done(true);
+    },
+    confirmComment(id, commentId) {
+      const entry = shares.get(id);
+      const row = entry?.comments.get(commentId);
+      if (entry?.pending.delete(commentId) && row) {
+        entry.comments.set(commentId, { ...row, seq: (seq += 1) });
+      }
+      return done(undefined);
     },
     deleteSnapshots(id, ids) {
       for (const snapshotId of ids) shares.get(id)?.snapshots.delete(snapshotId);
       return done(undefined);
     },
     deleteComments(id, ids) {
-      for (const commentId of ids) shares.get(id)?.comments.delete(commentId);
+      for (const commentId of ids) {
+        shares.get(id)?.comments.delete(commentId);
+        shares.get(id)?.pending.delete(commentId);
+      }
       return done(undefined);
     },
     blobSizes: (id) =>
