@@ -6,6 +6,8 @@ const config: NextConfig = {
   // Linting runs through the monorepo's ESLint flat config (`pnpm lint`).
   eslint: { ignoreDuringBuilds: true },
   poweredByHeader: false,
+  // Always defined at build time, so production builds fold away the e2e-only hooks it gates.
+  env: { NEXT_PUBLIC_SQUINT_E2E: process.env.NEXT_PUBLIC_SQUINT_E2E ?? "0" },
   // @sparticuz/chromium unpacks its browser from bin/ at runtime, which file tracing can't see.
   outputFileTracingIncludes: {
     "/api/capture": ["./node_modules/@sparticuz/chromium/bin/**"],
