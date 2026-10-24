@@ -30,6 +30,7 @@ export function ShareControl({ data, project }: ShareControlProps) {
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [revoking, setRevoking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { share } = project;
   const state = useMemo(
@@ -70,7 +71,9 @@ export function ShareControl({ data, project }: ShareControlProps) {
   const revoke = async () => {
     setConfirming(false);
     if (!share) return;
+    setRevoking(true);
     const result = await ownerApi.revoke(share);
+    setRevoking(false);
     if (!result.ok && result.status !== 404) {
       toast({ tone: "error", message: "The link couldn't be revoked. Try again." });
       return;
@@ -88,8 +91,9 @@ export function ShareControl({ data, project }: ShareControlProps) {
           variant="ghost"
           size="sm"
           onClick={() => void pushNow(project.id)}
-          className="text-danger"
-          aria-label="Sharing is out of date. Retry sync"
+          className="text-danger max-sm:size-11 max-sm:px-0"
+          // Named by its text (sr-only on phones), so the spoken name matches the visible one.
+          title="Changes haven't reached the client link yet"
           data-testid="sync-retry"
         >
           <Icon name="alert" className="size-4" />
@@ -122,6 +126,7 @@ export function ShareControl({ data, project }: ShareControlProps) {
         url={url}
         status={status}
         creating={creating}
+        revoking={revoking}
         error={error}
         onCreate={() => void create()}
         onRetry={() => void pushNow(project.id)}

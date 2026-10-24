@@ -9,7 +9,7 @@ const VARIANTS: Record<ButtonVariant, string> = {
 };
 
 const BASE =
-  "inline-flex min-h-11 select-none items-center justify-center gap-2 rounded-pill font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex min-h-11 select-none items-center justify-center gap-2 rounded-pill font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
 
 export type ButtonSize = "md" | "sm" | "icon";
 

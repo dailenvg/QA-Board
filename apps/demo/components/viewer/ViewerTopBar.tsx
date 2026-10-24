@@ -41,13 +41,18 @@ export function ViewerTopBar({
         <h1 className="truncate text-heading font-bold">{project.name}</h1>
         <StatusChip status={status} />
       </div>
-      <div className="flex items-center gap-2 max-sm:w-full">
+      {/*
+       * Phones: the mode switch fills the row, and when the actions don't fit beside it
+       * (Export, Share, sync retry, original site) they wrap to their own row instead of
+       * pushing the bar off-screen.
+       */}
+      <div className="flex flex-wrap items-center justify-end gap-2 max-sm:w-full">
         <SegmentedControl
           label="Mode"
           layoutId="viewer-mode-thumb"
           value={mode}
           onChange={onMode}
-          className="max-sm:w-full max-sm:[&>button]:flex-1"
+          className="max-sm:flex-1 max-sm:[&>button]:flex-1"
           options={[
             {
               value: "browse",
@@ -66,18 +71,20 @@ export function ViewerTopBar({
           ]}
         />
         <Kbd className="hidden lg:inline">C</Kbd>
-        {actions}
-        {originalUrl ? (
-          <ButtonLink
-            href={originalUrl}
-            external
-            variant="secondary"
-            size="icon"
-            ariaLabel="Open the original site in a new tab"
-          >
-            <Icon name="external" className="size-5" />
-          </ButtonLink>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {actions}
+          {originalUrl ? (
+            <ButtonLink
+              href={originalUrl}
+              external
+              variant="secondary"
+              size="icon"
+              ariaLabel="Open the original site in a new tab"
+            >
+              <Icon name="external" className="size-5" />
+            </ButtonLink>
+          ) : null}
+        </div>
       </div>
     </header>
   );

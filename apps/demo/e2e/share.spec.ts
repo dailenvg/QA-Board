@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
   createUrlProject,
+  hideComments,
   mockCapture,
   mockFrameCheck,
   OVERVIEW_HEADLINE,
@@ -81,6 +82,8 @@ test("an owner shares a project, a client comments, and the owner resolves and r
     0,
   );
 
+  // On phones the open comments sheet covers the lower canvas; collapse it to place a pin.
+  await hideComments(client);
   await client.getByTestId("mode-comment").click();
   await expect(client.getByRole("img", { name: /^Snapshot of/ })).toBeVisible();
   await expect(client.getByRole("button", { name: "Comment 1 by Ana", exact: true })).toBeVisible();

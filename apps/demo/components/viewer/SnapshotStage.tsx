@@ -2,6 +2,7 @@
 
 import { useEffect, type ReactNode, type Ref } from "react";
 import type { CaptureState } from "@/lib/capture/use-capture";
+import { absoluteTime } from "@/lib/relative-time";
 import type { Snapshot } from "@/lib/store/types";
 import { useElementWidth } from "@/lib/use-element-width";
 import { CaptureFailed } from "./CaptureFailed";
@@ -24,6 +25,20 @@ interface SnapshotStageProps {
   overlay: ReactNode;
   imageRef: Ref<HTMLImageElement>;
   onReady: () => void;
+}
+
+/**
+ * What screen readers hear as the stage changes. The first capture announces
+ * itself (CaptureProgress); this covers a refresh starting, and a snapshot
+ * arriving or being switched to.
+ */
+function announcement(snapshot: Snapshot | null, isLatest: boolean, capture: CaptureState) {
+  if (capture.status === "capturing") return snapshot ? "Taking a new snapshot…" : "";
+  if (!snapshot) return "";
+  const taken = absoluteTime(snapshot.createdAt);
+  return isLatest
+    ? `Showing the snapshot taken ${taken}.`
+    : `Showing an earlier snapshot, taken ${taken}.`;
 }
 
 /**
@@ -74,6 +89,9 @@ export function SnapshotStage({
 
   return (
     <div data-testid="snapshot-stage" className="flex min-h-full flex-col">
+      <p role="status" className="sr-only">
+        {announcement(snapshot, isLatest, capture)}
+      </p>
       {snapshot ? (
         <SnapshotBar
           snapshot={snapshot}

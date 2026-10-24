@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useId, useRef } from "react";
 import { relativeTime } from "@/lib/relative-time";
 import type { SyncStatus } from "@/lib/share-client/owner-sync";
 import type { ProjectShare } from "@/lib/store/types";
@@ -8,7 +9,7 @@ import { CopyLinkField } from "../review-link/CopyLinkField";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
 import { FieldError } from "../ui/FieldError";
-import { Icon } from "../ui/Icon";
+import { Icon, type IconName } from "../ui/Icon";
 
 interface ShareDialogProps {
   open: boolean;
@@ -17,6 +18,7 @@ interface ShareDialogProps {
   url: string | null;
   status: SyncStatus;
   creating: boolean;
+  revoking: boolean;
   error: string | null;
   onCreate: () => void;
   onRetry: () => void;
@@ -40,13 +42,34 @@ export function ShareDialog({
   url,
   status,
   creating,
+  revoking,
   error,
   onCreate,
   onRetry,
   onRevoke,
 }: ShareDialogProps) {
   const now = useNow();
+  const errorId = useId();
   const gone = status.phase === "gone";
+  const failing = status.phase === "error";
+  const busy = status.phase === "syncing" || Boolean(status.uploading);
+  const synced = Boolean(status.checkedAt ?? share?.lastSyncedAt);
+  // A check only once something has synced; "Not synced yet" keeps the neutral refresh icon.
+  const syncIcon: IconName = failing ? "alert" : busy || !synced ? "refresh" : "check";
+  const syncTone = failing ? "text-danger" : "text-muted";
+  const linked = Boolean(share && url && !gone);
+  const linkedView = useRef<HTMLDivElement>(null);
+  const wasLinked = useRef(linked);
+
+  // Creating the link replaces the focused Create button with the link view. Carry focus
+  // to Copy, so it doesn't fall to the page behind the modal.
+  useEffect(() => {
+    if (open && linked && !wasLinked.current) {
+      linkedView.current?.querySelector<HTMLElement>("button")?.focus();
+    }
+    wasLinked.current = linked;
+  }, [open, linked]);
+
   return (
     <Dialog
       open={open}
@@ -56,7 +79,7 @@ export function ShareDialog({
       testId="share-dialog"
     >
       {share && url && !gone ? (
-        <div className="flex flex-col gap-4">
+        <div ref={linkedView} className="flex flex-col gap-4">
           <CopyLinkField
             url={url}
             label="Review link"
@@ -64,23 +87,27 @@ export function ShareDialog({
             testId="share-url"
             className=""
           />
-          <p
-            role="status"
-            className="flex items-center gap-2 text-meta text-muted"
-            data-testid="sync-status"
-          >
-            <Icon name={status.phase === "error" ? "alert" : "refresh"} className="size-4" />
-            {syncLine(status, share, now)}
-            {status.phase === "error" ? (
+          <div className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-meta ${syncTone}`}>
+            <Icon name={syncIcon} className="size-4 shrink-0" />
+            {/* Only the status text is live: the Retry button isn't announced on every change. */}
+            <p role="status" data-testid="sync-status">
+              {syncLine(status, share, now)}
+            </p>
+            {failing ? (
               <Button variant="ghost" size="sm" onClick={onRetry}>
                 Retry now
               </Button>
             ) : null}
-          </p>
+          </div>
           <div className="flex justify-end border-t border-line pt-4">
-            <Button variant="danger" size="sm" onClick={onRevoke}>
+            <Button
+              variant="danger"
+              size="sm"
+              aria-disabled={revoking || undefined}
+              onClick={revoking ? undefined : onRevoke}
+            >
               <Icon name="trash" className="size-4" />
-              Revoke link
+              {revoking ? "Revoking…" : "Revoke link"}
             </Button>
           </div>
         </div>
@@ -96,11 +123,17 @@ export function ShareDialog({
               Anyone with the link can open this project. Their comments come back here.
             </p>
           )}
-          <Button onClick={onCreate} disabled={creating} data-testid="create-share-link">
+          {/* aria-disabled while busy, so keyboard focus stays here if creating fails. */}
+          <Button
+            onClick={creating ? undefined : onCreate}
+            aria-disabled={creating || undefined}
+            aria-describedby={errorId}
+            data-testid="create-share-link"
+          >
             <Icon name="link" className="size-4" />
             {creating ? "Creating link…" : gone ? "Create a new link" : "Create link"}
           </Button>
-          <FieldError id="share-error" message={error} />
+          <FieldError id={errorId} message={error} />
         </div>
       )}
     </Dialog>

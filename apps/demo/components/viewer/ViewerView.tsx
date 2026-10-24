@@ -39,6 +39,8 @@ interface ViewerViewProps {
   leading: ReactNode;
   /** Extra top-bar actions, such as the owner's Share button. */
   actions?: ReactNode;
+  /** Shown above the comment list, such as what a client can do on a shared link. */
+  panelNotice?: ReactNode;
 }
 
 type ScrollRequest = { id: string; target: "pin" | "card"; nonce: number } | null;
@@ -48,7 +50,7 @@ type ScrollRequest = { id: string; target: "pin" | "card"; nonce: number } | nul
  * comment actions. Changes go through the viewer backend (the owner's store or
  * a shared link's server); on a shared link, moderation controls are hidden.
  */
-export function ViewerView({ data, project, leading, actions }: ViewerViewProps) {
+export function ViewerView({ data, project, leading, actions, panelNotice }: ViewerViewProps) {
   const toast = useToast();
   const backend = useViewerBackend();
   const owner = backend.role === "owner";
@@ -253,6 +255,28 @@ export function ViewerView({ data, project, leading, actions }: ViewerViewProps)
   const sheetSpace = docked
     ? "pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:pb-[calc(5.5rem+env(safe-area-inset-bottom))]"
     : "";
+  // The snapshot bar is sticky at the top of the canvas; keep focused and scrolled-to pins
+  // below it rather than under it (WCAG 2.4.11).
+  const scrollInset = surface.kind === "snapshot" ? "scroll-pt-28" : "";
+
+  const commentsBody = (
+    <CommentsBody
+      comments={comments}
+      numbers={numbers}
+      placements={placements}
+      tab={tab}
+      onTab={setTab}
+      selectedId={selectedId}
+      now={now}
+      listRef={listRef}
+      canModerate={owner}
+      onSelect={(id) => select(id, "card")}
+      onEdit={commentActions.edit}
+      onResolve={commentActions.resolve}
+      onReopen={commentActions.reopen}
+      onDelete={deleting.show}
+    />
+  );
 
   return (
     <div className={`flex h-dvh flex-col gap-3 p-3 sm:gap-4 sm:p-4 ${sheetSpace}`}>
@@ -277,7 +301,7 @@ export function ViewerView({ data, project, leading, actions }: ViewerViewProps)
           data-testid="canvas-area"
           data-mode={mode}
           data-surface={surface.kind}
-          className="relative min-h-0 min-w-0 flex-1 overflow-auto rounded-panel bg-tile"
+          className={`relative min-h-0 min-w-0 flex-1 overflow-auto rounded-panel bg-tile ${scrollInset}`}
         >
           <ViewerStage
             project={project}
@@ -301,22 +325,14 @@ export function ViewerView({ data, project, leading, actions }: ViewerViewProps)
           resolved={counts.resolved}
           celebrating={celebrating}
         >
-          <CommentsBody
-            comments={comments}
-            numbers={numbers}
-            placements={placements}
-            tab={tab}
-            onTab={setTab}
-            selectedId={selectedId}
-            now={now}
-            listRef={listRef}
-            canModerate={owner}
-            onSelect={(id) => select(id, "card")}
-            onEdit={commentActions.edit}
-            onResolve={commentActions.resolve}
-            onReopen={commentActions.reopen}
-            onDelete={deleting.show}
-          />
+          {panelNotice ? (
+            <div className="flex min-h-0 flex-1 flex-col gap-3">
+              {panelNotice}
+              {commentsBody}
+            </div>
+          ) : (
+            commentsBody
+          )}
         </CommentsPanel>
       </div>
       <ConfirmDialog

@@ -45,7 +45,7 @@ export function PlacementChip({
       title={copy.hint}
       data-testid="placement-chip"
       data-placement={placement.kind}
-      className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-pill bg-seg px-2.5 py-1 text-label font-semibold text-ink-2"
+      className="mt-2 inline-flex max-w-full items-center gap-2 rounded-pill bg-seg px-3 py-1 text-label font-semibold text-ink-2"
     >
       <Icon name={copy.icon} className="size-3.5 shrink-0" />
       <span className="truncate">{copy.label}</span>

@@ -39,7 +39,7 @@ export function SnapshotBar({
       data-testid="snapshot-bar"
       className="sticky top-3 z-30 mx-3 mt-3 flex flex-col gap-2 sm:mx-5 sm:mt-5"
     >
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-card bg-panel/95 py-1.5 pr-1.5 pl-4 shadow-float ring-1 ring-line backdrop-blur">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-card bg-panel/95 py-1 pr-1 pl-4 shadow-float ring-1 ring-line backdrop-blur">
         <Icon name={isLatest ? "camera" : "history"} className="size-4 shrink-0 text-muted" />
         <p className="min-w-0 flex-1 text-meta text-muted">
           <span className="font-semibold text-ink">
@@ -60,17 +60,25 @@ export function SnapshotBar({
           </Button>
         )}
         {isLatest && onRefresh ? (
-          <Button variant="ghost" size="sm" disabled={capturing} onClick={onRefresh}>
+          // aria-disabled, not disabled: a disabled button drops keyboard focus to the page.
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-disabled={capturing || undefined}
+            onClick={capturing ? undefined : onRefresh}
+          >
             <Icon name="refresh" className="size-4" />
             {capturing ? "Taking snapshot…" : "Refresh snapshot"}
           </Button>
         ) : null}
       </div>
       {capture.status === "failed" && isLatest ? (
+        // Opaque panel: this floats over the snapshot, so a tint alone can't guarantee contrast.
         <p
           role="alert"
-          className="self-start rounded-field bg-danger-soft px-3 py-2 text-meta font-semibold text-danger"
+          className="flex items-start gap-2 self-start rounded-field bg-panel px-3 py-2 text-meta font-semibold text-danger shadow-float ring-1 ring-line"
         >
+          <Icon name="alert" className="mt-0.5 size-4 shrink-0" />
           {capture.message}
         </p>
       ) : null}

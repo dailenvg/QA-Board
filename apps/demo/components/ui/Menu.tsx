@@ -44,11 +44,14 @@ export function Menu({
   disabledReason = null,
 }: MenuProps) {
   const [open, setOpen] = useState(false);
+  /** A disabled trigger was clicked or tapped: show its reason, since touch has no tooltip. */
+  const [explaining, setExplaining] = useState(false);
   const reasonId = useId();
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const menuId = useId();
   const variants = usePopVariants();
+  const showReason = explaining && Boolean(disabledReason);
 
   useEffect(() => {
     if (!open) return;
@@ -59,6 +62,15 @@ export function Menu({
     root.current?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')?.focus();
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [open]);
+
+  useEffect(() => {
+    if (!showReason) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setExplaining(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [showReason]);
 
   const close = () => {
     setOpen(false);
@@ -105,9 +117,20 @@ export function Menu({
         title={disabledReason ?? undefined}
         data-testid={testId}
         onClick={() => {
-          if (!disabledReason) setOpen((value) => !value);
+          if (disabledReason) {
+            setExplaining((value) => !value);
+            return;
+          }
+          setExplaining(false);
+          setOpen((value) => !value);
         }}
+        onBlur={() => setExplaining(false)}
         onKeyDown={(event) => {
+          if (event.key === "Escape" && showReason) {
+            event.stopPropagation();
+            setExplaining(false);
+            return;
+          }
           // Menu-button pattern: arrow keys open the menu and move into it.
           if (disabledReason) return;
           if (!open && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
@@ -125,6 +148,24 @@ export function Menu({
           </span>
         ) : null}
       </button>
+      <AnimatePresence>
+        {showReason ? (
+          // Visual only: screen readers already get the reason as the trigger's description.
+          <motion.p
+            key="reason"
+            aria-hidden="true"
+            data-testid={testId ? `${testId}-reason` : undefined}
+            variants={variants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            style={{ transformOrigin: "top right" }}
+            className="absolute top-full right-0 z-30 mt-1 w-max max-w-64 rounded-tile bg-inv px-4 py-2 text-meta font-medium text-on-inv shadow-pop"
+          >
+            {disabledReason}
+          </motion.p>
+        ) : null}
+      </AnimatePresence>
       <AnimatePresence>
         {open ? (
           <motion.div

@@ -51,6 +51,7 @@ export function Composer({
   const nameErrorId = useId();
   const bodyId = useId();
   const errorId = useId();
+  const sendErrorId = useId();
   const nameError = error?.field === "name" ? error.message : null;
   const bodyError = error?.field === "body" ? error.message : null;
 
@@ -175,6 +176,7 @@ export function Composer({
         </div>
         {draft.error ? (
           <p
+            id={sendErrorId}
             role="alert"
             data-testid="composer-send-error"
             className="flex items-start gap-2 rounded-field bg-danger-soft px-3 py-2 text-meta font-semibold text-danger"
@@ -188,11 +190,13 @@ export function Composer({
             <Button variant="ghost" size="sm" onClick={onCancel}>
               Cancel
             </Button>
+            {/* aria-disabled, not disabled: focus stays put, so Retry is right here on failure. */}
             <Button
               type="submit"
               size="sm"
-              disabled={draft.sending}
+              aria-disabled={draft.sending || undefined}
               aria-busy={draft.sending || undefined}
+              aria-describedby={draft.error ? sendErrorId : undefined}
             >
               {draft.sending ? "Posting…" : draft.error ? "Retry" : "Post"}
             </Button>

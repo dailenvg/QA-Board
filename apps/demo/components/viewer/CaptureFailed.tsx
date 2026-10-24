@@ -23,13 +23,13 @@ export function CaptureFailed({ message, onRetry, onScreenshot, onBrowse }: Capt
       variants={variants}
       initial="hidden"
       animate="visible"
-      role="alert"
       data-testid="capture-failed"
       className="grid min-h-80 place-items-center py-6 text-center"
     >
       <div className="flex max-w-md flex-col items-center gap-4">
         <SquintMascot mood="surprised" size={112} />
-        <div>
+        {/* Only the message is the alert, so the buttons aren't read out as part of it. */}
+        <div role="alert">
           <h2 className="text-title font-bold">We couldn&apos;t take a snapshot</h2>
           <p className="mt-2 text-body text-muted">{message}</p>
         </div>

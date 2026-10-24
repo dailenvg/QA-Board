@@ -7,6 +7,7 @@ import { useBlobUrl } from "@/lib/blob-store/use-blob-url";
 import { press } from "@/lib/motion";
 import type { CommentCrop } from "@/lib/store/types";
 import { Dialog } from "../ui/Dialog";
+import { Icon } from "../ui/Icon";
 import { Skeleton } from "../ui/Skeleton";
 
 interface CommentCropThumbProps {
@@ -32,10 +33,26 @@ export function CommentCropThumb({ crop, number }: CommentCropThumbProps) {
         aria-label={`Open the screenshot for comment ${number}`}
         onClick={() => setOpen(true)}
         {...(reduce || !ready ? {} : press)}
-        className="relative block h-32 w-full overflow-hidden rounded-tile bg-tile ring-1 ring-line transition-shadow hover:ring-line-strong disabled:cursor-wait"
+        className="relative block h-32 w-full overflow-hidden rounded-tile bg-tile ring-1 ring-line transition-shadow hover:ring-line-strong active:ring-line-strong disabled:cursor-wait"
       >
         {ready ? (
-          <Image src={image.url} alt="" fill unoptimized sizes="22rem" className="object-contain" />
+          <>
+            <Image
+              src={image.url}
+              alt=""
+              fill
+              unoptimized
+              sizes="22rem"
+              className="object-contain"
+            />
+            {/* Always shown, so touch users (no hover) can tell the thumbnail opens larger. */}
+            <span
+              aria-hidden="true"
+              className="absolute right-2 bottom-2 grid size-8 place-items-center rounded-pill bg-inv text-on-inv shadow-seg"
+            >
+              <Icon name="maximize" className="size-4" />
+            </span>
+          </>
         ) : (
           <Skeleton className="absolute inset-0 rounded-none" />
         )}

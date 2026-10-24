@@ -92,6 +92,12 @@ const ICONS = {
     ["rect", { x: 14, y: 14, width: 7, height: 7, rx: 1 }],
     ["rect", { x: 3, y: 14, width: 7, height: 7, rx: 1 }],
   ],
+  maximize: [
+    ["path", { d: "M15 3h6v6" }],
+    ["path", { d: "m21 3-7 7" }],
+    ["path", { d: "m3 21 7-7" }],
+    ["path", { d: "M9 21H3v-6" }],
+  ],
   message: [["path", { d: "M7.9 20A9 9 0 1 0 4 16.1L2 22Z" }]],
   messagePlus: [
     ["path", { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" }],

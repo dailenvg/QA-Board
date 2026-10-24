@@ -32,22 +32,31 @@ export function ExportMenu({ data, project, commentCount }: ExportMenuProps) {
   };
 
   return (
-    <Menu
-      label="Export comments"
-      icon="download"
-      text={busy ? "Exporting…" : "Export"}
-      testId="export-menu"
-      disabledReason={commentCount === 0 ? NO_COMMENTS : busy ? BUSY : null}
-      triggerClassName={`${buttonClass("secondary", "sm")} max-sm:size-11 max-sm:px-0 aria-disabled:cursor-not-allowed aria-disabled:opacity-50`}
-      items={[
-        {
-          label: "ZIP (Markdown + JSON + screenshots)",
-          icon: "fileArchive",
-          onSelect: () => run("zip"),
-        },
-        { label: "Markdown", icon: "fileText", onSelect: () => run("markdown") },
-        { label: "JSON", icon: "fileJson", onSelect: () => run("json") },
-      ]}
-    />
+    <>
+      <Menu
+        label="Export comments"
+        icon="download"
+        text={busy ? "Exporting…" : "Export"}
+        testId="export-menu"
+        disabledReason={commentCount === 0 ? NO_COMMENTS : busy ? BUSY : null}
+        // Phones: the popup anchors to the top bar's right edge, not the trigger, so it can't
+        // run off the left side of a 375px screen.
+        className="max-sm:static"
+        triggerClassName={`${buttonClass("secondary", "sm")} max-sm:size-11 max-sm:px-0`}
+        items={[
+          {
+            label: "ZIP (Markdown + JSON + screenshots)",
+            icon: "fileArchive",
+            onSelect: () => run("zip"),
+          },
+          { label: "Markdown", icon: "fileText", onSelect: () => run("markdown") },
+          { label: "JSON", icon: "fileJson", onSelect: () => run("json") },
+        ]}
+      />
+      {/* The trigger's name stays "Export comments"; this tells screen readers work started. */}
+      <span role="status" className="sr-only">
+        {busy ? BUSY : ""}
+      </span>
+    </>
   );
 }

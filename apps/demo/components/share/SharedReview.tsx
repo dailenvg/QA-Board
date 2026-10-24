@@ -9,6 +9,7 @@ import { useClientRefresh } from "@/lib/share-client/use-client-refresh";
 import type { ClientView } from "@/lib/share/types";
 import { ViewerBackendContext } from "@/lib/viewer-backend/backend";
 import { Logo } from "../brand/Logo";
+import { Icon } from "../ui/Icon";
 import { ViewerView } from "../viewer/ViewerView";
 import { ShareUnavailable } from "./ShareUnavailable";
 
@@ -16,6 +17,9 @@ interface SharedReviewProps {
   token: string;
   initial: ClientView;
 }
+
+const CLIENT_NOTICE =
+  "You can browse this project and add comments. Only the person who shared it can resolve, edit or delete them.";
 
 /**
  * A client's view of a shared project: the same viewer, reading from and
@@ -44,6 +48,15 @@ export function SharedReview({ token, initial }: SharedReviewProps) {
             <span className="pl-2">
               <Logo linked={false} caption="Shared review" />
             </span>
+          }
+          panelNotice={
+            <p
+              data-testid="client-notice"
+              className="mx-3 flex items-start gap-2 rounded-tile bg-card px-4 py-3 text-meta text-muted"
+            >
+              <Icon name="message" className="mt-0.5 size-4 shrink-0 text-ink-2" />
+              {CLIENT_NOTICE}
+            </p>
           }
         />
       </ViewerBackendContext>

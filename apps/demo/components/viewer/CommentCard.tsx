@@ -56,6 +56,8 @@ export function CommentCard({
   const placementId = useId();
   const resolved = comment.status === "resolved";
   const edited = comment.updatedAt > comment.createdAt;
+  // Without the action row (shared link), this keeps the card's bottom inset at 16px.
+  const bottomInset = canModerate ? "" : "pb-2";
 
   /** Closing the editor hands focus back to the Edit button instead of dropping it to the page. */
   const finishEditing = () => {
@@ -74,7 +76,7 @@ export function CommentCard({
       exit="exit"
       data-testid="comment-card"
       data-comment-id={comment.id}
-      className="relative rounded-tile bg-card transition-colors has-[[data-card-select]:hover]:bg-hover/60 has-[[data-card-select]:active]:bg-hover has-[[data-card-select]:focus-visible]:ring-2 has-[[data-card-select]:focus-visible]:ring-focus"
+      className={`relative rounded-tile bg-card transition-colors has-[[data-card-select]:hover]:bg-hover/60 has-[[data-card-select]:active]:bg-hover has-[[data-card-select]:focus-visible]:ring-2 has-[[data-card-select]:focus-visible]:ring-focus ${bottomInset}`}
     >
       {selected ? (
         <motion.span

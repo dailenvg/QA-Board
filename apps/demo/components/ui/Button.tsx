@@ -11,7 +11,11 @@ interface ButtonProps extends Omit<HTMLMotionProps<"button">, "children"> {
   size?: ButtonSize;
 }
 
-/** Button with spring hover and press feedback (plain fades with reduced motion). */
+/**
+ * Button with spring hover and press feedback (plain fades with reduced motion).
+ * For busy states prefer `aria-disabled` over `disabled`: the button keeps
+ * keyboard focus instead of dropping it to the page.
+ */
 export function Button({
   children,
   variant = "primary",
@@ -22,12 +26,14 @@ export function Button({
   ...rest
 }: ButtonProps) {
   const reduce = useReducedMotion();
+  const ariaDisabled = rest["aria-disabled"];
+  const inactive = disabled || ariaDisabled === true || ariaDisabled === "true";
   return (
     <motion.button
       type={type}
       disabled={disabled}
       className={`${buttonClass(variant, size)} ${className}`}
-      {...(reduce || disabled ? {} : press)}
+      {...(reduce || inactive ? {} : press)}
       {...rest}
     >
       {children}

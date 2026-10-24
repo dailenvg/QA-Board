@@ -120,6 +120,12 @@ export async function showComments(page: Page): Promise<void> {
   if (await toggle.isVisible()) await toggle.click();
 }
 
+/** Collapses the comments bottom sheet on small screens, uncovering the canvas. */
+export async function hideComments(page: Page): Promise<void> {
+  const toggle = page.getByRole("button", { name: /Hide comments/ });
+  if (await toggle.isVisible()) await toggle.click();
+}
+
 export function topBarStatus(page: Page): Locator {
   return page.getByRole("banner").getByTestId("status-chip");
 }
