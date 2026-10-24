@@ -199,6 +199,32 @@ describe("uploads in parts", () => {
 });
 
 describe("client writes", () => {
+  it("stores the crop before the row: a full share refuses it for real, every time", async () => {
+    const { services, share } = await shared();
+    const many = Array.from({ length: 5 }, (_, index) => ({ ...SNAPSHOT, id: `f${index}` }));
+    await pushState(services, share, { ...STATE, snapshots: many }, 0, 200);
+    const half = SHARE_LIMITS.blobBytes.snapshot / 2;
+    const full = new Uint8Array(SHARE_LIMITS.blobBytes.snapshot);
+    full.set(JPEG);
+    for (const item of many) {
+      const key = `snapshot:${item.id}`;
+      await putOwnerBlob(services, share, key, full.slice(0, half), { part: 0, parts: 2 });
+      await putOwnerBlob(services, share, key, full.slice(half), { part: 1, parts: 2 });
+    }
+    const input = {
+      ...clientComment("k-1"),
+      crop: { rect: { x: 0, y: 0, width: 10, height: 10 } },
+    };
+    for (const _attempt of [1, 2]) {
+      expect(await addClientComment(services, share, input, PNG, 300)).toMatchObject({
+        ok: false,
+        status: 413,
+        error: "share-full",
+      });
+    }
+    expect((await clientView(services.store, share)).comments.map((c) => c.id)).toEqual(["c-1"]);
+  });
+
   it("adds an active comment once, with its crop", async () => {
     const { services, share } = await shared();
     const input = {

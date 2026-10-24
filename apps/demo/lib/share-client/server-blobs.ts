@@ -14,10 +14,11 @@ export function createServerBlobs(token: string): ServerBlobs {
   const listeners = new Map<string, Set<() => void>>();
 
   const fetchBlob = async (key: string): Promise<Blob | null> => {
-    const blob = await fetchInRanges(api.blobUrl(key));
+    const fetched = await fetchInRanges(api.blobUrl(key));
+    if (fetched.ok) return fetched.blob;
     // Treated as missing; a later read tries again.
-    if (!blob) cache.delete(key);
-    return blob;
+    cache.delete(key);
+    return null;
   };
 
   return {

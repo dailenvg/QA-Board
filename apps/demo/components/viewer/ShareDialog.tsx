@@ -30,6 +30,7 @@ function syncLine(status: SyncStatus, share: ProjectShare, now: number): string 
     return `Uploading images: ${status.uploading.done} of ${status.uploading.total}`;
   if (status.phase === "syncing") return "Syncing…";
   if (status.phase === "error") return "Changes haven't reached the link yet. Retrying…";
+  if (status.pullHeld) return "Some client comments haven't arrived yet. Retrying…";
   const at = Math.max(status.checkedAt ?? 0, share.lastSyncedAt ?? 0);
   return at ? `Synced ${relativeTime(at, now)}` : "Not synced yet";
 }
@@ -51,7 +52,8 @@ export function ShareDialog({
   const now = useNow();
   const errorId = useId();
   const gone = status.phase === "gone";
-  const failing = status.phase === "error";
+  // Never "Synced" while client additions are held back.
+  const failing = status.phase === "error" || status.pullHeld;
   const busy = status.phase === "syncing" || Boolean(status.uploading);
   const synced = Boolean(status.checkedAt ?? share?.lastSyncedAt);
   // A check only once something has synced; "Not synced yet" keeps the neutral refresh icon.

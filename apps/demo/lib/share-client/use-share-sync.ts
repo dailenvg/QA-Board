@@ -7,7 +7,12 @@ const PUSH_DEBOUNCE_MS = 400;
 /** Client comments are pulled this often while the tab is visible, and on focus. */
 export const PULL_INTERVAL_MS = 15_000;
 
-const SERVER_STATUS: SyncStatus = { phase: "idle", checkedAt: null, uploading: null };
+const SERVER_STATUS: SyncStatus = {
+  phase: "idle",
+  pullHeld: false,
+  checkedAt: null,
+  uploading: null,
+};
 
 /**
  * Keeps a shared project in sync while its viewer is open: pushes whenever

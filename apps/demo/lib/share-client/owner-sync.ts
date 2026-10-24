@@ -5,12 +5,15 @@ import { snapshotsFor } from "../store/snapshots";
 import { dispatch, getSnapshot } from "../store/store";
 import type { Comment, Project, ProjectShare, Snapshot } from "../store/types";
 import { ownerApi } from "./api";
+import type { ShareChanges } from "../share/types";
 import { fromSharedComment, fromSharedSnapshot, localBlobKey, toShareState } from "./share-state";
 
 export type SyncPhase = "idle" | "syncing" | "error" | "gone";
 
 export interface SyncStatus {
   phase: SyncPhase;
+  /** Client additions are waiting on a temporary error; the next pull tries again. */
+  pullHeld: boolean;
   /** Last successful push or pull in this visit. */
   checkedAt: number | null;
   /** Images still to upload, while uploading. */
@@ -18,7 +21,7 @@ export interface SyncStatus {
 }
 
 const RETRY_MS = [2_000, 5_000, 15_000, 30_000];
-const IDLE: SyncStatus = { phase: "idle", checkedAt: null, uploading: null };
+const IDLE: SyncStatus = { phase: "idle", pullHeld: false, checkedAt: null, uploading: null };
 
 interface Controller {
   status: SyncStatus;
@@ -150,16 +153,47 @@ export async function pushNow(projectId: string): Promise<void> {
   }
 }
 
-/** Copies a client image into this browser's blob store; false if it couldn't be read. */
-async function copyBlob(share: ProjectShare, key: string): Promise<boolean> {
-  const blob = await ownerApi.download(share, key);
-  return blob ? putBlob(key, blob) : false;
+type Copied = "copied" | "missing" | "retry";
+
+/**
+ * Copies a client image into this browser's blob store: "missing" when the
+ * server can never send it (a 404 or another permanent answer), "retry" when
+ * the failure is temporary (network, server error) or this browser couldn't save it.
+ */
+async function copyBlob(share: ProjectShare, key: string): Promise<Copied> {
+  const fetched = await ownerApi.download(share, key);
+  if (!fetched.ok) return fetched.permanent ? "missing" : "retry";
+  return (await putBlob(key, fetched.blob)) ? "copied" : "retry";
+}
+
+/** Merges what arrived. A comment whose crop is gone for good comes without it. */
+async function collect(share: ProjectShare, projectId: string, changes: ShareChanges) {
+  let held = false;
+  const snapshots: Snapshot[] = [];
+  for (const snapshot of changes.snapshots) {
+    const copied = await copyBlob(share, snapshotBlobKey(snapshot.id));
+    if (copied === "retry") held = true;
+    // A missing image still merges: the snapshot shows its "not available" state.
+    else snapshots.push(fromSharedSnapshot(snapshot, projectId));
+  }
+  const comments: Comment[] = [];
+  for (const comment of changes.comments) {
+    const copied = comment.crop ? await copyBlob(share, `crop:${comment.id}`) : "copied";
+    if (copied === "retry") {
+      held = true;
+      continue;
+    }
+    const { crop: _gone, ...withoutCrop } = comment;
+    comments.push(fromSharedComment(copied === "missing" ? withoutCrop : comment, projectId));
+  }
+  return { snapshots, comments, held };
 }
 
 /**
  * Pulls client comments and snapshots added since the last pull, copies their
- * images here, then merges them (idempotent by id). Images that can't be
- * fetched yet leave their item for the next pull.
+ * images here, then merges them (idempotent by id). Only a temporary failure
+ * holds the cursor back, so the next pull asks again; an image that can never
+ * arrive doesn't stall anything. While anything is held, sync isn't shown as done.
  */
 export async function pullNow(projectId: string): Promise<void> {
   const found = current(projectId);
@@ -167,38 +201,22 @@ export async function pullNow(projectId: string): Promise<void> {
   const { share } = found;
   const result = await ownerApi.pull(share);
   if (!result.ok) {
-    if (result.status === 404) update(projectId, { phase: "gone" });
+    update(projectId, result.status === 404 ? { phase: "gone" } : { pullHeld: true });
     return;
   }
-  const { comments, snapshots, cursor } = result.value;
-  const ready = async <T>(items: readonly T[], key: (item: T) => string | null) => {
-    const kept: T[] = [];
-    for (const item of items) {
-      const blobKey = key(item);
-      if (!blobKey || (await copyBlob(share, blobKey))) kept.push(item);
-      else return { kept, complete: false };
-    }
-    return { kept, complete: true };
-  };
-  const shots = await ready(snapshots, (snapshot) => snapshotBlobKey(snapshot.id));
-  const notes = await ready(comments, (comment) => (comment.crop ? `crop:${comment.id}` : null));
-  const complete = shots.complete && notes.complete;
-  const merged: { comments: Comment[]; snapshots: Snapshot[] } = {
-    snapshots: shots.kept.map((snapshot) => fromSharedSnapshot(snapshot, projectId)),
-    comments: notes.kept.map((comment) => fromSharedComment(comment, projectId)),
-  };
+  const { snapshots, comments, held } = await collect(share, projectId, result.value);
+  const cursor = held ? share.cursor : result.value.cursor;
   const at = Date.now();
-  if (merged.comments.length || merged.snapshots.length || cursor !== share.cursor) {
-    dispatch({
-      type: "share/merge",
-      id: projectId,
-      ...merged,
-      // Only move past everything when every image arrived; otherwise ask again next time.
-      cursor: complete ? cursor : share.cursor,
-      at,
-    });
+  if (comments.length || snapshots.length || cursor !== share.cursor) {
+    dispatch({ type: "share/merge", id: projectId, comments, snapshots, cursor, at });
   }
-  update(projectId, { checkedAt: at });
+  update(projectId, held ? { pullHeld: true } : { pullHeld: false, checkedAt: at });
+}
+
+/** Push and pull now (the Retry buttons). */
+export function syncNow(projectId: string): void {
+  void pushNow(projectId);
+  void pullNow(projectId);
 }
 
 /** Forgets a project's sync state (after revoking or when the link is gone). */

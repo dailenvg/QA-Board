@@ -6,7 +6,7 @@ import { JPEG, STATE } from "@/test/share-fixture";
 import { SHARE_LIMITS } from "../share/limits";
 import type { CreatedShare } from "../share/types";
 import { ownerApi } from "./api";
-import { fetchInRanges } from "./transfer";
+import { fetchInRanges, isPermanent, type Fetched } from "./transfer";
 
 /** Every body that crossed the "network", to prove none was over the per-request limit. */
 const bodies: number[] = [];
@@ -56,10 +56,8 @@ function bigSnapshot(): Uint8Array<ArrayBuffer> {
   return bytes;
 }
 
-async function same(blob: Blob | null, expected: Uint8Array): Promise<boolean> {
-  return (
-    Boolean(blob) && Buffer.from(await (blob as Blob).arrayBuffer()).equals(Buffer.from(expected))
-  );
+async function same(fetched: Fetched, expected: Uint8Array): Promise<boolean> {
+  return fetched.ok && Buffer.from(await fetched.blob.arrayBuffer()).equals(Buffer.from(expected));
 }
 
 async function created(): Promise<CreatedShare> {
@@ -92,7 +90,7 @@ describe("big images on Vercel-sized requests", () => {
     const viaOwner = await ownerApi.download(local, "snapshot:snap-1");
     expect(await same(viaClient, original)).toBe(true);
     expect(await same(viaOwner, original)).toBe(true);
-    expect(viaClient?.type).toBe("image/jpeg");
+    expect(viaClient.ok && viaClient.blob.type).toBe("image/jpeg");
 
     expect(Math.max(...bodies)).toBeLessThanOrEqual(SHARE_LIMITS.transferBytes);
     expect(bodies.filter((size) => size > 0).length).toBeGreaterThanOrEqual(6);
@@ -109,5 +107,12 @@ describe("big images on Vercel-sized requests", () => {
       { params: Promise.resolve({ shareId: share.shareId, key: "snapshot:snap-1" }) },
     );
     expect(response.status).toBe(413);
+  });
+});
+
+describe("isPermanent", () => {
+  it("retries network, timeout, rate-limit and server errors, and nothing else", () => {
+    for (const status of [0, 408, 429, 500, 502, 503]) expect(isPermanent(status)).toBe(false);
+    for (const status of [400, 403, 404, 410, 415, 416]) expect(isPermanent(status)).toBe(true);
   });
 });

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ownerApi, shareUrl } from "@/lib/share-client/api";
-import { pushNow, resetSync } from "@/lib/share-client/owner-sync";
+import { pushNow, resetSync, syncNow } from "@/lib/share-client/owner-sync";
 import { toShareState } from "@/lib/share-client/share-state";
 import { useShareSync } from "@/lib/share-client/use-share-sync";
 import { shareProject, unshareProject } from "@/lib/store/actions";
@@ -102,14 +102,14 @@ export function ShareControl({ data, project }: ShareControlProps) {
     if (share) void revokeLink({ share, projectId: project.id, toast, setRevoking });
   };
 
-  const failing = share && status.phase === "error";
+  const failing = share && (status.phase === "error" || status.pullHeld);
   return (
     <>
       {failing ? (
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => void pushNow(project.id)}
+          onClick={() => syncNow(project.id)}
           className="text-danger max-sm:size-11 max-sm:px-0"
           // Named by its text (sr-only on phones), so the spoken name matches the visible one.
           title="Changes haven't reached the share link yet"
@@ -148,7 +148,7 @@ export function ShareControl({ data, project }: ShareControlProps) {
         revoking={revoking}
         error={error}
         onCreate={() => void create()}
-        onRetry={() => void pushNow(project.id)}
+        onRetry={() => syncNow(project.id)}
         onRevoke={() => setConfirming(true)}
       />
       <ConfirmDialog

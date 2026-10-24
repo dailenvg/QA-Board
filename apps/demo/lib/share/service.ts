@@ -307,12 +307,17 @@ export async function addClientComment(
     if (crop.length > SHARE_LIMITS.blobBytes.crop) return fail(413, "too-large");
     if (!sniffImageType(crop)) return fail(415, "not-an-image");
   }
-  const comment: SharedComment = { ...input, status: "active", createdAt: now, updatedAt: now };
-  if (!(await store.insertComment(share.id, comment, "client"))) return fail(409, "exists");
+  // Taken ids are refused before anything is stored, so a crop never overwrites another's.
+  const existing = await store.comments(share.id);
+  if (existing.some((row) => row.item.id === input.id)) return fail(409, "exists");
+  // The crop is stored first: if it doesn't fit (share full) or storage fails, no row exists,
+  // so a retry gets the same real error, and no comment ever points at a missing image.
   if (crop) {
-    const stored = await storeBlob(services, share, `crop:${comment.id}`, crop);
+    const stored = await storeBlob(services, share, `crop:${input.id}`, crop);
     if (!stored.ok) return stored;
   }
+  const comment: SharedComment = { ...input, status: "active", createdAt: now, updatedAt: now };
+  if (!(await store.insertComment(share.id, comment, "client"))) return fail(409, "exists");
   return ok(comment);
 }
 
