@@ -116,7 +116,12 @@ export function createPostgresStore(db: Queryable): ShareStore {
       await db.query("DELETE FROM squint_shares WHERE id = $1", [id]);
       return found;
     },
-    snapshots: (id) => list<SharedSnapshot>("squint_share_snapshots", id),
+    snapshots: (id, options) =>
+      list<SharedSnapshot>(
+        "squint_share_snapshots",
+        id,
+        options?.includePending ? "" : "AND NOT pending",
+      ),
     comments: (id, options) =>
       list<SharedComment>(
         "squint_share_comments",
@@ -139,6 +144,30 @@ export function createPostgresStore(db: Queryable): ShareStore {
         JSON.stringify(comment),
         origin,
       ]);
+    },
+    async insertPendingSnapshot(id, snapshot) {
+      await db.query(
+        `INSERT INTO squint_share_snapshots (share_id, id, data, origin, pending)
+         VALUES ($1, $2, $3::jsonb, 'client', true) ON CONFLICT (share_id, id) DO NOTHING`,
+        [id, snapshot.id, JSON.stringify(snapshot)],
+      );
+    },
+    async confirmSnapshot(id, snapshotId) {
+      const { rows } = await db.query(
+        `UPDATE squint_share_snapshots SET pending = false, seq = nextval('squint_share_seq')
+         WHERE share_id = $1 AND id = $2 AND pending RETURNING id`,
+        [id, snapshotId],
+      );
+      return rows.length === 1;
+    },
+    async deleteStalePendingSnapshots(id, cutoff) {
+      const { rows } = await db.query<{ id: string }>(
+        `DELETE FROM squint_share_snapshots
+         WHERE share_id = $1 AND pending AND (data->>'createdAt')::bigint < $2
+         RETURNING id`,
+        [id, cutoff],
+      );
+      return rows.map((row) => row.id);
     },
     async insertComment(id, comment, origin, claim) {
       const { rows } = await db.query(

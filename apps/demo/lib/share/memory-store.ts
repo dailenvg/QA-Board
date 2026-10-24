@@ -17,6 +17,8 @@ interface Entry {
   parts: Map<string, Map<number, Uint8Array>>;
   /** Pending comment ids, and the claim holding each. */
   pending: Map<string, string>;
+  /** Pending snapshot ids. */
+  pendingSnapshots: Set<string>;
 }
 
 const bySeq = <T>(a: Sequenced<T>, b: Sequenced<T>) => a.seq - b.seq;
@@ -56,6 +58,7 @@ export function createMemoryStore(): ShareStore {
         blobs: new Map(),
         parts: new Map(),
         pending: new Map(),
+        pendingSnapshots: new Set(),
       });
       return done(undefined);
     },
@@ -74,7 +77,13 @@ export function createMemoryStore(): ShareStore {
       shares.delete(id);
       return done([...(entry?.blobs.values() ?? [])].map((blob) => blob.location));
     },
-    snapshots: (id) => done([...(shares.get(id)?.snapshots.values() ?? [])].sort(bySeq)),
+    snapshots(id, options) {
+      const entry = shares.get(id);
+      const visible = [...(entry?.snapshots.values() ?? [])].filter(
+        (row) => options?.includePending || !entry?.pendingSnapshots.has(row.item.id),
+      );
+      return done(visible.sort(bySeq));
+    },
     comments(id, options) {
       const entry = shares.get(id);
       const visible = [...(entry?.comments.values() ?? [])].filter(
@@ -89,6 +98,32 @@ export function createMemoryStore(): ShareStore {
     upsertComment(id, comment, origin) {
       upsert(shares.get(id)?.comments, comment, origin);
       return done(undefined);
+    },
+    insertPendingSnapshot(id, snapshot) {
+      const entry = shares.get(id);
+      if (entry && !entry.snapshots.has(snapshot.id)) {
+        upsert(entry.snapshots, snapshot, "client");
+        entry.pendingSnapshots.add(snapshot.id);
+      }
+      return done(undefined);
+    },
+    confirmSnapshot(id, snapshotId) {
+      const entry = shares.get(id);
+      const row = entry?.snapshots.get(snapshotId);
+      if (!entry || !row || !entry.pendingSnapshots.delete(snapshotId)) return done(false);
+      entry.snapshots.set(snapshotId, { ...row, seq: (seq += 1) });
+      return done(true);
+    },
+    deleteStalePendingSnapshots(id, cutoff) {
+      const entry = shares.get(id);
+      const stale = [...(entry?.pendingSnapshots ?? [])].filter(
+        (pendingId) => (entry?.snapshots.get(pendingId)?.item.createdAt ?? Infinity) < cutoff,
+      );
+      for (const staleId of stale) {
+        entry?.pendingSnapshots.delete(staleId);
+        entry?.snapshots.delete(staleId);
+      }
+      return done(stale);
     },
     insertComment(id, comment, origin, claim) {
       const entry = shares.get(id);
@@ -140,7 +175,10 @@ export function createMemoryStore(): ShareStore {
       return done(stale);
     },
     deleteSnapshots(id, ids) {
-      for (const snapshotId of ids) shares.get(id)?.snapshots.delete(snapshotId);
+      for (const snapshotId of ids) {
+        shares.get(id)?.snapshots.delete(snapshotId);
+        shares.get(id)?.pendingSnapshots.delete(snapshotId);
+      }
       return done(undefined);
     },
     deleteComments(id, ids) {

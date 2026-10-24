@@ -1,12 +1,19 @@
 import { PGlite } from "@electric-sql/pglite";
 import { describe, expect, it } from "vitest";
-import { COMMENT, PNG, RECORD, SNAPSHOT } from "@/test/share-fixture";
+import { COMMENT, JPEG, PNG, RECORD, SNAPSHOT } from "@/test/share-fixture";
 import { createMemoryStore } from "./memory-store";
 import { migrate, type Queryable } from "./migrate";
 import { createPostgresStore } from "./postgres-store";
 import { inlineBackend, type BlobBackend } from "./blob-backend";
 import type { ShareServices } from "./server";
-import { addClientComment, expireStalePending, PENDING_STALE_MS, readBlob } from "./service";
+import {
+  addClientComment,
+  captureForClient,
+  expireStalePending,
+  PENDING_STALE_MS,
+  pullChanges,
+  readBlob,
+} from "./service";
 import type { ShareStore } from "./store";
 
 /**
@@ -118,6 +125,34 @@ describe.each(stores)("%s share store", (_name, make) => {
     expect(await store.comments(RECORD.id)).toHaveLength(1);
   });
 
+  it("keeps a pending snapshot invisible until it's confirmed with a fresh seq", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    await store.insertPendingSnapshot(RECORD.id, SNAPSHOT);
+    expect(await store.snapshots(RECORD.id)).toEqual([]);
+    expect(await store.snapshots(RECORD.id, { includePending: true })).toHaveLength(1);
+    await store.upsertComment(RECORD.id, COMMENT, "client");
+    const [comment] = await store.comments(RECORD.id);
+    expect(await store.confirmSnapshot(RECORD.id, SNAPSHOT.id)).toBe(true);
+    const [confirmed] = await store.snapshots(RECORD.id);
+    expect(confirmed).toMatchObject({ item: SNAPSHOT, origin: "client" });
+    expect(confirmed?.seq).toBeGreaterThan(comment?.seq ?? Infinity);
+    expect(await store.confirmSnapshot(RECORD.id, SNAPSHOT.id)).toBe(false);
+    expect(await store.deleteStalePendingSnapshots(RECORD.id, Number.MAX_SAFE_INTEGER)).toEqual([]);
+  });
+
+  it("expires only stale pending snapshots", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    await store.insertPendingSnapshot(RECORD.id, { ...SNAPSHOT, id: "old", createdAt: 1 });
+    await store.insertPendingSnapshot(RECORD.id, { ...SNAPSHOT, id: "new", createdAt: 5 });
+    await store.upsertSnapshot(RECORD.id, { ...SNAPSHOT, id: "owner", createdAt: 1 }, "owner");
+    expect(await store.deleteStalePendingSnapshots(RECORD.id, 2)).toEqual(["old"]);
+    expect(await store.confirmSnapshot(RECORD.id, "old")).toBe(false);
+    const left = await store.snapshots(RECORD.id, { includePending: true });
+    expect(left.map((row) => row.item.id).sort()).toEqual(["new", "owner"]);
+  });
+
   it("binds confirms and deletes to the claim that holds the row", async () => {
     const store = await make();
     await store.create(RECORD);
@@ -173,6 +208,7 @@ describe("migrate", () => {
       "002_squint_share_blob_parts",
       "003_squint_share_pending_comments",
       "004_squint_share_comment_claims",
+      "005_squint_share_pending_snapshots",
     ]);
     expect(await migrate(db)).toEqual([]);
   });
@@ -408,5 +444,68 @@ describe.each(stores)("%s store: an upload that outlives its claim", (_name, mak
     expect(await visibleCrop(services)).toEqual({ rows: [T0], crop: [...cropA] });
     await expireStalePending(services, RECORD, LATER);
     expect(await services.store.blobSizes(RECORD.id)).toHaveLength(1);
+  });
+});
+
+describe.each(stores)("%s store: a client capture while its image is stored", (_name, make) => {
+  const T0 = 20_000_000;
+  const image = (_url: URL, width: number) =>
+    Promise.resolve({
+      body: new Uint8Array(JPEG),
+      contentType: "image/jpeg",
+      width,
+      height: 900,
+      scale: 1,
+    });
+
+  /**
+   * A share with a stale pending comment (so expiry runs a cleanup), and a capture stuck
+   * mid-upload. Once the upload finishes, a cleanup runs right after the image's blob row is
+   * written: inside the gap before the snapshot is confirmed.
+   */
+  async function capturing() {
+    const gated = gatedBlobs();
+    const store = await make();
+    const services: ShareServices = { store, blobs: gated.blobs };
+    const hooked: ShareServices = {
+      ...services,
+      store: {
+        ...store,
+        putBlob: async (id, blob) => {
+          await store.putBlob(id, blob);
+          await expireStalePending(services, RECORD, T0);
+        },
+      },
+    };
+    await store.create(RECORD);
+    const stale = { ...COMMENT, id: "stale", createdAt: T0 - PENDING_STALE_MS - 1 };
+    await store.insertComment(RECORD.id, stale, "client", { claim: "x", cropKey: "crop:stale:x" });
+    const added = captureForClient(hooked, RECORD, 1024, image, T0);
+    await gated.started;
+    return { services, gated, added };
+  }
+
+  it("is invisible until stored, and a cleanup in the gap keeps its image", async () => {
+    const { services, gated, added } = await capturing();
+    expect(await services.store.snapshots(RECORD.id)).toEqual([]);
+    expect((await pullChanges(services.store, RECORD, 0)).snapshots).toEqual([]);
+    gated.finish();
+    const result = await added;
+    // The cleanup did run in the gap: it expired the stale comment.
+    expect(await services.store.pendingSince(RECORD.id, "stale")).toBeNull();
+    expect(result.ok).toBe(true);
+    const id = result.ok ? result.value.id : "";
+    expect((await pullChanges(services.store, RECORD, 0)).snapshots.map((s) => s.id)).toEqual([id]);
+    const stored = await readBlob(services, RECORD, `snapshot:${id}`);
+    expect([...(stored?.bytes ?? [])]).toEqual([...JPEG]);
+  });
+
+  it("is expired with its image if it outlives its request, and never reported", async () => {
+    const { services, gated, added } = await capturing();
+    await expireStalePending(services, RECORD, T0 + PENDING_STALE_MS + 1);
+    gated.finish();
+    await expect(added).rejects.toThrow("expired");
+    expect(await services.store.snapshots(RECORD.id, { includePending: true })).toEqual([]);
+    expect(await services.store.blobSizes(RECORD.id)).toEqual([]);
   });
 });

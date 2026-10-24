@@ -98,12 +98,12 @@ async function missingBlobs(store: ShareStore, share: ShareRecord): Promise<stri
 
 /**
  * Stored blobs nothing points at any more, deleted along with their files.
- * Pending comments count, so a crop stored a moment before its row is
- * confirmed is never swept.
+ * Pending snapshots and comments count, so an image stored a moment before its
+ * row is confirmed is never swept.
  */
 async function dropUnreferenced({ store, blobs }: ShareServices, share: ShareRecord) {
   const [snapshots, comments, stored] = await Promise.all([
-    store.snapshots(share.id),
+    store.snapshots(share.id, { includePending: true }),
     store.comments(share.id, { includePending: true }),
     store.blobSizes(share.id),
   ]);
@@ -380,22 +380,26 @@ async function claimCommentId(
   return ok(undefined);
 }
 
-/** Deletes one claim's crop: its key is unique to the claim, so nothing else is touched. */
-async function discardClaimCrop({ store, blobs }: ShareServices, share: ShareRecord, key: string) {
+/** Deletes one blob a request of ours stored under a key only it uses. */
+async function discardBlob({ store, blobs }: ShareServices, share: ShareRecord, key: string) {
   await blobs.discard(await store.deleteBlobs(share.id, [key]));
 }
 
 /**
- * Removes pending comments orphaned by failed requests (older than
- * `PENDING_STALE_MS`) and the crops they left. Runs on owner pulls and changes.
+ * Removes pending comments and snapshots orphaned by failed requests (older
+ * than `PENDING_STALE_MS`) and the images they left. Runs on owner pulls and changes.
  */
 export async function expireStalePending(
   services: ShareServices,
   share: ShareRecord,
   now: number,
 ): Promise<void> {
-  const expired = await services.store.deleteStalePending(share.id, now - PENDING_STALE_MS);
-  if (expired.length > 0) await dropUnreferenced(services, share);
+  const cutoff = now - PENDING_STALE_MS;
+  const [comments, snapshots] = await Promise.all([
+    services.store.deleteStalePending(share.id, cutoff),
+    services.store.deleteStalePendingSnapshots(share.id, cutoff),
+  ]);
+  if (comments.length + snapshots.length > 0) await dropUnreferenced(services, share);
 }
 
 /**
@@ -440,7 +444,7 @@ export async function addClientComment(
   if (!claimed.ok) return claimed;
   const undo = async () => {
     await store.deleteClaim(share.id, comment.id, nonce);
-    await discardClaimCrop(services, share, cropKey);
+    await discardBlob(services, share, cropKey);
   };
   const stored = await storeBlob(
     services,
@@ -460,7 +464,7 @@ export async function addClientComment(
   if (!(await store.confirmComment(share.id, comment.id, nonce))) {
     // The claim was reclaimed or expired while uploading: never report success for it.
     // The client keeps its draft; its retry is confirmed elsewhere (409 exists) or claims anew.
-    await discardClaimCrop(services, share, cropKey);
+    await discardBlob(services, share, cropKey);
     return fail(409, "pending");
   }
   return ok(comment);
@@ -491,10 +495,28 @@ export async function captureForClient(
     sourceUrl: source.url,
     ...(image.scale < 1 ? { scale: image.scale } : {}),
   };
-  // The image first, then the row: a failed or thrown store leaves no snapshot without an
-  // image (an image without a row is unreferenced and swept by the next cleanup).
-  const stored = await storeBlob(services, share, `snapshot:${snapshot.id}`, image.body);
-  if (!stored.ok) return stored;
-  await services.store.upsertSnapshot(share.id, snapshot, "client");
+  // Like a comment's crop: the row goes in pending (invisible) first, so cleanup counts the
+  // image as referenced from the moment it's stored, and it's confirmed once the image is in.
+  // The id is fresh, so the row and the key are this request's alone.
+  const { store } = services;
+  const key = `snapshot:${snapshot.id}`;
+  await store.insertPendingSnapshot(share.id, snapshot);
+  const undo = async () => {
+    await store.deleteSnapshots(share.id, [snapshot.id]);
+    await discardBlob(services, share, key);
+  };
+  const stored = await storeBlob(services, share, key, image.body).catch(async (error: unknown) => {
+    await undo();
+    throw error;
+  });
+  if (!stored.ok) {
+    await undo();
+    return stored;
+  }
+  if (!(await store.confirmSnapshot(share.id, snapshot.id))) {
+    // Expired while storing (it outlived its route): never report a snapshot that isn't there.
+    await undo();
+    throw new Error("The snapshot expired before its image was stored.");
+  }
   return ok(snapshot);
 }
