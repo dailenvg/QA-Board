@@ -67,7 +67,7 @@ test("a website comment pins to a snapshot, scrolls with it and keeps a screensh
   await expect(crop.locator("img")).toBeVisible();
   await crop.click();
   const dialog = page.getByTestId("crop-dialog");
-  await expect(dialog.getByRole("img", { name: "The page around pin 1" })).toBeVisible();
+  await expect(dialog.getByRole("img", { name: "The area around pin 1" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
 

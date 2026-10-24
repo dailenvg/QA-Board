@@ -77,7 +77,7 @@ export function CommentCropThumb({ crop, number }: CommentCropThumbProps) {
         {ready ? (
           <Image
             src={image.url}
-            alt={`The page around pin ${number}`}
+            alt={`The area around pin ${number}`}
             width={crop.rect.width}
             height={crop.rect.height}
             unoptimized

@@ -203,7 +203,7 @@ test("deleting a shared project revokes its link once Undo is gone", async ({ pa
   await card.getByTestId("project-menu").click();
   await page.getByRole("menuitem", { name: "Delete" }).click();
   const confirm = page.getByRole("dialog", { name: "Delete Short-lived?" });
-  await expect(confirm).toContainText("client link will stop working");
+  await expect(confirm).toContainText("share link will stop working");
   await confirm.getByRole("button", { name: "Delete project" }).click();
 
   // While Undo is offered the link still works; once the toast is gone, it doesn't.

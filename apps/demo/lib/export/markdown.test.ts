@@ -51,6 +51,12 @@ describe("toMarkdown", () => {
   it("describes image projects by file and size", () => {
     const image = toMarkdown(buildExportDocument(IMAGE_EXPORT), { withFiles: true });
     expect(image).toContain("- **Source:** image `checkout.png` (1200 × 900 px)");
+    expect(image).toContain(
+      "- **Original image:** [source-image.png](source-image.png), next to this file",
+    );
+    const bare = toMarkdown(buildExportDocument(IMAGE_EXPORT), { withFiles: false });
+    expect(bare).toContain("- **Original image:** `source-image.png` in the ZIP export");
+    expect(zipMarkdown).not.toContain("Original image");
     expect(image).toContain("x 300 px, y 450 px on a 1200 × 900 px image");
     expect(image).toContain("## Resolved comments (0, for context only)\n\nNone yet.");
   });

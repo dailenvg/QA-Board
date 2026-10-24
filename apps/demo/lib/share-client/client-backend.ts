@@ -17,9 +17,12 @@ import type { ServerBlobs } from "./server-blobs";
 const GONE = "This link no longer works. Ask the project owner for a new one.";
 const NOT_SENT: Record<number, string> = {
   0: "Your comment wasn't sent: Squint couldn't reach the server. Check your connection, then retry.",
-  413: "Your comment wasn't sent: its screenshot is too large. Retry, or post it from a smaller window.",
+  413: "Your comment wasn't sent: its screenshot is too large. Retry to send it again.",
   429: "Your comment wasn't sent: too many comments in a short time. Wait a moment, then retry.",
 };
+/** 413 with room for no more images: the share is at its 40 MB limit. */
+const SHARE_FULL =
+  "Your comment wasn't sent: this review is out of space for screenshots. Ask the project owner to make room, then retry.";
 const NOT_SENT_DEFAULT = "Your comment wasn't sent. Retry in a moment.";
 
 interface ClientBackendOptions {
@@ -95,6 +98,7 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
         store.markGone();
         return { ok: false, error: GONE };
       }
+      if (result.error === "share-full") return { ok: false, error: SHARE_FULL };
       return { ok: false, error: NOT_SENT[result.status] ?? NOT_SENT_DEFAULT };
     },
     setAuthorName: (name) => store.setAuthorName(cleanName(name)),

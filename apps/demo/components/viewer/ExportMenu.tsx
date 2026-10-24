@@ -76,7 +76,7 @@ export function ExportMenu({ data, project, commentCount }: ExportMenuProps) {
           { label: "JSON", icon: "fileJson", onSelect: () => run("json") },
         ]}
       />
-      {/* The trigger's name stays "Export comments"; this tells screen readers work started. */}
+      {/* The trigger's name also changes while busy; this status tells screen readers work started. */}
       <span role="status" className="sr-only">
         {busy ? BUSY : ""}
       </span>

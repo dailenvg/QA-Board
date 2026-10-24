@@ -25,6 +25,16 @@ function sourceLine(document: ExportDocument): string {
   return `- **Source:** image ${inlineCode(source.fileName)}${size}${reference}`;
 }
 
+/** An image project's original image, as shipped in the ZIP. */
+function originalImageLine(document: ExportDocument, options: MarkdownOptions): string[] {
+  const { source } = document.project;
+  if (source.kind !== "image" || !source.file) return [];
+  const where = options.withFiles
+    ? `[${source.file}](${source.file}), next to this file`
+    : `${inlineCode(source.file)} in the ZIP export`;
+  return [`- **Original image:** ${where}`];
+}
+
 function captureWidth(document: ExportDocument): string | null {
   const widths = [...new Set(document.snapshots.map((snapshot) => snapshot.width))];
   if (widths.length === 0) return null;
@@ -43,6 +53,7 @@ function header(document: ExportDocument, options: MarkdownOptions): string[] {
     ...INTRO.flatMap((line) => [line, ""]),
     `- **Project:** ${inlineText(document.project.name)}`,
     sourceLine(document),
+    ...originalImageLine(document, options),
     ...(captureWidth(document) ? [captureWidth(document) ?? ""] : []),
     `- **Exported:** ${iso(document.exportedAt)}`,
     `- **Comments:** ${active} active, ${resolved} resolved`,

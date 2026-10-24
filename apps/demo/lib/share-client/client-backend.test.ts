@@ -61,6 +61,12 @@ describe("client comments", () => {
     expect(store.getSnapshot().view.comments.map((c) => c.id)).toEqual(["draft-1"]);
   });
 
+  it("says why when the review is out of space", async () => {
+    const { backend } = setup([() => Response.json({ error: "share-full" }, { status: 413 })]);
+    const result = await backend.addComment(input, null);
+    expect(!result.ok && result.error).toContain("out of space");
+  });
+
   it("marks the link gone when the share was revoked", async () => {
     const { store, backend } = setup([
       () => Response.json({ error: "not-found" }, { status: 404 }),
