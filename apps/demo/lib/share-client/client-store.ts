@@ -7,8 +7,6 @@ export const SHARED_PROJECT_ID = "shared";
 
 export interface ClientState {
   view: ClientView;
-  /** Comments posted here that the server hasn't confirmed yet. */
-  pending: Comment[];
   authorName: string | null;
   /** The link stopped working while open (revoked). */
   gone: boolean;
@@ -20,9 +18,8 @@ export interface ClientStore {
   /** The state the server rendered with (no remembered name), for hydration. */
   getServerSnapshot: () => ClientState;
   setView: (view: ClientView) => void;
-  addPending: (comment: Comment) => void;
-  /** Replaces a pending comment with the server's copy (or drops it when `confirmed` is null). */
-  settle: (id: string, confirmed: SharedComment | null) => void;
+  /** A comment the server accepted (ignored if a refresh already brought it). */
+  addComment: (comment: SharedComment) => void;
   addSnapshot: (snapshot: SharedSnapshot) => void;
   setAuthorName: (name: string) => void;
   markGone: () => void;
@@ -40,7 +37,7 @@ function readName(): string | null {
 }
 
 export function createClientStore(initial: ClientView): ClientStore {
-  const rendered: ClientState = { view: initial, pending: [], authorName: null, gone: false };
+  const rendered: ClientState = { view: initial, authorName: null, gone: false };
   let state = rendered;
   let nameRead = false;
   const listeners = new Set<() => void>();
@@ -63,11 +60,9 @@ export function createClientStore(initial: ClientView): ClientStore {
     },
     getServerSnapshot: () => rendered,
     setView: (view) => set({ view }),
-    addPending: (comment) => set({ pending: [...state.pending, comment] }),
-    settle(id, confirmed) {
-      const pending = state.pending.filter((comment) => comment.id !== id);
-      const comments = confirmed ? [...state.view.comments, confirmed] : state.view.comments;
-      set({ pending, view: { ...state.view, comments } });
+    addComment(comment) {
+      if (state.view.comments.some((entry) => entry.id === comment.id)) return;
+      set({ view: { ...state.view, comments: [...state.view.comments, comment] } });
     },
     addSnapshot: (snapshot) =>
       set({ view: { ...state.view, snapshots: [...state.view.snapshots, snapshot] } }),
@@ -116,18 +111,15 @@ export function toViewerData(state: ClientState): { data: SquintData; project: P
     createdAt: 0,
     updatedAt: 0,
   };
-  const confirmed = new Set(view.comments.map((comment) => comment.id));
   return {
     project,
     data: {
       version: 2,
       folders: [],
       projects: [project],
-      comments: [
-        ...view.comments.map(toComment),
-        ...state.pending.filter((comment) => !confirmed.has(comment.id)),
-      ],
+      comments: view.comments.map(toComment),
       snapshots: view.snapshots.map(toSnapshot),
+      revocations: [],
       authorName: state.authorName,
     },
   };

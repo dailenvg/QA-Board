@@ -3,7 +3,7 @@
 import { motion, useReducedMotion } from "motion/react";
 import { press, spring } from "@/lib/motion";
 
-type PinTone = "active" | "resolved" | "draft";
+type PinTone = "active" | "resolved" | "draft" | "unsent";
 
 interface PinProps {
   id?: string;
@@ -20,6 +20,8 @@ const TONES: Record<PinTone, string> = {
   active: "bg-brand text-on-brand",
   resolved: "border-2 border-resolved bg-card text-resolved-text",
   draft: "bg-inv text-on-inv",
+  /** A draft whose post failed: kept, and marked until it goes through. */
+  unsent: "bg-danger text-card",
 };
 
 /**
@@ -35,7 +37,7 @@ export function Pin({ id, number, x, y, tone, selected = false, label, onSelect 
     <motion.button
       type="button"
       data-pin-id={id}
-      data-testid={tone === "draft" ? "draft-pin" : "pin"}
+      data-testid={tone === "draft" || tone === "unsent" ? "draft-pin" : "pin"}
       data-status={tone}
       aria-label={label}
       aria-pressed={interactive ? selected : undefined}
@@ -63,7 +65,7 @@ export function Pin({ id, number, x, y, tone, selected = false, label, onSelect 
         data-selected={selected || undefined}
         className={`pin-marker grid size-8 place-items-center rounded-pin text-label font-bold transition-shadow ${TONES[tone]}`}
       >
-        {number ?? "+"}
+        {number ?? (tone === "unsent" ? "!" : "+")}
       </span>
     </motion.button>
   );

@@ -145,3 +145,105 @@ test("an unknown share link is a 404 without workspace links", async ({ page }) 
   expect(api.status()).toBe(404);
   expect(await api.json()).toEqual({ error: "not-found" });
 });
+
+/** An owner's website project, shared; returns the client link. */
+async function sharedProject(
+  page: Page,
+  baseURL: string | undefined,
+  name: string,
+): Promise<string> {
+  await mockFrameCheck(page, {
+    verdict: "embeddable",
+    finalUrl: `${baseURL}/sandbox`,
+    status: 200,
+  });
+  await mockCapture(page);
+  await openFolder(page);
+  await createUrlProject(page, `${baseURL}/sandbox`, name);
+  // A snapshot to share, so clients can comment without capturing.
+  await page.getByTestId("mode-comment").click();
+  await expect(page.getByRole("img", { name: /^Snapshot of/ })).toBeVisible();
+  await page.getByTestId("share-button").click();
+  const dialog = page.getByTestId("share-dialog");
+  await dialog.getByTestId("create-share-link").click();
+  const urlField = dialog.getByTestId("share-url");
+  await expect(urlField).toHaveValue(/\/s\/[A-Za-z0-9_-]{43}$/);
+  await expect(dialog.getByTestId("sync-status")).toContainText("Synced");
+  const link = await urlField.inputValue();
+  await page.keyboard.press("Escape");
+  return link;
+}
+
+test("deleting a shared project revokes its link once Undo is gone", async ({ page, baseURL }) => {
+  const link = await sharedProject(page, baseURL, "Short-lived");
+  expect((await page.request.get(link)).status()).toBe(200);
+
+  await page.getByRole("link", { name: "Back to My projects" }).click();
+  const card = page.getByTestId("project-card").filter({ hasText: "Short-lived" });
+  await card.getByTestId("project-menu").click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  const confirm = page.getByRole("dialog", { name: "Delete Short-lived?" });
+  await expect(confirm).toContainText("client link will stop working");
+  await confirm.getByRole("button", { name: "Delete project" }).click();
+
+  // While Undo is offered the link still works; once the toast is gone, it doesn't.
+  const toast = page.getByTestId("toast").filter({ hasText: "Deleted Short-lived" });
+  await expect(toast).toBeVisible();
+  expect((await page.request.get(link)).status()).toBe(200);
+  await expect(toast).toHaveCount(0, { timeout: 10_000 });
+  await expect
+    .poll(async () => (await page.request.get(link)).status(), { timeout: 10_000 })
+    .toBe(404);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (JSON.parse(localStorage.getItem("squint:v2") ?? "{}") as { revocations: unknown[] })
+            .revocations.length,
+      ),
+    )
+    .toBe(0);
+});
+
+test("a client comment that fails to send keeps its text until Retry gets it through", async ({
+  page,
+  browser,
+  baseURL,
+}) => {
+  const link = await sharedProject(page, baseURL, "Flaky network");
+  const clientContext = await browser.newContext();
+  const client = await clientContext.newPage();
+  await mockFrameCheck(client, {
+    verdict: "embeddable",
+    finalUrl: `${baseURL}/sandbox`,
+    status: 200,
+  });
+  await client.goto(link);
+  await client.getByTestId("mode-comment").click();
+  await expect(client.getByRole("img", { name: /^Snapshot of/ })).toBeVisible();
+
+  await client.route("**/api/s/*/comments", (route) =>
+    route.fulfill({ status: 503, json: { error: "unavailable" } }),
+  );
+  await client.getByTestId("comment-overlay").click({ position: { x: 160, y: 140 } });
+  const composer = client.getByTestId("composer");
+  await composer.getByLabel("Your name").fill("Cleo");
+  await composer.getByLabel("Comment", { exact: true }).fill("Keep this text");
+  await composer.getByRole("button", { name: "Post" }).click();
+
+  await expect(composer.getByTestId("composer-send-error")).toContainText("wasn't sent");
+  await expect(composer.getByLabel("Comment", { exact: true })).toHaveValue("Keep this text");
+  await expect(client.getByTestId("draft-pin")).toHaveAttribute("data-status", "unsent");
+  // Not posted: no comment exists yet (the sheet stays closed under the docked composer on phones).
+  await expect(client.getByTestId("comment-card")).toHaveCount(0);
+
+  await client.unroute("**/api/s/*/comments");
+  await composer.getByRole("button", { name: "Retry" }).click();
+  await expect(composer).toHaveCount(0);
+  await showComments(client);
+  await expect(card(client, "Keep this text")).toBeVisible();
+  await expect(
+    client.getByRole("button", { name: "Comment 1 by Cleo", exact: true }),
+  ).toBeVisible();
+  await clientContext.close();
+});

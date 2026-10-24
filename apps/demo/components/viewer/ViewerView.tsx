@@ -6,6 +6,7 @@ import { RESOLVED_HOP } from "../brand/mascot/moods";
 import { toPagePx } from "@/lib/crop/geometry";
 import { planCommentCrop } from "@/lib/crop/plan-comment-crop";
 import { renderCrop } from "@/lib/crop/render-crop";
+import { newId } from "@/lib/store/id";
 import { commentsFor, pinNumbers } from "@/lib/store/selectors";
 import { countComments, deriveStatus } from "@/lib/store/status";
 import type { Comment, Project, SquintData } from "@/lib/store/types";
@@ -155,6 +156,10 @@ export function ViewerView({ data, project, leading, actions }: ViewerViewProps)
       body: draft?.body ?? "",
       surfaceKey: stageKey,
       snapshotId: surface.kind === "snapshot" ? (surface.snapshot?.id ?? null) : null,
+      commentId: newId(),
+      sending: false,
+      error: null,
+      crop: null,
     });
   };
 
@@ -170,19 +175,37 @@ export function ViewerView({ data, project, leading, actions }: ViewerViewProps)
     return { blob: renderCrop(image, plan), rect: toPagePx(plan.rect, scale) };
   };
 
-  const submitDraft = (body: string, author: string) => {
-    if (!draft) return;
+  /**
+   * Posts the draft. The composer stays open with its text until the comment
+   * is saved; a failure shows inline with Retry, and the pin is marked unsent.
+   */
+  const submitDraft = async (body: string, author: string) => {
+    if (!draft || draft.sending) return;
     if (author.trim() !== data.authorName) backend.setAuthorName(author);
-    const input = { projectId: project.id, x: draft.x, y: draft.y, body, author };
-    const result = backend.addComment(
+    const crop = draft.crop ?? cropFor(draft);
+    const sending = { ...draft, body, crop, sending: true, error: null };
+    setDraft(sending);
+    const input = {
+      id: draft.commentId,
+      projectId: project.id,
+      x: draft.x,
+      y: draft.y,
+      body,
+      author,
+    };
+    const result = await backend.addComment(
       draft.snapshotId ? { ...input, snapshotId: draft.snapshotId } : input,
-      cropFor(draft),
+      crop,
     );
     if (!result.ok) {
-      toast({ tone: "error", message: result.error });
+      setDraft((current) =>
+        current?.commentId === sending.commentId
+          ? { ...current, sending: false, error: result.error }
+          : current,
+      );
       return;
     }
-    setDraft(null);
+    setDraft((current) => (current?.commentId === sending.commentId ? null : current));
     setTab("active");
     setSelectedId(result.value.id);
     returnFocusToCanvas();
@@ -217,7 +240,7 @@ export function ViewerView({ data, project, leading, actions }: ViewerViewProps)
       onPlace={place}
       onExitComment={() => setMode("browse")}
       onDraftChange={(body) => setDraft((current) => (current ? { ...current, body } : current))}
-      onDraftSubmit={submitDraft}
+      onDraftSubmit={(body, author) => void submitDraft(body, author)}
       onDraftCancel={() => {
         setDraft(null);
         returnFocusToCanvas();

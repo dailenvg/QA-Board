@@ -42,7 +42,8 @@ export function createFolder(name: string): Result<Folder> {
 export const renameFolder = (id: string, name: string) =>
   dispatch({ type: "folder/rename", id, name: cleanName(name) });
 
-export const deleteFolder = (id: string) => withSweep(dispatch({ type: "folder/delete", id }));
+export const deleteFolder = (id: string) =>
+  withSweep(dispatch({ type: "folder/delete", id, at: Date.now() }));
 
 export function createProject(input: {
   /** Set when something (an image) was already stored under this project's id. */
@@ -115,13 +116,15 @@ export async function replaceWithImage(
   });
 }
 
-export const deleteProject = (id: string) => withSweep(dispatch({ type: "project/delete", id }));
+export const deleteProject = (id: string) =>
+  withSweep(dispatch({ type: "project/delete", id, at: Date.now() }));
 
 /** Undo for `deleteProject`: pass the project and the comments and snapshots it had. */
 export const restoreProject = (project: Project, comments: Comment[], snapshots: Snapshot[]) =>
   dispatch({ type: "project/restore", project, comments, snapshots });
 
 export function addComment(input: {
+  id?: string;
   projectId: string;
   x: number;
   y: number;
@@ -131,7 +134,7 @@ export function addComment(input: {
 }): Result<Comment> {
   const now = Date.now();
   const comment: Comment = {
-    id: newId(),
+    id: input.id ?? newId(),
     projectId: input.projectId,
     x: input.x,
     y: input.y,
@@ -175,3 +178,9 @@ export const shareProject = (id: string, share: ProjectShare) =>
 
 /** Forgets the share (after revoking it, or when its link no longer works). */
 export const unshareProject = (id: string) => dispatch({ type: "project/unshare", id });
+
+/** The project's delete is final (its Undo toast is gone): revoke its share link now. */
+export const finalizeProjectDelete = (projectId: string) =>
+  dispatch({ type: "revocation/due", projectId, at: Date.now() });
+
+export const revocationDone = (shareId: string) => dispatch({ type: "revocation/done", shareId });

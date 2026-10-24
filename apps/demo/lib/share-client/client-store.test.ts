@@ -20,11 +20,10 @@ describe("client store", () => {
     expect(data.folders).toEqual([]);
   });
 
-  it("shows a pending comment once, and swaps it for the server's copy", () => {
+  it("adds an accepted comment once, even if a refresh brought it first", () => {
     const store = createClientStore({ ...STATE, comments: [] });
-    const pending = {
+    const accepted = {
       id: "k",
-      projectId: SHARED_PROJECT_ID,
       x: 1,
       y: 1,
       body: "Hi",
@@ -33,12 +32,8 @@ describe("client store", () => {
       createdAt: 1,
       updatedAt: 1,
     };
-    store.addPending(pending);
+    store.setView({ ...STATE, comments: [accepted] });
+    store.addComment(accepted);
     expect(toViewerData(store.getSnapshot()).data.comments.map((c) => c.id)).toEqual(["k"]);
-    // A refresh that already includes it doesn't show it twice.
-    store.setView({ ...STATE, comments: [{ ...pending, createdAt: 2, updatedAt: 2 }] });
-    expect(toViewerData(store.getSnapshot()).data.comments.map((c) => c.id)).toEqual(["k"]);
-    store.settle("k", null);
-    expect(store.getSnapshot().pending).toEqual([]);
   });
 });

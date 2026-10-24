@@ -16,6 +16,8 @@ export interface ToastInput {
   message: string;
   tone?: "neutral" | "error";
   action?: { label: string; onAction: () => void };
+  /** Runs when the toast goes away without its action being used (timed out or replaced). */
+  onDismiss?: () => void;
 }
 
 interface Toast extends ToastInput {
@@ -35,19 +37,31 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<Toast | null>(null);
   const [pausedId, setPausedId] = useState<number | null>(null);
   const nextId = useRef(0);
+  /** The toast on screen, so the one it replaces can be told it was dismissed. */
+  const current = useRef<Toast | null>(null);
   const reduce = useReducedMotion();
   const paused = toast !== null && pausedId === toast.id;
 
-  const show = useCallback((input: ToastInput) => {
-    nextId.current += 1;
-    setToast({ ...input, id: nextId.current });
+  const replace = useCallback((next: Toast | null, dismissed: boolean) => {
+    const previous = current.current;
+    current.current = next;
+    setToast(next);
+    if (dismissed) previous?.onDismiss?.();
   }, []);
+
+  const show = useCallback(
+    (input: ToastInput) => {
+      nextId.current += 1;
+      replace({ ...input, id: nextId.current }, true);
+    },
+    [replace],
+  );
 
   useEffect(() => {
     if (!toast || paused) return;
-    const timer = window.setTimeout(() => setToast(null), DISMISS_MS[toast.tone ?? "neutral"]);
+    const timer = window.setTimeout(() => replace(null, true), DISMISS_MS[toast.tone ?? "neutral"]);
     return () => window.clearTimeout(timer);
-  }, [toast, paused]);
+  }, [toast, paused, replace]);
 
   const pause = () => {
     if (toast) setPausedId(toast.id);
@@ -85,7 +99,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   type="button"
                   onClick={() => {
                     toast.action?.onAction();
-                    setToast(null);
+                    replace(null, false);
                   }}
                   className="min-h-11 rounded-pill bg-on-inv/15 px-4 text-body font-semibold underline-offset-2 transition-colors hover:bg-on-inv/25 hover:underline focus-visible:outline-on-inv active:bg-on-inv/30"
                 >

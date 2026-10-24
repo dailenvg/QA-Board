@@ -8,16 +8,22 @@ import { PromptDialog } from "../ui/PromptDialog";
 interface FolderDialogsProps {
   create: DialogState<true>;
   rename: DialogState<Folder>;
-  remove: DialogState<{ folder: Folder; projects: number }>;
+  remove: DialogState<{ folder: Folder; projects: number; shared: number }>;
   onCreate: (name: string) => string | null;
   onRename: (folder: Folder, name: string) => string | null;
   onDelete: (folder: Folder) => void;
 }
 
-function deleteDescription(projects: number): string {
+function deleteDescription(projects: number, shared: number): string {
   if (projects === 0) return "This folder is empty.";
   const noun = projects === 1 ? "project" : "projects";
-  return `Its ${projects} ${noun} and all of their comments will be deleted too. This can't be undone.`;
+  const links =
+    shared === 0
+      ? ""
+      : shared === 1
+        ? " Its client link will stop working."
+        : ` Their ${shared} client links will stop working.`;
+  return `Its ${projects} ${noun} and all of their comments will be deleted too.${links} This can't be undone.`;
 }
 
 /** Create, rename and delete dialogs for folders. */
@@ -55,7 +61,7 @@ export function FolderDialogs({
         open={remove.open}
         onClose={remove.close}
         title={removing ? `Delete ${removing.folder.name}?` : "Delete folder?"}
-        description={removing ? deleteDescription(removing.projects) : ""}
+        description={removing ? deleteDescription(removing.projects, removing.shared) : ""}
         confirmLabel="Delete folder"
         onConfirm={() => removing && onDelete(removing.folder)}
       />

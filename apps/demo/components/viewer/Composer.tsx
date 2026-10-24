@@ -7,6 +7,7 @@ import { useMediaQuery } from "@/lib/use-media-query";
 import { SHARE_LIMITS } from "@/lib/share/limits";
 import { Button } from "../ui/Button";
 import { FieldError } from "../ui/FieldError";
+import { Icon } from "../ui/Icon";
 import { FIELD_CLASS } from "../ui/field-styles";
 import type { Draft } from "./types";
 
@@ -55,6 +56,7 @@ export function Composer({
 
   const submit = (event?: FormEvent) => {
     event?.preventDefault();
+    if (draft.sending) return;
     if (!author.trim()) {
       setEditingName(true);
       setError({ field: "name", message: NAME_MISSING });
@@ -171,13 +173,28 @@ export function Composer({
             Enter to post · Shift+Enter for a new line
           </p>
         </div>
+        {draft.error ? (
+          <p
+            role="alert"
+            data-testid="composer-send-error"
+            className="flex items-start gap-2 rounded-field bg-danger-soft px-3 py-2 text-meta font-semibold text-danger"
+          >
+            <Icon name="alert" className="mt-0.5 size-4 shrink-0" />
+            {draft.error}
+          </p>
+        ) : null}
         <div className="flex items-center justify-end gap-2">
           <div className="flex gap-2">
             <Button variant="ghost" size="sm" onClick={onCancel}>
               Cancel
             </Button>
-            <Button type="submit" size="sm">
-              Post
+            <Button
+              type="submit"
+              size="sm"
+              disabled={draft.sending}
+              aria-busy={draft.sending || undefined}
+            >
+              {draft.sending ? "Posting…" : draft.error ? "Retry" : "Post"}
             </Button>
           </div>
         </div>

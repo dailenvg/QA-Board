@@ -9,7 +9,6 @@ import { useClientRefresh } from "@/lib/share-client/use-client-refresh";
 import type { ClientView } from "@/lib/share/types";
 import { ViewerBackendContext } from "@/lib/viewer-backend/backend";
 import { Logo } from "../brand/Logo";
-import { useToast } from "../ui/ToastProvider";
 import { ViewerView } from "../viewer/ViewerView";
 import { ShareUnavailable } from "./ShareUnavailable";
 
@@ -24,19 +23,11 @@ interface SharedReviewProps {
  * into a workspace. Nothing is saved to this browser's Squint workspace.
  */
 export function SharedReview({ token, initial }: SharedReviewProps) {
-  const toast = useToast();
   const [store] = useState(() => createClientStore(initial));
   const [blobs] = useState(() => createServerBlobs(token));
   const backend = useMemo(
-    () =>
-      createClientBackend({
-        token,
-        store,
-        blobs,
-        onSendFailed: (message, retry) =>
-          toast({ tone: "error", message, action: { label: "Retry", onAction: retry } }),
-      }),
-    [token, store, blobs, toast],
+    () => createClientBackend({ token, store, blobs }),
+    [token, store, blobs],
   );
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot);
   const { data, project } = useMemo(() => toViewerData(state), [state]);

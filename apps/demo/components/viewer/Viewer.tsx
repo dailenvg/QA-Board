@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { scheduleBlobSweep } from "@/lib/store/blob-sweep";
 import { useSquint } from "@/lib/store/use-squint";
 import { DataRecovery } from "../app-state/DataRecovery";
+import { Revocations } from "../app-state/Revocations";
 import { ViewerBackendContext } from "@/lib/viewer-backend/backend";
 import { FolderBackLink } from "./FolderBackLink";
 import { localBackend } from "@/lib/viewer-backend/local-backend";
@@ -24,6 +25,7 @@ export function Viewer({ projectId }: { projectId: string }) {
   const folder = state.data.folders.find((entry) => entry.id === project.folderId);
   return (
     <ViewerBackendContext value={localBackend}>
+      <Revocations />
       <ViewerView
         key={project.id}
         data={state.data}

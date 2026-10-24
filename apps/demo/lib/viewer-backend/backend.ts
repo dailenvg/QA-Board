@@ -6,6 +6,8 @@ import type { Comment, CommentStatus, Rect, Snapshot } from "../store/types";
 export type ViewerRole = "owner" | "client";
 
 export interface NewComment {
+  /** Chosen when the pin is placed, so sending again after a failure can't post it twice. */
+  id: string;
   projectId: string;
   x: number;
   y: number;
@@ -29,7 +31,11 @@ export type CaptureOutcome = { ok: true; snapshot: Snapshot } | { ok: false; mes
  */
 export interface ViewerBackend {
   role: ViewerRole;
-  addComment(input: NewComment, crop: PendingCrop | null): Result<Comment>;
+  /**
+   * Resolves once the comment is saved (the owner's store) or accepted by the
+   * server (a shared link). On failure nothing is lost: the caller keeps the draft.
+   */
+  addComment(input: NewComment, crop: PendingCrop | null): Promise<Result<Comment>>;
   setAuthorName(name: string): void;
   setCommentStatus(id: string, status: CommentStatus): Result;
   editComment(id: string, body: string): Result;

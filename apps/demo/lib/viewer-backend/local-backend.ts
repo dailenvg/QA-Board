@@ -59,7 +59,7 @@ export const localBackend: ViewerBackend = {
   addComment(input, crop) {
     const result = addComment(input);
     if (result.ok && crop) void saveCrop(result.value.id, crop);
-    return result;
+    return Promise.resolve(result);
   },
   setAuthorName: (name) => void setAuthorName(name),
   setCommentStatus,

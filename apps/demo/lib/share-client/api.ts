@@ -35,7 +35,7 @@ const jsonInit = (method: string, body: unknown, headers: Record<string, string>
   body: JSON.stringify(body),
 });
 
-const owner = (share: ProjectShare) => ({ [OWNER_KEY_HEADER]: share.ownerKey });
+const owner = (share: Pick<ProjectShare, "ownerKey">) => ({ [OWNER_KEY_HEADER]: share.ownerKey });
 const blobPath = (key: string) => encodeURIComponent(key);
 
 /** The owner's calls: everything needs the owner key. */
@@ -69,7 +69,7 @@ export const ownerApi = {
     }),
   download: (share: ProjectShare, key: string) =>
     fetchInRanges(`/api/shares/${share.id}/blobs/${blobPath(key)}`, { headers: owner(share) }),
-  revoke: (share: ProjectShare) =>
+  revoke: (share: Pick<ProjectShare, "id" | "ownerKey">) =>
     call<null>(`/api/shares/${share.id}`, { method: "DELETE", headers: owner(share) }),
 };
 

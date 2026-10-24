@@ -3,6 +3,7 @@ import type {
   Comment,
   CommentCrop,
   Folder,
+  PendingRevocation,
   Project,
   ProjectShare,
   ProjectSource,
@@ -123,6 +124,18 @@ const isSnapshot: Guard<Snapshot> = (value): value is Snapshot =>
   isString(value.sourceUrl) &&
   (value.scale === undefined || (isSize(value.scale) && value.scale <= 1));
 
+const isRevocation: Guard<PendingRevocation> = (value): value is PendingRevocation =>
+  isRecord(value) &&
+  isString(value.shareId) &&
+  isString(value.ownerKey) &&
+  isString(value.projectId) &&
+  isTime(value.dueAt);
+
+/** Read leniently, like snapshots: a missing list is empty, unreadable entries are skipped. */
+function readRevocations(value: unknown): PendingRevocation[] {
+  return Array.isArray(value) ? value.filter(isRevocation) : [];
+}
+
 function listOf<T>(value: unknown, guard: Guard<T>): T[] | null {
   return Array.isArray(value) && value.every(guard) ? value : null;
 }
@@ -134,6 +147,7 @@ export function createInitialData(folderId: string, now: number): SquintData {
     projects: [],
     comments: [],
     snapshots: [],
+    revocations: [],
     authorName: null,
   };
 }
@@ -253,6 +267,7 @@ export function parseData(raw: string): ParseResult {
     projects,
     comments,
     snapshots: read.snapshots,
+    revocations: readRevocations(value.revocations),
     authorName,
   });
   const kept = new Set(result.data.projects.map((project) => projectImageKey(project.id)));

@@ -128,4 +128,12 @@ describe("parseData", () => {
     const broken = parse({ ...LEGACY_V1, projects: [{ ...site, share: { id: 3 } }] });
     expect(broken.data.projects[0]).not.toHaveProperty("share");
   });
+
+  it("reads pending revocations leniently", () => {
+    const entry = { shareId: "s", ownerKey: "k", projectId: "p", dueAt: 5 };
+    expect(parse({ ...LEGACY_V1, revocations: [entry, { shareId: 1 }] }).data.revocations).toEqual([
+      entry,
+    ]);
+    expect(parse(LEGACY_V1).data.revocations).toEqual([]);
+  });
 });

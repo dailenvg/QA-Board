@@ -14,12 +14,12 @@ import type {
 export type Action =
   | { type: "folder/create"; folder: Folder }
   | { type: "folder/rename"; id: string; name: string }
-  | { type: "folder/delete"; id: string }
+  | { type: "folder/delete"; id: string; at: number }
   | { type: "project/create"; project: Project }
   | { type: "project/rename"; id: string; name: string; at: number }
   | { type: "project/move"; id: string; folderId: string; at: number }
   | { type: "project/replace-source"; id: string; source: ProjectSource; at: number }
-  | { type: "project/delete"; id: string }
+  | { type: "project/delete"; id: string; at: number }
   /** Undo for a delete: puts the project, its comments and snapshots back exactly as they were. */
   | { type: "project/restore"; project: Project; comments: Comment[]; snapshots: Snapshot[] }
   | { type: "comment/add"; comment: Comment }
@@ -36,6 +36,10 @@ export type Action =
   | { type: "author/set"; name: string }
   | { type: "project/share"; id: string; share: ProjectShare }
   | { type: "project/unshare"; id: string }
+  /** The project's delete is final (its Undo is gone): revoke its share now. */
+  | { type: "revocation/due"; projectId: string; at: number }
+  /** The server revoked it (or no longer had it). */
+  | { type: "revocation/done"; shareId: string }
   /** A push or pull succeeded. */
   | { type: "share/synced"; id: string; at: number }
   /**
@@ -85,6 +89,26 @@ function mergeShared(data: SquintData, action: Extract<Action, { type: "share/me
   };
 }
 
+/** Undo window fallback, in case the page closes before the Undo toast does. */
+export const REVOKE_GRACE_MS = 60_000;
+
+/** Shares of `projects`, queued for revocation at `dueAt`. */
+function revoke(data: SquintData, projects: readonly Project[], dueAt: number): SquintData {
+  const queued = projects.flatMap((project) =>
+    project.share
+      ? [
+          {
+            shareId: project.share.id,
+            ownerKey: project.share.ownerKey,
+            projectId: project.id,
+            dueAt,
+          },
+        ]
+      : [],
+  );
+  return queued.length ? { ...data, revocations: [...data.revocations, ...queued] } : data;
+}
+
 function touchProject(projects: Project[], id: string, at: number): Project[] {
   return projects.map((project) => (project.id === id ? { ...project, updatedAt: at } : project));
 }
@@ -119,11 +143,11 @@ export function reduce(data: SquintData, action: Action): SquintData {
     case "folder/delete": {
       // Every project needs a folder, so the last folder stays.
       if (data.folders.length <= 1) return data;
-      const removed = new Set(
-        data.projects.filter((project) => project.folderId === action.id).map((p) => p.id),
-      );
+      const removedProjects = data.projects.filter((project) => project.folderId === action.id);
+      const removed = new Set(removedProjects.map((p) => p.id));
+      // Folder deletes can't be undone, so their links are revoked right away.
       return {
-        ...data,
+        ...revoke(data, removedProjects, action.at),
         folders: data.folders.filter((folder) => folder.id !== action.id),
         projects: data.projects.filter((project) => !removed.has(project.id)),
         comments: data.comments.filter((comment) => !removed.has(comment.projectId)),
@@ -163,7 +187,11 @@ export function reduce(data: SquintData, action: Action): SquintData {
       };
     case "project/delete":
       return {
-        ...data,
+        ...revoke(
+          data,
+          data.projects.filter((project) => project.id === action.id),
+          action.at + REVOKE_GRACE_MS,
+        ),
         projects: data.projects.filter((project) => project.id !== action.id),
         comments: data.comments.filter((comment) => comment.projectId !== action.id),
         snapshots: data.snapshots.filter((snapshot) => snapshot.projectId !== action.id),
@@ -176,6 +204,8 @@ export function reduce(data: SquintData, action: Action): SquintData {
         projects: [...data.projects, action.project],
         comments: [...data.comments, ...action.comments],
         snapshots: [...data.snapshots, ...action.snapshots],
+        // Undone in time: the link keeps working.
+        revocations: data.revocations.filter((entry) => entry.projectId !== action.project.id),
       };
     case "comment/restore":
       if (data.comments.some((comment) => comment.id === action.comment.id)) return data;
@@ -240,6 +270,22 @@ export function reduce(data: SquintData, action: Action): SquintData {
           const { share: _revoked, ...rest } = project;
           return rest;
         }),
+      };
+    case "revocation/due":
+      if (!data.revocations.some((entry) => entry.projectId === action.projectId)) return data;
+      return {
+        ...data,
+        revocations: data.revocations.map((entry) =>
+          entry.projectId === action.projectId
+            ? { ...entry, dueAt: Math.min(entry.dueAt, action.at) }
+            : entry,
+        ),
+      };
+    case "revocation/done":
+      if (!data.revocations.some((entry) => entry.shareId === action.shareId)) return data;
+      return {
+        ...data,
+        revocations: data.revocations.filter((entry) => entry.shareId !== action.shareId),
       };
     case "share/synced":
       return updateShare(data, action.id, (share) => ({ ...share, lastSyncedAt: action.at }));

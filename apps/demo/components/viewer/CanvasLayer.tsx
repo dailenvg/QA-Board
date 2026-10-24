@@ -81,8 +81,8 @@ export function CanvasLayer({
             number={null}
             x={draft.x}
             y={draft.y}
-            tone="draft"
-            label="New comment position"
+            tone={draft.error ? "unsent" : "draft"}
+            label={draft.error ? "Unsent comment position" : "New comment position"}
           />
         ) : null}
       </AnimatePresence>

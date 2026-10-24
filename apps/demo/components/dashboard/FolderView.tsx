@@ -1,7 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { deleteProject, moveProject, renameProject, restoreProject } from "@/lib/store/actions";
+import {
+  deleteProject,
+  finalizeProjectDelete,
+  moveProject,
+  renameProject,
+  restoreProject,
+} from "@/lib/store/actions";
 import { folderSummaries } from "@/lib/store/selectors";
 import type { Folder, Project } from "@/lib/store/types";
 import { useDialogState } from "@/lib/use-dialog-state";
@@ -112,6 +118,8 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
               onAction: () =>
                 report(restoreProject(project, comments, snapshots), `Restored ${project.name}`),
             },
+            // Undo is gone, so the delete is final: a shared link is revoked now.
+            onDismiss: () => finalizeProjectDelete(project.id),
           });
         }}
       />
