@@ -15,7 +15,7 @@ export type FallbackReason = "blocked" | "unreachable" | "timeout";
 interface FrameFallbackProps {
   reason: FallbackReason;
   url: string;
-  onScreenshot: ScreenshotHandler;
+  onScreenshot: ScreenshotHandler | null;
   /** Secondary recovery: check again, or load the frame regardless. */
   onRetry: () => void;
 }
@@ -64,7 +64,9 @@ export function FrameFallback({ reason, url, onScreenshot, onRetry }: FrameFallb
           <p className="mt-2 text-body text-muted">{copy.body}</p>
         </div>
         <div className="flex flex-wrap items-start justify-center gap-2">
-          <ScreenshotUpload label="Upload a screenshot instead" onImage={onScreenshot} />
+          {onScreenshot ? (
+            <ScreenshotUpload label="Upload a screenshot instead" onImage={onScreenshot} />
+          ) : null}
           <a href={url} target="_blank" rel="noreferrer" className={buttonClass("secondary")}>
             <Icon name="external" className="size-4" />
             Open site in new tab

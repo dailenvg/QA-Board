@@ -1,18 +1,10 @@
 "use client";
 
 import { useReducedMotion } from "motion/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { RESOLVED_HOP } from "../brand/mascot/moods";
-import { planCommentCrop, saveCommentCrop } from "@/lib/crop/save-comment-crop";
-import {
-  addComment,
-  deleteComment,
-  editComment,
-  replaceWithImage,
-  restoreComment,
-  setAuthorName,
-  setCommentStatus,
-} from "@/lib/store/actions";
+import { planCommentCrop } from "@/lib/crop/plan-comment-crop";
+import { renderCrop } from "@/lib/crop/render-crop";
 import { commentsFor, pinNumbers } from "@/lib/store/selectors";
 import { countComments, deriveStatus } from "@/lib/store/status";
 import type { Comment, Project, SquintData } from "@/lib/store/types";
@@ -23,11 +15,13 @@ import { useShortcut } from "@/lib/use-shortcut";
 import { useTimedFlag } from "@/lib/use-timed-flag";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { useToast } from "../ui/ToastProvider";
+import { useViewerBackend, type PendingCrop } from "@/lib/viewer-backend/backend";
 import { CanvasLayer } from "./CanvasLayer";
 import { CommentsBody } from "./CommentsBody";
 import { CommentsPanel } from "./CommentsPanel";
 import { ExportMenu } from "./ExportMenu";
 import { commentSurfaceKey, placementOf, surfaceKey } from "./surface";
+import { useCommentActions } from "./use-comment-actions";
 import { useViewerSurface } from "./use-viewer-surface";
 import { ViewerStage } from "./ViewerStage";
 import { ViewerTopBar } from "./ViewerTopBar";
@@ -39,13 +33,23 @@ const CELEBRATION_MS = RESOLVED_HOP * 2 * 1000;
 interface ViewerViewProps {
   data: SquintData;
   project: Project;
+  /** Start of the top bar: a way back for the owner, the logo on a shared link. */
+  leading: ReactNode;
+  /** Extra top-bar actions, such as the owner's Share button. */
+  actions?: ReactNode;
 }
 
 type ScrollRequest = { id: string; target: "pin" | "card"; nonce: number } | null;
 
-/** Viewer layout and state: mode, surface, tab, selection, draft pin, and comment actions. */
-export function ViewerView({ data, project }: ViewerViewProps) {
+/**
+ * Viewer layout and state: mode, surface, tab, selection, draft pin, and
+ * comment actions. Changes go through the viewer backend (the owner's store or
+ * a shared link's server); on a shared link, moderation controls are hidden.
+ */
+export function ViewerView({ data, project, leading, actions }: ViewerViewProps) {
   const toast = useToast();
+  const backend = useViewerBackend();
+  const owner = backend.role === "owner";
   const now = useNow();
   const reduce = useReducedMotion();
   const docked = !useMediaQuery("(min-width: 1024px)");
@@ -86,7 +90,6 @@ export function ViewerView({ data, project }: ViewerViewProps) {
     [comments, source.kind, view.snapshots, view.latest],
   );
   const counts = countComments(comments);
-  const folder = data.folders.find((entry) => entry.id === project.folderId);
   const originalUrl = source.kind === "url" ? source.url : (source.referenceUrl ?? null);
   const stageDraft = draft?.surfaceKey === stageKey ? draft : null;
 
@@ -154,60 +157,43 @@ export function ViewerView({ data, project }: ViewerViewProps) {
     });
   };
 
-  const submitDraft = (body: string, author: string) => {
-    if (!draft) return;
-    if (author.trim() !== data.authorName) setAuthorName(author);
+  /** Reads what's on screen now, before posting re-renders or scrolls anything. */
+  const cropFor = (point: PinPoint): PendingCrop | null => {
     const image = imageRef.current;
     const area = canvasAreaRef.current;
-    // Read what's on screen now, before posting re-renders or scrolls anything.
-    const crop =
-      image && area && surface.kind !== "frame" ? planCommentCrop(image, area, draft) : null;
-    const result = addComment({
-      projectId: project.id,
-      x: draft.x,
-      y: draft.y,
-      body,
-      author,
-      ...(draft.snapshotId ? { snapshotId: draft.snapshotId } : {}),
-    });
+    if (!image || !area || surface.kind === "frame") return null;
+    const plan = planCommentCrop(image, area, point);
+    return plan ? { blob: renderCrop(image, plan), rect: plan.rect } : null;
+  };
+
+  const submitDraft = (body: string, author: string) => {
+    if (!draft) return;
+    if (author.trim() !== data.authorName) backend.setAuthorName(author);
+    const input = { projectId: project.id, x: draft.x, y: draft.y, body, author };
+    const result = backend.addComment(
+      draft.snapshotId ? { ...input, snapshotId: draft.snapshotId } : input,
+      cropFor(draft),
+    );
     if (!result.ok) {
       toast({ tone: "error", message: result.error });
       return;
     }
-    if (image && crop) void saveCommentCrop(result.value.id, image, crop);
     setDraft(null);
     setTab("active");
     setSelectedId(result.value.id);
     returnFocusToCanvas();
   };
 
-  const resolve = (id: string) => {
-    const result = setCommentStatus(id, "resolved");
-    if (!result.ok) {
-      toast({ tone: "error", message: result.error });
-      return;
-    }
-    if (selectedId === id) setSelectedId(null);
-    celebrate();
-    toast({
-      message: "Comment resolved",
-      action: { label: "Undo", onAction: () => setCommentStatus(id, "active") },
-    });
-  };
-
-  const reopen = (id: string) => {
-    const result = setCommentStatus(id, "active");
-    toast(result.ok ? { message: "Comment reopened" } : { tone: "error", message: result.error });
-  };
-
-  const edit = (id: string, body: string) => {
-    const result = editComment(id, body);
-    if (!result.ok) toast({ tone: "error", message: result.error });
-  };
+  const commentActions = useCommentActions({
+    backend,
+    toast,
+    onResolved: celebrate,
+    onRemoved: (id) => setSelectedId((current) => (current === id ? null : current)),
+  });
 
   const saveScreenshot: ScreenshotHandler = async (image) => {
     const referenceUrl = source.kind === "url" ? source.url : source.referenceUrl;
-    const result = await replaceWithImage(project.id, image, referenceUrl);
+    const result = await backend.replaceWithImage(project.id, image, referenceUrl);
     if (result.ok) view.showLatest();
     return result.ok ? null : result.error;
   };
@@ -245,12 +231,17 @@ export function ViewerView({ data, project }: ViewerViewProps) {
     <div className={`flex h-dvh flex-col gap-3 p-3 sm:gap-4 sm:p-4 ${sheetSpace}`}>
       <ViewerTopBar
         project={project}
-        folder={folder}
+        leading={leading}
         status={deriveStatus(counts)}
         mode={mode}
         onMode={setMode}
         originalUrl={originalUrl}
-        actions={<ExportMenu data={data} project={project} commentCount={comments.length} />}
+        actions={
+          <>
+            <ExportMenu data={data} project={project} commentCount={comments.length} />
+            {actions}
+          </>
+        }
       />
       <div className="flex min-h-0 flex-1 gap-4">
         <main
@@ -272,7 +263,7 @@ export function ViewerView({ data, project }: ViewerViewProps) {
             onCapture={view.capture.capture}
             onShowLatest={view.showLatest}
             onBrowse={() => setMode("browse")}
-            onScreenshot={saveScreenshot}
+            onScreenshot={owner ? saveScreenshot : null}
           />
         </main>
         <CommentsPanel
@@ -292,10 +283,11 @@ export function ViewerView({ data, project }: ViewerViewProps) {
             selectedId={selectedId}
             now={now}
             listRef={listRef}
+            canModerate={owner}
             onSelect={(id) => select(id, "card")}
-            onEdit={edit}
-            onResolve={resolve}
-            onReopen={reopen}
+            onEdit={commentActions.edit}
+            onResolve={commentActions.resolve}
+            onReopen={commentActions.reopen}
             onDelete={deleting.show}
           />
         </CommentsPanel>
@@ -313,23 +305,7 @@ export function ViewerView({ data, project }: ViewerViewProps) {
         onConfirm={() => {
           const target = deleting.payload;
           deleting.close();
-          if (!target) return;
-          if (selectedId === target.id) setSelectedId(null);
-          const result = deleteComment(target.id);
-          if (!result.ok) {
-            toast({ tone: "error", message: result.error });
-            return;
-          }
-          toast({
-            message: "Comment deleted",
-            action: {
-              label: "Undo",
-              onAction: () => {
-                const restored = restoreComment(target);
-                if (!restored.ok) toast({ tone: "error", message: restored.error });
-              },
-            },
-          });
+          if (target) commentActions.remove(target);
         }}
       />
     </div>

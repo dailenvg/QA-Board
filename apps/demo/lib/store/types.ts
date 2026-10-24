@@ -12,6 +12,20 @@ export type ProjectSource =
    */
   | { kind: "image"; blobKey: string; fileName: string; referenceUrl?: string };
 
+/** The owner's side of a shared review link. Secrets stay in this browser. */
+export interface ProjectShare {
+  /** Server id of the share (not secret). */
+  id: string;
+  /** The client link's secret, kept so the owner can copy the link again. */
+  token: string;
+  /** The owner's secret for pushing, pulling and revoking. */
+  ownerKey: string;
+  createdAt: number;
+  /** Client additions up to here have been pulled into this browser. */
+  cursor: number;
+  lastSyncedAt?: number;
+}
+
 export interface Project {
   id: string;
   folderId: string;
@@ -19,6 +33,8 @@ export interface Project {
   source: ProjectSource;
   createdAt: number;
   updatedAt: number;
+  /** Set while the project is shared with clients. */
+  share?: ProjectShare;
 }
 
 export type CommentStatus = "active" | "resolved";

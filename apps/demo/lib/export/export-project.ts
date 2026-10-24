@@ -1,3 +1,4 @@
+import type { BlobSource } from "../blob-store/blob-source";
 import type { Project, SquintData } from "../store/types";
 import { collectExport } from "./collect";
 import { downloadBlob } from "./download";
@@ -13,9 +14,10 @@ export async function exportProject(
   data: SquintData,
   project: Project,
   format: ExportFormat,
+  blobs: BlobSource,
 ): Promise<string> {
   const now = Date.now();
-  const { document, files } = await collectExport(data, project, now);
+  const { document, files } = await collectExport(data, project, now, blobs);
   const at = new Date(now);
   if (format === "markdown") {
     const fileName = exportFileName(project.name, at, "md");

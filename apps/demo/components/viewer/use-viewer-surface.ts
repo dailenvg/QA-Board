@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { useViewerBackend } from "@/lib/viewer-backend/backend";
 import { useCapture } from "@/lib/capture/use-capture";
 import { snapshotsFor } from "@/lib/store/snapshots";
 import type { Comment, Project, SquintData } from "@/lib/store/types";
@@ -18,9 +19,17 @@ export function useViewerSurface(project: Project, data: SquintData) {
   const latest = list.at(-1) ?? null;
   const viewed = (viewedId && snapshots.get(viewedId)) || null;
   const surface = stageSurface(kind, mode, viewed, latest);
-  const capture = useCapture(project.id, kind === "url" ? project.source.url : null, () =>
-    setViewedId(null),
+  const backend = useViewerBackend();
+  const url = kind === "url" ? project.source.url : null;
+  const capturer = useMemo(
+    () =>
+      url
+        ? (width: number, signal: AbortSignal) =>
+            backend.captureSnapshot(project.id, url, width, signal)
+        : null,
+    [backend, project.id, url],
   );
+  const capture = useCapture(capturer, () => setViewedId(null));
 
   const setMode = useCallback(
     (next: ViewerMode) => {

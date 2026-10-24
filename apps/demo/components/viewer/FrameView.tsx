@@ -16,7 +16,7 @@ interface FrameViewProps {
   url: string;
   title: string;
   overlay: ReactNode;
-  onScreenshot: ScreenshotHandler;
+  onScreenshot: ScreenshotHandler | null;
   /** In Comment mode the framed site leaves the tab order, so Tab reaches the comment canvas. */
   commentMode: boolean;
 }

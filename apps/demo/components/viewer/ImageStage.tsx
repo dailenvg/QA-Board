@@ -13,10 +13,10 @@ interface ImageStageProps {
   overlay: ReactNode;
   imageRef: Ref<HTMLImageElement>;
   onReady: () => void;
-  onReplace: ScreenshotHandler;
+  onReplace: ScreenshotHandler | null;
 }
 
-function ImageUnavailable({ onReplace }: { onReplace: ScreenshotHandler }) {
+function ImageUnavailable({ onReplace }: { onReplace: ScreenshotHandler | null }) {
   return (
     <div role="alert" className="grid h-full min-h-80 place-items-center p-6 text-center">
       <div className="flex max-w-sm flex-col items-center gap-3">
@@ -25,7 +25,7 @@ function ImageUnavailable({ onReplace }: { onReplace: ScreenshotHandler }) {
           It may be damaged, or it was removed from this browser&apos;s storage. Upload it again to
           keep reviewing.
         </p>
-        <ScreenshotUpload label="Replace image" onImage={onReplace} />
+        {onReplace ? <ScreenshotUpload label="Replace image" onImage={onReplace} /> : null}
       </div>
     </div>
   );

@@ -17,10 +17,21 @@ const RESET_MS = 2500;
 
 interface CopyLinkFieldProps {
   url: string;
+  label?: string;
+  /** Text of the link that opens the URL; null for none. */
+  openLabel?: string | null;
+  testId?: string;
+  className?: string;
 }
 
 /** Read-only review URL with a copy button that reports success or failure. */
-export function CopyLinkField({ url }: CopyLinkFieldProps) {
+export function CopyLinkField({
+  url,
+  label = "Shareable review link",
+  openLabel = "Open the preview with this link",
+  testId = "review-link-url",
+  className = "mt-8",
+}: CopyLinkFieldProps) {
   const inputId = useId();
   const [state, setState] = useState<CopyState>("idle");
   const timer = useRef<number | null>(null);
@@ -50,19 +61,19 @@ export function CopyLinkField({ url }: CopyLinkFieldProps) {
     }
   };
 
-  const label = LABELS[state];
+  const button = LABELS[state];
 
   return (
-    <div className="mt-8">
+    <div className={className}>
       <label htmlFor={inputId} className="text-body font-semibold">
-        Shareable review link
+        {label}
       </label>
       <div className="mt-3 flex flex-col gap-3 sm:flex-row">
         <input
           ref={inputRef}
           id={inputId}
           aria-describedby={state === "error" ? hintId : undefined}
-          data-testid="review-link-url"
+          data-testid={testId}
           readOnly
           value={url}
           onFocus={(event) => event.currentTarget.select()}
@@ -83,8 +94,8 @@ export function CopyLinkField({ url }: CopyLinkFieldProps) {
               exit={{ opacity: 0, y: reduce ? 0 : -6 }}
               transition={{ duration: duration.micro }}
             >
-              <Icon name={label.icon} className="size-4" />
-              {label.text}
+              <Icon name={button.icon} className="size-4" />
+              {button.text}
             </motion.span>
           </AnimatePresence>
         </motion.button>
@@ -101,13 +112,15 @@ export function CopyLinkField({ url }: CopyLinkFieldProps) {
             ? "Couldn't copy automatically. The link is selected, so press Control or Command plus C to copy it."
             : ""}
       </p>
-      <a
-        href={url}
-        className="mt-4 inline-flex min-h-11 items-center gap-2 text-body font-semibold text-brand-text hover:underline"
-      >
-        Open the preview with this link
-        <Icon name="external" className="size-4" />
-      </a>
+      {openLabel ? (
+        <a
+          href={url}
+          className="mt-4 inline-flex min-h-11 items-center gap-2 text-body font-semibold text-brand-text hover:underline"
+        >
+          {openLabel}
+          <Icon name="external" className="size-4" />
+        </a>
+      ) : null}
     </div>
   );
 }

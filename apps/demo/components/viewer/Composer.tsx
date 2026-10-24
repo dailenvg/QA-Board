@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { useId, useState, type FormEvent, type KeyboardEvent, type Ref } from "react";
 import { usePopVariants } from "@/lib/motion";
 import { useMediaQuery } from "@/lib/use-media-query";
+import { SHARE_LIMITS } from "@/lib/share/limits";
 import { Button } from "../ui/Button";
 import { FieldError } from "../ui/FieldError";
 import { FIELD_CLASS } from "../ui/field-styles";
@@ -153,6 +154,7 @@ export function Composer({
             ref={textareaRef}
             value={draft.body}
             rows={3}
+            maxLength={SHARE_LIMITS.body}
             required
             autoFocus={Boolean(authorName)}
             placeholder="What should change here?"

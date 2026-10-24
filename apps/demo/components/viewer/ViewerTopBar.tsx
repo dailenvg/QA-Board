@@ -1,9 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { OVERVIEW_HREF, folderHref } from "@/lib/routes";
 import type { ProjectStatus } from "@/lib/store/status";
-import type { Folder, Project } from "@/lib/store/types";
+import type { Project } from "@/lib/store/types";
 import { ButtonLink } from "../ui/ButtonLink";
 import { Icon } from "../ui/Icon";
 import { Kbd } from "../ui/Kbd";
@@ -13,7 +12,8 @@ import type { ViewerMode } from "./types";
 
 interface ViewerTopBarProps {
   project: Project;
-  folder: Folder | undefined;
+  /** A way back (owner) or the logo (shared link). */
+  leading: ReactNode;
   status: ProjectStatus;
   mode: ViewerMode;
   onMode: (mode: ViewerMode) => void;
@@ -23,10 +23,10 @@ interface ViewerTopBarProps {
   actions: ReactNode;
 }
 
-/** Back link, project name and status, Browse/Comment toggle, actions, and the original site link. */
+/** Leading slot, project name and status, Browse/Comment toggle, actions, and the original site link. */
 export function ViewerTopBar({
   project,
-  folder,
+  leading,
   status,
   mode,
   onMode,
@@ -36,16 +36,7 @@ export function ViewerTopBar({
   return (
     // Its own layer, so the Export menu opens over the snapshot bar and pins below it.
     <header className="relative z-40 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-panel bg-panel p-2">
-      <ButtonLink
-        href={folder ? folderHref(folder.id) : OVERVIEW_HREF}
-        variant="ghost"
-        size="sm"
-        className="px-3"
-        ariaLabel={`Back to ${folder?.name ?? "Overview"}`}
-      >
-        <Icon name="chevronLeft" className="size-5" />
-        <span className="hidden max-w-40 truncate sm:inline">{folder?.name ?? "Overview"}</span>
-      </ButtonLink>
+      {leading}
       <div className="flex min-w-40 flex-1 items-center gap-2">
         <h1 className="truncate text-heading font-bold">{project.name}</h1>
         <StatusChip status={status} />

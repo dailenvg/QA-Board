@@ -13,6 +13,8 @@ interface CommentsBodyProps extends CommentCardActions {
   comments: readonly Comment[];
   numbers: ReadonlyMap<string, number>;
   placements: ReadonlyMap<string, Placement | null>;
+  /** False on a shared link: comments can be read and selected, not changed. */
+  canModerate: boolean;
   tab: CommentTab;
   onTab: (tab: CommentTab) => void;
   selectedId: string | null;
@@ -39,6 +41,7 @@ export function CommentsBody({
   comments,
   numbers,
   placements,
+  canModerate,
   tab,
   onTab,
   selectedId,
@@ -84,6 +87,7 @@ export function CommentsBody({
               comment={comment}
               number={numbers.get(comment.id) ?? 0}
               placement={placements.get(comment.id) ?? null}
+              canModerate={canModerate}
               selected={comment.id === selectedId}
               now={now}
               {...actions}

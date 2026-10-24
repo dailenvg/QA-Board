@@ -1,4 +1,4 @@
-import { getBlob } from "../blob-store/blob-store";
+import type { BlobSource } from "../blob-store/blob-source";
 import { commentsFor } from "../store/selectors";
 import { snapshotsFor } from "../store/snapshots";
 import type { Comment, Project, Snapshot, SquintData } from "../store/types";
@@ -15,10 +15,13 @@ export interface CollectedExport {
   files: Map<string, Blob>;
 }
 
-async function readCrops(comments: readonly Comment[]): Promise<Map<string, Blob>> {
+async function readCrops(
+  comments: readonly Comment[],
+  blobs: BlobSource,
+): Promise<Map<string, Blob>> {
   const entries = await Promise.all(
     comments.map(async (comment) => {
-      const blob = comment.crop ? await getBlob(comment.crop.blobKey) : null;
+      const blob = comment.crop ? await blobs.get(comment.crop.blobKey) : null;
       return blob ? ([comment.id, blob] as const) : null;
     }),
   );
@@ -27,12 +30,13 @@ async function readCrops(comments: readonly Comment[]): Promise<Map<string, Blob
 
 async function readSnapshots(
   snapshots: readonly Snapshot[],
+  blobs: BlobSource,
 ): Promise<{ assets: Map<string, SnapshotAsset>; blobs: Map<string, Blob> }> {
   const assets = new Map<string, SnapshotAsset>();
-  const blobs = new Map<string, Blob>();
+  const files = new Map<string, Blob>();
   let budget = MAX_SNAPSHOT_BYTES;
   for (const snapshot of snapshots) {
-    const blob = await getBlob(snapshot.blobKey);
+    const blob = await blobs.get(snapshot.blobKey);
     if (!blob) {
       assets.set(snapshot.id, { omitted: "unavailable" });
     } else if (blob.size > budget) {
@@ -41,18 +45,19 @@ async function readSnapshots(
       budget -= blob.size;
       const file = snapshotPath(snapshot.id, blob.type);
       assets.set(snapshot.id, { file });
-      blobs.set(file, blob);
+      files.set(file, blob);
     }
   }
-  return { assets, blobs };
+  return { assets, blobs: files };
 }
 
 async function readImage(
   project: Project,
+  blobs: BlobSource,
 ): Promise<{ image: ExportAssets["image"]; blob: Blob | null }> {
   if (project.source.kind !== "image") return { image: null, blob: null };
   try {
-    const blob = await getBlob(project.source.blobKey);
+    const blob = await blobs.get(project.source.blobKey);
     if (!blob) return { image: null, blob: null };
     const bitmap = await createImageBitmap(blob);
     const image = { width: bitmap.width, height: bitmap.height, file: sourceImagePath(blob.type) };
@@ -64,21 +69,22 @@ async function readImage(
 }
 
 /**
- * Gathers a project's comments and the images that go with them from this
- * browser's storage, and builds the export model around what was found.
+ * Gathers a project's comments and the images that go with them (from this
+ * browser's storage, or a share's), and builds the export model around what was found.
  */
 export async function collectExport(
   data: SquintData,
   project: Project,
   exportedAt: number,
+  blobs: BlobSource,
 ): Promise<CollectedExport> {
   const comments = commentsFor(data, project.id);
   const used = new Set(comments.flatMap((comment) => comment.snapshotId ?? []));
   const snapshots = snapshotsFor(data, project.id).filter((snapshot) => used.has(snapshot.id));
   const [crops, stored, source] = await Promise.all([
-    readCrops(comments),
-    readSnapshots(snapshots),
-    readImage(project),
+    readCrops(comments, blobs),
+    readSnapshots(snapshots, blobs),
+    readImage(project, blobs),
   ]);
   const document = buildExportDocument({
     project,

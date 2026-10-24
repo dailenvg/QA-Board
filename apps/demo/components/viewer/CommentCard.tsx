@@ -25,6 +25,8 @@ interface CommentCardProps extends CommentCardActions {
   number: number;
   /** Where the pin lives, when that isn't the current snapshot. */
   placement: Placement | null;
+  /** Shows Resolve/Reopen, Edit and Delete. Off on a shared link. */
+  canModerate: boolean;
   selected: boolean;
   now: number;
 }
@@ -37,6 +39,7 @@ export function CommentCard({
   comment,
   number,
   placement,
+  canModerate,
   selected,
   now,
   onSelect,
@@ -137,7 +140,7 @@ export function CommentCard({
 
       {editing || !comment.crop ? null : <CommentCropThumb crop={comment.crop} number={number} />}
 
-      {editing ? null : (
+      {editing || !canModerate ? null : (
         // `relative` lifts the actions above the select button's card-wide ::after.
         <div className="relative flex items-center gap-1 px-2 pb-2">
           {resolved ? (

@@ -118,4 +118,14 @@ describe("parseData", () => {
     );
     expect(result.ok).toBe(false);
   });
+
+  it("keeps a project's share details, and drops unreadable ones", () => {
+    const share = { id: "s", token: "t", ownerKey: "k", createdAt: 1, cursor: 4, lastSyncedAt: 9 };
+    const [site] = LEGACY_V1.projects;
+    expect(parse({ ...LEGACY_V1, projects: [{ ...site, share }] }).data.projects[0]?.share).toEqual(
+      share,
+    );
+    const broken = parse({ ...LEGACY_V1, projects: [{ ...site, share: { id: 3 } }] });
+    expect(broken.data.projects[0]).not.toHaveProperty("share");
+  });
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useBlobSource } from "@/lib/blob-store/blob-source";
 import { exportProject, type ExportFormat } from "@/lib/export/export-project";
 import type { Project, SquintData } from "@/lib/store/types";
 import { buttonClass } from "../ui/button-styles";
@@ -19,11 +20,12 @@ const BUSY = "Preparing your export…";
 /** Top-bar Export menu: a ZIP with screenshots, or bare Markdown or JSON. */
 export function ExportMenu({ data, project, commentCount }: ExportMenuProps) {
   const toast = useToast();
+  const blobs = useBlobSource();
   const [busy, setBusy] = useState(false);
 
   const run = (format: ExportFormat) => {
     setBusy(true);
-    exportProject(data, project, format)
+    exportProject(data, project, format, blobs)
       .then((fileName) => toast({ message: `Downloaded ${fileName}` }))
       .catch(() => toast({ tone: "error", message: "The export didn't work. Try again." }))
       .finally(() => setBusy(false));

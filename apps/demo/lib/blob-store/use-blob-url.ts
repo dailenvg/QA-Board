@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getBlob, subscribeBlob } from "./blob-store";
+import { useBlobSource } from "./blob-source";
 
 export type BlobUrlState =
   | { status: "loading" }
@@ -13,6 +13,7 @@ export type BlobUrlState =
  * replaced and on unmount.
  */
 export function useBlobUrl(key: string): BlobUrlState {
+  const source = useBlobSource();
   const [state, setState] = useState<{ key: string; url: string | null } | null>(null);
 
   useEffect(() => {
@@ -22,7 +23,7 @@ export function useBlobUrl(key: string): BlobUrlState {
     const load = () => {
       read += 1;
       const current = read;
-      void getBlob(key).then((blob) => {
+      void source.get(key).then((blob) => {
         if (cancelled || current !== read) return;
         if (url) URL.revokeObjectURL(url);
         url = blob ? URL.createObjectURL(blob) : null;
@@ -30,13 +31,13 @@ export function useBlobUrl(key: string): BlobUrlState {
       });
     };
     load();
-    const unsubscribe = subscribeBlob(key, load);
+    const unsubscribe = source.subscribe(key, load);
     return () => {
       cancelled = true;
       unsubscribe();
       if (url) URL.revokeObjectURL(url);
     };
-  }, [key]);
+  }, [key, source]);
 
   if (state?.key !== key) return { status: "loading" };
   return state.url ? { status: "ready", url: state.url } : { status: "missing" };

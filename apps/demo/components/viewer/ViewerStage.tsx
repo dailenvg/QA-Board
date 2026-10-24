@@ -21,7 +21,7 @@ interface ViewerStageProps {
   onCapture: (width: number) => void;
   onShowLatest: () => void;
   onBrowse: () => void;
-  onScreenshot: ScreenshotHandler;
+  onScreenshot: ScreenshotHandler | null;
 }
 
 /**

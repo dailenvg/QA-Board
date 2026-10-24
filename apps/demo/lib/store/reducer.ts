@@ -5,6 +5,7 @@ import type {
   CommentStatus,
   Folder,
   Project,
+  ProjectShare,
   ProjectSource,
   Snapshot,
   SquintData,
@@ -32,7 +33,57 @@ export type Action =
   | { type: "snapshot/add"; snapshot: Snapshot }
   /** Drops snapshots that are neither a project's latest nor under any comment. */
   | { type: "snapshot/prune" }
-  | { type: "author/set"; name: string };
+  | { type: "author/set"; name: string }
+  | { type: "project/share"; id: string; share: ProjectShare }
+  | { type: "project/unshare"; id: string }
+  /** A push or pull succeeded. */
+  | { type: "share/synced"; id: string; at: number }
+  /**
+   * Client additions pulled from the share. Idempotent: ids already here are
+   * skipped, so a repeated pull changes nothing. The owner's copy wins.
+   */
+  | {
+      type: "share/merge";
+      id: string;
+      comments: Comment[];
+      snapshots: Snapshot[];
+      cursor: number;
+      at: number;
+    };
+
+function updateShare(
+  data: SquintData,
+  id: string,
+  change: (share: ProjectShare) => ProjectShare,
+): SquintData {
+  return {
+    ...data,
+    projects: data.projects.map((project) =>
+      project.id === id && project.share ? { ...project, share: change(project.share) } : project,
+    ),
+  };
+}
+
+function mergeShared(data: SquintData, action: Extract<Action, { type: "share/merge" }>) {
+  const project = data.projects.find((entry) => entry.id === action.id);
+  if (!project?.share) return data;
+  const commentIds = new Set(data.comments.map((comment) => comment.id));
+  const snapshotIds = new Set(data.snapshots.map((snapshot) => snapshot.id));
+  const comments = action.comments.filter((comment) => !commentIds.has(comment.id));
+  const snapshots = action.snapshots.filter((snapshot) => !snapshotIds.has(snapshot.id));
+  const merged = updateShare(data, action.id, (share) => ({
+    ...share,
+    cursor: Math.max(share.cursor, action.cursor),
+    lastSyncedAt: action.at,
+  }));
+  if (comments.length === 0 && snapshots.length === 0) return merged;
+  return {
+    ...merged,
+    comments: [...merged.comments, ...comments],
+    snapshots: [...merged.snapshots, ...snapshots],
+    projects: touchProject(merged.projects, action.id, action.at),
+  };
+}
 
 function touchProject(projects: Project[], id: string, at: number): Project[] {
   return projects.map((project) => (project.id === id ? { ...project, updatedAt: at } : project));
@@ -174,5 +225,25 @@ export function reduce(data: SquintData, action: Action): SquintData {
     }
     case "author/set":
       return { ...data, authorName: action.name };
+    case "project/share":
+      return {
+        ...data,
+        projects: data.projects.map((project) =>
+          project.id === action.id ? { ...project, share: action.share } : project,
+        ),
+      };
+    case "project/unshare":
+      return {
+        ...data,
+        projects: data.projects.map((project) => {
+          if (project.id !== action.id || !project.share) return project;
+          const { share: _revoked, ...rest } = project;
+          return rest;
+        }),
+      };
+    case "share/synced":
+      return updateShare(data, action.id, (share) => ({ ...share, lastSyncedAt: action.at }));
+    case "share/merge":
+      return mergeShared(data, action);
   }
 }

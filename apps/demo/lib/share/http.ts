@@ -3,8 +3,7 @@ import { clientAddress, createRateLimiter } from "../capture/rate-limit";
 import { SHARE_LIMITS } from "./schemas";
 import type { Failure } from "./service";
 
-/** Header carrying the owner key on every owner route. */
-export const OWNER_KEY_HEADER = "x-squint-owner-key";
+export { OWNER_KEY_HEADER } from "./http-headers";
 
 const NO_STORE = { "cache-control": "no-store" };
 

@@ -1,4 +1,5 @@
-import { notFound, OWNER_KEY_HEADER, rateLimit, type LimitName } from "./http";
+import { notFound, rateLimit, type LimitName } from "./http";
+import { OWNER_KEY_HEADER } from "./http-headers";
 import { shareServices, type ShareServices } from "./server";
 import { clientShare, ownerShare } from "./service";
 import type { ShareRecord } from "./types";

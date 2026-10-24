@@ -11,7 +11,7 @@ interface UrlStageProps {
   url: string;
   projectName: string;
   overlay: ReactNode;
-  onScreenshot: ScreenshotHandler;
+  onScreenshot: ScreenshotHandler | null;
   /** In Comment mode the snapshot covers this stage, and the framed site leaves the tab order. */
   commentMode: boolean;
 }

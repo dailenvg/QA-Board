@@ -11,7 +11,7 @@ import type { ScreenshotHandler } from "./types";
 interface CaptureFailedProps {
   message: string;
   onRetry: () => void;
-  onScreenshot: ScreenshotHandler;
+  onScreenshot: ScreenshotHandler | null;
   onBrowse: () => void;
 }
 
@@ -38,11 +38,13 @@ export function CaptureFailed({ message, onRetry, onScreenshot, onBrowse }: Capt
             <Icon name="refresh" className="size-4" />
             Retry
           </Button>
-          <ScreenshotUpload
-            label="Upload a screenshot instead"
-            variant="secondary"
-            onImage={onScreenshot}
-          />
+          {onScreenshot ? (
+            <ScreenshotUpload
+              label="Upload a screenshot instead"
+              variant="secondary"
+              onImage={onScreenshot}
+            />
+          ) : null}
         </div>
         <Button variant="ghost" size="sm" onClick={onBrowse}>
           <Icon name="pointer" className="size-4" />

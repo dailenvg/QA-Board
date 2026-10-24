@@ -7,6 +7,7 @@ import type { ShareStore } from "./store";
 import { createSecret, createShareId, hashSecret, isSecretShape, secretMatches } from "./tokens";
 import type {
   ClientView,
+  CreatedShare,
   Sequenced,
   SharedComment,
   SharedProject,
@@ -18,18 +19,10 @@ import type {
 
 export type Failure = { ok: false; status: 400 | 404 | 409 | 413 | 415 | 422; error: string };
 export type Outcome<T> = { ok: true; value: T } | Failure;
+export type { CreatedShare } from "./types";
 
 const fail = (status: Failure["status"], error: string): Failure => ({ ok: false, status, error });
 const ok = <T>(value: T): Outcome<T> => ({ ok: true, value });
-
-export interface CreatedShare {
-  shareId: string;
-  /** The client link's secret. Returned once; only its hash is stored. */
-  token: string;
-  /** The owner's secret for every owner route. Returned once; only its hash is stored. */
-  ownerKey: string;
-  missingBlobs: string[];
-}
 
 /** A client's new comment, before the server sets its status and timestamps. */
 export type ClientCommentInput = Omit<

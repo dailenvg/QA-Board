@@ -4,6 +4,7 @@ import type {
   CommentCrop,
   Folder,
   Project,
+  ProjectShare,
   ProjectSource,
   Rect,
   Snapshot,
@@ -68,6 +69,15 @@ const isSource: Guard<StoredSource> = (value): value is StoredSource => {
     (value.referenceUrl === undefined || isString(value.referenceUrl))
   );
 };
+
+const isShare: Guard<ProjectShare> = (value): value is ProjectShare =>
+  isRecord(value) &&
+  isString(value.id) &&
+  isString(value.token) &&
+  isString(value.ownerKey) &&
+  isTime(value.createdAt) &&
+  isTime(value.cursor) &&
+  (value.lastSyncedAt === undefined || isTime(value.lastSyncedAt));
 
 const isProject: Guard<StoredProject> = (value): value is StoredProject =>
   isRecord(value) &&
@@ -145,8 +155,16 @@ function safeSource(source: ProjectSource): ProjectSource | null {
   return image;
 }
 
+/** Drops share details that aren't readable; the project stays, no longer shared here. */
+function withSafeShare<T extends { share?: unknown }>(project: T): T {
+  if (project.share === undefined || isShare(project.share)) return project;
+  const { share: _unreadable, ...rest } = project;
+  return rest as T;
+}
+
 /** Moves a version 1 inline image out of the project, leaving a blob key behind. */
-function detachImage(project: StoredProject, pending: PendingImage[]): Project {
+function detachImage(stored: StoredProject, pending: PendingImage[]): Project {
+  const project = withSafeShare(stored);
   const { source } = project;
   if (source.kind === "url" || "blobKey" in source) return { ...project, source };
   const key = projectImageKey(project.id);

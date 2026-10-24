@@ -85,3 +85,13 @@ export interface ShareChanges {
   comments: SharedComment[];
   cursor: number;
 }
+
+/** The owner's answer to creating a share. Token and owner key are shown this once. */
+export interface CreatedShare {
+  shareId: string;
+  /** The client link's secret; only its hash is stored. */
+  token: string;
+  /** The owner's secret for every owner route; only its hash is stored. */
+  ownerKey: string;
+  missingBlobs: string[];
+}

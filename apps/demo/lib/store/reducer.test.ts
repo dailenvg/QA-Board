@@ -118,3 +118,53 @@ describe("snapshots in the reducer", () => {
     expect([...referencedBlobKeys(data)].sort()).toEqual(["crop:c1", "image:mock", "snapshot:a"]);
   });
 });
+
+describe("sharing in the reducer", () => {
+  const share = { id: "s", token: "t", ownerKey: "k", createdAt: 1, cursor: 0 };
+  const shared = () => reduce(legacy(), { type: "project/share", id: "site", share });
+
+  it("merges pulled client comments once, advancing the cursor", () => {
+    const merge = {
+      type: "share/merge" as const,
+      id: "site",
+      comments: [comment("k-1", "snap")],
+      snapshots: [snap("snap", 5)],
+      cursor: 7,
+      at: 50,
+    };
+    const once = reduce(shared(), merge);
+    const twice = reduce(once, merge);
+    expect(twice.comments.filter((entry) => entry.id === "k-1")).toHaveLength(1);
+    expect(twice.snapshots.filter((entry) => entry.id === "snap")).toHaveLength(1);
+    expect(twice.projects.find((p) => p.id === "site")?.share).toMatchObject({
+      cursor: 7,
+      lastSyncedAt: 50,
+    });
+  });
+
+  it("keeps the owner's copy of a comment it already has", () => {
+    const data = reduce(shared(), {
+      type: "share/merge",
+      id: "site",
+      comments: [{ ...comment("c1", "x"), body: "Changed" }],
+      snapshots: [],
+      cursor: 3,
+      at: 50,
+    });
+    expect(data.comments.find((entry) => entry.id === "c1")?.body).toBe(LEGACY_V1.comments[0].body);
+  });
+
+  it("ignores merges for projects that aren't shared, and forgets a share on unshare", () => {
+    const merge = {
+      type: "share/merge" as const,
+      id: "site",
+      comments: [comment("k-1", "x")],
+      snapshots: [],
+      cursor: 1,
+      at: 1,
+    };
+    expect(reduce(legacy(), merge)).toEqual(legacy());
+    const unshared = reduce(shared(), { type: "project/unshare", id: "site" });
+    expect(unshared.projects.find((p) => p.id === "site")).not.toHaveProperty("share");
+  });
+});

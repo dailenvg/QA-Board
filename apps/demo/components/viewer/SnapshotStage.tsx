@@ -19,7 +19,7 @@ interface SnapshotStageProps {
   onCapture: (width: number) => void;
   onShowLatest: () => void;
   showLatestLabel: string;
-  onScreenshot: ScreenshotHandler;
+  onScreenshot: ScreenshotHandler | null;
   onBrowse: () => void;
   overlay: ReactNode;
   imageRef: Ref<HTMLImageElement>;

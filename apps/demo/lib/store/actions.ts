@@ -10,6 +10,7 @@ import type {
   CommentStatus,
   Folder,
   Project,
+  ProjectShare,
   ProjectSource,
   Snapshot,
 } from "./types";
@@ -167,3 +168,10 @@ export const restoreComment = (comment: Comment) => dispatch({ type: "comment/re
 
 export const setAuthorName = (name: string) =>
   dispatch({ type: "author/set", name: cleanName(name) });
+
+/** Remembers a share's secrets on the project, so the owner can copy the link and sync. */
+export const shareProject = (id: string, share: ProjectShare) =>
+  dispatch({ type: "project/share", id, share });
+
+/** Forgets the share (after revoking it, or when its link no longer works). */
+export const unshareProject = (id: string) => dispatch({ type: "project/unshare", id });
