@@ -1,11 +1,22 @@
-import type { CommentStatus, Comment, Folder, Project, ProjectSource } from "./types";
+import { scheduleBlobSweep } from "./blob-sweep";
+import { newId } from "./id";
 import { dispatch, type Result } from "./store";
+import type {
+  Comment,
+  CommentCrop,
+  CommentStatus,
+  Folder,
+  Project,
+  ProjectSource,
+  Snapshot,
+} from "./types";
 
 const NAME_LIMIT = 80;
 
-function newId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+/** Runs a delete, then lets the blob sweep tidy up once undo is no longer likely. */
+function withSweep(result: Result): Result {
+  if (result.ok) scheduleBlobSweep();
+  return result;
 }
 
 /** Trims and caps user-entered names. */
@@ -25,7 +36,7 @@ export function createFolder(name: string): Result<Folder> {
 export const renameFolder = (id: string, name: string) =>
   dispatch({ type: "folder/rename", id, name: cleanName(name) });
 
-export const deleteFolder = (id: string) => dispatch({ type: "folder/delete", id });
+export const deleteFolder = (id: string) => withSweep(dispatch({ type: "folder/delete", id }));
 
 export function createProject(input: {
   folderId: string;
@@ -53,11 +64,11 @@ export const moveProject = (id: string, folderId: string) =>
 export const replaceProjectSource = (id: string, source: ProjectSource) =>
   dispatch({ type: "project/replace-source", id, source, at: Date.now() });
 
-export const deleteProject = (id: string) => dispatch({ type: "project/delete", id });
+export const deleteProject = (id: string) => withSweep(dispatch({ type: "project/delete", id }));
 
-/** Undo for `deleteProject`: pass the project and the comments it had. */
-export const restoreProject = (project: Project, comments: Comment[]) =>
-  dispatch({ type: "project/restore", project, comments });
+/** Undo for `deleteProject`: pass the project and the comments and snapshots it had. */
+export const restoreProject = (project: Project, comments: Comment[], snapshots: Snapshot[]) =>
+  dispatch({ type: "project/restore", project, comments, snapshots });
 
 export function addComment(input: {
   projectId: string;
@@ -65,6 +76,7 @@ export function addComment(input: {
   y: number;
   body: string;
   author: string;
+  snapshotId?: string;
 }): Result<Comment> {
   const now = Date.now();
   const comment: Comment = {
@@ -77,6 +89,7 @@ export function addComment(input: {
     status: "active",
     createdAt: now,
     updatedAt: now,
+    ...(input.snapshotId ? { snapshotId: input.snapshotId } : {}),
   };
   return withValue(dispatch({ type: "comment/add", comment }), comment);
 }
@@ -87,7 +100,17 @@ export const editComment = (id: string, body: string) =>
 export const setCommentStatus = (id: string, status: CommentStatus) =>
   dispatch({ type: "comment/set-status", id, status, at: Date.now() });
 
-export const deleteComment = (id: string) => dispatch({ type: "comment/delete", id });
+export const deleteComment = (id: string) => withSweep(dispatch({ type: "comment/delete", id }));
+
+export const attachCrop = (id: string, crop: CommentCrop) =>
+  dispatch({ type: "comment/set-crop", id, crop });
+
+/** Records a capture whose image is already in the blob store under `blobKey`. */
+export function addSnapshot(snapshot: Omit<Snapshot, "createdAt">): Result<Snapshot> {
+  const saved: Snapshot = { ...snapshot, createdAt: Date.now() };
+  // The snapshot it replaces is pruned later, unless comments point at it.
+  return withValue(withSweep(dispatch({ type: "snapshot/add", snapshot: saved })), saved);
+}
 
 /** Undo for `deleteComment`. */
 export const restoreComment = (comment: Comment) => dispatch({ type: "comment/restore", comment });

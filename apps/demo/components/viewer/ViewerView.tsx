@@ -3,6 +3,7 @@
 import { useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RESOLVED_HOP } from "../brand/mascot/moods";
+import { planCommentCrop, saveCommentCrop } from "@/lib/crop/save-comment-crop";
 import {
   addComment,
   deleteComment,
@@ -25,10 +26,11 @@ import { useToast } from "../ui/ToastProvider";
 import { CanvasLayer } from "./CanvasLayer";
 import { CommentsBody } from "./CommentsBody";
 import { CommentsPanel } from "./CommentsPanel";
-import { ImageStage } from "./ImageStage";
-import { UrlStage } from "./UrlStage";
+import { commentSurfaceKey, placementOf, surfaceKey } from "./surface";
+import { useViewerSurface } from "./use-viewer-surface";
+import { ViewerStage } from "./ViewerStage";
 import { ViewerTopBar } from "./ViewerTopBar";
-import type { CommentTab, Draft, PinPoint, ViewerMode } from "./types";
+import type { CommentTab, Draft, PinPoint } from "./types";
 
 /** One celebration: the mascot's hop plus its rest beat. */
 const CELEBRATION_MS = RESOLVED_HOP * 2 * 1000;
@@ -40,94 +42,138 @@ interface ViewerViewProps {
 
 type ScrollRequest = { id: string; target: "pin" | "card"; nonce: number } | null;
 
-/** Viewer layout and state: mode, tab, selection, draft pin, and comment actions. */
+/** Viewer layout and state: mode, surface, tab, selection, draft pin, and comment actions. */
 export function ViewerView({ data, project }: ViewerViewProps) {
   const toast = useToast();
   const now = useNow();
   const reduce = useReducedMotion();
   const docked = !useMediaQuery("(min-width: 1024px)");
-  const [mode, setMode] = useState<ViewerMode>("browse");
+  const view = useViewerSurface(project, data);
   const [tab, setTab] = useState<CommentTab>("active");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [scrollRequest, setScrollRequest] = useState<ScrollRequest>(null);
+  /** Bumped whenever an image surface finishes loading, so pins drawn on it can be found. */
+  const [stageVersion, setStageVersion] = useState(0);
   const [celebrating, celebrate] = useTimedFlag(CELEBRATION_MS);
   const deleting = useDialogState<Comment>();
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
-  const [frameCommentable, setFrameCommentable] = useState(false);
+  const canvasAreaRef = useRef<HTMLElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const handledScroll = useRef(0);
+  const focusCanvasPending = useRef(false);
 
+  const { mode, setMode, surface } = view;
+  const { source } = project;
+  const stageKey = surfaceKey(surface);
   const comments = useMemo(() => commentsFor(data, project.id), [data, project.id]);
   const numbers = useMemo(() => pinNumbers(comments), [comments]);
+  const onStage = comments.filter(
+    (comment) => commentSurfaceKey(comment, source.kind) === stageKey,
+  );
+  const placements = useMemo(
+    () =>
+      new Map(
+        comments.map((comment) => [
+          comment.id,
+          placementOf(comment, source.kind, view.snapshots, view.latest?.id ?? null),
+        ]),
+      ),
+    [comments, source.kind, view.snapshots, view.latest],
+  );
   const counts = countComments(comments);
   const folder = data.folders.find((entry) => entry.id === project.folderId);
-  const { source } = project;
   const originalUrl = source.kind === "url" ? source.url : (source.referenceUrl ?? null);
-  // While a site is being checked or a fallback replaces it there's nothing to pin, so
-  // Comment mode is unavailable (and shown as such) instead of silently doing nothing.
-  const canComment = source.kind === "image" || frameCommentable;
-  const activeMode: ViewerMode = canComment ? mode : "browse";
+  const stageDraft = draft?.surfaceKey === stageKey ? draft : null;
 
-  useShortcut("c", () => {
-    if (canComment) setMode(activeMode === "comment" ? "browse" : "comment");
-  });
-  useShortcut("escape", () => setMode("browse"), activeMode === "comment" && !draft);
+  useShortcut("c", () => setMode(mode === "comment" ? "browse" : "comment"));
+  useShortcut("escape", () => setMode("browse"), mode === "comment" && !stageDraft);
 
   /** After the composer closes, keyboard users carry on from the canvas instead of the page top. */
   const returnFocusToCanvas = () => overlayRef.current?.focus({ preventScroll: true });
 
   // Entering Comment mode (toolbar or C) puts focus on the canvas, so the arrow keys and
-  // Enter place a pin right away instead of Tab first walking the framed site.
+  // Enter place a pin right away. A snapshot may still be loading, so this waits for it.
   useEffect(() => {
-    if (activeMode === "comment") overlayRef.current?.focus({ preventScroll: true });
-  }, [activeMode]);
+    focusCanvasPending.current = mode === "comment";
+  }, [mode]);
+  useEffect(() => {
+    if (!focusCanvasPending.current || !overlayRef.current) return;
+    focusCanvasPending.current = false;
+    overlayRef.current.focus({ preventScroll: true });
+  }, [mode, stageVersion]);
 
-  // Bring the other half of a selection into view once React has rendered it.
+  // Bring the other half of a selection into view once React has rendered it (and, for a
+  // pin on another snapshot, once that snapshot has loaded).
   useEffect(() => {
-    if (!scrollRequest) return;
+    if (!scrollRequest || handledScroll.current === scrollRequest.nonce) return;
     const behavior: ScrollBehavior = reduce ? "auto" : "smooth";
     const selector =
       scrollRequest.target === "pin"
         ? `[data-pin-id="${CSS.escape(scrollRequest.id)}"]`
         : `[data-comment-id="${CSS.escape(scrollRequest.id)}"]`;
     const root = scrollRequest.target === "card" ? listRef.current : document;
-    root
-      ?.querySelector(selector)
-      ?.scrollIntoView({ block: "nearest", inline: "nearest", behavior });
-  }, [scrollRequest, reduce]);
+    const element = root?.querySelector(selector);
+    if (!element) return;
+    handledScroll.current = scrollRequest.nonce;
+    element.scrollIntoView({ block: "nearest", inline: "nearest", behavior });
+  }, [scrollRequest, reduce, stageVersion]);
 
   const select = (id: string, from: "pin" | "card") => {
     const comment = comments.find((entry) => entry.id === id);
     if (!comment) return;
-    const next = selectedId === id && from === "card" ? null : id;
+    // A second click on a card deselects it, unless its pin is on another surface: then it shows it.
+    const shown = commentSurfaceKey(comment, source.kind) === stageKey;
+    const next = selectedId === id && from === "card" && shown ? null : id;
     setSelectedId(next);
     if (!next) return;
     if (from === "pin") {
       if (comment.status === "resolved") setTab("resolved");
       setSheetOpen(true);
+    } else {
+      view.showSurfaceOf(comment);
     }
     setScrollRequest({ id, target: from === "pin" ? "card" : "pin", nonce: Date.now() });
   };
 
   const place = (point: PinPoint) => {
-    if (draft?.body.trim()) {
+    if (stageDraft?.body.trim()) {
       composerRef.current?.focus();
       return;
     }
     setSelectedId(null);
-    setDraft({ ...point, body: draft?.body ?? "" });
+    setDraft({
+      ...point,
+      body: draft?.body ?? "",
+      surfaceKey: stageKey,
+      snapshotId: surface.kind === "snapshot" ? (surface.snapshot?.id ?? null) : null,
+    });
   };
 
   const submitDraft = (body: string, author: string) => {
     if (!draft) return;
     if (author.trim() !== data.authorName) setAuthorName(author);
-    const result = addComment({ projectId: project.id, x: draft.x, y: draft.y, body, author });
+    const image = imageRef.current;
+    const area = canvasAreaRef.current;
+    // Read what's on screen now, before posting re-renders or scrolls anything.
+    const crop =
+      image && area && surface.kind !== "frame" ? planCommentCrop(image, area, draft) : null;
+    const result = addComment({
+      projectId: project.id,
+      x: draft.x,
+      y: draft.y,
+      body,
+      author,
+      ...(draft.snapshotId ? { snapshotId: draft.snapshotId } : {}),
+    });
     if (!result.ok) {
       toast({ tone: "error", message: result.error });
       return;
     }
+    if (image && crop) void saveCommentCrop(result.value.id, image, crop);
     setDraft(null);
     setTab("active");
     setSelectedId(result.value.id);
@@ -165,17 +211,18 @@ export function ViewerView({ data, project }: ViewerViewProps) {
       ...image,
       ...(referenceUrl ? { referenceUrl } : {}),
     });
+    if (result.ok) view.showLatest();
     return result.ok ? null : result.error;
   };
 
   const overlay = (
     <CanvasLayer
-      comments={comments}
+      comments={onStage}
       numbers={numbers}
       tab={tab}
-      mode={activeMode}
+      mode={mode}
       selectedId={selectedId}
-      draft={draft}
+      draft={stageDraft}
       authorName={data.authorName}
       composerRef={composerRef}
       overlayRef={overlayRef}
@@ -203,35 +250,32 @@ export function ViewerView({ data, project }: ViewerViewProps) {
         project={project}
         folder={folder}
         status={deriveStatus(counts)}
-        mode={activeMode}
+        mode={mode}
         onMode={setMode}
-        commentAvailable={canComment}
         originalUrl={originalUrl}
       />
       <div className="flex min-h-0 flex-1 gap-4">
         <main
           id="main"
+          ref={canvasAreaRef}
           data-testid="canvas-area"
-          data-mode={activeMode}
+          data-mode={mode}
+          data-surface={surface.kind}
           className="relative min-h-0 min-w-0 flex-1 overflow-auto rounded-panel bg-tile"
         >
-          {source.kind === "url" ? (
-            <UrlStage
-              url={source.url}
-              projectName={project.name}
-              overlay={overlay}
-              onScreenshot={replaceWithImage}
-              onCommentableChange={setFrameCommentable}
-              commentMode={activeMode === "comment"}
-            />
-          ) : (
-            <ImageStage
-              dataUrl={source.dataUrl}
-              projectName={project.name}
-              overlay={overlay}
-              onReplace={replaceWithImage}
-            />
-          )}
+          <ViewerStage
+            project={project}
+            surface={surface}
+            latest={view.latest}
+            overlay={overlay}
+            imageRef={imageRef}
+            onReady={() => setStageVersion((value) => value + 1)}
+            capture={view.capture.state}
+            onCapture={view.capture.capture}
+            onShowLatest={view.showLatest}
+            onBrowse={() => setMode("browse")}
+            onScreenshot={replaceWithImage}
+          />
         </main>
         <CommentsPanel
           docked={docked}
@@ -244,6 +288,7 @@ export function ViewerView({ data, project }: ViewerViewProps) {
           <CommentsBody
             comments={comments}
             numbers={numbers}
+            placements={placements}
             tab={tab}
             onTab={setTab}
             selectedId={selectedId}

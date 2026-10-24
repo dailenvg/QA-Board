@@ -1,4 +1,14 @@
-import type { Comment, CommentStatus, Folder, Project, ProjectSource, SquintData } from "./types";
+import { prunableSnapshotIds } from "./snapshots";
+import type {
+  Comment,
+  CommentCrop,
+  CommentStatus,
+  Folder,
+  Project,
+  ProjectSource,
+  Snapshot,
+  SquintData,
+} from "./types";
 
 export type Action =
   | { type: "folder/create"; folder: Folder }
@@ -9,14 +19,19 @@ export type Action =
   | { type: "project/move"; id: string; folderId: string; at: number }
   | { type: "project/replace-source"; id: string; source: ProjectSource; at: number }
   | { type: "project/delete"; id: string }
-  /** Undo for a delete: puts the project and its comments back exactly as they were. */
-  | { type: "project/restore"; project: Project; comments: Comment[] }
+  /** Undo for a delete: puts the project, its comments and snapshots back exactly as they were. */
+  | { type: "project/restore"; project: Project; comments: Comment[]; snapshots: Snapshot[] }
   | { type: "comment/add"; comment: Comment }
   /** Undo for a delete: puts the comment back with its original id, number and timestamps. */
   | { type: "comment/restore"; comment: Comment }
   | { type: "comment/edit"; id: string; body: string; at: number }
   | { type: "comment/set-status"; id: string; status: CommentStatus; at: number }
   | { type: "comment/delete"; id: string }
+  /** Attaches the picture saved after posting. Not an edit: timestamps stay as they are. */
+  | { type: "comment/set-crop"; id: string; crop: CommentCrop }
+  | { type: "snapshot/add"; snapshot: Snapshot }
+  /** Drops snapshots that are neither a project's latest nor under any comment. */
+  | { type: "snapshot/prune" }
   | { type: "author/set"; name: string };
 
 function touchProject(projects: Project[], id: string, at: number): Project[] {
@@ -61,6 +76,7 @@ export function reduce(data: SquintData, action: Action): SquintData {
         folders: data.folders.filter((folder) => folder.id !== action.id),
         projects: data.projects.filter((project) => !removed.has(project.id)),
         comments: data.comments.filter((comment) => !removed.has(comment.projectId)),
+        snapshots: data.snapshots.filter((snapshot) => !removed.has(snapshot.projectId)),
       };
     }
     case "project/create":
@@ -99,6 +115,7 @@ export function reduce(data: SquintData, action: Action): SquintData {
         ...data,
         projects: data.projects.filter((project) => project.id !== action.id),
         comments: data.comments.filter((comment) => comment.projectId !== action.id),
+        snapshots: data.snapshots.filter((snapshot) => snapshot.projectId !== action.id),
       };
     case "project/restore":
       if (data.projects.some((project) => project.id === action.project.id)) return data;
@@ -107,6 +124,7 @@ export function reduce(data: SquintData, action: Action): SquintData {
         ...data,
         projects: [...data.projects, action.project],
         comments: [...data.comments, ...action.comments],
+        snapshots: [...data.snapshots, ...action.snapshots],
       };
     case "comment/restore":
       if (data.comments.some((comment) => comment.id === action.comment.id)) return data;
@@ -134,6 +152,26 @@ export function reduce(data: SquintData, action: Action): SquintData {
       });
     case "comment/delete":
       return { ...data, comments: data.comments.filter((comment) => comment.id !== action.id) };
+    case "comment/set-crop":
+      if (!data.comments.some((comment) => comment.id === action.id)) return data;
+      return {
+        ...data,
+        comments: data.comments.map((comment) =>
+          comment.id === action.id ? { ...comment, crop: action.crop } : comment,
+        ),
+      };
+    case "snapshot/add":
+      if (!data.projects.some((project) => project.id === action.snapshot.projectId)) return data;
+      if (data.snapshots.some((snapshot) => snapshot.id === action.snapshot.id)) return data;
+      return { ...data, snapshots: [...data.snapshots, action.snapshot] };
+    case "snapshot/prune": {
+      const prunable = prunableSnapshotIds(data);
+      if (prunable.size === 0) return data;
+      return {
+        ...data,
+        snapshots: data.snapshots.filter((snapshot) => !prunable.has(snapshot.id)),
+      };
+    }
     case "author/set":
       return { ...data, authorName: action.name };
   }

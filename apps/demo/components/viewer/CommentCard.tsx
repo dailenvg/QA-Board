@@ -7,7 +7,10 @@ import { absoluteTime, relativeTime } from "@/lib/relative-time";
 import type { Comment } from "@/lib/store/types";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
+import { CommentCropThumb } from "./CommentCropThumb";
 import { CommentEditor } from "./CommentEditor";
+import { PlacementChip } from "./PlacementChip";
+import type { Placement } from "./surface";
 
 export interface CommentCardActions {
   onSelect: (id: string) => void;
@@ -20,14 +23,20 @@ export interface CommentCardActions {
 interface CommentCardProps extends CommentCardActions {
   comment: Comment;
   number: number;
+  /** Where the pin lives, when that isn't the current snapshot. */
+  placement: Placement | null;
   selected: boolean;
   now: number;
 }
 
-/** One comment: select it to find its pin; edit, resolve or reopen, and delete it. */
+/**
+ * One comment: select it to find its pin (switching to its snapshot if
+ * needed); see what the commenter saw; edit, resolve or reopen, and delete it.
+ */
 export function CommentCard({
   comment,
   number,
+  placement,
   selected,
   now,
   onSelect,
@@ -41,6 +50,7 @@ export function CommentCard({
   const variants = useRevealVariants();
   const itemRef = useRef<HTMLLIElement>(null);
   const bodyId = useId();
+  const placementId = useId();
   const resolved = comment.status === "resolved";
   const edited = comment.updatedAt > comment.createdAt;
 
@@ -92,7 +102,7 @@ export function CommentCard({
             type="button"
             data-card-select
             aria-pressed={selected}
-            aria-describedby={bodyId}
+            aria-describedby={placement ? `${bodyId} ${placementId}` : bodyId}
             onClick={() => onSelect(comment.id)}
             className="flex w-full items-center gap-2 text-left after:absolute after:inset-0 after:rounded-tile focus-visible:outline-none"
           >
@@ -121,8 +131,11 @@ export function CommentCard({
             {comment.body}
           </p>
           {edited ? <p className="mt-1 text-label text-muted">Edited</p> : null}
+          {placement ? <PlacementChip id={placementId} placement={placement} now={now} /> : null}
         </div>
       )}
+
+      {editing || !comment.crop ? null : <CommentCropThumb crop={comment.crop} number={number} />}
 
       {editing ? null : (
         // `relative` lifts the actions above the select button's card-wide ::after.

@@ -8,4 +8,7 @@ export interface PinPoint {
 
 export interface Draft extends PinPoint {
   body: string;
+  /** The surface the draft pin was placed on (see `surfaceKey`); it only shows there. */
+  surfaceKey: string;
+  snapshotId: string | null;
 }

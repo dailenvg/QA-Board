@@ -3,6 +3,7 @@ import {
   createImageProject,
   createUrlProject,
   dropPin,
+  mockCapture,
   mockFrameCheck,
   onlyCommentCard,
   OVERVIEW_HEADLINE,
@@ -22,6 +23,8 @@ test("a website project takes a comment from posted to resolved, reopened and de
     finalUrl: `${baseURL}/sandbox`,
     status: 200,
   });
+  // Comment mode on a website pins to a snapshot of it.
+  await mockCapture(page);
   await openFolder(page);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("My projects");
 

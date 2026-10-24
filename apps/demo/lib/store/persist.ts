@@ -1,4 +1,13 @@
-import type { Comment, Folder, Project, ProjectSource, SquintData } from "./types";
+import type {
+  Comment,
+  CommentCrop,
+  Folder,
+  Project,
+  ProjectSource,
+  Rect,
+  Snapshot,
+  SquintData,
+} from "./types";
 
 export const STORAGE_KEY = "squint:v1";
 export const DEFAULT_FOLDER_NAME = "My projects";
@@ -15,6 +24,9 @@ const isTime = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value) && value >= 0;
 const isPercent = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100;
+
+const isSize = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value) && value > 0;
 
 const isFolder: Guard<Folder> = (value): value is Folder =>
   isRecord(value) && isString(value.id) && isString(value.name) && isTime(value.createdAt);
@@ -51,7 +63,28 @@ const isComment: Guard<Comment> = (value): value is Comment =>
   (value.status === "active" || value.status === "resolved") &&
   isTime(value.createdAt) &&
   isTime(value.updatedAt) &&
-  (value.resolvedAt === undefined || isTime(value.resolvedAt));
+  (value.resolvedAt === undefined || isTime(value.resolvedAt)) &&
+  (value.snapshotId === undefined || isString(value.snapshotId));
+
+const isRect: Guard<Rect> = (value): value is Rect =>
+  isRecord(value) &&
+  isTime(value.x) &&
+  isTime(value.y) &&
+  isSize(value.width) &&
+  isSize(value.height);
+
+const isCrop: Guard<CommentCrop> = (value): value is CommentCrop =>
+  isRecord(value) && isString(value.blobKey) && isRect(value.rect);
+
+const isSnapshot: Guard<Snapshot> = (value): value is Snapshot =>
+  isRecord(value) &&
+  isString(value.id) &&
+  isString(value.projectId) &&
+  isSize(value.width) &&
+  isSize(value.height) &&
+  isTime(value.createdAt) &&
+  isString(value.blobKey) &&
+  isString(value.sourceUrl);
 
 function listOf<T>(value: unknown, guard: Guard<T>): T[] | null {
   return Array.isArray(value) && value.every(guard) ? value : null;
@@ -63,6 +96,7 @@ export function createInitialData(folderId: string, now: number): SquintData {
     folders: [{ id: folderId, name: DEFAULT_FOLDER_NAME, createdAt: now }],
     projects: [],
     comments: [],
+    snapshots: [],
     authorName: null,
   };
 }
@@ -85,10 +119,26 @@ function safeSource(source: ProjectSource): ProjectSource | null {
   return image;
 }
 
+/** Drops a crop that isn't readable; the comment itself stays. */
+function withSafeCrop(comment: Comment): Comment {
+  if (comment.crop === undefined || isCrop(comment.crop)) return comment;
+  const { crop: _unreadable, ...rest } = comment;
+  return rest;
+}
+
+/** Snapshots were added later, so they're read leniently: unreadable ones are skipped. */
+function readSnapshots(value: unknown): { snapshots: Snapshot[]; repaired: boolean } {
+  if (value === undefined) return { snapshots: [], repaired: false };
+  if (!Array.isArray(value)) return { snapshots: [], repaired: true };
+  const snapshots = value.filter(isSnapshot);
+  return { snapshots, repaired: snapshots.length !== value.length };
+}
+
 /**
  * Repairs instead of failing: projects without a folder move to the first
  * folder, website projects whose address isn't http(s) are dropped (an image's
- * bad reference link is removed instead), and comments without a project are dropped.
+ * bad reference link is removed instead), comments and snapshots without a
+ * project are dropped, and unreadable crops are removed from their comments.
  */
 function repair(data: SquintData): { data: SquintData; repaired: boolean } {
   const folderIds = new Set(data.folders.map((folder) => folder.id));
@@ -108,9 +158,14 @@ function repair(data: SquintData): { data: SquintData; repaired: boolean } {
       : [{ ...project, source, folderId }];
   });
   const projectIds = new Set(projects.map((project) => project.id));
-  const comments = data.comments.filter((comment) => projectIds.has(comment.projectId));
-  if (comments.length !== data.comments.length) repaired = true;
-  return { data: { ...data, projects, comments }, repaired };
+  const kept = data.comments.filter((comment) => projectIds.has(comment.projectId));
+  const comments = kept.map(withSafeCrop);
+  if (kept.length !== data.comments.length || comments.some((c, i) => c !== kept[i])) {
+    repaired = true;
+  }
+  const snapshots = data.snapshots.filter((snapshot) => projectIds.has(snapshot.projectId));
+  if (snapshots.length !== data.snapshots.length) repaired = true;
+  return { data: { ...data, projects, comments, snapshots }, repaired };
 }
 
 /** Defensive parse of the stored JSON. Never throws. */
@@ -131,8 +186,16 @@ export function parseData(raw: string): ParseResult {
     return { ok: false, reason: "The saved data is incomplete or damaged." };
   }
   const authorName = isString(value.authorName) ? value.authorName : null;
-  const result = repair({ version: 1, folders, projects, comments, authorName });
-  return { ok: true, ...result };
+  const read = readSnapshots(value.snapshots);
+  const result = repair({
+    version: 1,
+    folders,
+    projects,
+    comments,
+    snapshots: read.snapshots,
+    authorName,
+  });
+  return { ok: true, data: result.data, repaired: result.repaired || read.repaired };
 }
 
 export function isQuotaError(error: unknown): boolean {

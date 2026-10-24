@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useFrameCheck, type FrameCheckState } from "@/lib/frame-check/use-frame-check";
 import { Skeleton } from "../ui/Skeleton";
 import { FrameFallback } from "./FrameFallback";
@@ -11,8 +11,7 @@ interface UrlStageProps {
   projectName: string;
   overlay: ReactNode;
   onScreenshot: (image: { dataUrl: string; fileName: string }) => string | null;
-  /** Whether the live frame, and so the comment overlay, is on screen (not checking or a fallback). */
-  onCommentableChange: (commentable: boolean) => void;
+  /** In Comment mode the snapshot covers this stage, and the framed site leaves the tab order. */
   commentMode: boolean;
 }
 
@@ -28,31 +27,20 @@ function decide(check: FrameCheckState, forced: boolean): Decision {
 }
 
 /**
- * Website canvas. Asks /api/frame-check first; refusals and dead hosts get a
- * fallback with a screenshot upload, everything else loads in the iframe.
- * Pins are positioned on the visible frame, since a cross-origin page's scroll can't be read.
+ * Live website canvas for Browse mode. Asks /api/frame-check first; refusals
+ * and dead hosts get a fallback with a screenshot upload, everything else
+ * loads in the iframe. Only older pins (from before snapshots) are drawn
+ * here, on the visible frame, since a cross-origin page's scroll can't be read.
  */
-export function UrlStage({
-  url,
-  projectName,
-  overlay,
-  onScreenshot,
-  onCommentableChange,
-  commentMode,
-}: UrlStageProps) {
+export function UrlStage({ url, projectName, overlay, onScreenshot, commentMode }: UrlStageProps) {
   const [attempt, setAttempt] = useState(0);
   const [forced, setForced] = useState(false);
-  const [timedOutAttempt, setTimedOutAttempt] = useState<number | null>(null);
   const decision = decide(useFrameCheck(url, attempt), forced);
-  const commentable = decision === "load" && timedOutAttempt !== attempt;
-
-  useEffect(() => {
-    onCommentableChange(commentable);
-  }, [commentable, onCommentableChange]);
 
   return (
     <div
       data-testid="canvas"
+      hidden={commentMode}
       className="relative h-full min-h-80 w-full overflow-hidden rounded-panel"
     >
       {decision === "checking" ? (
@@ -70,7 +58,6 @@ export function UrlStage({
           title={`Preview of ${projectName}`}
           overlay={overlay}
           onScreenshot={onScreenshot}
-          onTimeoutChange={(timedOut) => setTimedOutAttempt(timedOut ? attempt : null)}
           commentMode={commentMode}
         />
       ) : null}

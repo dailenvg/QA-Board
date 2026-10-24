@@ -16,8 +16,6 @@ interface ViewerTopBarProps {
   status: ProjectStatus;
   mode: ViewerMode;
   onMode: (mode: ViewerMode) => void;
-  /** False while the site is being checked or a fallback replaces it: there's nothing to pin. */
-  commentAvailable: boolean;
   /** The live site behind this project, opened in a new tab. */
   originalUrl: string | null;
 }
@@ -29,7 +27,6 @@ export function ViewerTopBar({
   status,
   mode,
   onMode,
-  commentAvailable,
   originalUrl,
 }: ViewerTopBarProps) {
   return (
@@ -69,15 +66,11 @@ export function ViewerTopBar({
               icon: "messagePlus",
               title: "Comment (C)",
               testId: "mode-comment",
-              disabled: !commentAvailable,
-              disabledReason: "Comment mode is available once the page loads.",
             },
           ]}
         />
-        {commentAvailable ? (
-          // Without the open-original button the hint is last; keep it off the panel's curve.
-          <Kbd className={`hidden lg:inline ${originalUrl ? "" : "mr-2"}`}>C</Kbd>
-        ) : null}
+        {/* Without the open-original button the hint is last; keep it off the panel's curve. */}
+        <Kbd className={`hidden lg:inline ${originalUrl ? "" : "mr-2"}`}>C</Kbd>
         {originalUrl ? (
           <ButtonLink
             href={originalUrl}

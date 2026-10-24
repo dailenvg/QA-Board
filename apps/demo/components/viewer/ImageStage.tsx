@@ -1,22 +1,28 @@
 "use client";
 
-import Image from "next/image";
-import { useState, type ReactNode } from "react";
-import { Skeleton } from "../ui/Skeleton";
+import { useState, type ReactNode, type Ref } from "react";
 import { ScreenshotUpload } from "./ScreenshotUpload";
+import { SurfaceImage } from "./SurfaceImage";
 
 interface ImageStageProps {
   dataUrl: string;
   projectName: string;
   overlay: ReactNode;
+  imageRef: Ref<HTMLImageElement>;
+  onReady: () => void;
   onReplace: (image: { dataUrl: string; fileName: string }) => string | null;
 }
 
 /** Image canvas at its natural aspect ratio (never upscaled); the canvas area scrolls. */
-export function ImageStage({ dataUrl, projectName, overlay, onReplace }: ImageStageProps) {
-  const [loaded, setLoaded] = useState<{ src: string; width: number } | null>(null);
+export function ImageStage({
+  dataUrl,
+  projectName,
+  overlay,
+  imageRef,
+  onReady,
+  onReplace,
+}: ImageStageProps) {
   const [failed, setFailed] = useState<string | null>(null);
-  const ready = loaded?.src === dataUrl;
 
   if (failed === dataUrl) {
     return (
@@ -34,26 +40,14 @@ export function ImageStage({ dataUrl, projectName, overlay, onReplace }: ImageSt
 
   return (
     <div className="p-3 sm:p-5">
-      <div
-        data-testid="canvas"
-        className="relative mx-auto w-full"
-        style={ready ? { maxWidth: loaded.width } : undefined}
-      >
-        {ready ? null : <Skeleton className="absolute inset-0 min-h-80" />}
-        <Image
-          src={dataUrl}
-          alt={`${projectName}, the image under review`}
-          width={0}
-          height={0}
-          sizes="100vw"
-          unoptimized
-          draggable={false}
-          onLoad={(event) => setLoaded({ src: dataUrl, width: event.currentTarget.naturalWidth })}
-          onError={() => setFailed(dataUrl)}
-          className="block h-auto w-full rounded-tile bg-card shadow-float select-none"
-        />
-        {ready ? overlay : null}
-      </div>
+      <SurfaceImage
+        src={dataUrl}
+        alt={`${projectName}, the image under review`}
+        overlay={overlay}
+        imageRef={imageRef}
+        onReady={onReady}
+        onError={() => setFailed(dataUrl)}
+      />
     </div>
   );
 }

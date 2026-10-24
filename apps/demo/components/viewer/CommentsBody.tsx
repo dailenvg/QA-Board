@@ -6,11 +6,13 @@ import { staggerGroup, useRevealVariants } from "@/lib/motion";
 import type { Comment } from "@/lib/store/types";
 import { SegmentedControl } from "../ui/SegmentedControl";
 import { CommentCard, type CommentCardActions } from "./CommentCard";
+import type { Placement } from "./surface";
 import type { CommentTab } from "./types";
 
 interface CommentsBodyProps extends CommentCardActions {
   comments: readonly Comment[];
   numbers: ReadonlyMap<string, number>;
+  placements: ReadonlyMap<string, Placement | null>;
   tab: CommentTab;
   onTab: (tab: CommentTab) => void;
   selectedId: string | null;
@@ -36,6 +38,7 @@ const stagger = staggerGroup();
 export function CommentsBody({
   comments,
   numbers,
+  placements,
   tab,
   onTab,
   selectedId,
@@ -80,6 +83,7 @@ export function CommentsBody({
               key={comment.id}
               comment={comment}
               number={numbers.get(comment.id) ?? 0}
+              placement={placements.get(comment.id) ?? null}
               selected={comment.id === selectedId}
               now={now}
               {...actions}

@@ -99,6 +99,7 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
         onDelete={(project) => {
           projectDelete.close();
           const comments = data.comments.filter((comment) => comment.projectId === project.id);
+          const snapshots = data.snapshots.filter((snapshot) => snapshot.projectId === project.id);
           const result = deleteProject(project.id);
           if (!result.ok) {
             report(result);
@@ -108,7 +109,8 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
             message: `Deleted ${project.name}`,
             action: {
               label: "Undo",
-              onAction: () => report(restoreProject(project, comments), `Restored ${project.name}`),
+              onAction: () =>
+                report(restoreProject(project, comments, snapshots), `Restored ${project.name}`),
             },
           });
         }}
