@@ -2,7 +2,13 @@ import type { BlobLocation } from "./types";
 
 /** Where image bytes go: inline in the share store, or Vercel Blob. */
 export interface BlobBackend {
-  save(shareId: string, key: string, bytes: Uint8Array, contentType: string): Promise<BlobLocation>;
+  save(
+    shareId: string,
+    key: string,
+    bytes: Uint8Array,
+    contentType: string,
+    signal?: AbortSignal,
+  ): Promise<BlobLocation>;
   read(location: BlobLocation): Promise<Uint8Array | null>;
   /** Best effort: a failed delete leaves an unreachable file, never a broken share. */
   discard(locations: readonly BlobLocation[]): Promise<void>;
@@ -23,14 +29,15 @@ export const inlineBackend: BlobBackend = {
 export function vercelBackend(token: string): BlobBackend {
   const sdk = () => import("@vercel/blob");
   return {
-    async save(shareId, key, bytes, contentType) {
+    async save(shareId, key, bytes, contentType, signal) {
       const { put } = await sdk();
-      const pathname = `squint/${shareId}/${key.replace(":", "-")}`;
+      const pathname = `squint/${shareId}/${key.replaceAll(":", "-")}`;
       const result = await put(pathname, Buffer.from(bytes), {
         access: "private",
         contentType,
         token,
         addRandomSuffix: true,
+        ...(signal ? { abortSignal: signal } : {}),
       });
       return { kind: "vercel", url: result.url };
     },

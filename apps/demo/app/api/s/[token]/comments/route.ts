@@ -5,6 +5,8 @@ import { addClientComment } from "@/lib/share/service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+/** The crop upload gives up at 20 s; pending claims only go stale after 120 s. */
+export const maxDuration = 30;
 
 type Params = { params: Promise<{ token: string }> };
 

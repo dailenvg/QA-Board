@@ -32,17 +32,23 @@ export interface ShareStore {
   upsertSnapshot(id: string, snapshot: SharedSnapshot, origin: Origin): Promise<void>;
   upsertComment(id: string, comment: SharedComment, origin: Origin): Promise<void>;
   /**
-   * Inserts only; false when the id is taken (by any row, pending or not). A
-   * pending row claims the id but stays invisible until `confirmComment`.
+   * Inserts only; false when the id is taken (by any row, pending or not).
+   * With a `claim`, the row is pending: it claims the id but stays invisible
+   * until that same claim confirms it, and records where its crop goes.
    */
   insertComment(
     id: string,
     comment: SharedComment,
     origin: Origin,
-    options?: { pending: boolean },
+    claim?: { claim: string; cropKey: string },
   ): Promise<boolean>;
-  /** Makes a pending comment visible, with a fresh seq so a pull can't skip it. */
-  confirmComment(id: string, commentId: string): Promise<void>;
+  /**
+   * Makes the comment visible, with a fresh seq so a pull can't skip it, only
+   * if it's still pending under `claim`. False when that claim no longer holds it.
+   */
+  confirmComment(id: string, commentId: string, claim: string): Promise<boolean>;
+  /** Deletes the comment only if it's still pending under `claim`. */
+  deleteClaim(id: string, commentId: string, claim: string): Promise<boolean>;
   /** When a still-pending comment was claimed (its `createdAt`), or null when it isn't pending. */
   pendingSince(id: string, commentId: string): Promise<number | null>;
   /**
@@ -50,6 +56,8 @@ export interface ShareStore {
    * given), atomically per row. Returns the ids it deleted.
    */
   deleteStalePending(id: string, cutoff: number, commentId?: string): Promise<string[]>;
+  /** The crop key recorded on a visible comment, or null (then it's `crop:<id>`). */
+  cropKeyOf(id: string, commentId: string): Promise<string | null>;
   deleteSnapshots(id: string, ids: readonly string[]): Promise<void>;
   deleteComments(id: string, ids: readonly string[]): Promise<void>;
 

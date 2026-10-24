@@ -15,8 +15,8 @@ interface Entry {
   comments: Map<string, Sequenced<SharedComment>>;
   blobs: Map<string, StoredBlob>;
   parts: Map<string, Map<number, Uint8Array>>;
-  /** Comment ids claimed but not yet confirmed. */
-  pending: Set<string>;
+  /** Pending comment ids, and the claim holding each. */
+  pending: Map<string, string>;
 }
 
 const bySeq = <T>(a: Sequenced<T>, b: Sequenced<T>) => a.seq - b.seq;
@@ -55,7 +55,7 @@ export function createMemoryStore(): ShareStore {
         comments: new Map(),
         blobs: new Map(),
         parts: new Map(),
-        pending: new Set(),
+        pending: new Map(),
       });
       return done(undefined);
     },
@@ -90,20 +90,36 @@ export function createMemoryStore(): ShareStore {
       upsert(shares.get(id)?.comments, comment, origin);
       return done(undefined);
     },
-    insertComment(id, comment, origin, options) {
+    insertComment(id, comment, origin, claim) {
       const entry = shares.get(id);
       if (!entry || entry.comments.has(comment.id)) return done(false);
       upsert(entry.comments, comment, origin);
-      if (options?.pending) entry.pending.add(comment.id);
+      if (claim) {
+        entry.pending.set(comment.id, claim.claim);
+        const row = entry.comments.get(comment.id);
+        if (row) entry.comments.set(comment.id, { ...row, cropKey: claim.cropKey });
+      }
       return done(true);
     },
-    confirmComment(id, commentId) {
+    confirmComment(id, commentId, claim) {
       const entry = shares.get(id);
       const row = entry?.comments.get(commentId);
-      if (entry?.pending.delete(commentId) && row) {
-        entry.comments.set(commentId, { ...row, seq: (seq += 1) });
-      }
-      return done(undefined);
+      if (!entry || !row || entry.pending.get(commentId) !== claim) return done(false);
+      entry.pending.delete(commentId);
+      entry.comments.set(commentId, { ...row, seq: (seq += 1) });
+      return done(true);
+    },
+    deleteClaim(id, commentId, claim) {
+      const entry = shares.get(id);
+      if (!entry || entry.pending.get(commentId) !== claim) return done(false);
+      entry.pending.delete(commentId);
+      entry.comments.delete(commentId);
+      return done(true);
+    },
+    cropKeyOf(id, commentId) {
+      const entry = shares.get(id);
+      if (!entry || entry.pending.has(commentId)) return done(null);
+      return done(entry.comments.get(commentId)?.cropKey ?? null);
     },
     pendingSince(id, commentId) {
       const entry = shares.get(id);
@@ -112,7 +128,7 @@ export function createMemoryStore(): ShareStore {
     },
     deleteStalePending(id, cutoff, commentId) {
       const entry = shares.get(id);
-      const stale = [...(entry?.pending ?? [])].filter(
+      const stale = [...(entry?.pending.keys() ?? [])].filter(
         (pendingId) =>
           (commentId === undefined || pendingId === commentId) &&
           (entry?.comments.get(pendingId)?.item.createdAt ?? Infinity) < cutoff,

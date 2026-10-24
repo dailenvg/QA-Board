@@ -294,6 +294,28 @@ describe("client writes", () => {
     const changes = await pullChanges(services.store, share, 0);
     expect(changes.snapshots).toHaveLength(1);
   });
+
+  it("leaves no snapshot without an image when storing the image throws", async () => {
+    const { services, share } = await shared();
+    const before = await services.store.snapshots(share.id);
+    const broken: ShareServices = {
+      ...services,
+      blobs: { ...inlineBackend, save: () => Promise.reject(new Error("blob store down")) },
+    };
+    const capture = (_url: URL, width: number) =>
+      Promise.resolve({
+        body: new Uint8Array(JPEG),
+        contentType: "image/jpeg",
+        width,
+        height: 900,
+        scale: 1,
+      });
+    await expect(captureForClient(broken, share, 1024, capture, 200)).rejects.toThrow(
+      "blob store down",
+    );
+    expect(await services.store.snapshots(share.id)).toEqual(before);
+    expect((await pullChanges(services.store, share, 0)).snapshots).toEqual([]);
+  });
 });
 
 describe("owner changes", () => {

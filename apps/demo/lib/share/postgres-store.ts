@@ -23,6 +23,7 @@ interface ItemRow<T> {
   data: T;
   origin: Origin;
   seq: string | number;
+  crop_key?: string | null;
 }
 
 interface BlobRow {
@@ -47,7 +48,8 @@ function toRecord(row: ShareRow): ShareRecord {
 }
 
 function toSequenced<T>(row: ItemRow<T>): Sequenced<T> {
-  return { item: row.data, origin: row.origin, seq: Number(row.seq) };
+  const sequenced: Sequenced<T> = { item: row.data, origin: row.origin, seq: Number(row.seq) };
+  return row.crop_key ? { ...sequenced, cropKey: row.crop_key } : sequenced;
 }
 
 function toLocation(row: Pick<BlobRow, "bytes" | "blob_url">): BlobLocation {
@@ -70,9 +72,9 @@ export function createPostgresStore(db: Queryable): ShareStore {
     );
     return rows[0] ? toRecord(rows[0]) : null;
   };
-  const list = async <T>(table: string, id: string, filter = "") => {
+  const list = async <T>(table: string, id: string, filter = "", extra = "") => {
     const { rows } = await db.query<ItemRow<T>>(
-      `SELECT data, origin, seq FROM ${table} WHERE share_id = $1 ${filter} ORDER BY seq`,
+      `SELECT data, origin, seq${extra} FROM ${table} WHERE share_id = $1 ${filter} ORDER BY seq`,
       [id],
     );
     return rows.map(toSequenced);
@@ -120,6 +122,7 @@ export function createPostgresStore(db: Queryable): ShareStore {
         "squint_share_comments",
         id,
         options?.includePending ? "" : "AND NOT pending",
+        ", crop_key",
       ),
     async upsertSnapshot(id, snapshot, origin) {
       await db.query(upsertSql("squint_share_snapshots"), [
@@ -137,20 +140,45 @@ export function createPostgresStore(db: Queryable): ShareStore {
         origin,
       ]);
     },
-    async insertComment(id, comment, origin, options) {
+    async insertComment(id, comment, origin, claim) {
       const { rows } = await db.query(
-        `INSERT INTO squint_share_comments (share_id, id, data, origin, pending)
-         VALUES ($1, $2, $3::jsonb, $4, $5) ON CONFLICT (share_id, id) DO NOTHING RETURNING id`,
-        [id, comment.id, JSON.stringify(comment), origin, options?.pending ?? false],
+        `INSERT INTO squint_share_comments (share_id, id, data, origin, pending, claim, crop_key)
+         VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7)
+         ON CONFLICT (share_id, id) DO NOTHING RETURNING id`,
+        [
+          id,
+          comment.id,
+          JSON.stringify(comment),
+          origin,
+          Boolean(claim),
+          claim?.claim ?? null,
+          claim?.cropKey ?? null,
+        ],
       );
       return rows.length === 1;
     },
-    async confirmComment(id, commentId) {
-      await db.query(
+    async confirmComment(id, commentId, claim) {
+      const { rows } = await db.query(
         `UPDATE squint_share_comments SET pending = false, seq = nextval('squint_share_seq')
-         WHERE share_id = $1 AND id = $2 AND pending`,
+         WHERE share_id = $1 AND id = $2 AND pending AND claim = $3 RETURNING id`,
+        [id, commentId, claim],
+      );
+      return rows.length === 1;
+    },
+    async deleteClaim(id, commentId, claim) {
+      const { rows } = await db.query(
+        `DELETE FROM squint_share_comments
+         WHERE share_id = $1 AND id = $2 AND pending AND claim = $3 RETURNING id`,
+        [id, commentId, claim],
+      );
+      return rows.length === 1;
+    },
+    async cropKeyOf(id, commentId) {
+      const { rows } = await db.query<{ crop_key: string | null }>(
+        "SELECT crop_key FROM squint_share_comments WHERE share_id = $1 AND id = $2 AND NOT pending",
         [id, commentId],
       );
+      return rows[0]?.crop_key ?? null;
     },
     async pendingSince(id, commentId) {
       const { rows } = await db.query<{ since: string | number }>(

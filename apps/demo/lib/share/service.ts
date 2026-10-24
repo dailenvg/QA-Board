@@ -55,18 +55,26 @@ export async function clientShare(store: ShareStore, token: string): Promise<Sha
 
 // ── Blob bookkeeping ───────────────────────────────────────────────────────
 
-/** Every blob key the share's data points at. */
+/** Where a comment row's crop is stored: its claim's key, else `crop:<id>`. */
+function cropKeyOfRow(row: Sequenced<SharedComment>): string | null {
+  return row.item.crop ? (row.cropKey ?? `crop:${row.item.id}`) : null;
+}
+
+/** Every blob key the share's data points at (comments' crops where their rows say). */
 export function referencedKeys(
   project: SharedProject,
   snapshots: readonly SharedSnapshot[],
-  comments: readonly SharedComment[],
+  comments: readonly Sequenced<SharedComment>[],
 ): Set<string> {
   return new Set([
     ...(project.source.kind === "image" ? ["image"] : []),
     ...snapshots.map((snapshot) => `snapshot:${snapshot.id}`),
-    ...comments.flatMap((comment) => (comment.crop ? [`crop:${comment.id}`] : [])),
+    ...comments.flatMap((row) => cropKeyOfRow(row) ?? []),
   ]);
 }
+
+/** Keys the owner can upload (a client's per-claim crop keys aren't among them). */
+const OWNER_UPLOADABLE = /^(image|(snapshot|crop):[A-Za-z0-9_-]{1,64})$/;
 
 const items = <T>(rows: readonly Sequenced<T>[]) => rows.map((row) => row.item);
 
@@ -75,7 +83,7 @@ async function currentKeys(store: ShareStore, share: ShareRecord): Promise<Set<s
     store.snapshots(share.id),
     store.comments(share.id),
   ]);
-  return referencedKeys(share.project, items(snapshots), items(comments));
+  return referencedKeys(share.project, items(snapshots), comments);
 }
 
 /** Referenced blobs not stored yet: what the owner should upload next. */
@@ -85,7 +93,7 @@ async function missingBlobs(store: ShareStore, share: ShareRecord): Promise<stri
     store.blobSizes(share.id),
   ]);
   const have = new Set(stored.map((blob) => blob.key));
-  return [...referenced].filter((key) => !have.has(key)).sort();
+  return [...referenced].filter((key) => OWNER_UPLOADABLE.test(key) && !have.has(key)).sort();
 }
 
 /**
@@ -99,7 +107,7 @@ async function dropUnreferenced({ store, blobs }: ShareServices, share: ShareRec
     store.comments(share.id, { includePending: true }),
     store.blobSizes(share.id),
   ]);
-  const referenced = referencedKeys(share.project, items(snapshots), items(comments));
+  const referenced = referencedKeys(share.project, items(snapshots), comments);
   const stale = stored.map((blob) => blob.key).filter((key) => !referenced.has(key));
   await blobs.discard(await store.deleteBlobs(share.id, stale));
 }
@@ -110,6 +118,7 @@ async function storeBlob(
   share: ShareRecord,
   key: string,
   bytes: Uint8Array,
+  signal?: AbortSignal,
 ): Promise<Outcome<{ key: string; size: number }>> {
   const kind: BlobKind = blobKind(key);
   if (bytes.length === 0) return fail(400, "empty");
@@ -120,7 +129,7 @@ async function storeBlob(
   const others = sizes.filter((blob) => blob.key !== key).reduce((sum, blob) => sum + blob.size, 0);
   if (others + bytes.length > SHARE_LIMITS.totalBytes) return fail(413, "share-full");
   const previous = await store.getBlob(share.id, key);
-  const location = await blobs.save(share.id, key, bytes, contentType);
+  const location = await blobs.save(share.id, key, bytes, contentType, signal);
   await store.putBlob(share.id, { key, contentType, size: bytes.length, location });
   if (previous) await blobs.discard([previous.location]);
   return ok({ key, size: bytes.length });
@@ -312,7 +321,10 @@ export async function readBlob(
   share: ShareRecord,
   key: string,
 ): Promise<{ bytes: Uint8Array; contentType: string } | null> {
-  const stored = await store.getBlob(share.id, key);
+  // `crop:<id>` is a comment's public crop key; its row says where the bytes really are.
+  const comment = /^crop:([A-Za-z0-9_-]+)$/.exec(key)?.[1];
+  const resolved = (comment && (await store.cropKeyOf(share.id, comment))) || key;
+  const stored = await store.getBlob(share.id, resolved);
   if (!stored) return null;
   const bytes = await blobs.read(stored.location);
   return bytes ? { bytes, contentType: stored.contentType } : null;
@@ -328,27 +340,34 @@ export async function clientView(store: ShareStore, share: ShareRecord): Promise
 
 // ── Client writes ──────────────────────────────────────────────────────────
 
-/** A pending claim older than this was orphaned (its request died) and may be reclaimed. */
-export const PENDING_STALE_MS = 60_000;
+/**
+ * A pending claim older than this was orphaned (its request died) and may be
+ * reclaimed or expired. Well above the comment route's `maxDuration` (30 s), and
+ * a live request can't be hurt by it anyway: confirms and cleanups only touch
+ * their own claim.
+ */
+export const PENDING_STALE_MS = 120_000;
+
+/** A crop upload is abandoned after this, well before the route's 30 s deadline. */
+export const CROP_UPLOAD_MS = 20_000;
 
 /**
- * Claims a client comment's id by inserting its row. On a conflict: a visible
- * row means it was already posted (409 exists, so the client knows it got
- * through); a pending row still in progress is 409 pending (the client keeps
- * its draft and retries); a pending row older than `PENDING_STALE_MS` was
- * orphaned by a failed request and is reclaimed. Reclaiming deletes only that
- * stale row, atomically; its crop is overwritten by this post's, or swept as
- * unreferenced if this post has none.
+ * Claims a client comment's id by inserting its row (pending under `claim`
+ * when it has a crop). On a conflict: a visible row means it was already
+ * posted (409 exists, so the client knows it got through); a pending row
+ * younger than `PENDING_STALE_MS` is 409 pending (the client keeps its draft
+ * and retries); an older pending row was orphaned and is reclaimed: that
+ * stale row is deleted atomically and the id claimed again.
  */
 async function claimCommentId(
   services: ShareServices,
   share: ShareRecord,
   comment: SharedComment,
-  pending: boolean,
+  claim: { claim: string; cropKey: string } | undefined,
   now: number,
 ): Promise<Outcome<undefined>> {
   const { store } = services;
-  const insert = () => store.insertComment(share.id, comment, "client", { pending });
+  const insert = () => store.insertComment(share.id, comment, "client", claim);
   if (await insert()) return ok(undefined);
   const since = await store.pendingSince(share.id, comment.id);
   if (since === null) return fail(409, "exists");
@@ -356,8 +375,14 @@ async function claimCommentId(
   if (since >= cutoff) return fail(409, "pending");
   const reclaimed = await store.deleteStalePending(share.id, cutoff, comment.id);
   if (reclaimed.length === 0 || !(await insert())) return fail(409, "pending");
-  if (!pending) await dropUnreferenced(services, share);
+  // The orphaned claim's crop (its own key) is unreferenced now.
+  await dropUnreferenced(services, share);
   return ok(undefined);
+}
+
+/** Deletes one claim's crop: its key is unique to the claim, so nothing else is touched. */
+async function discardClaimCrop({ store, blobs }: ShareServices, share: ShareRecord, key: string) {
+  await blobs.discard(await store.deleteBlobs(share.id, [key]));
 }
 
 /**
@@ -400,24 +425,43 @@ export async function addClientComment(
   const existing = await store.comments(share.id);
   if (existing.length >= SHARE_LIMITS.comments) return fail(413, "share-full");
   const comment: SharedComment = { ...input, status: "active", createdAt: now, updatedAt: now };
-  // The insert claims the id atomically: of two posts with the same id, exactly one gets
-  // here, so only the winner ever writes `crop:<id>`. With a crop, the row stays pending
-  // (invisible) until its image is stored, so no comment ever points at a missing crop.
-  const claimed = await claimCommentId(services, share, comment, Boolean(crop), now);
+  if (!crop) {
+    // Without a crop there's nothing to wait for: the row is visible as soon as it's claimed.
+    const claimed = await claimCommentId(services, share, comment, undefined, now);
+    return claimed.ok ? ok(comment) : claimed;
+  }
+  // With a crop, the row is claimed pending under a random nonce and its crop goes to a key
+  // only this claim uses. Confirming and cleaning up are conditional on the nonce, so an
+  // upload that outlives its claim (reclaimed or expired) can never confirm, overwrite or
+  // delete anyone else's comment or crop.
+  const nonce = randomUUID();
+  const cropKey = `crop:${comment.id}:${nonce}`;
+  const claimed = await claimCommentId(services, share, comment, { claim: nonce, cropKey }, now);
   if (!claimed.ok) return claimed;
-  if (crop) {
-    const stored = await storeBlob(services, share, `crop:${comment.id}`, crop).catch(
-      async (error: unknown) => {
-        await store.deleteComments(share.id, [comment.id]);
-        throw error;
-      },
-    );
-    if (!stored.ok) {
-      // Nothing stays behind: a retry gets the same real error (such as share-full).
-      await store.deleteComments(share.id, [comment.id]);
-      return stored;
-    }
-    await store.confirmComment(share.id, comment.id);
+  const undo = async () => {
+    await store.deleteClaim(share.id, comment.id, nonce);
+    await discardClaimCrop(services, share, cropKey);
+  };
+  const stored = await storeBlob(
+    services,
+    share,
+    cropKey,
+    crop,
+    AbortSignal.timeout(CROP_UPLOAD_MS),
+  ).catch(async (error: unknown) => {
+    await undo();
+    throw error;
+  });
+  if (!stored.ok) {
+    // Nothing of this claim stays behind: a retry gets the same real error (such as share-full).
+    await undo();
+    return stored;
+  }
+  if (!(await store.confirmComment(share.id, comment.id, nonce))) {
+    // The claim was reclaimed or expired while uploading: never report success for it.
+    // The client keeps its draft; its retry is confirmed elsewhere (409 exists) or claims anew.
+    await discardClaimCrop(services, share, cropKey);
+    return fail(409, "pending");
   }
   return ok(comment);
 }
@@ -447,11 +491,10 @@ export async function captureForClient(
     sourceUrl: source.url,
     ...(image.scale < 1 ? { scale: image.scale } : {}),
   };
-  await services.store.upsertSnapshot(share.id, snapshot, "client");
+  // The image first, then the row: a failed or thrown store leaves no snapshot without an
+  // image (an image without a row is unreferenced and swept by the next cleanup).
   const stored = await storeBlob(services, share, `snapshot:${snapshot.id}`, image.body);
-  if (!stored.ok) {
-    await services.store.deleteSnapshots(share.id, [snapshot.id]);
-    return stored;
-  }
+  if (!stored.ok) return stored;
+  await services.store.upsertSnapshot(share.id, snapshot, "client");
   return ok(snapshot);
 }

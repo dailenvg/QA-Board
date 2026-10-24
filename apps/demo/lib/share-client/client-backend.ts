@@ -28,7 +28,7 @@ const SNAPSHOTS_FULL =
   "This review is out of space for new snapshots. Comment on the current snapshot, or ask the project owner to make room.";
 /** 409 pending: the same comment is still being saved by an earlier try. */
 const STILL_SENDING =
-  "Your comment isn't posted yet: an earlier try is still being saved. Wait a minute, then retry. It won't post twice.";
+  "Your comment isn't posted yet: an earlier try is still being saved. Wait two minutes, then retry. It won't post twice.";
 const NOT_SENT_DEFAULT = "Your comment wasn't sent. Retry in a moment.";
 
 interface ClientBackendOptions {

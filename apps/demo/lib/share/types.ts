@@ -53,6 +53,11 @@ export interface Sequenced<T> {
   origin: Origin;
   /** Increases with every insert across the share; the owner's pull cursor. */
   seq: number;
+  /**
+   * Comments only: where a client comment's crop is stored (`crop:<id>:<claim>`).
+   * Missing for owner and older rows, whose crop is `crop:<id>`. Server-side only.
+   */
+  cropKey?: string;
 }
 
 export interface ShareRecord {
