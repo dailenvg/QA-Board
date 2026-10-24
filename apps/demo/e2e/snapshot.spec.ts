@@ -27,10 +27,14 @@ function snapshotImage(page: Page) {
   return page.getByRole("img", { name: /^Snapshot of/ });
 }
 
-async function pinTop(page: Page, name: string): Promise<number> {
+/**
+ * Where a pin points, in page px. Pins scale from their tip when selected or
+ * hovered, so the tip doesn't move while that spring runs; the top edge does.
+ */
+async function pinTip(page: Page, name: string): Promise<number> {
   const box = await page.getByRole("button", { name, exact: true }).boundingBox();
   if (!box) throw new Error(`${name} isn't on screen`);
-  return box.y;
+  return box.y + box.height;
 }
 
 test("a website comment pins to a snapshot, scrolls with it and keeps a screenshot", async ({
@@ -53,9 +57,9 @@ test("a website comment pins to a snapshot, scrolls with it and keeps a screensh
 
   // The pin rides along with the snapshot as the canvas scrolls.
   const area = page.getByTestId("canvas-area");
-  const before = await pinTop(page, pinName);
+  const before = await pinTip(page, pinName);
   await area.evaluate((node) => node.scrollBy({ top: 300, behavior: "instant" }));
-  await expect.poll(async () => before - (await pinTop(page, pinName))).toBeCloseTo(300, 0);
+  await expect.poll(async () => before - (await pinTip(page, pinName))).toBeCloseTo(300, 0);
   await area.evaluate((node) => node.scrollTo({ top: 0, behavior: "instant" }));
 
   await showComments(page);

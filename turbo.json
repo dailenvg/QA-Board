@@ -31,7 +31,9 @@
         "VERCEL_*",
         "GITHUB_TOKEN",
         "GITHUB_REPO",
-        "DATABASE_URL"
+        "DATABASE_URL",
+        "SQUINT_CAPTURE_URL",
+        "BLOB_READ_WRITE_TOKEN"
       ]
     }
   }
