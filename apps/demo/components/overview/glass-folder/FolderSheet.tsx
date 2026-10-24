@@ -1,9 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { STATUS_LABEL, type ProjectStatus } from "@/lib/store/status";
+import { BlobImage } from "../../ui/BlobImage";
 import { STATUS_DOT } from "../../ui/StatusChip";
 import { hashString, rng } from "./art";
 import { SHEET_W } from "./geometry";
@@ -13,8 +13,8 @@ export interface FolderFile {
   name: string;
   /** A short second line, such as a host or a kind. */
   meta?: string;
-  /** Makes the file a picture. Without it, the file is a sheet of paper. */
-  image?: string;
+  /** Blob-store key of a picture; makes the file a picture. Without it, a sheet of paper. */
+  imageKey?: string;
   href: string;
   status?: ProjectStatus;
 }
@@ -51,7 +51,7 @@ export function FolderSheet({
     "--gf-jr": `${((jitter() - 0.5) * 3.2).toFixed(2)}deg`,
     zIndex: stackIndex + 1,
   } as CSSProperties;
-  const picture = Boolean(file.image);
+  const picture = Boolean(file.imageKey);
   // Spelled out: flex layout would otherwise pad the parts unevenly ("Name , host").
   const name = [file.name, file.meta, file.status ? STATUS_LABEL[file.status] : null]
     .filter(Boolean)
@@ -67,13 +67,12 @@ export function FolderSheet({
         style={style}
         onAnimationEnd={dropping ? onDropEnd : undefined}
       >
-        {file.image ? (
-          <Image
+        {file.imageKey ? (
+          <BlobImage
             className="gf-sheet-art"
-            src={file.image}
+            blobKey={file.imageKey}
             alt=""
             fill
-            unoptimized
             sizes={`${SHEET_W}px`}
             draggable={false}
           />

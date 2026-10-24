@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import { BlobImage } from "../ui/BlobImage";
 import type { ProjectSource } from "@/lib/store/types";
 import { displayHost, faviconUrl } from "@/lib/url";
 import { Icon } from "../ui/Icon";
@@ -15,13 +16,17 @@ export function ProjectThumbnail({ source }: ProjectThumbnailProps) {
   return (
     <div className="relative aspect-[16/10] overflow-hidden rounded-tile bg-card">
       {source.kind === "image" ? (
-        <Image
-          src={source.dataUrl}
+        <BlobImage
+          blobKey={source.blobKey}
           alt=""
           fill
-          unoptimized
           sizes="(min-width: 1024px) 25vw, 100vw"
           className="object-cover object-top"
+          fallback={
+            <span className="grid h-full place-items-center text-muted">
+              <Icon name="image" className="size-6" />
+            </span>
+          }
         />
       ) : (
         <SiteCard url={source.url} />

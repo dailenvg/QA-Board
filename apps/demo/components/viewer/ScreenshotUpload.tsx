@@ -5,12 +5,13 @@ import { ACCEPT_ATTRIBUTE, prepareImage } from "@/lib/image";
 import { buttonClass, type ButtonVariant } from "../ui/button-styles";
 import { FieldError } from "../ui/FieldError";
 import { Icon } from "../ui/Icon";
+import type { ScreenshotHandler } from "./types";
 
 interface ScreenshotUploadProps {
   label: string;
   variant?: ButtonVariant;
-  /** Receives the prepared image; returns an error message when it couldn't be saved. */
-  onImage: (image: { dataUrl: string; fileName: string }) => string | null;
+  /** Receives the prepared image; resolves to an error message when it couldn't be saved. */
+  onImage: ScreenshotHandler;
 }
 
 /** Button-styled file picker that prepares (downscales) the image before handing it over. */
@@ -24,8 +25,11 @@ export function ScreenshotUpload({ label, variant = "primary", onImage }: Screen
     setBusy(true);
     setError(null);
     const result = await prepareImage(file);
+    const error = result.ok
+      ? await onImage({ dataUrl: result.dataUrl, fileName: file.name })
+      : result.error;
     setBusy(false);
-    setError(result.ok ? onImage({ dataUrl: result.dataUrl, fileName: file.name }) : result.error);
+    setError(error);
   };
 
   return (

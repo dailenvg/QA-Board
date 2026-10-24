@@ -29,9 +29,12 @@ export function prunableSnapshotIds(data: SquintData): Set<string> {
   );
 }
 
-/** Every blob the saved data still points at: snapshot images and comment crops. */
+/** Every blob the saved data still points at: project images, snapshots and comment crops. */
 export function referencedBlobKeys(data: SquintData): Set<string> {
   return new Set([
+    ...data.projects.flatMap((project) =>
+      project.source.kind === "image" ? [project.source.blobKey] : [],
+    ),
     ...data.snapshots.map((snapshot) => snapshot.blobKey),
     ...data.comments.flatMap((comment) => comment.crop?.blobKey ?? []),
   ]);

@@ -5,12 +5,13 @@ import { useFrameCheck, type FrameCheckState } from "@/lib/frame-check/use-frame
 import { Skeleton } from "../ui/Skeleton";
 import { FrameFallback } from "./FrameFallback";
 import { FrameView } from "./FrameView";
+import type { ScreenshotHandler } from "./types";
 
 interface UrlStageProps {
   url: string;
   projectName: string;
   overlay: ReactNode;
-  onScreenshot: (image: { dataUrl: string; fileName: string }) => string | null;
+  onScreenshot: ScreenshotHandler;
   /** In Comment mode the snapshot covers this stage, and the framed site leaves the tab order. */
   commentMode: boolean;
 }

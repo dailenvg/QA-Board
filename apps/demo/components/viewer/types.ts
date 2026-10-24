@@ -1,3 +1,5 @@
+import type { ImageUpload } from "@/lib/store/actions";
+
 export type ViewerMode = "browse" | "comment";
 export type CommentTab = "active" | "resolved";
 
@@ -12,3 +14,6 @@ export interface Draft extends PinPoint {
   surfaceKey: string;
   snapshotId: string | null;
 }
+
+/** Saves an uploaded screenshot as the project's image; resolves to an error message, or null. */
+export type ScreenshotHandler = (image: ImageUpload) => Promise<string | null>;

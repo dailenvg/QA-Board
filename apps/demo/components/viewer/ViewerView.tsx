@@ -8,7 +8,7 @@ import {
   addComment,
   deleteComment,
   editComment,
-  replaceProjectSource,
+  replaceWithImage,
   restoreComment,
   setAuthorName,
   setCommentStatus,
@@ -31,7 +31,7 @@ import { commentSurfaceKey, placementOf, surfaceKey } from "./surface";
 import { useViewerSurface } from "./use-viewer-surface";
 import { ViewerStage } from "./ViewerStage";
 import { ViewerTopBar } from "./ViewerTopBar";
-import type { CommentTab, Draft, PinPoint } from "./types";
+import type { CommentTab, Draft, PinPoint, ScreenshotHandler } from "./types";
 
 /** One celebration: the mascot's hop plus its rest beat. */
 const CELEBRATION_MS = RESOLVED_HOP * 2 * 1000;
@@ -205,13 +205,9 @@ export function ViewerView({ data, project }: ViewerViewProps) {
     if (!result.ok) toast({ tone: "error", message: result.error });
   };
 
-  const replaceWithImage = (image: { dataUrl: string; fileName: string }) => {
+  const saveScreenshot: ScreenshotHandler = async (image) => {
     const referenceUrl = source.kind === "url" ? source.url : source.referenceUrl;
-    const result = replaceProjectSource(project.id, {
-      kind: "image",
-      ...image,
-      ...(referenceUrl ? { referenceUrl } : {}),
-    });
+    const result = await replaceWithImage(project.id, image, referenceUrl);
     if (result.ok) view.showLatest();
     return result.ok ? null : result.error;
   };
@@ -276,7 +272,7 @@ export function ViewerView({ data, project }: ViewerViewProps) {
             onCapture={view.capture.capture}
             onShowLatest={view.showLatest}
             onBrowse={() => setMode("browse")}
-            onScreenshot={replaceWithImage}
+            onScreenshot={saveScreenshot}
           />
         </main>
         <CommentsPanel

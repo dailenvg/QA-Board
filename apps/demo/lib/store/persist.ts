@@ -1,3 +1,4 @@
+import { projectImageKey } from "../blob-store/keys";
 import type {
   Comment,
   CommentCrop,
@@ -9,11 +10,35 @@ import type {
   SquintData,
 } from "./types";
 
-export const STORAGE_KEY = "squint:v1";
+/** Where Squint keeps its data. Version 2 moved images to the blob store. */
+export const STORAGE_KEY = "squint:v2";
+/**
+ * Version 1, with images inline. Read once and migrated; removed after the
+ * version 2 copy is saved (older Squint builds can't read version 2 data).
+ */
+export const LEGACY_STORAGE_KEY = "squint:v1";
 export const DEFAULT_FOLDER_NAME = "My projects";
 
+/** An image that was inline in version 1 data and still has to reach the blob store. */
+export interface PendingImage {
+  key: string;
+  dataUrl: string;
+}
+
 export type ParseResult =
-  { ok: true; data: SquintData; repaired: boolean } | { ok: false; reason: string };
+  | { ok: true; data: SquintData; repaired: boolean; pendingImages: PendingImage[] }
+  | { ok: false; reason: string };
+
+/** A version 1 image source: the picture inline as a data URL. */
+interface InlineImageSource {
+  kind: "image";
+  dataUrl: string;
+  fileName: string;
+  referenceUrl?: string;
+}
+
+type StoredSource = ProjectSource | InlineImageSource;
+type StoredProject = Omit<Project, "source"> & { source: StoredSource };
 
 type Guard<T> = (value: unknown) => value is T;
 
@@ -31,19 +56,20 @@ const isSize = (value: unknown): value is number =>
 const isFolder: Guard<Folder> = (value): value is Folder =>
   isRecord(value) && isString(value.id) && isString(value.name) && isTime(value.createdAt);
 
-const isSource: Guard<ProjectSource> = (value): value is ProjectSource => {
+const isSource: Guard<StoredSource> = (value): value is StoredSource => {
   if (!isRecord(value)) return false;
   if (value.kind === "url") return isString(value.url);
+  const picture =
+    isString(value.blobKey) || (isString(value.dataUrl) && value.dataUrl.startsWith("data:image/"));
   return (
     value.kind === "image" &&
-    isString(value.dataUrl) &&
-    value.dataUrl.startsWith("data:image/") &&
+    picture &&
     isString(value.fileName) &&
     (value.referenceUrl === undefined || isString(value.referenceUrl))
   );
 };
 
-const isProject: Guard<Project> = (value): value is Project =>
+const isProject: Guard<StoredProject> = (value): value is StoredProject =>
   isRecord(value) &&
   isString(value.id) &&
   isString(value.folderId) &&
@@ -92,7 +118,7 @@ function listOf<T>(value: unknown, guard: Guard<T>): T[] | null {
 
 export function createInitialData(folderId: string, now: number): SquintData {
   return {
-    version: 1,
+    version: 2,
     folders: [{ id: folderId, name: DEFAULT_FOLDER_NAME, createdAt: now }],
     projects: [],
     comments: [],
@@ -117,6 +143,16 @@ function safeSource(source: ProjectSource): ProjectSource | null {
   if (source.referenceUrl === undefined || isHttpUrl(source.referenceUrl)) return source;
   const { referenceUrl: _unsafe, ...image } = source;
   return image;
+}
+
+/** Moves a version 1 inline image out of the project, leaving a blob key behind. */
+function detachImage(project: StoredProject, pending: PendingImage[]): Project {
+  const { source } = project;
+  if (source.kind === "url" || "blobKey" in source) return { ...project, source };
+  const key = projectImageKey(project.id);
+  pending.push({ key, dataUrl: source.dataUrl });
+  const { dataUrl: _inline, ...rest } = source;
+  return { ...project, source: { ...rest, blobKey: key } };
 }
 
 /** Drops a crop that isn't readable; the comment itself stays. */
@@ -168,7 +204,10 @@ function repair(data: SquintData): { data: SquintData; repaired: boolean } {
   return { data: { ...data, projects, comments, snapshots }, repaired };
 }
 
-/** Defensive parse of the stored JSON. Never throws. */
+/**
+ * Defensive parse of the stored JSON, version 1 or 2. Never throws. Version 1
+ * images come back as `pendingImages`: save them before saving the data.
+ */
 export function parseData(raw: string): ParseResult {
   let value: unknown;
   try {
@@ -176,26 +215,34 @@ export function parseData(raw: string): ParseResult {
   } catch {
     return { ok: false, reason: "The saved data isn't valid JSON." };
   }
-  if (!isRecord(value) || value.version !== 1) {
+  if (!isRecord(value) || (value.version !== 1 && value.version !== 2)) {
     return { ok: false, reason: "The saved data is from an unknown version." };
   }
   const folders = listOf(value.folders, isFolder);
-  const projects = listOf(value.projects, isProject);
+  const stored = listOf(value.projects, isProject);
   const comments = listOf(value.comments, isComment);
-  if (!folders || folders.length === 0 || !projects || !comments) {
+  if (!folders || folders.length === 0 || !stored || !comments) {
     return { ok: false, reason: "The saved data is incomplete or damaged." };
   }
+  const pendingImages: PendingImage[] = [];
+  const projects = stored.map((project) => detachImage(project, pendingImages));
   const authorName = isString(value.authorName) ? value.authorName : null;
   const read = readSnapshots(value.snapshots);
   const result = repair({
-    version: 1,
+    version: 2,
     folders,
     projects,
     comments,
     snapshots: read.snapshots,
     authorName,
   });
-  return { ok: true, data: result.data, repaired: result.repaired || read.repaired };
+  const kept = new Set(result.data.projects.map((project) => projectImageKey(project.id)));
+  return {
+    ok: true,
+    data: result.data,
+    repaired: result.repaired || read.repaired,
+    pendingImages: pendingImages.filter((image) => kept.has(image.key)),
+  };
 }
 
 export function isQuotaError(error: unknown): boolean {

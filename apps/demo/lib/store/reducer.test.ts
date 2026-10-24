@@ -92,6 +92,22 @@ describe("snapshots in the reducer", () => {
     expect(reduce(data, { type: "comment/set-crop", id: "gone", crop })).toBe(data);
   });
 
+  it("keeps a deleted project's image referenced again after undo", () => {
+    const data = legacy();
+    expect(referencedBlobKeys(data).has("image:mock")).toBe(true);
+    const deleted = reduce(data, { type: "project/delete", id: "mock" });
+    expect(referencedBlobKeys(deleted).has("image:mock")).toBe(false);
+    const project = data.projects.find((entry) => entry.id === "mock");
+    if (!project) throw new Error("fixture");
+    const restored = reduce(deleted, {
+      type: "project/restore",
+      project,
+      comments: [],
+      snapshots: [],
+    });
+    expect(referencedBlobKeys(restored).has("image:mock")).toBe(true);
+  });
+
   it("lists every blob the data points at", () => {
     let data = withSnapshots(snap("a", 1));
     data = reduce(data, {
@@ -99,6 +115,6 @@ describe("snapshots in the reducer", () => {
       id: "c1",
       crop: { blobKey: "crop:c1", rect: { x: 0, y: 0, width: 1, height: 1 } },
     });
-    expect([...referencedBlobKeys(data)].sort()).toEqual(["crop:c1", "snapshot:a"]);
+    expect([...referencedBlobKeys(data)].sort()).toEqual(["crop:c1", "image:mock", "snapshot:a"]);
   });
 });

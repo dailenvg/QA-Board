@@ -6,11 +6,12 @@ import { SquintMascot } from "../brand/mascot/SquintMascot";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { ScreenshotUpload } from "./ScreenshotUpload";
+import type { ScreenshotHandler } from "./types";
 
 interface CaptureFailedProps {
   message: string;
   onRetry: () => void;
-  onScreenshot: (image: { dataUrl: string; fileName: string }) => string | null;
+  onScreenshot: ScreenshotHandler;
   onBrowse: () => void;
 }
 

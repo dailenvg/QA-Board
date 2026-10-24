@@ -8,6 +8,7 @@ import { CaptureFailed } from "./CaptureFailed";
 import { CaptureProgress } from "./CaptureProgress";
 import { SnapshotBar } from "./SnapshotBar";
 import { SnapshotImage } from "./SnapshotImage";
+import type { ScreenshotHandler } from "./types";
 
 interface SnapshotStageProps {
   snapshot: Snapshot | null;
@@ -18,7 +19,7 @@ interface SnapshotStageProps {
   onCapture: (width: number) => void;
   onShowLatest: () => void;
   showLatestLabel: string;
-  onScreenshot: (image: { dataUrl: string; fileName: string }) => string | null;
+  onScreenshot: ScreenshotHandler;
   onBrowse: () => void;
   overlay: ReactNode;
   imageRef: Ref<HTMLImageElement>;

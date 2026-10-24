@@ -52,7 +52,8 @@ async function readImage(
 ): Promise<{ image: ExportAssets["image"]; blob: Blob | null }> {
   if (project.source.kind !== "image") return { image: null, blob: null };
   try {
-    const blob = await (await fetch(project.source.dataUrl)).blob();
+    const blob = await getBlob(project.source.blobKey);
+    if (!blob) return { image: null, blob: null };
     const bitmap = await createImageBitmap(blob);
     const image = { width: bitmap.width, height: bitmap.height, file: sourceImagePath(blob.type) };
     bitmap.close();

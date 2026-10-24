@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Skeleton } from "../ui/Skeleton";
 import { FrameFallback } from "./FrameFallback";
+import type { ScreenshotHandler } from "./types";
 
 /** Long enough for slow sites; framing refusals usually surface well before this. */
 const LOAD_TIMEOUT_MS = 15_000;
@@ -15,7 +16,7 @@ interface FrameViewProps {
   url: string;
   title: string;
   overlay: ReactNode;
-  onScreenshot: (image: { dataUrl: string; fileName: string }) => string | null;
+  onScreenshot: ScreenshotHandler;
   /** In Comment mode the framed site leaves the tab order, so Tab reaches the comment canvas. */
   commentMode: boolean;
 }

@@ -12,7 +12,7 @@ function toFile(data: SquintData, project: Project): FolderFile {
     href: projectHref(project.id),
     status: summarize(data, project).status,
     ...(source.kind === "image"
-      ? { image: source.dataUrl, meta: "Image" }
+      ? { imageKey: source.blobKey, meta: "Image" }
       : { meta: displayHost(source.url) }),
   };
 }

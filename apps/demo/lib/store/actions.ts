@@ -1,3 +1,6 @@
+import { putBlob } from "../blob-store/blob-store";
+import { projectImageKey } from "../blob-store/keys";
+import { dataUrlToBlob } from "../image";
 import { scheduleBlobSweep } from "./blob-sweep";
 import { newId } from "./id";
 import { dispatch, type Result } from "./store";
@@ -12,6 +15,8 @@ import type {
 } from "./types";
 
 const NAME_LIMIT = 80;
+const IMAGE_SAVE_ERROR =
+  "This browser couldn't save the image. Free up some space, then try again.";
 
 /** Runs a delete, then lets the blob sweep tidy up once undo is no longer likely. */
 function withSweep(result: Result): Result {
@@ -39,13 +44,15 @@ export const renameFolder = (id: string, name: string) =>
 export const deleteFolder = (id: string) => withSweep(dispatch({ type: "folder/delete", id }));
 
 export function createProject(input: {
+  /** Set when something (an image) was already stored under this project's id. */
+  id?: string;
   folderId: string;
   name: string;
   source: ProjectSource;
 }): Result<Project> {
   const now = Date.now();
   const project: Project = {
-    id: newId(),
+    id: input.id ?? newId(),
     folderId: input.folderId,
     name: cleanName(input.name),
     source: input.source,
@@ -63,6 +70,49 @@ export const moveProject = (id: string, folderId: string) =>
 
 export const replaceProjectSource = (id: string, source: ProjectSource) =>
   dispatch({ type: "project/replace-source", id, source, at: Date.now() });
+
+/** An image chosen in the browser, already downscaled (`prepareImage`). */
+export interface ImageUpload {
+  dataUrl: string;
+  fileName: string;
+}
+
+async function storeProjectImage(projectId: string, image: ImageUpload): Promise<string | null> {
+  const blobKey = projectImageKey(projectId);
+  return (await putBlob(blobKey, await dataUrlToBlob(image.dataUrl))) ? blobKey : null;
+}
+
+/** Stores the picture in the blob store, then creates the image project around it. */
+export async function createImageProject(input: {
+  folderId: string;
+  name: string;
+  image: ImageUpload;
+}): Promise<Result<Project>> {
+  const id = newId();
+  const blobKey = await storeProjectImage(id, input.image);
+  if (!blobKey) return { ok: false, error: IMAGE_SAVE_ERROR };
+  const { fileName } = input.image;
+  return createProject({ id, ...input, source: { kind: "image", blobKey, fileName } });
+}
+
+/**
+ * Makes `image` the project's picture: a website project becomes an image
+ * project (keeping its address as `referenceUrl`), an image project gets a new image.
+ */
+export async function replaceWithImage(
+  projectId: string,
+  image: ImageUpload,
+  referenceUrl: string | undefined,
+): Promise<Result> {
+  const blobKey = await storeProjectImage(projectId, image);
+  if (!blobKey) return { ok: false, error: IMAGE_SAVE_ERROR };
+  return replaceProjectSource(projectId, {
+    kind: "image",
+    blobKey,
+    fileName: image.fileName,
+    ...(referenceUrl ? { referenceUrl } : {}),
+  });
+}
 
 export const deleteProject = (id: string) => withSweep(dispatch({ type: "project/delete", id }));
 

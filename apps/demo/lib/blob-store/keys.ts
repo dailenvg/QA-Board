@@ -2,3 +2,6 @@
 export const snapshotBlobKey = (snapshotId: string) => `snapshot:${snapshotId}`;
 
 export const cropBlobKey = (commentId: string) => `crop:${commentId}`;
+
+/** An image project's picture. Replacing the image overwrites it in place. */
+export const projectImageKey = (projectId: string) => `image:${projectId}`;

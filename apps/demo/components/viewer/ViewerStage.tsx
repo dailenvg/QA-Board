@@ -6,9 +6,8 @@ import type { Project, Snapshot } from "@/lib/store/types";
 import { ImageStage } from "./ImageStage";
 import { SnapshotStage } from "./SnapshotStage";
 import type { Surface } from "./surface";
+import type { ScreenshotHandler } from "./types";
 import { UrlStage } from "./UrlStage";
-
-type ScreenshotHandler = (image: { dataUrl: string; fileName: string }) => string | null;
 
 interface ViewerStageProps {
   project: Project;
@@ -66,7 +65,7 @@ export function ViewerStage({
     return (
       snapshotStage ?? (
         <ImageStage
-          dataUrl={source.dataUrl}
+          blobKey={source.blobKey}
           projectName={project.name}
           overlay={overlay}
           imageRef={imageRef}

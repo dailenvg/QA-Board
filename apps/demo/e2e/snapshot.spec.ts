@@ -210,11 +210,16 @@ test("projects saved before snapshots still load, with website pins labelled Liv
     page.getByRole("button", { name: "Comment 1 by Leo, resolved", exact: true }),
   ).toBeVisible();
 
-  const saved = await page.evaluate(
-    () =>
-      JSON.parse(localStorage.getItem("squint:v1") ?? "{}") as {
-        comments: unknown[];
-      },
-  );
-  expect(saved.comments).toEqual(LEGACY_V1.comments);
+  // Version 1 was migrated: its image moved to IndexedDB, comments carried over as they were.
+  const stored = await page.evaluate(() => ({
+    v1: localStorage.getItem("squint:v1"),
+    v2: JSON.parse(localStorage.getItem("squint:v2") ?? "{}") as {
+      comments: unknown[];
+      projects: Array<{ source: Record<string, unknown> }>;
+    },
+  }));
+  expect(stored.v1).toBeNull();
+  expect(stored.v2.comments).toEqual(LEGACY_V1.comments);
+  expect(stored.v2.projects[1]?.source).toMatchObject({ kind: "image", blobKey: "image:mock" });
+  expect(stored.v2.projects[1]?.source).not.toHaveProperty("dataUrl");
 });

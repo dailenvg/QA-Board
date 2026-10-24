@@ -28,13 +28,47 @@ function parse(value: unknown) {
 }
 
 describe("parseData", () => {
-  it("loads data saved before snapshots existed, unchanged and unrepaired", () => {
+  it("reads version 1 data, moving inline images out as pending blob writes", () => {
     const result = parse(LEGACY_V1);
     expect(result.repaired).toBe(false);
+    expect(result.data.version).toBe(2);
     expect(result.data.snapshots).toEqual([]);
-    expect(result.data.projects).toEqual(LEGACY_V1.projects);
     expect(result.data.comments).toEqual(LEGACY_V1.comments);
     expect(result.data.authorName).toBe("Ana");
+    const [site, mock] = LEGACY_V1.projects;
+    expect(result.data.projects).toEqual([
+      site,
+      { ...mock, source: { kind: "image", blobKey: "image:mock", fileName: "checkout.png" } },
+    ]);
+    expect(result.pendingImages).toEqual([{ key: "image:mock", dataUrl: mock.source.dataUrl }]);
+  });
+
+  it("reads version 2 data as it is, with nothing pending", () => {
+    const first = parse(LEGACY_V1);
+    const again = parse({ ...first.data });
+    expect(again.data).toEqual(first.data);
+    expect(again.pendingImages).toEqual([]);
+  });
+
+  it("doesn't migrate the image of a project that repair drops", () => {
+    const result = parse({
+      ...LEGACY_V1,
+      projects: [
+        {
+          ...LEGACY_V1.projects[1],
+          source: { ...LEGACY_V1.projects[1].source, referenceUrl: "javascript:x" },
+        },
+      ],
+    });
+    expect(result.pendingImages).toHaveLength(1);
+    const dropped = parse({
+      ...LEGACY_V1,
+      projects: [
+        LEGACY_V1.projects[0],
+        { ...LEGACY_V1.projects[0], id: "bad", source: { kind: "url", url: "javascript:x" } },
+      ],
+    });
+    expect(dropped.pendingImages).toEqual([]);
   });
 
   it("keeps snapshots and each comment's snapshot and crop", () => {

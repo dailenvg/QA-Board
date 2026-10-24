@@ -6,8 +6,11 @@ export interface Folder {
 
 export type ProjectSource =
   | { kind: "url"; url: string }
-  /** `referenceUrl` keeps the original site when a screenshot replaced an unembeddable URL. */
-  | { kind: "image"; dataUrl: string; fileName: string; referenceUrl?: string };
+  /**
+   * The picture lives in the blob store under `blobKey` (`image:<projectId>`).
+   * `referenceUrl` keeps the original site when a screenshot replaced a URL.
+   */
+  | { kind: "image"; blobKey: string; fileName: string; referenceUrl?: string };
 
 export interface Project {
   id: string;
@@ -76,7 +79,8 @@ export interface Comment {
 }
 
 export interface SquintData {
-  version: 1;
+  /** 2 since images moved out of localStorage; version 1 data is migrated on load. */
+  version: 2;
   folders: Folder[];
   projects: Project[];
   comments: Comment[];

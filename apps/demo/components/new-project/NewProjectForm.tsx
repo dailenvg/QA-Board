@@ -2,8 +2,8 @@
 
 import { useId, useState, type FormEvent } from "react";
 import { prepareImage } from "@/lib/image";
-import { createFolder, createProject } from "@/lib/store/actions";
-import type { Folder, Project, ProjectSource } from "@/lib/store/types";
+import { createFolder, createImageProject, createProject } from "@/lib/store/actions";
+import type { Folder, Project } from "@/lib/store/types";
 import { baseName, displayHost, normalizeUrl } from "@/lib/url";
 import { Button } from "../ui/Button";
 import { FieldError } from "../ui/FieldError";
@@ -14,6 +14,9 @@ import { ImageDropzone, type PickedImage } from "./ImageDropzone";
 import { UrlField } from "./UrlField";
 
 type SourceKind = "url" | "image";
+
+/** What the form collected: an address, or a prepared image to store. */
+type SourceDraft = { kind: "url"; url: string } | { kind: "image"; image: PickedImage };
 
 const SOURCE_OPTIONS: ReadonlyArray<SegmentOption<SourceKind>> = [
   { value: "url", label: "Website", icon: "globe" },
@@ -50,10 +53,11 @@ export function NewProjectForm({
   const [newFolderName, setNewFolderName] = useState("");
   const [newFolderError, setNewFolderError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const nameId = useId();
   const formErrorId = useId();
 
-  const checkUrl = (): ProjectSource | null => {
+  const checkUrl = (): SourceDraft | null => {
     const result = normalizeUrl(url);
     if (!result.ok) {
       setUrlError(result.error);
@@ -77,7 +81,7 @@ export function NewProjectForm({
     setImage({ dataUrl: result.dataUrl, fileName: file.name });
   };
 
-  const resolveSource = (): ProjectSource | null => {
+  const resolveSource = (): SourceDraft | null => {
     if (kind === "url") {
       if (url.trim()) return checkUrl();
       setUrlError("Enter a website address.");
@@ -87,7 +91,7 @@ export function NewProjectForm({
       setImageError(processing ? "Wait for the image to finish preparing." : "Choose an image.");
       return null;
     }
-    return { kind: "image", dataUrl: image.dataUrl, fileName: image.fileName };
+    return { kind: "image", image };
   };
 
   const resolveFolder = (): string | null => {
@@ -105,20 +109,26 @@ export function NewProjectForm({
     return created.value.id;
   };
 
-  const submit = (event: FormEvent) => {
+  const create = (draft: SourceDraft, folder: string) => {
+    if (draft.kind === "url") {
+      const projectName = name.trim() || displayHost(draft.url);
+      return Promise.resolve(createProject({ folderId: folder, name: projectName, source: draft }));
+    }
+    const projectName = name.trim() || baseName(draft.image.fileName);
+    return createImageProject({ folderId: folder, name: projectName, image: draft.image });
+  };
+
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (saving) return;
     setFormError(null);
-    const source = resolveSource();
-    if (!source) return;
+    const draft = resolveSource();
+    if (!draft) return;
     const targetFolder = resolveFolder();
     if (!targetFolder) return;
-    const fallbackName =
-      source.kind === "url" ? displayHost(source.url) : baseName(source.fileName);
-    const created = createProject({
-      folderId: targetFolder,
-      name: name.trim() || fallbackName,
-      source,
-    });
+    setSaving(true);
+    const created = await create(draft, targetFolder);
+    setSaving(false);
     if (!created.ok) {
       setFormError(created.error);
       return;
@@ -131,7 +141,7 @@ export function NewProjectForm({
 
   return (
     <form
-      onSubmit={submit}
+      onSubmit={(event) => void submit(event)}
       noValidate
       className="flex flex-col gap-5"
       aria-describedby={formErrorId}
@@ -205,8 +215,8 @@ export function NewProjectForm({
         <Button variant="secondary" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" disabled={processing} data-testid="create-project">
-          Create project
+        <Button type="submit" disabled={processing || saving} data-testid="create-project">
+          {saving ? "Creating…" : "Create project"}
         </Button>
       </div>
     </form>

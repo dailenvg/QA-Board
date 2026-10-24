@@ -8,13 +8,14 @@ import { Button } from "../ui/Button";
 import { buttonClass } from "../ui/button-styles";
 import { Icon } from "../ui/Icon";
 import { ScreenshotUpload } from "./ScreenshotUpload";
+import type { ScreenshotHandler } from "./types";
 
 export type FallbackReason = "blocked" | "unreachable" | "timeout";
 
 interface FrameFallbackProps {
   reason: FallbackReason;
   url: string;
-  onScreenshot: (image: { dataUrl: string; fileName: string }) => string | null;
+  onScreenshot: ScreenshotHandler;
   /** Secondary recovery: check again, or load the frame regardless. */
   onRetry: () => void;
 }

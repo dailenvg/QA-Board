@@ -95,7 +95,7 @@ export const IMAGE_EXPORT: ExportInput = {
     id: "proj-2",
     folderId: "default",
     name: "Checkout mockup",
-    source: { kind: "image", dataUrl: "data:image/png;base64,AAAA", fileName: "checkout.png" },
+    source: { kind: "image", blobKey: "image:proj-2", fileName: "checkout.png" },
     createdAt: T0,
     updatedAt: T0,
   },
