@@ -63,6 +63,11 @@ export interface Snapshot {
   blobKey: string;
   /** The address that was captured. */
   sourceUrl: string;
+  /**
+   * Image px per page px, when a very large page was rendered smaller to keep
+   * the image under the capture size limit. Missing means 1.
+   */
+  scale?: number;
 }
 
 /** What the commenter was looking at when they posted: a picture of the stage with the pin on it. */

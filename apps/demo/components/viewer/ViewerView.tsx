@@ -3,6 +3,7 @@
 import { useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { RESOLVED_HOP } from "../brand/mascot/moods";
+import { toPagePx } from "@/lib/crop/geometry";
 import { planCommentCrop } from "@/lib/crop/plan-comment-crop";
 import { renderCrop } from "@/lib/crop/render-crop";
 import { commentsFor, pinNumbers } from "@/lib/store/selectors";
@@ -163,7 +164,10 @@ export function ViewerView({ data, project, leading, actions }: ViewerViewProps)
     const area = canvasAreaRef.current;
     if (!image || !area || surface.kind === "frame") return null;
     const plan = planCommentCrop(image, area, point);
-    return plan ? { blob: renderCrop(image, plan), rect: plan.rect } : null;
+    if (!plan) return null;
+    // Crops are cut in image px; the stored rect is in page px (they differ on a scaled-down snapshot).
+    const scale = surface.kind === "snapshot" ? (surface.snapshot?.scale ?? 1) : 1;
+    return { blob: renderCrop(image, plan), rect: toPagePx(plan.rect, scale) };
   };
 
   const submitDraft = (body: string, author: string) => {

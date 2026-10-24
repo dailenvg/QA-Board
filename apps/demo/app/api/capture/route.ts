@@ -45,6 +45,7 @@ export async function POST(request: Request) {
         "content-type": image.contentType,
         [CAPTURE_HEADERS.width]: String(image.width),
         [CAPTURE_HEADERS.height]: String(image.height),
+        [CAPTURE_HEADERS.scale]: String(image.scale),
       },
     });
   } catch (error) {

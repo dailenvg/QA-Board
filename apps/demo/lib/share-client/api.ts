@@ -8,6 +8,7 @@ import type {
   ShareState,
 } from "../share/types";
 import type { ProjectShare } from "../store/types";
+import { fetchInRanges, uploadParts } from "./transfer";
 
 /** `status` 0 means the request never got an answer (offline, aborted). */
 export type ApiResult<T> = { ok: true; value: T } | { ok: false; status: number; error: string };
@@ -45,27 +46,29 @@ export const ownerApi = {
       `/api/shares/${share.id}`,
       jsonInit("PUT", { state, cursor: share.cursor }, owner(share)),
     ),
-  upload: (share: ProjectShare, key: string, blob: Blob) =>
-    call<{ key: string; size: number }>(`/api/shares/${share.id}/blobs/${blobPath(key)}`, {
-      method: "PUT",
-      headers: owner(share),
-      body: blob,
-    }),
+  /** Uploads in parts of at most 4 MB; resolves with the last part's answer. */
+  async upload(share: ProjectShare, key: string, blob: Blob) {
+    const parts = uploadParts(blob);
+    let result: ApiResult<{ key: string; complete: boolean; size: number }> = {
+      ok: false,
+      status: 0,
+      error: "empty",
+    };
+    for (const [part, body] of parts.entries()) {
+      result = await call(
+        `/api/shares/${share.id}/blobs/${blobPath(key)}?part=${part}&parts=${parts.length}`,
+        { method: "PUT", headers: owner(share), body },
+      );
+      if (!result.ok) return result;
+    }
+    return result;
+  },
   pull: (share: ProjectShare) =>
     call<ShareChanges>(`/api/shares/${share.id}/changes?since=${share.cursor}`, {
       headers: owner(share),
     }),
-  async download(share: ProjectShare, key: string): Promise<Blob | null> {
-    try {
-      const response = await fetch(`/api/shares/${share.id}/blobs/${blobPath(key)}`, {
-        headers: owner(share),
-        cache: "no-store",
-      });
-      return response.ok ? await response.blob() : null;
-    } catch {
-      return null;
-    }
-  },
+  download: (share: ProjectShare, key: string) =>
+    fetchInRanges(`/api/shares/${share.id}/blobs/${blobPath(key)}`, { headers: owner(share) }),
   revoke: (share: ProjectShare) =>
     call<null>(`/api/shares/${share.id}`, { method: "DELETE", headers: owner(share) }),
 };

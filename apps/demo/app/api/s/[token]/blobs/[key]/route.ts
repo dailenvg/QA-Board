@@ -15,6 +15,8 @@ export async function GET(request: Request, { params }: Params) {
     const key = validate(blobKeySchema, decodeURIComponent(rawKey));
     if (!key.ok) return notFound();
     const blob = await readBlob(services, share, key.value);
-    return blob ? imageResponse(blob.bytes, blob.contentType) : notFound();
+    return blob
+      ? imageResponse(blob.bytes, blob.contentType, request.headers.get("range"))
+      : notFound();
   });
 }

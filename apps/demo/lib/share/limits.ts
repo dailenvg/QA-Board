@@ -13,4 +13,10 @@ export const SHARE_LIMITS = {
   jsonBytes: 1 * MB,
   blobBytes: { crop: 2 * MB, snapshot: 8 * MB, image: 15 * MB },
   totalBytes: 40 * MB,
+  /**
+   * Largest image body in one request or response. Vercel Functions refuse
+   * bodies over 4.5 MB, so bigger images travel in parts (uploads) or
+   * byte ranges (downloads) of at most this size.
+   */
+  transferBytes: 4 * MB,
 } as const;

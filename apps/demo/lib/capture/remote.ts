@@ -2,8 +2,6 @@ import { CaptureError } from "./capture-error";
 import type { CapturedImage } from "./capture-page";
 import { CAPTURE_HEADERS, CAPTURE_LIMITS, isCaptureErrorCode, type CaptureRequest } from "./types";
 
-const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
-
 function readSize(headers: Headers, name: string, max: number): number {
   const value = Number(headers.get(name));
   if (!Number.isInteger(value) || value < 1 || value > max) throw new CaptureError("failed");
@@ -38,7 +36,9 @@ export async function captureRemote(
   if (!contentType.startsWith("image/")) throw new CaptureError("failed");
   const width = readSize(response.headers, CAPTURE_HEADERS.width, CAPTURE_LIMITS.maxWidth);
   const height = readSize(response.headers, CAPTURE_HEADERS.height, CAPTURE_LIMITS.maxHeight);
+  const scale = Number(response.headers.get(CAPTURE_HEADERS.scale) ?? 1);
+  if (!(scale > 0 && scale <= 1)) throw new CaptureError("failed");
   const body = new Uint8Array(await response.arrayBuffer());
-  if (body.length > MAX_IMAGE_BYTES) throw new CaptureError("failed");
-  return { body, contentType, width, height };
+  if (body.length > CAPTURE_LIMITS.maxBytes) throw new CaptureError("failed");
+  return { body, contentType, width, height, scale };
 }

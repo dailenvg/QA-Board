@@ -37,4 +37,10 @@ export interface ShareStore {
   getBlob(id: string, key: string): Promise<StoredBlob | null>;
   putBlob(id: string, blob: StoredBlob): Promise<void>;
   deleteBlobs(id: string, keys: readonly string[]): Promise<BlobLocation[]>;
+
+  /** One part of an image uploaded in several requests. */
+  putBlobPart(id: string, key: string, part: number, bytes: Uint8Array): Promise<void>;
+  /** The parts received so far, in order. */
+  blobParts(id: string, key: string): Promise<Array<{ part: number; bytes: Uint8Array }>>;
+  deleteBlobParts(id: string, key: string): Promise<void>;
 }

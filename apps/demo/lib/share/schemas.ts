@@ -46,6 +46,7 @@ export const snapshotSchema = z.object({
   height: z.number().int().min(1).max(16_000),
   createdAt: time,
   sourceUrl: httpUrl,
+  scale: z.number().positive().max(1).optional(),
 });
 
 const commentFields = {

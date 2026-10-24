@@ -11,10 +11,20 @@ export const CAPTURE_LIMITS = {
   maxWidth: 2560,
   /** Taller pages are cut off here. */
   maxHeight: 16_000,
+  /**
+   * Largest image a capture returns: under Vercel's 4.5 MB function body
+   * limit, and well under a share's 8 MB snapshot limit. Bigger pages render smaller.
+   */
+  maxBytes: 4_000_000,
 } as const;
 
 /** The image body's page size in CSS px travels in these response headers. */
-export const CAPTURE_HEADERS = { width: "x-capture-width", height: "x-capture-height" } as const;
+export const CAPTURE_HEADERS = {
+  width: "x-capture-width",
+  height: "x-capture-height",
+  /** Image px per page px; below 1 when a big page was rendered smaller to fit. */
+  scale: "x-capture-scale",
+} as const;
 
 export const CAPTURE_ERROR_CODES = [
   "invalid-request",

@@ -38,8 +38,16 @@ async function captureSnapshot(
   const blobKey = snapshotBlobKey(id);
   if (!(await putBlob(blobKey, result.blob)))
     return { ok: false, message: CAPTURE_MESSAGES.storage };
-  const { width: pageWidth, height } = result;
-  const saved = addSnapshot({ id, projectId, width: pageWidth, height, blobKey, sourceUrl: url });
+  const { width: pageWidth, height, scale } = result;
+  const saved = addSnapshot({
+    id,
+    projectId,
+    width: pageWidth,
+    height,
+    blobKey,
+    sourceUrl: url,
+    ...(scale < 1 ? { scale } : {}),
+  });
   if (saved.ok) return { ok: true, snapshot: saved.value };
   await deleteBlobs([blobKey]);
   return { ok: false, message: saved.error };

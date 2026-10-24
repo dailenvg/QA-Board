@@ -184,6 +184,26 @@ export function createPostgresStore(db: Queryable): ShareStore {
         [id, blob.key, blob.contentType, blob.size, inline, url],
       );
     },
+    async putBlobPart(id, key, part, bytes) {
+      await db.query(
+        `INSERT INTO squint_share_blob_parts (share_id, key, part, bytes) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (share_id, key, part) DO UPDATE SET bytes = EXCLUDED.bytes`,
+        [id, key, part, bytes],
+      );
+    },
+    async blobParts(id, key) {
+      const { rows } = await db.query<{ part: number; bytes: Uint8Array }>(
+        "SELECT part, bytes FROM squint_share_blob_parts WHERE share_id = $1 AND key = $2 ORDER BY part",
+        [id, key],
+      );
+      return rows.map((row) => ({ part: Number(row.part), bytes: new Uint8Array(row.bytes) }));
+    },
+    async deleteBlobParts(id, key) {
+      await db.query("DELETE FROM squint_share_blob_parts WHERE share_id = $1 AND key = $2", [
+        id,
+        key,
+      ]);
+    },
     async deleteBlobs(id, keys) {
       if (keys.length === 0) return [];
       const found = await locations(id, keys);

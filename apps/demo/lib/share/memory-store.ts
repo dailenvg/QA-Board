@@ -14,6 +14,7 @@ interface Entry {
   snapshots: Map<string, Sequenced<SharedSnapshot>>;
   comments: Map<string, Sequenced<SharedComment>>;
   blobs: Map<string, StoredBlob>;
+  parts: Map<string, Map<number, Uint8Array>>;
 }
 
 const bySeq = <T>(a: Sequenced<T>, b: Sequenced<T>) => a.seq - b.seq;
@@ -51,6 +52,7 @@ export function createMemoryStore(): ShareStore {
         snapshots: new Map(),
         comments: new Map(),
         blobs: new Map(),
+        parts: new Map(),
       });
       return done(undefined);
     },
@@ -101,5 +103,24 @@ export function createMemoryStore(): ShareStore {
       return done(undefined);
     },
     deleteBlobs: (id, keys) => done(removeBlobs(shares.get(id), keys)),
+    putBlobPart(id, key, part, bytes) {
+      const entry = shares.get(id);
+      if (entry) {
+        const parts = entry.parts.get(key) ?? new Map<number, Uint8Array>();
+        parts.set(part, bytes);
+        entry.parts.set(key, parts);
+      }
+      return done(undefined);
+    },
+    blobParts: (id, key) =>
+      done(
+        [...(shares.get(id)?.parts.get(key) ?? new Map<number, Uint8Array>())]
+          .map(([part, bytes]) => ({ part, bytes }))
+          .sort((a, b) => a.part - b.part),
+      ),
+    deleteBlobParts(id, key) {
+      shares.get(id)?.parts.delete(key);
+      return done(undefined);
+    },
   };
 }

@@ -1,5 +1,6 @@
 import type { BlobSource } from "../blob-store/blob-source";
 import { clientApi } from "./api";
+import { fetchInRanges } from "./transfer";
 
 export interface ServerBlobs extends BlobSource {
   /** Shows a just-made image (a crop being posted) before the server has it. */
@@ -13,14 +14,10 @@ export function createServerBlobs(token: string): ServerBlobs {
   const listeners = new Map<string, Set<() => void>>();
 
   const fetchBlob = async (key: string): Promise<Blob | null> => {
-    try {
-      const response = await fetch(api.blobUrl(key), { cache: "no-store" });
-      if (response.ok) return await response.blob();
-    } catch {
-      // Treated as missing; a later read tries again.
-    }
-    cache.delete(key);
-    return null;
+    const blob = await fetchInRanges(api.blobUrl(key));
+    // Treated as missing; a later read tries again.
+    if (!blob) cache.delete(key);
+    return blob;
   };
 
   return {

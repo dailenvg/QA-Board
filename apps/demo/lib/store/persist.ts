@@ -120,7 +120,8 @@ const isSnapshot: Guard<Snapshot> = (value): value is Snapshot =>
   isSize(value.height) &&
   isTime(value.createdAt) &&
   isString(value.blobKey) &&
-  isString(value.sourceUrl);
+  isString(value.sourceUrl) &&
+  (value.scale === undefined || (isSize(value.scale) && value.scale <= 1));
 
 function listOf<T>(value: unknown, guard: Guard<T>): T[] | null {
   return Array.isArray(value) && value.every(guard) ? value : null;

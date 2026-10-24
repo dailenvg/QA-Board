@@ -104,3 +104,16 @@ export function planCrop({ image, view, natural, pin }: CropInput): CropPlan | n
   const scale = Math.min(1, MAX_CROP_EDGE / Math.max(rect.width, rect.height));
   return { rect, pin: point, scale, markerSize: MARKER_CSS_PX * perX * scale };
 }
+
+/** A rect in image px as page px, for an image rendered at `scale` image px per page px. */
+export function toPagePx(rect: Rect, scale: number): Rect {
+  if (scale === 1) return rect;
+  const x = Math.round(rect.x / scale);
+  const y = Math.round(rect.y / scale);
+  return {
+    x,
+    y,
+    width: Math.max(1, Math.round((rect.x + rect.width) / scale) - x),
+    height: Math.max(1, Math.round((rect.y + rect.height) / scale) - y),
+  };
+}

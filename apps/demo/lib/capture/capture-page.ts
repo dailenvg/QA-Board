@@ -1,4 +1,4 @@
-import type { Page } from "playwright-core";
+import type { CDPSession, Page } from "playwright-core";
 import { getBrowser } from "./browser";
 import { CaptureError } from "./capture-error";
 import { REFUSED_HEADER, startGuardProxy, type GuardProxy } from "./guard-proxy";
@@ -6,6 +6,10 @@ import { CAPTURE_LIMITS } from "./types";
 
 const VIEWPORT_HEIGHT = 900;
 const JPEG_QUALITY = 80;
+/** Lower quality used once the image has to shrink anyway. */
+const SCALED_QUALITY = 70;
+/** Smallest render scale; a 2560 x 16000 page of pure noise fits at 0.5. */
+const MIN_SCALE = 0.25;
 const LOAD_WAIT_MS = 10_000;
 const IDLE_WAIT_MS = 2_500;
 /** Upper bound for any single page step; the caller's signal ends the whole capture sooner. */
@@ -14,8 +18,11 @@ const STEP_TIMEOUT_MS = 25_000;
 export interface CapturedImage {
   body: Uint8Array<ArrayBuffer>;
   contentType: string;
+  /** Page size in CSS px. */
   width: number;
   height: number;
+  /** Image px per page px: 1 unless the page was rendered smaller to fit `CAPTURE_LIMITS.maxBytes`. */
+  scale: number;
 }
 
 /**
@@ -56,18 +63,55 @@ async function load(page: Page, url: URL, proxy: GuardProxy): Promise<void> {
   await page.waitForLoadState("networkidle", { timeout: IDLE_WAIT_MS }).catch(() => undefined);
 }
 
+/** Freezes animations, transitions and the caret, so the picture is the page at rest. */
+const FREEZE_CSS = `*, *::before, *::after {
+  animation-play-state: paused !important;
+  animation-delay: -1ms !important;
+  animation-duration: 1ms !important;
+  transition: none !important;
+  caret-color: transparent !important;
+}`;
+
+/**
+ * Renders the page at `scale` as a JPEG through Chromium's own screenshot
+ * call, which can render beyond the viewport at a fractional scale.
+ */
+async function render(
+  cdp: CDPSession,
+  width: number,
+  height: number,
+  scale: number,
+  quality: number,
+) {
+  const { data } = await cdp.send("Page.captureScreenshot", {
+    format: "jpeg",
+    quality,
+    captureBeyondViewport: true,
+    clip: { x: 0, y: 0, width, height, scale },
+  });
+  return Buffer.from(data, "base64");
+}
+
+/**
+ * The page as a JPEG of at most `CAPTURE_LIMITS.maxBytes`, so the response
+ * fits a Vercel Function (4.5 MB) without relying on streaming. Full size at
+ * quality 80 first; if that's too big, the render scale shrinks by the
+ * measured overshoot (byte count grows with pixel count) until it fits.
+ */
 async function shoot(page: Page, width: number): Promise<CapturedImage> {
   const pageHeight = Number(await page.evaluate(HEIGHT_SCRIPT));
   const height = Math.max(1, Math.min(CAPTURE_LIMITS.maxHeight, Math.round(pageHeight) || 1));
-  const shot = await page.screenshot({
-    type: "jpeg",
-    quality: JPEG_QUALITY,
-    fullPage: true,
-    clip: { x: 0, y: 0, width, height },
-    animations: "disabled",
-    caret: "hide",
-  });
-  return { body: new Uint8Array(shot), contentType: "image/jpeg", width, height };
+  await page.addStyleTag({ content: FREEZE_CSS }).catch(() => undefined);
+  const cdp = await page.context().newCDPSession(page);
+  let scale = 1;
+  let shot = await render(cdp, width, height, scale, JPEG_QUALITY);
+  while (shot.length > CAPTURE_LIMITS.maxBytes && scale > MIN_SCALE) {
+    const shrink = Math.sqrt(CAPTURE_LIMITS.maxBytes / shot.length) * 0.9;
+    scale = Math.max(MIN_SCALE, Math.floor(scale * shrink * 100) / 100);
+    shot = await render(cdp, width, height, scale, SCALED_QUALITY);
+  }
+  if (shot.length > CAPTURE_LIMITS.maxBytes) throw new CaptureError("failed");
+  return { body: new Uint8Array(shot), contentType: "image/jpeg", width, height, scale };
 }
 
 /**

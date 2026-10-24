@@ -19,6 +19,8 @@ export interface SharedSnapshot {
   height: number;
   createdAt: number;
   sourceUrl: string;
+  /** Image px per page px when the capture was rendered smaller; missing means 1. */
+  scale?: number;
 }
 
 export interface SharedComment {

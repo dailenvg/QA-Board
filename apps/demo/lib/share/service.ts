@@ -198,15 +198,61 @@ export async function pullChanges(
   return { snapshots: items(newSnapshots), comments: items(newComments), cursor };
 }
 
-/** An owner upload: only blobs the share's data points at are accepted. */
+export interface UploadProgress {
+  key: string;
+  /** True once the whole image is stored. */
+  complete: boolean;
+  /** Bytes received so far (the whole image once complete). */
+  size: number;
+}
+
+function joinParts(parts: ReadonlyArray<{ bytes: Uint8Array }>): Uint8Array {
+  const joined = new Uint8Array(parts.reduce((sum, part) => sum + part.bytes.length, 0));
+  let offset = 0;
+  for (const { bytes } of parts) {
+    joined.set(bytes, offset);
+    offset += bytes.length;
+  }
+  return joined;
+}
+
+/**
+ * An owner upload, whole (`parts` 1) or as part `part` of `parts`, each at
+ * most `SHARE_LIMITS.transferBytes`. Parts are kept until the last one
+ * arrives, then joined and checked like a whole upload. Part 0 starts over.
+ * Only blobs the share's data points at are accepted.
+ */
 export async function putOwnerBlob(
   services: ShareServices,
   share: ShareRecord,
   key: string,
   bytes: Uint8Array,
-): Promise<Outcome<{ key: string; size: number }>> {
-  if (!(await currentKeys(services.store, share)).has(key)) return fail(422, "not-referenced");
-  return storeBlob(services, share, key, bytes);
+  { part, parts }: { part: number; parts: number } = { part: 0, parts: 1 },
+): Promise<Outcome<UploadProgress>> {
+  const { store } = services;
+  if (!(await currentKeys(store, share)).has(key)) return fail(422, "not-referenced");
+  const limit = SHARE_LIMITS.blobBytes[blobKind(key)];
+  const maxParts = Math.ceil(limit / SHARE_LIMITS.transferBytes);
+  if (!(parts >= 1 && parts <= maxParts && part >= 0 && part < parts)) return fail(400, "bad-part");
+  if (bytes.length > SHARE_LIMITS.transferBytes) return fail(413, "too-large");
+  if (parts === 1) {
+    const stored = await storeBlob(services, share, key, bytes);
+    return stored.ok ? ok({ key, complete: true, size: stored.value.size }) : stored;
+  }
+  if (part === 0) await store.deleteBlobParts(share.id, key);
+  await store.putBlobPart(share.id, key, part, bytes);
+  const received = await store.blobParts(share.id, key);
+  const size = received.reduce((sum, entry) => sum + entry.bytes.length, 0);
+  if (size > limit) {
+    await store.deleteBlobParts(share.id, key);
+    return fail(413, "too-large");
+  }
+  const complete =
+    received.length === parts && received.every((entry, index) => entry.part === index);
+  if (!complete) return ok({ key, complete: false, size });
+  await store.deleteBlobParts(share.id, key);
+  const stored = await storeBlob(services, share, key, joinParts(received));
+  return stored.ok ? ok({ key, complete: true, size: stored.value.size }) : stored;
 }
 
 /** Deletes the share, its rows and its blob files. The link stops working at once. */
@@ -290,6 +336,7 @@ export async function captureForClient(
     height: image.height,
     createdAt: now,
     sourceUrl: source.url,
+    ...(image.scale < 1 ? { scale: image.scale } : {}),
   };
   await services.store.upsertSnapshot(share.id, snapshot, "client");
   const stored = await storeBlob(services, share, `snapshot:${snapshot.id}`, image.body);

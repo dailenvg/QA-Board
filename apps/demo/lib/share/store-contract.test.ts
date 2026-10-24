@@ -81,6 +81,20 @@ describe.each(stores)("%s share store", (_name, make) => {
     expect(await store.snapshots(RECORD.id)).toEqual([]);
   });
 
+  it("keeps upload parts in order until they're deleted", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    await store.putBlobPart(RECORD.id, "snapshot:snap-1", 1, new Uint8Array([3, 4]));
+    await store.putBlobPart(RECORD.id, "snapshot:snap-1", 0, new Uint8Array([1, 2]));
+    const parts = await store.blobParts(RECORD.id, "snapshot:snap-1");
+    expect(parts.map(({ part, bytes }) => [part, [...bytes]])).toEqual([
+      [0, [1, 2]],
+      [1, [3, 4]],
+    ]);
+    await store.deleteBlobParts(RECORD.id, "snapshot:snap-1");
+    expect(await store.blobParts(RECORD.id, "snapshot:snap-1")).toEqual([]);
+  });
+
   it("removes a share with everything under it", async () => {
     const store = await make();
     await store.create(RECORD);
@@ -102,7 +116,7 @@ describe.each(stores)("%s share store", (_name, make) => {
 describe("migrate", () => {
   it("is idempotent", async () => {
     const db = adapt(new PGlite());
-    expect(await migrate(db)).toEqual(["001_squint_shares"]);
+    expect(await migrate(db)).toEqual(["001_squint_shares", "002_squint_share_blob_parts"]);
     expect(await migrate(db)).toEqual([]);
   });
 });

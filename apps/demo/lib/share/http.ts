@@ -93,14 +93,55 @@ export async function readJson<T>(request: Request, schema: z.ZodType<T>): Promi
   return validate(schema, value);
 }
 
-/** Image bytes for a browser: private, never cached, never sniffed, inert if opened directly. */
-export function imageResponse(bytes: Uint8Array, contentType: string): Response {
-  return new Response(new Uint8Array(bytes), {
+const IMAGE_HEADERS = {
+  "cache-control": "private, no-store",
+  "x-content-type-options": "nosniff",
+  "content-security-policy": "default-src 'none'; sandbox",
+  "accept-ranges": "bytes",
+};
+
+/** `bytes=<start>-<end?>` from a Range header; null when absent or not a single plain range. */
+export function parseRange(
+  header: string | null,
+  total: number,
+): { start: number; end: number } | null {
+  const match = /^bytes=(\d+)-(\d*)$/.exec(header?.trim() ?? "");
+  if (!match?.[1]) return null;
+  const start = Number(match[1]);
+  const end = match[2] ? Number(match[2]) : total - 1;
+  return start <= end && start < total ? { start, end: Math.min(end, total - 1) } : null;
+}
+
+/**
+ * Image bytes for a browser: private, never cached, never sniffed, inert if
+ * opened directly. A `Range` request gets at most `SHARE_LIMITS.transferBytes`
+ * (206), so big images download in parts under Vercel's 4.5 MB response limit.
+ */
+export function imageResponse(
+  bytes: Uint8Array,
+  contentType: string,
+  range: string | null,
+): Response {
+  const total = bytes.length;
+  const wanted = parseRange(range, total);
+  if (range && !wanted && total > 0) {
+    return new Response(null, {
+      status: 416,
+      headers: { ...IMAGE_HEADERS, "content-range": `bytes */${total}` },
+    });
+  }
+  if (!wanted) {
+    return new Response(new Uint8Array(bytes), {
+      headers: { ...IMAGE_HEADERS, "content-type": contentType },
+    });
+  }
+  const end = Math.min(wanted.end, wanted.start + SHARE_LIMITS.transferBytes - 1);
+  return new Response(bytes.slice(wanted.start, end + 1), {
+    status: 206,
     headers: {
+      ...IMAGE_HEADERS,
       "content-type": contentType,
-      "cache-control": "private, no-store",
-      "x-content-type-options": "nosniff",
-      "content-security-policy": "default-src 'none'; sandbox",
+      "content-range": `bytes ${wanted.start}-${end}/${total}`,
     },
   });
 }

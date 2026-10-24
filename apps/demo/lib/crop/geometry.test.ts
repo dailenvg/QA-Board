@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_CROP_EDGE, planCrop } from "./geometry";
+import { MAX_CROP_EDGE, planCrop, toPagePx } from "./geometry";
 
 /** A 1000 × 4000 px snapshot drawn at half size, scrolled so its top 400px are above the view. */
 const base = {
@@ -43,5 +43,18 @@ describe("planCrop", () => {
     expect(
       planCrop({ ...base, image: { ...base.image, width: 0 }, pin: { x: 1, y: 1 } }),
     ).toBeNull();
+  });
+});
+
+describe("toPagePx", () => {
+  it("maps a crop on a half-size snapshot back to page px", () => {
+    expect(toPagePx({ x: 10, y: 400, width: 640, height: 400 }, 0.5)).toEqual({
+      x: 20,
+      y: 800,
+      width: 1280,
+      height: 800,
+    });
+    const rect = { x: 1, y: 2, width: 3, height: 4 };
+    expect(toPagePx(rect, 1)).toBe(rect);
   });
 });

@@ -2,7 +2,8 @@ import type { CaptureFailure } from "./messages";
 import { CAPTURE_HEADERS, isCaptureErrorCode } from "./types";
 
 export type CaptureResult =
-  { ok: true; blob: Blob; width: number; height: number } | { ok: false; failure: CaptureFailure };
+  | { ok: true; blob: Blob; width: number; height: number; scale: number }
+  | { ok: false; failure: CaptureFailure };
 
 async function failureOf(response: Response): Promise<CaptureFailure> {
   const body: unknown = await response.json().catch(() => null);
@@ -39,5 +40,12 @@ export async function requestCapture(
   if (!blob?.type.startsWith("image/") || !pageWidth || !pageHeight) {
     return { ok: false, failure: "failed" };
   }
-  return { ok: true, blob, width: pageWidth, height: pageHeight };
+  const scale = Number(response.headers.get(CAPTURE_HEADERS.scale) ?? 1);
+  return {
+    ok: true,
+    blob,
+    width: pageWidth,
+    height: pageHeight,
+    scale: scale > 0 && scale <= 1 ? scale : 1,
+  };
 }

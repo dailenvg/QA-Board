@@ -139,11 +139,62 @@ describe("blob rules", () => {
     snapshot.set(JPEG);
     const many = Array.from({ length: 6 }, (_, index) => ({ ...SNAPSHOT, id: `s${index}` }));
     await pushState(services, share, { ...STATE, snapshots: many }, 0, 200);
+    const half = SHARE_LIMITS.blobBytes.snapshot / 2;
     const results = [];
-    for (const item of many)
-      results.push((await putOwnerBlob(services, share, `snapshot:${item.id}`, snapshot)).ok);
+    for (const item of many) {
+      const key = `snapshot:${item.id}`;
+      await putOwnerBlob(services, share, key, snapshot.slice(0, half), { part: 0, parts: 2 });
+      results.push(
+        (await putOwnerBlob(services, share, key, snapshot.slice(half), { part: 1, parts: 2 })).ok,
+      );
+    }
     // Five 8 MB snapshots fill the 40 MB share exactly; the sixth is refused.
     expect(results).toEqual([true, true, true, true, true, false]);
+  });
+});
+
+describe("uploads in parts", () => {
+  it("joins parts in order once the last one arrives", async () => {
+    const { services, share } = await shared();
+    const first = new Uint8Array([...JPEG, 1, 2, 3]);
+    const second = new Uint8Array([4, 5, 6]);
+    expect(
+      await putOwnerBlob(services, share, "snapshot:snap-1", first, { part: 0, parts: 2 }),
+    ).toMatchObject({
+      ok: true,
+      value: { complete: false, size: first.length },
+    });
+    expect(await readBlob(services, share, "snapshot:snap-1")).toBeNull();
+    expect(
+      await putOwnerBlob(services, share, "snapshot:snap-1", second, { part: 1, parts: 2 }),
+    ).toMatchObject({
+      ok: true,
+      value: { complete: true, size: first.length + second.length },
+    });
+    const stored = await readBlob(services, share, "snapshot:snap-1");
+    expect([...(stored?.bytes ?? [])]).toEqual([...first, ...second]);
+  });
+
+  it("refuses impossible part numbers and oversized totals", async () => {
+    const { services, share } = await shared();
+    expect(
+      await putOwnerBlob(services, share, "crop:c-1", PNG, { part: 2, parts: 2 }),
+    ).toMatchObject({ status: 400 });
+    // A crop is at most 2 MB, so it never needs more than one 4 MB part.
+    expect(
+      await putOwnerBlob(services, share, "crop:c-1", PNG, { part: 0, parts: 2 }),
+    ).toMatchObject({ status: 400 });
+    const big = new Uint8Array(SHARE_LIMITS.transferBytes);
+    big.set(JPEG);
+    await putOwnerBlob(services, share, "snapshot:snap-1", big, { part: 0, parts: 2 });
+    expect(
+      await putOwnerBlob(services, share, "snapshot:snap-1", big, { part: 1, parts: 2 }),
+    ).toMatchObject({ ok: true });
+    const tooBig = await putOwnerBlob(services, share, "snapshot:snap-1", big, {
+      part: 2,
+      parts: 3,
+    });
+    expect(tooBig).toMatchObject({ status: 400 });
   });
 });
 
@@ -186,6 +237,7 @@ describe("client writes", () => {
         contentType: "image/jpeg",
         width,
         height: 900,
+        scale: 1,
       });
     };
     const added = await captureForClient(services, share, 1024, capture, 200);

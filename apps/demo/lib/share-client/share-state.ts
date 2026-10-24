@@ -22,8 +22,15 @@ function sharedComment(comment: Comment): SharedComment {
   };
 }
 
-function sharedSnapshot({ id, width, height, createdAt, sourceUrl }: Snapshot): SharedSnapshot {
-  return { id, width, height, createdAt, sourceUrl };
+function sharedSnapshot({
+  id,
+  width,
+  height,
+  createdAt,
+  sourceUrl,
+  scale,
+}: Snapshot): SharedSnapshot {
+  return { id, width, height, createdAt, sourceUrl, ...(scale !== undefined ? { scale } : {}) };
 }
 
 /** What the owner pushes: the project's metadata, snapshots and comments, without local keys. */
