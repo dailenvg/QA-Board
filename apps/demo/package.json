@@ -9,14 +9,17 @@
     "start": "next start",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "test:e2e": "playwright test"
   },
   "dependencies": {
     "@pinpoint/server": "workspace:*",
     "@pinpoint/widget": "workspace:*",
+    "@sparticuz/chromium": "^153.0.0",
     "motion": "^14.6.0",
     "next": "15.5.28",
     "pg": "^8.23.1",
+    "playwright-core": "1.64.1",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },
@@ -28,6 +31,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "tailwindcss": "^4.3.3",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.5"
   }
 }
