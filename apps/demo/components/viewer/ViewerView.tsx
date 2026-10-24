@@ -48,7 +48,7 @@ interface ViewerViewProps {
   draftStorage?: DraftStorage;
 }
 
-const RESTORED = "This comment wasn't sent before the page closed. Post it now, or cancel it.";
+const RESTORED = "This comment wasn't sent before the page closed. Retry to post it, or cancel it.";
 
 /** A draft kept from before a reload, shown as unsent until it's posted. */
 function restoreDraft(storage: DraftStorage | undefined): Draft | null {

@@ -20,12 +20,12 @@ const NOT_SENT: Record<number, string> = {
   413: "Your comment wasn't sent: its screenshot is too large. Retry to send it again.",
   429: "Your comment wasn't sent: too many comments in a short time. Wait a moment, then retry.",
 };
-/** 413 with room for no more images: the share is at its 40 MB limit. */
+/** 413 on a comment: the share holds its maximum of comments, or its 40 MB of images. */
 const SHARE_FULL =
-  "Your comment wasn't sent: this review is out of space for screenshots. Ask the project owner to make room, then retry.";
-/** 413 on a capture: the share holds its maximum of snapshots (or bytes). */
+  "Your comment wasn't sent: this review is out of space for new comments. Ask the project owner to make room, then retry.";
+/** 413 on a capture: the share holds its maximum of snapshots, or its 40 MB of images. */
 const SNAPSHOTS_FULL =
-  "This review is out of space for snapshots. Ask the project owner to make room, then retry.";
+  "This review is out of space for new snapshots. Comment on the current snapshot, or ask the project owner to make room.";
 const NOT_SENT_DEFAULT = "Your comment wasn't sent. Retry in a moment.";
 
 interface ClientBackendOptions {

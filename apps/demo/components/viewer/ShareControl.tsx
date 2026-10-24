@@ -113,7 +113,7 @@ export function ShareControl({ data, project }: ShareControlProps) {
           onClick={() => syncNow(project.id)}
           className="text-danger max-sm:size-11 max-sm:px-0"
           // Named by its text (sr-only on phones), so the spoken name matches the visible one.
-          title="Changes haven't reached the share link yet"
+          title="The share link isn't in sync yet"
           data-testid="sync-retry"
         >
           <Icon name="alert" className="size-4" />
