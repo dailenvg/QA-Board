@@ -1,0 +1,40 @@
+.squint-mascot {
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  border-radius: 32%;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.squint-mascot[data-interactive] {
+  cursor: pointer;
+}
+
+.squint-mascot[data-draggable] {
+  cursor: grab;
+  touch-action: none;
+}
+
+.squint-mascot[data-draggable]:active {
+  cursor: grabbing;
+}
+
+.squint-mascot:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 8px;
+}
+
+.squint-mascot svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}

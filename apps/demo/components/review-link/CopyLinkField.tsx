@@ -3,7 +3,7 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useId, useRef, useState } from "react";
 import { duration, press } from "@/lib/motion";
-import { BUTTON_BASE } from "../ui/ButtonLink";
+import { buttonClass } from "../ui/button-styles";
 import { Icon, type IconName } from "../ui/Icon";
 
 type CopyState = "idle" | "copied" | "error";
@@ -53,8 +53,8 @@ export function CopyLinkField({ url }: CopyLinkFieldProps) {
   const label = LABELS[state];
 
   return (
-    <div className="mt-10">
-      <label htmlFor={inputId} className="text-small font-semibold">
+    <div className="mt-8">
+      <label htmlFor={inputId} className="text-body font-semibold">
         Shareable review link
       </label>
       <div className="mt-3 flex flex-col gap-3 sm:flex-row">
@@ -66,16 +66,12 @@ export function CopyLinkField({ url }: CopyLinkFieldProps) {
           readOnly
           value={url}
           onFocus={(event) => event.currentTarget.select()}
-          className="min-h-12 flex-1 rounded-tile bg-raised px-4 font-mono text-small ring-1 ring-rule-strong ring-inset focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+          className="min-h-12 flex-1 rounded-field bg-card px-4 font-mono text-body ring-1 ring-field-line ring-inset focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
         />
         <motion.button
           type="button"
           onClick={() => void copy()}
-          className={`${BUTTON_BASE} min-w-40 ${
-            state === "error"
-              ? "bg-ink text-paper"
-              : "bg-accent text-on-accent hover:bg-accent-hover"
-          }`}
+          className={`${buttonClass(state === "error" ? "inverse" : "primary")} min-h-12 min-w-40`}
           {...(reduce ? {} : press)}
         >
           <AnimatePresence mode="wait" initial={false}>
@@ -94,7 +90,7 @@ export function CopyLinkField({ url }: CopyLinkFieldProps) {
         </motion.button>
       </div>
       {state === "error" ? (
-        <p id={hintId} className="mt-3 text-small text-muted" data-testid="copy-fallback-hint">
+        <p id={hintId} className="mt-3 text-meta text-muted" data-testid="copy-fallback-hint">
           Copying was blocked. The link is selected: press Ctrl/⌘+C to copy.
         </p>
       ) : null}
@@ -102,12 +98,12 @@ export function CopyLinkField({ url }: CopyLinkFieldProps) {
         {state === "copied"
           ? "Link copied to clipboard"
           : state === "error"
-            ? "Could not copy automatically. The link is selected; press Control or Command plus C to copy."
+            ? "Couldn't copy automatically. The link is selected, so press Control or Command plus C to copy it."
             : ""}
       </p>
       <a
         href={url}
-        className="mt-4 inline-flex min-h-11 items-center gap-2 text-small font-medium text-accent hover:underline"
+        className="mt-4 inline-flex min-h-11 items-center gap-2 text-body font-semibold text-brand-text hover:underline"
       >
         Open the preview with this link
         <Icon name="external" className="size-4" />

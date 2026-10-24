@@ -1,149 +1,289 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 /*
- * Editorial precision: warm paper, ink, hairline rules, and the same
- * signal orange as the pinpoint widget. Semantic tokens switch for dark mode;
- * components only ever reference the Tailwind theme names below.
+ * Squint: soft zinc neutrals, floating panels with large radii, one cobalt
+ * accent and three status hues. Light is the default; `data-theme="dark"` on
+ * <html> swaps every token. Components reference the Tailwind names below only.
  */
 :root {
-  --paper: #f7f5f0;
-  --paper-raised: #ffffff;
-  --paper-sunken: #efece5;
-  --ink: #141413;
-  --ink-muted: #5c5a55;
-  --rule: rgb(20 20 19 / 0.12);
-  --rule-strong: rgb(20 20 19 / 0.24);
-  --accent: #c2410c;
-  --accent-hover: #a8380a;
-  /* Accent for small text: #c2410c is 4.45:1 on --paper-sunken; this is 5.5:1. */
-  --accent-text: #a8380a;
-  --on-accent: #ffffff;
-  --accent-soft: rgb(194 65 12 / 0.1);
-  --shadow-soft: 0 1px 2px rgb(20 20 19 / 0.05), 0 16px 40px -12px rgb(20 20 19 / 0.16);
-  --shadow-lift: 0 2px 4px rgb(20 20 19 / 0.06), 0 28px 60px -16px rgb(20 20 19 / 0.24);
+  --bg: #e7e7ea;
+  --panel: #f4f4f5;
+  --card: #ffffff;
+  --tile: #ededef;
+  --line: #e4e4e7;
+  --line-strong: #d4d4d8;
+  /* Form field outlines (WCAG 1.4.11): 3.4:1 on --card, 3.1:1 on --panel. */
+  --field-line: #8a8a93;
+  --hover: #ebebee;
+  --seg: #e4e4e7;
+  --seg-on: #ffffff;
+  --ink: #18181b;
+  --ink-2: #3f3f46;
+  /* #71717a fails AA on --bg; this reads 4.9:1 on --bg and 5.2:1 on --tile. */
+  --muted: #62626b;
+  --inv: #18181b;
+  --on-inv: #ffffff;
+  --scrim: rgb(24 24 27 / 0.4);
+
+  --brand: #0c54cc;
+  --brand-hover: #0a47ad;
+  --brand-text: #0c54cc;
+  --brand-soft: rgb(12 84 204 / 0.1);
+  --on-brand: #ffffff;
+  --highlight: #d8fc6c;
+  --on-highlight: #18181b;
+  --focus: #0c54cc;
+
+  --ready: #48c0f0;
+  --ready-soft: rgb(72 192 240 / 0.16);
+  --ready-text: #0a6a90;
+  --comments: #f0543c;
+  --comments-soft: rgb(240 84 60 / 0.14);
+  --comments-text: #b32f19;
+  --resolved: #0ca86c;
+  --resolved-soft: rgb(12 168 108 / 0.14);
+  --resolved-text: #06714a;
+  --resolved-pin: #06714a;
+
+  --danger: #b32f19;
+  --danger-soft: rgb(240 84 60 / 0.12);
+
+  /*
+   * Pins and favicons sit on arbitrary site and image content, so these stay
+   * the same in both themes: a white halo and a near-black band keep markers
+   * and their focus/selection rings visible on any background.
+   */
+  --pin-halo: #ffffff;
+  --pin-band: #18181b;
+  --pin-focus: #0c54cc;
+  --favicon-bg: #ffffff;
+
+  --shadow-seg: 0 1px 2px rgb(0 0 0 / 0.12);
+  --shadow-float: 0 20px 40px -24px rgb(0 0 0 / 0.35);
+  --shadow-pop: 0 10px 30px -10px rgb(0 0 0 / 0.4);
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
+[data-theme="dark"] {
+  --bg: #0c0c0e;
+  --panel: #161618;
+  --card: #1f1f22;
+  --tile: #18181b;
+  --line: #2c2c30;
+  --line-strong: #3a3a3f;
+  /* 3.1:1 on --card, 3.4:1 on --panel. */
+  --field-line: #6b6b73;
+  --hover: #26262a;
+  --seg: #26262a;
+  --seg-on: #3a3a3f;
+  --ink: #f4f4f5;
+  --ink-2: #d4d4d8;
+  --muted: #a8a8b0;
+  --inv: #f4f4f5;
+  --on-inv: #18181b;
+  --scrim: rgb(0 0 0 / 0.6);
+
+  --brand-hover: #2d6be4;
+  --brand-text: #8db2ff;
+  --brand-soft: rgb(141 178 255 / 0.14);
+  --focus: #8db2ff;
+
+  --ready-soft: rgb(72 192 240 / 0.18);
+  --ready-text: #7fd4f7;
+  --comments-soft: rgb(240 84 60 / 0.18);
+  --comments-text: #ff9580;
+  --resolved-soft: rgb(12 168 108 / 0.18);
+  --resolved-text: #4cd9a1;
+
+  --danger: #ff9580;
+  --danger-soft: rgb(240 84 60 / 0.18);
+
+  --shadow-seg: 0 1px 2px rgb(0 0 0 / 0.5);
+  --shadow-float: 0 20px 40px -24px rgb(0 0 0 / 0.8);
+  --shadow-pop: 0 10px 30px -10px rgb(0 0 0 / 0.7);
+  color-scheme: dark;
+}
+
+/*
+ * Phones: body and nav text step up to 16px so reading text meets the 16px
+ * mobile minimum and iOS doesn't zoom into focused fields (it does below 16px).
+ */
+@media (max-width: 39.999rem) {
   :root {
-    --paper: #121211;
-    --paper-raised: #1b1b1a;
-    --paper-sunken: #0d0d0c;
-    --ink: #f3f1ec;
-    --ink-muted: #a8a59e;
-    --rule: rgb(243 241 236 / 0.12);
-    --rule-strong: rgb(243 241 236 / 0.26);
-    --accent: #ff8a4c;
-    --accent-hover: #ff9d66;
-    --accent-text: #ff8a4c;
-    --on-accent: #1a0f0a;
-    --accent-soft: rgb(255 138 76 / 0.14);
-    --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.4), 0 16px 40px -12px rgb(0 0 0 / 0.6);
-    --shadow-lift: 0 2px 4px rgb(0 0 0 / 0.4), 0 28px 60px -16px rgb(0 0 0 / 0.7);
-    color-scheme: dark;
+    --text-body: 1rem;
+    --text-nav: 1rem;
   }
 }
 
 @theme inline {
-  --color-paper: var(--paper);
-  --color-raised: var(--paper-raised);
-  --color-sunken: var(--paper-sunken);
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-card: var(--card);
+  --color-tile: var(--tile);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-field-line: var(--field-line);
+  --color-hover: var(--hover);
+  --color-seg: var(--seg);
+  --color-seg-on: var(--seg-on);
   --color-ink: var(--ink);
-  --color-muted: var(--ink-muted);
-  --color-rule: var(--rule);
-  --color-rule-strong: var(--rule-strong);
-  --color-accent: var(--accent);
-  --color-accent-hover: var(--accent-hover);
-  --color-accent-text: var(--accent-text);
-  --color-on-accent: var(--on-accent);
-  --color-accent-soft: var(--accent-soft);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-inv: var(--inv);
+  --color-on-inv: var(--on-inv);
+  --color-scrim: var(--scrim);
 
-  --font-display: var(--font-instrument-serif), ui-serif, Georgia, serif;
-  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-text: var(--brand-text);
+  --color-brand-soft: var(--brand-soft);
+  --color-on-brand: var(--on-brand);
+  --color-highlight: var(--highlight);
+  --color-on-highlight: var(--on-highlight);
+  --color-focus: var(--focus);
 
-  --shadow-soft: var(--shadow-soft);
-  --shadow-lift: var(--shadow-lift);
+  --color-ready: var(--ready);
+  --color-ready-soft: var(--ready-soft);
+  --color-ready-text: var(--ready-text);
+  --color-comments: var(--comments);
+  --color-comments-soft: var(--comments-soft);
+  --color-comments-text: var(--comments-text);
+  --color-resolved: var(--resolved);
+  --color-resolved-soft: var(--resolved-soft);
+  --color-resolved-text: var(--resolved-text);
+  --color-resolved-pin: var(--resolved-pin);
+
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
+  --color-pin-halo: var(--pin-halo);
+  --color-pin-band: var(--pin-band);
+  --color-pin-focus: var(--pin-focus);
+  --color-favicon-bg: var(--favicon-bg);
+
+  --shadow-seg: var(--shadow-seg);
+  --shadow-float: var(--shadow-float);
+  --shadow-pop: var(--shadow-pop);
+
+  --font-sans: var(--font-figtree), Helvetica, Arial, ui-sans-serif, system-ui, sans-serif;
 }
 
 @theme {
-  /* Fluid type scale. Every size on the site comes from this list. */
-  --text-display: clamp(3.25rem, 1.9rem + 6vw, 8rem);
-  --text-display--line-height: 0.92;
-  --text-display--letter-spacing: -0.02em;
-  --text-h2: clamp(2.5rem, 1.7rem + 3.4vw, 4.75rem);
-  --text-h2--line-height: 0.98;
-  --text-h2--letter-spacing: -0.015em;
-  --text-h3: clamp(1.5rem, 1.3rem + 0.8vw, 2rem);
-  --text-h3--line-height: 1.1;
-  --text-lead: clamp(1.125rem, 1.02rem + 0.45vw, 1.375rem);
-  --text-lead--line-height: 1.5;
-  --text-body: 1rem;
-  --text-body--line-height: 1.6;
-  --text-small: 0.875rem;
-  --text-small--line-height: 1.5;
+  /* Type scale. Every size in the app comes from this list. */
+  /* Capped at 32px: the design reference tops out at 24px titles beside 15px nav. */
+  --text-display: clamp(1.625rem, 1.3rem + 1vw, 2rem);
+  --text-display--line-height: 1.1;
+  --text-display--letter-spacing: -0.01em;
+  --text-title: clamp(1.25rem, 1.1rem + 0.6vw, 1.5rem);
+  --text-title--line-height: 1.25;
+  --text-heading: 1rem;
+  --text-heading--line-height: 1.375;
+  --text-nav: 0.9375rem;
+  --text-nav--line-height: 1.35;
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.45;
+  --text-meta: 0.8125rem;
+  --text-meta--line-height: 1.4;
   --text-label: 0.75rem;
   --text-label--line-height: 1.3;
-  --text-label--letter-spacing: 0.12em;
+  --text-kbd: 0.6875rem;
+  --text-kbd--line-height: 1.3;
 
-  --spacing-section: clamp(5rem, 3.5rem + 6vw, 10rem);
-  --spacing-gutter: clamp(1.25rem, 0.75rem + 2.5vw, 3rem);
+  --spacing-gutter: 1rem;
+  --spacing-sidebar: 17.5rem;
+  --spacing-panel: 22.5rem;
 
-  /* Radius scale: cards, inner tiles and fields, pill controls, and the pin glyph. */
-  --radius-card: 1.75rem;
-  --radius-tile: 0.875rem;
-  --radius-control: 999px;
+  /* Radius scale: floating panels, cards, inner tiles, nav rows, fields, kbd, pills. */
+  --radius-panel: 1.5rem;
+  --radius-card: 1.25rem;
+  --radius-tile: 1rem;
+  --radius-row: 0.875rem;
+  --radius-field: 0.75rem;
+  --radius-kbd: 0.375rem;
+  --radius-pill: 999px;
   --radius-pin: 1rem 1rem 1rem 0.25rem;
 
   --breakpoint-3xl: 96rem;
 }
 
 @layer base {
-  html {
-    scroll-behavior: smooth;
-    scroll-padding-top: 6rem;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    html {
-      scroll-behavior: auto;
-    }
-  }
-
   body {
-    background: var(--color-paper);
+    background: var(--color-bg);
     color: var(--color-ink);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
   }
 
   ::selection {
-    background: var(--color-accent-soft);
+    background: var(--color-brand-soft);
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-accent);
-    outline-offset: 3px;
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  /* Motion's JS animations collapse via useReducedMotion; this covers CSS color/shadow transitions and smooth scrolling. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /*
+   * Pin marker over arbitrary content. A white halo separates it from any
+   * background; selection adds a lime ring with a dark band outside it, and
+   * keyboard focus a cobalt ring between two white bands, so both states read
+   * on light, dark and busy content alike.
+   */
+  .pin-marker {
+    box-shadow:
+      0 0 0 2px var(--pin-halo),
+      var(--shadow-pop);
+  }
+
+  .pin-marker[data-selected] {
+    outline: 3px solid var(--highlight);
+    outline-offset: 2px;
+    box-shadow:
+      0 0 0 2px var(--pin-halo),
+      0 0 0 7px var(--pin-band),
+      var(--shadow-pop);
+  }
+
+  button:focus-visible > .pin-marker {
+    outline: 2px solid var(--pin-focus);
+    outline-offset: 2px;
+    box-shadow:
+      0 0 0 2px var(--pin-halo),
+      0 0 0 6px var(--pin-halo),
+      var(--shadow-pop);
   }
 }
 
 @utility container-page {
   margin-inline: auto;
   width: 100%;
-  max-width: 88rem;
-  padding-inline: var(--spacing-gutter);
+  max-width: 72rem;
+  padding-inline: clamp(1rem, 0.5rem + 2.5vw, 2.5rem);
 }
 
 @utility label-caps {
   font-size: var(--text-label);
   line-height: var(--text-label--line-height);
-  letter-spacing: var(--text-label--letter-spacing);
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   font-weight: 600;
-}
-
-@utility grid-paper {
-  background-image:
-    linear-gradient(var(--color-rule) 1px, transparent 1px),
-    linear-gradient(90deg, var(--color-rule) 1px, transparent 1px);
-  background-size: 40px 40px;
 }

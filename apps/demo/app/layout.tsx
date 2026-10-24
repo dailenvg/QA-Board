@@ -1,31 +1,26 @@
 import { PinpointProvider } from "@pinpoint/widget/next";
 import type { Metadata, Viewport } from "next";
-import { Geist, Instrument_Serif } from "next/font/google";
+import { Figtree } from "next/font/google";
 import type { ReactNode } from "react";
-import { SITE } from "@/lib/site";
+import { ToastProvider } from "@/components/ui/ToastProvider";
+import { THEME_COLOR, THEME_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
-const display = Instrument_Serif({
+const sans = Figtree({
   subsets: ["latin"],
-  weight: "400",
-  style: ["normal", "italic"],
-  variable: "--font-instrument-serif",
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-figtree",
   display: "swap",
 });
 
-const sans = Geist({ subsets: ["latin"], variable: "--font-geist", display: "swap" });
-
 export const metadata: Metadata = {
-  title: `${SITE.name} · ${SITE.tagline}`,
+  title: { default: "Squint", template: "%s · Squint" },
   description:
-    "Open source, self-hosted visual feedback for Vercel preview deployments. Click to pin a comment; it lands in the pull request.",
+    "Visual review for websites and images. Drop a pin anywhere, leave a comment, and resolve it when it's done.",
 };
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f7f5f0" },
-    { media: "(prefers-color-scheme: dark)", color: "#121211" },
-  ],
+  themeColor: THEME_COLOR.light,
 };
 
 /** `NEXT_PUBLIC_PINPOINT_ENABLED=1` forces the widget on outside Vercel previews (local dev). */
@@ -33,15 +28,21 @@ const forceWidget = process.env.NEXT_PUBLIC_PINPOINT_ENABLED === "1" ? true : un
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${display.variable} ${sans.variable}`}>
+    // The inline script may switch data-theme before hydration.
+    <html lang="en" data-theme="light" className={sans.variable} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className="min-h-dvh">
         <a
           href="#main"
-          className="sr-only rounded-control bg-accent px-5 py-3 text-on-accent focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50"
+          className="sr-only rounded-pill bg-brand px-5 py-3 font-semibold text-on-brand focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50"
         >
           Skip to content
         </a>
-        <PinpointProvider {...(forceWidget ? { enabled: true } : {})}>{children}</PinpointProvider>
+        <PinpointProvider {...(forceWidget ? { enabled: true } : {})}>
+          <ToastProvider>{children}</ToastProvider>
+        </PinpointProvider>
       </body>
     </html>
   );

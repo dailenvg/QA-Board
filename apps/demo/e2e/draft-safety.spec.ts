@@ -3,10 +3,10 @@ import { centre, openWithToken } from "./fixtures";
 
 test("an unsent draft survives page clicks and needs a second Escape to discard", async ({
   page,
-}, testInfo) => {
+}) => {
   const ui = await openWithToken(page);
   await ui.commentToggle.click();
-  const card = page.getByTestId("pricing-card-self-hosted");
+  const card = page.getByTestId("sample-card-starter");
   await centre(card);
   await card.click({ position: { x: 48, y: 48 } });
 
@@ -14,17 +14,11 @@ test("an unsent draft survives page clicks and needs a second Escape to discard"
   await comment.fill("Unsent thoughts about this card");
   const urlBefore = page.url();
 
-  // A page control that would normally act: the nav link on desktop, the menu toggle on mobile.
-  if (testInfo.project.name === "mobile") {
-    const menu = page.getByRole("button", { name: "Open menu" });
-    await menu.click();
-    await expect(menu).toHaveAttribute("aria-expanded", "false");
-  } else {
-    await page
-      .getByRole("navigation", { name: "Primary" })
-      .getByRole("link", { name: "FAQ" })
-      .click();
-  }
+  // An in-page link that would normally jump to its section.
+  await page
+    .getByRole("navigation", { name: "Primary" })
+    .getByRole("link", { name: "FAQ" })
+    .click();
 
   expect(page.url()).toBe(urlBefore);
   await expect(comment).toHaveValue("Unsent thoughts about this card");

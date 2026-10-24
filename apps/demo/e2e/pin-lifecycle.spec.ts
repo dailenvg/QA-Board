@@ -1,7 +1,16 @@
 import { expect, test } from "@playwright/test";
-import { centre, createPin, openCount, openWithToken, uniqueName, widget } from "./fixtures";
+import {
+  centre,
+  createPin,
+  openCount,
+  openWithToken,
+  SANDBOX_PATH,
+  TOKEN,
+  uniqueName,
+  widget,
+} from "./fixtures";
 
-test("drops a pin on a pricing card through comment mode", async ({ page }) => {
+test("drops a pin on a sample card through comment mode", async ({ page }) => {
   const ui = await openWithToken(page);
   const before = await openCount(page);
   const author = uniqueName("Ana");
@@ -9,7 +18,7 @@ test("drops a pin on a pricing card through comment mode", async ({ page }) => {
   await ui.commentToggle.click();
   await expect(ui.commentToggle).toHaveAttribute("aria-pressed", "true");
 
-  const card = page.getByTestId("pricing-card-team");
+  const card = page.getByTestId("sample-card-team");
   await centre(card);
   await card.click({ position: { x: 48, y: 48 } });
 
@@ -42,7 +51,7 @@ test("pins persist across reloads", async ({ page, request }) => {
   await createPin(request, {
     author,
     body: "Still here after reload?",
-    testId: "pricing-card-self-hosted",
+    testId: "sample-card-starter",
   });
 
   const ui = await openWithToken(page);
@@ -57,16 +66,14 @@ test("?pin=<id> scrolls to the pin and opens its thread", async ({ page, request
   const author = uniqueName("Deep");
   const pin = await createPin(request, {
     author,
-    body: "Deep-linked feedback on the Organization plan.",
-    testId: "pricing-card-organization",
+    body: "Deep-linked feedback on the Studio plan.",
+    testId: "sample-card-studio",
   });
 
-  await page.goto(`/?review=e2e-token&pin=${pin.id}`);
+  await page.goto(`${SANDBOX_PATH}?review=${TOKEN}&pin=${pin.id}`);
   const ui = widget(page);
 
-  await expect(
-    ui.popover.getByText("Deep-linked feedback on the Organization plan."),
-  ).toBeVisible();
+  await expect(ui.popover.getByText("Deep-linked feedback on the Studio plan.")).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`\\?pin=${pin.id}$`));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(200);
   await expect(ui.pinBy(author)).toBeInViewport();
@@ -77,10 +84,10 @@ test("reply, resolve, and reveal resolved pins with the toggle", async ({ page, 
   const pin = await createPin(request, {
     author,
     body: "Please tighten this copy.",
-    testId: "pricing-card-team",
+    testId: "sample-card-team",
   });
 
-  await page.goto(`/?review=e2e-token&pin=${pin.id}`);
+  await page.goto(`${SANDBOX_PATH}?review=${TOKEN}&pin=${pin.id}`);
   const ui = widget(page);
   await expect(ui.popover.getByText("Please tighten this copy.")).toBeVisible();
 

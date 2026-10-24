@@ -2,6 +2,9 @@ import { expect, type APIRequestContext, type Locator, type Page } from "@playwr
 
 export const TOKEN = "e2e-token";
 
+/** Static sample page that hosts the widget specs (the dashboard is client-rendered). */
+export const SANDBOX_PATH = "/sandbox";
+
 export interface PinSummary {
   id: string;
   author: string;
@@ -29,7 +32,7 @@ export function widget(page: Page) {
 
 /** Opens the page with the review token and waits until pins have loaded. */
 export async function openWithToken(page: Page, query = ""): Promise<ReturnType<typeof widget>> {
-  await page.goto(`/?review=${TOKEN}${query}`);
+  await page.goto(`${SANDBOX_PATH}?review=${TOKEN}${query}`);
   const ui = widget(page);
   await expect(ui.count).toBeVisible();
   return ui;
@@ -39,7 +42,7 @@ export async function openCount(page: Page): Promise<number> {
   return Number(await widget(page).count.textContent());
 }
 
-/** Creates a pin through the API, anchored to a pricing card. */
+/** Creates a pin through the API, anchored to a sandbox card. */
 export async function createPin(
   request: APIRequestContext,
   { author, body, testId }: { author: string; body: string; testId: string },
@@ -47,8 +50,8 @@ export async function createPin(
   const response = await request.post("/api/pinpoint", {
     headers: { "x-pinpoint-token": TOKEN },
     data: {
-      path: "/",
-      pageUrl: "http://127.0.0.1:3100/",
+      path: SANDBOX_PATH,
+      pageUrl: `http://127.0.0.1:3100${SANDBOX_PATH}`,
       anchor: {
         selector: `[data-testid="${testId}"]`,
         xPct: 20,
