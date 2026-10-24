@@ -39,8 +39,10 @@ interface ViewerViewProps {
   leading: ReactNode;
   /** Extra top-bar actions, such as the owner's Share button. */
   actions?: ReactNode;
-  /** Shown above the comment list, such as what a client can do on a shared link. */
+  /** Shown above the comment list on wide screens, such as what a client can do on a shared link. */
   panelNotice?: ReactNode;
+  /** Its short form, shown in the comments sheet's header on phones (visible while collapsed). */
+  panelNote?: string;
 }
 
 type ScrollRequest = { id: string; target: "pin" | "card"; nonce: number } | null;
@@ -50,7 +52,14 @@ type ScrollRequest = { id: string; target: "pin" | "card"; nonce: number } | nul
  * comment actions. Changes go through the viewer backend (the owner's store or
  * a shared link's server); on a shared link, moderation controls are hidden.
  */
-export function ViewerView({ data, project, leading, actions, panelNotice }: ViewerViewProps) {
+export function ViewerView({
+  data,
+  project,
+  leading,
+  actions,
+  panelNotice,
+  panelNote,
+}: ViewerViewProps) {
   const toast = useToast();
   const backend = useViewerBackend();
   const owner = backend.role === "owner";
@@ -244,6 +253,8 @@ export function ViewerView({ data, project, leading, actions, panelNotice }: Vie
       onDraftChange={(body) => setDraft((current) => (current ? { ...current, body } : current))}
       onDraftSubmit={(body, author) => void submitDraft(body, author)}
       onDraftCancel={() => {
+        // A draft being posted can't be cancelled: it would still arrive.
+        if (draft?.sending) return;
         setDraft(null);
         returnFocusToCanvas();
       }}
@@ -252,9 +263,12 @@ export function ViewerView({ data, project, leading, actions, panelNotice }: Vie
 
   // Room for the docked comments sheet's header, plus the home-indicator inset. Repeated at
   // `sm:` because `sm:p-4` would otherwise reset the bottom padding on tablets.
-  const sheetSpace = docked
-    ? "pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:pb-[calc(5.5rem+env(safe-area-inset-bottom))]"
-    : "";
+  const sheetNote = docked ? panelNote : undefined;
+  const sheetSpace = !docked
+    ? ""
+    : sheetNote
+      ? "pb-[calc(7rem+env(safe-area-inset-bottom))] sm:pb-[calc(7rem+env(safe-area-inset-bottom))]"
+      : "pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:pb-[calc(5.5rem+env(safe-area-inset-bottom))]";
   // The snapshot bar is sticky at the top of the canvas; keep focused and scrolled-to pins
   // below it rather than under it (WCAG 2.4.11).
   const scrollInset = surface.kind === "snapshot" ? "scroll-pt-28" : "";
@@ -324,8 +338,9 @@ export function ViewerView({ data, project, leading, actions, panelNotice }: Vie
           active={counts.active}
           resolved={counts.resolved}
           celebrating={celebrating}
+          note={sheetNote}
         >
-          {panelNotice ? (
+          {panelNotice && !docked ? (
             <div className="flex min-h-0 flex-1 flex-col gap-3">
               {panelNotice}
               {commentsBody}

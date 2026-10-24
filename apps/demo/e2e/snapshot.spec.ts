@@ -103,7 +103,12 @@ test("refreshing the snapshot keeps earlier comments on their own snapshot", asy
   await expect(pin).toHaveCount(0);
   await showComments(page);
   const card = onlyCommentCard(page);
-  await expect(card.getByTestId("placement-chip")).toHaveAttribute("data-placement", "earlier");
+  const chip = card.getByTestId("placement-chip");
+  await expect(chip).toHaveAttribute("data-placement", "earlier");
+  // The explanation is a tap away (no hover title), for touch too.
+  await chip.click();
+  await expect(chip).toHaveAttribute("aria-expanded", "true");
+  await expect(card.getByTestId("placement-hint")).toBeVisible();
 
   await card.getByRole("button", { name: /Comment 1 by Ana/ }).click();
   const bar = page.getByTestId("snapshot-bar");

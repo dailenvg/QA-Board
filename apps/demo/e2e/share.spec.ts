@@ -32,6 +32,7 @@ test("an owner shares a project, a client comments, and the owner resolves and r
   page,
   browser,
   baseURL,
+  isMobile,
 }) => {
   const frame = { verdict: "embeddable" as const, finalUrl: `${baseURL}/sandbox`, status: 200 };
   await mockFrameCheck(page, frame);
@@ -53,6 +54,7 @@ test("an owner shares a project, a client comments, and the owner resolves and r
   await dialog.getByTestId("create-share-link").click();
   const urlField = dialog.getByTestId("share-url");
   await expect(urlField).toHaveValue(/\/s\/[A-Za-z0-9_-]{43}$/);
+  await expect(dialog.getByRole("status").filter({ hasText: "Link created." })).toHaveCount(1);
   const link = await urlField.inputValue();
   await expect(dialog.getByTestId("sync-status")).toContainText("Synced");
   await page.keyboard.press("Escape");
@@ -71,6 +73,9 @@ test("an owner shares a project, a client comments, and the owner resolves and r
   await expect(client.getByRole("heading", { level: 1, name: "Launch review" })).toBeVisible();
   await expectNoWorkspaceLinks(client);
   await expect(client.getByTestId("share-button")).toHaveCount(0);
+  // What clients can do: in the sheet's header on phones (seen collapsed), above the list elsewhere.
+  if (isMobile) await expect(client.getByTestId("panel-note")).toBeVisible();
+  else await expect(client.getByTestId("client-notice")).toBeVisible();
 
   await showComments(client);
   const ownerNote = card(client, "Owner note");
@@ -123,13 +128,25 @@ test("an owner shares a project, a client comments, and the owner resolves and r
   await client.goto("/");
   await expect(client.getByRole("heading", { level: 1 })).toHaveText(OVERVIEW_HEADLINE.empty);
 
-  // Owner revokes; the link is gone.
+  // Owner revokes. A failure says so assertively and offers Retry; then the link is gone.
+  await page.route("**/api/shares/*", (route) =>
+    route.request().method() === "DELETE"
+      ? route.fulfill({ status: 500, json: { error: "x" } })
+      : route.fallback(),
+  );
   await page.getByTestId("share-button").click();
   await dialog.getByRole("button", { name: "Revoke link" }).click();
   await page
     .getByRole("dialog", { name: "Revoke this link?" })
     .getByRole("button", { name: "Revoke link" })
     .click();
+  const failed = page
+    .getByRole("alert")
+    .getByTestId("toast")
+    .filter({ hasText: "couldn't be revoked" });
+  await expect(failed).toBeVisible();
+  await page.unroute("**/api/shares/*");
+  await failed.getByRole("button", { name: "Retry" }).click();
   await expect(page.getByTestId("toast").filter({ hasText: "Link revoked" })).toBeVisible();
 
   const revoked = await client.goto(link);
@@ -225,16 +242,25 @@ test("a client comment that fails to send keeps its text until Retry gets it thr
   await client.getByTestId("mode-comment").click();
   await expect(client.getByRole("img", { name: /^Snapshot of/ })).toBeVisible();
 
-  await client.route("**/api/s/*/comments", (route) =>
-    route.fulfill({ status: 503, json: { error: "unavailable" } }),
-  );
+  // The first post hangs a moment, then fails.
+  await client.route("**/api/s/*/comments", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    await route.fulfill({ status: 503, json: { error: "unavailable" } });
+  });
   await client.getByTestId("comment-overlay").click({ position: { x: 160, y: 140 } });
   const composer = client.getByTestId("composer");
   await composer.getByLabel("Your name").fill("Cleo");
   await composer.getByLabel("Comment", { exact: true }).fill("Keep this text");
   await composer.getByRole("button", { name: "Post" }).click();
 
+  // While it's posting, Cancel waits, so a cancelled comment can't still arrive.
+  const cancel = composer.getByRole("button", { name: "Cancel" });
+  await expect(cancel).toHaveAttribute("aria-disabled", "true");
+  await cancel.click({ force: true });
+  await expect(composer).toBeVisible();
+
   await expect(composer.getByTestId("composer-send-error")).toContainText("wasn't sent");
+  await expect(cancel).not.toHaveAttribute("aria-disabled");
   await expect(composer.getByLabel("Comment", { exact: true })).toHaveValue("Keep this text");
   await expect(client.getByTestId("draft-pin")).toHaveAttribute("data-status", "unsent");
   // Not posted: no comment exists yet (the sheet stays closed under the docked composer on phones).
@@ -248,5 +274,20 @@ test("a client comment that fails to send keeps its text until Retry gets it thr
   await expect(
     client.getByRole("button", { name: "Comment 1 by Cleo", exact: true }),
   ).toBeVisible();
+
+  // After a failure, Cancel discards the draft as usual, and nothing is posted.
+  await hideComments(client);
+  await client.route("**/api/s/*/comments", (route) =>
+    route.fulfill({ status: 503, json: { error: "unavailable" } }),
+  );
+  await client.getByTestId("comment-overlay").click({ position: { x: 220, y: 120 } });
+  await composer.getByLabel("Comment", { exact: true }).fill("Never mind");
+  await composer.getByRole("button", { name: "Post" }).click();
+  await expect(composer.getByTestId("composer-send-error")).toBeVisible();
+  await composer.getByRole("button", { name: "Cancel" }).click();
+  await expect(composer).toHaveCount(0);
+  await expect(client.getByTestId("draft-pin")).toHaveCount(0);
+  await showComments(client);
+  await expect(client.getByTestId("comment-card")).toHaveCount(1);
   await clientContext.close();
 });

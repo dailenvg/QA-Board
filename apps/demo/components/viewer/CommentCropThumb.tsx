@@ -2,7 +2,7 @@
 
 import { motion, useReducedMotion } from "motion/react";
 import Image from "next/image";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useBlobUrl } from "@/lib/blob-store/use-blob-url";
 import { press } from "@/lib/motion";
 import type { CommentCrop } from "@/lib/store/types";
@@ -20,6 +20,7 @@ export function CommentCropThumb({ crop, number }: CommentCropThumbProps) {
   const image = useBlobUrl(crop.blobKey);
   const reduce = useReducedMotion();
   const [open, setOpen] = useState(false);
+  const loadingId = useId();
   if (image.status === "missing") return null;
   const ready = image.status === "ready";
 
@@ -31,6 +32,8 @@ export function CommentCropThumb({ crop, number }: CommentCropThumbProps) {
         data-testid="comment-crop"
         disabled={!ready}
         aria-label={`Open the screenshot for comment ${number}`}
+        aria-describedby={ready ? undefined : loadingId}
+        aria-busy={ready ? undefined : true}
         onClick={() => setOpen(true)}
         {...(reduce || !ready ? {} : press)}
         className="relative block h-32 w-full overflow-hidden rounded-tile bg-tile ring-1 ring-line transition-shadow hover:ring-line-strong active:ring-line-strong disabled:cursor-wait"
@@ -54,7 +57,13 @@ export function CommentCropThumb({ crop, number }: CommentCropThumbProps) {
             </span>
           </>
         ) : (
-          <Skeleton className="absolute inset-0 rounded-none" />
+          <>
+            <Skeleton className="absolute inset-0 rounded-none" />
+            {/* A description, not a live region: a list of cards loading shouldn't chatter. */}
+            <span id={loadingId} className="sr-only">
+              Loading screenshot
+            </span>
+          </>
         )}
       </motion.button>
       <Dialog

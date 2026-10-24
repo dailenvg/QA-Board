@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useBlobSource } from "@/lib/blob-store/blob-source";
+import { useBlobSource, type BlobSource } from "@/lib/blob-store/blob-source";
 import { exportProject, type ExportFormat } from "@/lib/export/export-project";
 import type { Project, SquintData } from "@/lib/store/types";
 import { buttonClass } from "../ui/button-styles";
 import { Menu } from "../ui/Menu";
-import { useToast } from "../ui/ToastProvider";
+import { useToast, type ToastInput } from "../ui/ToastProvider";
 
 interface ExportMenuProps {
   data: SquintData;
@@ -17,24 +17,47 @@ interface ExportMenuProps {
 const NO_COMMENTS = "Add a comment first. Exports list a project's comments.";
 const BUSY = "Preparing your export…";
 
+interface ExportRun {
+  data: SquintData;
+  project: Project;
+  format: ExportFormat;
+  blobs: BlobSource;
+  toast: (toast: ToastInput) => void;
+  setBusy: (busy: boolean) => void;
+}
+
+/**
+ * One export, reported by toast. A module-level function, so the failure
+ * toast's Retry can call it again without a component closure referring to itself.
+ */
+function runExport(job: ExportRun): void {
+  const { data, project, format, blobs, toast, setBusy } = job;
+  setBusy(true);
+  exportProject(data, project, format, blobs)
+    .then((fileName) => toast({ message: `Downloaded ${fileName}` }))
+    .catch(() =>
+      toast({
+        tone: "error",
+        message: "The export didn't work.",
+        action: { label: "Retry", onAction: () => runExport(job) },
+      }),
+    )
+    .finally(() => setBusy(false));
+}
+
 /** Top-bar Export menu: a ZIP with screenshots, or bare Markdown or JSON. */
 export function ExportMenu({ data, project, commentCount }: ExportMenuProps) {
   const toast = useToast();
   const blobs = useBlobSource();
   const [busy, setBusy] = useState(false);
 
-  const run = (format: ExportFormat) => {
-    setBusy(true);
-    exportProject(data, project, format, blobs)
-      .then((fileName) => toast({ message: `Downloaded ${fileName}` }))
-      .catch(() => toast({ tone: "error", message: "The export didn't work. Try again." }))
-      .finally(() => setBusy(false));
-  };
+  const run = (format: ExportFormat) => runExport({ data, project, format, blobs, toast, setBusy });
 
   return (
     <>
       <Menu
-        label="Export comments"
+        // While busy the name says so too, not only the status message.
+        label={busy ? "Exporting comments…" : "Export comments"}
         icon="download"
         text={busy ? "Exporting…" : "Export"}
         testId="export-menu"

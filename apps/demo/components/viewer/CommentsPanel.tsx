@@ -13,6 +13,8 @@ interface CommentsPanelProps {
   active: number;
   resolved: number;
   celebrating: boolean;
+  /** A short line under the sheet's header on phones, visible while collapsed. */
+  note?: string;
   children: ReactNode;
 }
 
@@ -24,6 +26,7 @@ export function CommentsPanel({
   active,
   resolved,
   celebrating,
+  note,
   children,
 }: CommentsPanelProps) {
   const headingId = useId();
@@ -70,6 +73,11 @@ export function CommentsPanel({
           <span className="sr-only">{sheetOpen ? "Hide comments" : "Show comments"}</span>
         </span>
       </button>
+      {note ? (
+        <p data-testid="panel-note" className="-mt-1 px-4 pb-3 text-label text-muted">
+          {note}
+        </p>
+      ) : null}
       <AnimatePresence initial={false}>
         {sheetOpen ? (
           <motion.div

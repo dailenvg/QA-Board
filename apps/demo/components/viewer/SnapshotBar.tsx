@@ -31,6 +31,7 @@ export function SnapshotBar({
   const now = useNow();
   const variants = useRevealVariants();
   const capturing = capture.status === "capturing";
+  const refreshLabel = capturing ? "Taking snapshot…" : "Refresh snapshot";
   return (
     <motion.div
       variants={variants}
@@ -65,10 +66,13 @@ export function SnapshotBar({
             variant="ghost"
             size="sm"
             aria-disabled={capturing || undefined}
+            // Icon-only on phones; the name is the desktop label either way.
+            aria-label={refreshLabel}
+            className="max-sm:size-11 max-sm:px-0"
             onClick={capturing ? undefined : onRefresh}
           >
             <Icon name="refresh" className="size-4" />
-            {capturing ? "Taking snapshot…" : "Refresh snapshot"}
+            <span className="max-sm:sr-only">{refreshLabel}</span>
           </Button>
         ) : null}
       </div>

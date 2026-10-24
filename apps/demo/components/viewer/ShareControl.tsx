@@ -8,17 +8,46 @@ import { useShareSync } from "@/lib/share-client/use-share-sync";
 import { shareProject, unshareProject } from "@/lib/store/actions";
 import { commentsFor } from "@/lib/store/selectors";
 import { snapshotsFor } from "@/lib/store/snapshots";
-import type { Project, SquintData } from "@/lib/store/types";
+import type { Project, ProjectShare, SquintData } from "@/lib/store/types";
 import { useIsClient } from "@/lib/use-is-client";
 import { Button } from "../ui/Button";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { Icon } from "../ui/Icon";
-import { useToast } from "../ui/ToastProvider";
+import { useToast, type ToastInput } from "../ui/ToastProvider";
 import { ShareDialog } from "./ShareDialog";
 
 interface ShareControlProps {
   data: SquintData;
   project: Project;
+}
+
+interface RevokeJob {
+  share: ProjectShare;
+  projectId: string;
+  toast: (toast: ToastInput) => void;
+  setRevoking: (revoking: boolean) => void;
+}
+
+/**
+ * Revokes the link (a 404 means it's already gone). Module-level, so the
+ * failure toast's Retry can run it again without a self-referencing closure.
+ */
+async function revokeLink(job: RevokeJob): Promise<void> {
+  const { share, projectId, toast, setRevoking } = job;
+  setRevoking(true);
+  const result = await ownerApi.revoke(share);
+  setRevoking(false);
+  if (!result.ok && result.status !== 404) {
+    toast({
+      tone: "error",
+      message: "The link couldn't be revoked.",
+      action: { label: "Retry", onAction: () => void revokeLink(job) },
+    });
+    return;
+  }
+  unshareProject(projectId);
+  resetSync(projectId);
+  toast({ message: "Link revoked. It no longer opens this project." });
 }
 
 const CREATE_FAILED = "The link couldn't be created. Check your connection and try again.";
@@ -68,19 +97,9 @@ export function ShareControl({ data, project }: ShareControlProps) {
     void pushNow(project.id);
   };
 
-  const revoke = async () => {
+  const revoke = () => {
     setConfirming(false);
-    if (!share) return;
-    setRevoking(true);
-    const result = await ownerApi.revoke(share);
-    setRevoking(false);
-    if (!result.ok && result.status !== 404) {
-      toast({ tone: "error", message: "The link couldn't be revoked. Try again." });
-      return;
-    }
-    unshareProject(project.id);
-    resetSync(project.id);
-    toast({ message: "Link revoked. It no longer opens this project." });
+    if (share) void revokeLink({ share, projectId: project.id, toast, setRevoking });
   };
 
   const failing = share && status.phase === "error";
@@ -138,7 +157,7 @@ export function ShareControl({ data, project }: ShareControlProps) {
         title="Revoke this link?"
         description="Clients will no longer be able to open it, and their copy on the server is deleted. Comments already here stay here."
         confirmLabel="Revoke link"
-        onConfirm={() => void revoke()}
+        onConfirm={revoke}
       />
     </>
   );

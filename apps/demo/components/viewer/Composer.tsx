@@ -52,6 +52,7 @@ export function Composer({
   const bodyId = useId();
   const errorId = useId();
   const sendErrorId = useId();
+  const cancelHintId = useId();
   const nameError = error?.field === "name" ? error.message : null;
   const bodyError = error?.field === "body" ? error.message : null;
 
@@ -74,7 +75,7 @@ export function Composer({
     if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
-      onCancel();
+      if (!draft.sending) onCancel();
     } else if (
       event.key === "Enter" &&
       !event.shiftKey &&
@@ -187,9 +188,24 @@ export function Composer({
         ) : null}
         <div className="flex items-center justify-end gap-2">
           <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={onCancel}>
+            {/*
+             * While posting, Cancel waits: a cancelled draft must never still arrive.
+             * If the post fails, Cancel discards it as usual.
+             */}
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-disabled={draft.sending || undefined}
+              aria-describedby={draft.sending ? cancelHintId : undefined}
+              onClick={draft.sending ? undefined : onCancel}
+            >
               Cancel
             </Button>
+            {draft.sending ? (
+              <span id={cancelHintId} className="sr-only">
+                Wait for the comment to finish posting.
+              </span>
+            ) : null}
             {/* aria-disabled, not disabled: focus stays put, so Retry is right here on failure. */}
             <Button
               type="submit"

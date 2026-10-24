@@ -28,6 +28,9 @@ const ToastContext = createContext<(toast: ToastInput) => void>(() => {});
 
 const DISMISS_MS = { neutral: 4000, error: 7000 } as const;
 
+const TOAST_REGION =
+  "pointer-events-none fixed inset-x-0 bottom-[max(1.5rem,env(safe-area-inset-bottom))] z-[60] flex justify-center px-4";
+
 /**
  * Shows short status messages as an inverted pill at the bottom of the screen.
  * The timer pauses while the toast is hovered or focused, so an Undo is never
@@ -68,47 +71,51 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   };
   const resume = () => setPausedId(null);
 
+  const card = toast ? (
+    <motion.div
+      key={toast.id}
+      data-testid="toast"
+      onPointerEnter={pause}
+      onPointerLeave={resume}
+      onFocus={pause}
+      onBlur={resume}
+      initial={{ opacity: 0, y: reduce ? 0 : 12, scale: reduce ? 1 : 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: reduce ? 0 : 12, scale: reduce ? 1 : 0.96 }}
+      transition={spring.snappy}
+      className={`pointer-events-auto flex max-w-full min-h-11 items-center gap-3 rounded-pill py-1 pl-5 text-body font-semibold shadow-pop ${
+        toast.tone === "error" ? "bg-danger text-card" : "bg-inv text-on-inv"
+      } ${toast.action ? "pr-1" : "pr-5"}`}
+    >
+      <span>{toast.message}</span>
+      {toast.action ? (
+        <button
+          type="button"
+          onClick={() => {
+            toast.action?.onAction();
+            replace(null, false);
+          }}
+          className="min-h-11 rounded-pill bg-on-inv/15 px-4 text-body font-semibold underline-offset-2 transition-colors hover:bg-on-inv/25 hover:underline focus-visible:outline-on-inv active:bg-on-inv/30"
+        >
+          {toast.action.label}
+        </button>
+      ) : null}
+    </motion.div>
+  ) : null;
+  const error = toast?.tone === "error";
+
   return (
     <ToastContext.Provider value={show}>
       {children}
-      <div
-        role="status"
-        aria-live="polite"
-        className="pointer-events-none fixed inset-x-0 bottom-[max(1.5rem,env(safe-area-inset-bottom))] z-[60] flex justify-center px-4"
-      >
-        <AnimatePresence mode="popLayout">
-          {toast ? (
-            <motion.div
-              key={toast.id}
-              data-testid="toast"
-              onPointerEnter={pause}
-              onPointerLeave={resume}
-              onFocus={pause}
-              onBlur={resume}
-              initial={{ opacity: 0, y: reduce ? 0 : 12, scale: reduce ? 1 : 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: reduce ? 0 : 12, scale: reduce ? 1 : 0.96 }}
-              transition={spring.snappy}
-              className={`pointer-events-auto flex max-w-full min-h-11 items-center gap-3 rounded-pill py-1 pl-5 text-body font-semibold shadow-pop ${
-                toast.tone === "error" ? "bg-danger text-card" : "bg-inv text-on-inv"
-              } ${toast.action ? "pr-1" : "pr-5"}`}
-            >
-              <span>{toast.message}</span>
-              {toast.action ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    toast.action?.onAction();
-                    replace(null, false);
-                  }}
-                  className="min-h-11 rounded-pill bg-on-inv/15 px-4 text-body font-semibold underline-offset-2 transition-colors hover:bg-on-inv/25 hover:underline focus-visible:outline-on-inv active:bg-on-inv/30"
-                >
-                  {toast.action.label}
-                </button>
-              ) : null}
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
+      {/*
+       * Two live regions that are always present: errors are assertive (role="alert"),
+       * everything else polite. Each toast is announced as it's put into its region.
+       */}
+      <div role="status" aria-live="polite" className={TOAST_REGION}>
+        <AnimatePresence mode="popLayout">{error ? null : card}</AnimatePresence>
+      </div>
+      <div role="alert" className={TOAST_REGION}>
+        <AnimatePresence mode="popLayout">{error ? card : null}</AnimatePresence>
       </div>
     </ToastContext.Provider>
   );

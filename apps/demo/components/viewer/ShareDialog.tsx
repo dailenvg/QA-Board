@@ -78,6 +78,10 @@ export function ShareDialog({
       description="Clients can view and add comments. Only you can resolve, edit or delete them."
       testId="share-dialog"
     >
+      {/* Always present, so the change is announced when the link view replaces Create. */}
+      <p role="status" className="sr-only">
+        {linked ? "Link created." : ""}
+      </p>
       {share && url && !gone ? (
         <div ref={linkedView} className="flex flex-col gap-4">
           <CopyLinkField

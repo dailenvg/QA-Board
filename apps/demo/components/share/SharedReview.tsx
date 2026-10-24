@@ -18,6 +18,9 @@ interface SharedReviewProps {
   initial: ClientView;
 }
 
+/** The phone version, under the comments sheet's header. */
+const CLIENT_NOTE = "You can add comments. Only the owner can resolve or edit them.";
+
 const CLIENT_NOTICE =
   "You can browse this project and add comments. Only the person who shared it can resolve, edit or delete them.";
 
@@ -49,6 +52,7 @@ export function SharedReview({ token, initial }: SharedReviewProps) {
               <Logo linked={false} caption="Shared review" />
             </span>
           }
+          panelNote={CLIENT_NOTE}
           panelNotice={
             <p
               data-testid="client-notice"
