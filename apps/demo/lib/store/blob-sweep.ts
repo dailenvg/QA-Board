@@ -8,8 +8,12 @@ import { dispatch, getSnapshot } from "./store";
  */
 export const BLOB_GRACE_MS = 60_000;
 
-/** End-to-end tests shorten the grace with `window.__squintBlobGraceMs`; everything else uses a minute. */
+/**
+ * End-to-end builds (`NEXT_PUBLIC_SQUINT_E2E=1`, inlined at build time) let a test shorten the
+ * grace with `window.__squintBlobGraceMs`; every other build uses a minute and ignores it.
+ */
 function graceMs(): number {
+  if (process.env.NEXT_PUBLIC_SQUINT_E2E !== "1") return BLOB_GRACE_MS;
   const override: unknown = (globalThis as { __squintBlobGraceMs?: unknown }).__squintBlobGraceMs;
   return typeof override === "number" && override >= 0 ? override : BLOB_GRACE_MS;
 }
