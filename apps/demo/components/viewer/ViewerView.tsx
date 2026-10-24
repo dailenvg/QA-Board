@@ -26,6 +26,7 @@ import { useToast } from "../ui/ToastProvider";
 import { CanvasLayer } from "./CanvasLayer";
 import { CommentsBody } from "./CommentsBody";
 import { CommentsPanel } from "./CommentsPanel";
+import { ExportMenu } from "./ExportMenu";
 import { commentSurfaceKey, placementOf, surfaceKey } from "./surface";
 import { useViewerSurface } from "./use-viewer-surface";
 import { ViewerStage } from "./ViewerStage";
@@ -253,6 +254,7 @@ export function ViewerView({ data, project }: ViewerViewProps) {
         mode={mode}
         onMode={setMode}
         originalUrl={originalUrl}
+        actions={<ExportMenu data={data} project={project} commentCount={comments.length} />}
       />
       <div className="flex min-h-0 flex-1 gap-4">
         <main

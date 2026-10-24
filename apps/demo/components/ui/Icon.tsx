@@ -5,6 +5,8 @@ type IconNode = readonly [string, Readonly<Record<string, string | number>>];
 const FOLDER_PATH =
   "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z";
 
+const FILE_PATH = "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z";
+
 /** Lucide icon geometry (ISC licensed): 24px grid, 1.75px stroke, one set app-wide. */
 const ICONS = {
   alert: [
@@ -33,10 +35,32 @@ const ICONS = {
     ["rect", { x: 8, y: 8, width: 14, height: 14, rx: 2 }],
     ["path", { d: "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" }],
   ],
+  download: [
+    ["path", { d: "M12 15V3" }],
+    ["path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }],
+    ["path", { d: "m7 10 5 5 5-5" }],
+  ],
   external: [
     ["path", { d: "M15 3h6v6" }],
     ["path", { d: "M10 14 21 3" }],
     ["path", { d: "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" }],
+  ],
+  fileArchive: [
+    ["path", { d: "M10 12v-1M10 18v-2M10 7V6" }],
+    ["path", { d: "M14 2v4a2 2 0 0 0 2 2h4" }],
+    ["path", { d: "M15.5 22H18a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v16a2 2 0 0 0 .274 1.01" }],
+    ["circle", { cx: 10, cy: 20, r: 2 }],
+  ],
+  fileJson: [
+    ["path", { d: FILE_PATH }],
+    ["path", { d: "M14 2v4a2 2 0 0 0 2 2h4" }],
+    ["path", { d: "M10 12a1 1 0 0 0-1 1v1a1 1 0 0 1-1 1 1 1 0 0 1 1 1v1a1 1 0 0 0 1 1" }],
+    ["path", { d: "M14 18a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1 1 1 0 0 1-1-1v-1a1 1 0 0 0-1-1" }],
+  ],
+  fileText: [
+    ["path", { d: FILE_PATH }],
+    ["path", { d: "M14 2v4a2 2 0 0 0 2 2h4" }],
+    ["path", { d: "M10 9H8M16 13H8M16 17H8" }],
   ],
   folder: [["path", { d: FOLDER_PATH }]],
   folderPlus: [

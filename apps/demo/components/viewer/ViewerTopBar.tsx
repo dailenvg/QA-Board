@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { OVERVIEW_HREF, folderHref } from "@/lib/routes";
 import type { ProjectStatus } from "@/lib/store/status";
 import type { Folder, Project } from "@/lib/store/types";
@@ -18,9 +19,11 @@ interface ViewerTopBarProps {
   onMode: (mode: ViewerMode) => void;
   /** The live site behind this project, opened in a new tab. */
   originalUrl: string | null;
+  /** Project-level actions next to the original-site link, such as Export. */
+  actions: ReactNode;
 }
 
-/** Back link, project name and status, Browse/Comment toggle, and the original site link. */
+/** Back link, project name and status, Browse/Comment toggle, actions, and the original site link. */
 export function ViewerTopBar({
   project,
   folder,
@@ -28,9 +31,11 @@ export function ViewerTopBar({
   mode,
   onMode,
   originalUrl,
+  actions,
 }: ViewerTopBarProps) {
   return (
-    <header className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-panel bg-panel p-2">
+    // Its own layer, so the Export menu opens over the snapshot bar and pins below it.
+    <header className="relative z-40 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-panel bg-panel p-2">
       <ButtonLink
         href={folder ? folderHref(folder.id) : OVERVIEW_HREF}
         variant="ghost"
@@ -69,8 +74,8 @@ export function ViewerTopBar({
             },
           ]}
         />
-        {/* Without the open-original button the hint is last; keep it off the panel's curve. */}
-        <Kbd className={`hidden lg:inline ${originalUrl ? "" : "mr-2"}`}>C</Kbd>
+        <Kbd className="hidden lg:inline">C</Kbd>
+        {actions}
         {originalUrl ? (
           <ButtonLink
             href={originalUrl}
