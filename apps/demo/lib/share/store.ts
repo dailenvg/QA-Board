@@ -43,6 +43,13 @@ export interface ShareStore {
   ): Promise<boolean>;
   /** Makes a pending comment visible, with a fresh seq so a pull can't skip it. */
   confirmComment(id: string, commentId: string): Promise<void>;
+  /** When a still-pending comment was claimed (its `createdAt`), or null when it isn't pending. */
+  pendingSince(id: string, commentId: string): Promise<number | null>;
+  /**
+   * Deletes pending comments claimed before `cutoff` (only `commentId`, when
+   * given), atomically per row. Returns the ids it deleted.
+   */
+  deleteStalePending(id: string, cutoff: number, commentId?: string): Promise<string[]>;
   deleteSnapshots(id: string, ids: readonly string[]): Promise<void>;
   deleteComments(id: string, ids: readonly string[]): Promise<void>;
 

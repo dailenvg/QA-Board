@@ -105,6 +105,24 @@ export function createMemoryStore(): ShareStore {
       }
       return done(undefined);
     },
+    pendingSince(id, commentId) {
+      const entry = shares.get(id);
+      const row = entry?.pending.has(commentId) ? entry.comments.get(commentId) : undefined;
+      return done(row ? row.item.createdAt : null);
+    },
+    deleteStalePending(id, cutoff, commentId) {
+      const entry = shares.get(id);
+      const stale = [...(entry?.pending ?? [])].filter(
+        (pendingId) =>
+          (commentId === undefined || pendingId === commentId) &&
+          (entry?.comments.get(pendingId)?.item.createdAt ?? Infinity) < cutoff,
+      );
+      for (const staleId of stale) {
+        entry?.pending.delete(staleId);
+        entry?.comments.delete(staleId);
+      }
+      return done(stale);
+    },
     deleteSnapshots(id, ids) {
       for (const snapshotId of ids) shares.get(id)?.snapshots.delete(snapshotId);
       return done(undefined);

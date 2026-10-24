@@ -152,6 +152,24 @@ export function createPostgresStore(db: Queryable): ShareStore {
         [id, commentId],
       );
     },
+    async pendingSince(id, commentId) {
+      const { rows } = await db.query<{ since: string | number }>(
+        `SELECT (data->>'createdAt')::bigint AS since FROM squint_share_comments
+         WHERE share_id = $1 AND id = $2 AND pending`,
+        [id, commentId],
+      );
+      return rows[0] ? Number(rows[0].since) : null;
+    },
+    async deleteStalePending(id, cutoff, commentId) {
+      const { rows } = await db.query<{ id: string }>(
+        `DELETE FROM squint_share_comments
+         WHERE share_id = $1 AND pending AND (data->>'createdAt')::bigint < $2
+           AND ($3::text IS NULL OR id = $3)
+         RETURNING id`,
+        [id, cutoff, commentId ?? null],
+      );
+      return rows.map((row) => row.id);
+    },
     async deleteSnapshots(id, ids) {
       await db.query("DELETE FROM squint_share_snapshots WHERE share_id = $1 AND id = ANY($2)", [
         id,

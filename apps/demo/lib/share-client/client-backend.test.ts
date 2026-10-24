@@ -67,6 +67,14 @@ describe("client comments", () => {
     expect(!result.ok && result.error).toContain("out of space");
   });
 
+  it("doesn't count a post still in progress as sent: the draft stays", async () => {
+    const { store, backend } = setup([() => Response.json({ error: "pending" }, { status: 409 })]);
+    const result = await backend.addComment(input, null);
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error).toContain("still being saved");
+    expect(store.getSnapshot().view.comments).toEqual([]);
+  });
+
   it("marks the link gone when the share was revoked", async () => {
     const { store, backend } = setup([
       () => Response.json({ error: "not-found" }, { status: 404 }),

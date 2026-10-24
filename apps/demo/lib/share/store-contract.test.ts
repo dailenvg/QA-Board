@@ -6,7 +6,7 @@ import { migrate, type Queryable } from "./migrate";
 import { createPostgresStore } from "./postgres-store";
 import { inlineBackend } from "./blob-backend";
 import type { ShareServices } from "./server";
-import { addClientComment, readBlob } from "./service";
+import { addClientComment, expireStalePending, PENDING_STALE_MS, readBlob } from "./service";
 import type { ShareStore } from "./store";
 
 /**
@@ -174,5 +174,86 @@ describe.each(stores)("%s store: two posts with the same id at once", (_name, ma
     ]);
     const visible = await store.comments(RECORD.id);
     expect(visible.map((row) => row.item.createdAt)).toEqual([a.ok ? 1 : 2]);
+  });
+});
+
+describe.each(stores)("%s store: claims orphaned mid-post", (_name, make) => {
+  const NOW = 10_000_000;
+  const STALE = NOW - PENDING_STALE_MS - 1;
+  const rect = { x: 0, y: 0, width: 4, height: 4 };
+  const input = { id: "orphan", x: 1, y: 1, body: "Hi", author: "Cleo", crop: { rect } };
+  const oldCrop = new Uint8Array([...PNG, 0x01]);
+  const newCrop = new Uint8Array([...PNG, 0x02]);
+
+  /** A share with a pending claim made at `claimedAt`, and the crop its request had stored. */
+  async function orphaned(claimedAt: number): Promise<ShareServices> {
+    const services: ShareServices = { store: await make(), blobs: inlineBackend };
+    const { store } = services;
+    await store.create(RECORD);
+    const comment = {
+      ...input,
+      status: "active" as const,
+      createdAt: claimedAt,
+      updatedAt: claimedAt,
+    };
+    await store.insertComment(RECORD.id, comment, "client", { pending: true });
+    const location = { kind: "inline" as const, bytes: oldCrop };
+    await store.putBlob(RECORD.id, {
+      key: "crop:orphan",
+      contentType: "image/png",
+      size: oldCrop.length,
+      location,
+    });
+    return services;
+  }
+
+  it("lets a retry reclaim a stale claim: one visible row, with the retry's crop", async () => {
+    const services = await orphaned(STALE);
+    expect(await addClientComment(services, RECORD, input, newCrop, NOW)).toMatchObject({
+      ok: true,
+    });
+    const visible = await services.store.comments(RECORD.id, { includePending: true });
+    expect(visible.map((row) => [row.item.id, row.item.createdAt])).toEqual([["orphan", NOW]]);
+    expect(await services.store.pendingSince(RECORD.id, "orphan")).toBeNull();
+    const stored = await readBlob(services, RECORD, "crop:orphan");
+    expect([...(stored?.bytes ?? [])]).toEqual([...newCrop]);
+    expect(await services.store.blobSizes(RECORD.id)).toEqual([
+      { key: "crop:orphan", size: newCrop.length },
+    ]);
+  });
+
+  it("drops the stale crop when the retry has none", async () => {
+    const services = await orphaned(STALE);
+    const { crop: _none, ...plain } = input;
+    expect(await addClientComment(services, RECORD, plain, null, NOW)).toMatchObject({ ok: true });
+    expect(await services.store.blobSizes(RECORD.id)).toEqual([]);
+  });
+
+  it("still refuses a claim in progress (409 pending), so a race has one winner", async () => {
+    const services = await orphaned(NOW - 1_000);
+    expect(await addClientComment(services, RECORD, input, newCrop, NOW)).toMatchObject({
+      ok: false,
+      status: 409,
+      error: "pending",
+    });
+    expect(await services.store.pendingSince(RECORD.id, "orphan")).toBe(NOW - 1_000);
+    const stored = await readBlob(services, RECORD, "crop:orphan");
+    expect([...(stored?.bytes ?? [])]).toEqual([...oldCrop]);
+  });
+
+  it("expires stale claims and their crops, and leaves fresh ones", async () => {
+    const services = await orphaned(STALE);
+    const fresh = {
+      ...input,
+      id: "fresh",
+      status: "active" as const,
+      createdAt: NOW,
+      updatedAt: NOW,
+    };
+    await services.store.insertComment(RECORD.id, fresh, "client", { pending: true });
+    await expireStalePending(services, RECORD, NOW);
+    const left = await services.store.comments(RECORD.id, { includePending: true });
+    expect(left.map((row) => row.item.id)).toEqual(["fresh"]);
+    expect(await services.store.blobSizes(RECORD.id)).toEqual([]);
   });
 });

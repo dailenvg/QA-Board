@@ -26,6 +26,9 @@ const SHARE_FULL =
 /** 413 on a capture: the share holds its maximum of snapshots, or its 40 MB of images. */
 const SNAPSHOTS_FULL =
   "This review is out of space for new snapshots. Comment on the current snapshot, or ask the project owner to make room.";
+/** 409 pending: the same comment is still being saved by an earlier try. */
+const STILL_SENDING =
+  "Your comment is still being saved from an earlier try. Retry in a minute if it doesn't appear.";
 const NOT_SENT_DEFAULT = "Your comment wasn't sent. Retry in a moment.";
 
 interface ClientBackendOptions {
@@ -81,7 +84,13 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
       };
       const blob = crop ? await crop.blob : null;
       const result = await api.addComment(commentForm(comment, blob, crop));
-      // 409: an earlier try got through even though its answer didn't arrive.
+      // 409 pending: an earlier try of this comment is still being saved (or died mid-way
+      // and is reclaimable a minute later). Not delivered yet: keep the draft, try again.
+      if (!result.ok && result.status === 409 && result.error === "pending") {
+        return { ok: false, error: STILL_SENDING };
+      }
+      // 409 exists: the comment is visible, so an earlier try got through even though its
+      // answer didn't arrive. Counting it as sent can't lose it or post it twice.
       if (result.ok || result.status === 409) {
         if (blob) blobs.hold(`crop:${comment.id}`, blob);
         if (result.ok) store.addComment(result.value);

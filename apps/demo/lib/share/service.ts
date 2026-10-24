@@ -220,6 +220,7 @@ export async function applyChanges(
   await store.deleteSnapshots(share.id, deleteSnapshots);
   await store.deleteComments(share.id, deleteComments);
   const updated = change.project ? { ...share, project: change.project } : share;
+  await store.deleteStalePending(share.id, now - PENDING_STALE_MS);
   await dropUnreferenced(services, updated);
   return ok({ missingBlobs: await missingBlobs(store, updated) });
 }
@@ -327,6 +328,51 @@ export async function clientView(store: ShareStore, share: ShareRecord): Promise
 
 // ── Client writes ──────────────────────────────────────────────────────────
 
+/** A pending claim older than this was orphaned (its request died) and may be reclaimed. */
+export const PENDING_STALE_MS = 60_000;
+
+/**
+ * Claims a client comment's id by inserting its row. On a conflict: a visible
+ * row means it was already posted (409 exists, so the client knows it got
+ * through); a pending row still in progress is 409 pending (the client keeps
+ * its draft and retries); a pending row older than `PENDING_STALE_MS` was
+ * orphaned by a failed request and is reclaimed. Reclaiming deletes only that
+ * stale row, atomically; its crop is overwritten by this post's, or swept as
+ * unreferenced if this post has none.
+ */
+async function claimCommentId(
+  services: ShareServices,
+  share: ShareRecord,
+  comment: SharedComment,
+  pending: boolean,
+  now: number,
+): Promise<Outcome<undefined>> {
+  const { store } = services;
+  const insert = () => store.insertComment(share.id, comment, "client", { pending });
+  if (await insert()) return ok(undefined);
+  const since = await store.pendingSince(share.id, comment.id);
+  if (since === null) return fail(409, "exists");
+  const cutoff = now - PENDING_STALE_MS;
+  if (since >= cutoff) return fail(409, "pending");
+  const reclaimed = await store.deleteStalePending(share.id, cutoff, comment.id);
+  if (reclaimed.length === 0 || !(await insert())) return fail(409, "pending");
+  if (!pending) await dropUnreferenced(services, share);
+  return ok(undefined);
+}
+
+/**
+ * Removes pending comments orphaned by failed requests (older than
+ * `PENDING_STALE_MS`) and the crops they left. Runs on owner pulls and changes.
+ */
+export async function expireStalePending(
+  services: ShareServices,
+  share: ShareRecord,
+  now: number,
+): Promise<void> {
+  const expired = await services.store.deleteStalePending(share.id, now - PENDING_STALE_MS);
+  if (expired.length > 0) await dropUnreferenced(services, share);
+}
+
 /**
  * A client's comment: always active, timestamped by the server, immutable for
  * clients afterwards (an id that's taken is refused). Its crop, when sent,
@@ -357,9 +403,8 @@ export async function addClientComment(
   // The insert claims the id atomically: of two posts with the same id, exactly one gets
   // here, so only the winner ever writes `crop:<id>`. With a crop, the row stays pending
   // (invisible) until its image is stored, so no comment ever points at a missing crop.
-  if (!(await store.insertComment(share.id, comment, "client", { pending: Boolean(crop) }))) {
-    return fail(409, "exists");
-  }
+  const claimed = await claimCommentId(services, share, comment, Boolean(crop), now);
+  if (!claimed.ok) return claimed;
   if (crop) {
     const stored = await storeBlob(services, share, `crop:${comment.id}`, crop).catch(
       async (error: unknown) => {
