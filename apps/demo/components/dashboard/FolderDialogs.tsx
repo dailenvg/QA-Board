@@ -21,8 +21,8 @@ function deleteDescription(projects: number, shared: number): string {
     shared === 0
       ? ""
       : shared === 1
-        ? " Its client link will stop working."
-        : ` Their ${shared} client links will stop working.`;
+        ? " One share link will stop working."
+        : ` ${shared} share links will stop working.`;
   return `Its ${projects} ${noun} and all of their comments will be deleted too.${links} This can't be undone.`;
 }
 

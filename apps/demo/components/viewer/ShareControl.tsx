@@ -112,7 +112,7 @@ export function ShareControl({ data, project }: ShareControlProps) {
           onClick={() => void pushNow(project.id)}
           className="text-danger max-sm:size-11 max-sm:px-0"
           // Named by its text (sr-only on phones), so the spoken name matches the visible one.
-          title="Changes haven't reached the client link yet"
+          title="Changes haven't reached the share link yet"
           data-testid="sync-retry"
         >
           <Icon name="alert" className="size-4" />
@@ -155,7 +155,7 @@ export function ShareControl({ data, project }: ShareControlProps) {
         open={confirming}
         onClose={() => setConfirming(false)}
         title="Revoke this link?"
-        description="Clients will no longer be able to open it, and their copy on the server is deleted. Comments already here stay here."
+        description="The link stops working for clients, and the copy on the server is deleted. Comments already in this project stay here."
         confirmLabel="Revoke link"
         onConfirm={revoke}
       />

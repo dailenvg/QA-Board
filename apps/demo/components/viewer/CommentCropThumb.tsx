@@ -61,7 +61,7 @@ export function CommentCropThumb({ crop, number }: CommentCropThumbProps) {
             <Skeleton className="absolute inset-0 rounded-none" />
             {/* A description, not a live region: a list of cards loading shouldn't chatter. */}
             <span id={loadingId} className="sr-only">
-              Loading screenshot
+              Loading the screenshot…
             </span>
           </>
         )}

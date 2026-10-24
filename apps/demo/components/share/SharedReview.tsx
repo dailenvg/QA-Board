@@ -19,10 +19,10 @@ interface SharedReviewProps {
 }
 
 /** The phone version, under the comments sheet's header. */
-const CLIENT_NOTE = "You can add comments. Only the owner can resolve or edit them.";
+const CLIENT_NOTE = "You can add comments. Only the project owner can resolve or edit them.";
 
 const CLIENT_NOTICE =
-  "You can browse this project and add comments. Only the person who shared it can resolve, edit or delete them.";
+  "You can browse this project and add comments. Only the project owner can resolve, edit or delete them.";
 
 /**
  * A client's view of a shared project: the same viewer, reading from and

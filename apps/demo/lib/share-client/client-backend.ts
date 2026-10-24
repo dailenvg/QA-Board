@@ -14,7 +14,7 @@ import { clientApi } from "./api";
 import { SHARED_PROJECT_ID, type ClientStore } from "./client-store";
 import type { ServerBlobs } from "./server-blobs";
 
-const GONE = "This review link no longer works.";
+const GONE = "This link no longer works. Ask the project owner for a new one.";
 const NOT_SENT: Record<number, string> = {
   0: "Your comment wasn't sent: Squint couldn't reach the server. Check your connection, then retry.",
   413: "Your comment wasn't sent: its screenshot is too large. Retry, or post it from a smaller window.",

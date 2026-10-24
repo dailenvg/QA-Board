@@ -20,24 +20,31 @@ interface FrameFallbackProps {
   onRetry: () => void;
 }
 
-function copyFor(reason: FallbackReason, host: string) {
+/** `canUpload` is false on a shared link, where clients have no screenshot upload. */
+function copyFor(reason: FallbackReason, host: string, canUpload: boolean) {
   switch (reason) {
     case "blocked":
       return {
         title: "This site can't be shown here",
-        body: `${host} tells browsers not to display it inside other sites. Upload a screenshot to review it in Squint, or open it in a new tab.`,
+        body: canUpload
+          ? `${host} tells browsers not to display it inside other sites. Upload a screenshot to review it in Squint, or open it in a new tab.`
+          : `${host} tells browsers not to display it inside other sites. Switch to Comment mode to comment on a snapshot, or open it in a new tab.`,
         retry: "Check again",
       };
     case "unreachable":
       return {
         title: "We couldn't reach this site",
-        body: `${host} didn't respond to our check. It may be private, offline or behind a login. Try loading it anyway, or upload a screenshot.`,
+        body: canUpload
+          ? `${host} didn't respond to our check. It may be private, offline or behind a login. Try loading it anyway, or upload a screenshot.`
+          : `${host} didn't respond to our check. It may be private, offline or behind a login. Try loading it anyway, or open it in a new tab.`,
         retry: "Try loading anyway",
       };
     case "timeout":
       return {
         title: "This site is taking a while",
-        body: `${host} hasn't finished loading. It may block embedding without saying so. Keep waiting, or upload a screenshot instead.`,
+        body: canUpload
+          ? `${host} hasn't finished loading. It may block embedding without saying so. Keep waiting, or upload a screenshot instead.`
+          : `${host} hasn't finished loading. It may block embedding without saying so. Keep waiting, or switch to Comment mode to comment on a snapshot.`,
         retry: "Keep waiting",
       };
   }
@@ -46,7 +53,7 @@ function copyFor(reason: FallbackReason, host: string) {
 /** Shown instead of the iframe when a site refuses framing, can't be reached, or stalls. */
 export function FrameFallback({ reason, url, onScreenshot, onRetry }: FrameFallbackProps) {
   const variants = useRevealVariants();
-  const copy = copyFor(reason, displayHost(url));
+  const copy = copyFor(reason, displayHost(url), onScreenshot !== null);
   return (
     <motion.div
       variants={variants}

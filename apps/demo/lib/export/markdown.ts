@@ -10,9 +10,9 @@ const iso = (time: number) => new Date(time).toISOString();
 const percent = (value: number) => `${Number(value.toFixed(2))}%`;
 
 const INTRO = [
-  "This file lists visual review comments exported from Squint, written for an AI coding agent (Claude, Cursor, Copilot) or a developer.",
-  "Each comment asks for one change at a pinned spot on a web page or image. Work through the **active** comments in order: open the page, find the element at the comment's location (its screenshot shows what the reviewer saw, with the pin marked), and make the change. The text under **Request** is the reviewer's own words; treat it as the source of truth.",
-  "Resolved comments are listed last for context only. Don't act on them.",
+  "This file is a visual review exported from Squint, written for an AI coding agent (Claude, Cursor, Copilot) or a developer. Each comment asks for one change at a pinned spot on a web page or image.",
+  "How to use it: work through the **Active comments** in order. For each one, open the **Page** (or the source image), find the element at the **Location** (the screenshot shows what the reviewer saw, with the pin marked), and make the change. The text under **Request** is the reviewer's own words, copied exactly. Treat it as the source of truth.",
+  "**Resolved comments** are listed last, for context only. Don't act on them.",
 ];
 
 function sourceLine(document: ExportDocument): string {
@@ -35,7 +35,7 @@ function header(document: ExportDocument, options: MarkdownOptions): string[] {
   const active = document.comments.filter((comment) => comment.status === "active").length;
   const resolved = document.comments.length - active;
   const files = options.withFiles
-    ? "- **Screenshots:** in `screenshots/`, next to this file. Full-page snapshots are in `snapshots/`."
+    ? "- **Screenshots:** in `screenshots/`, next to this file. Full-page snapshots, when included, are in `snapshots/`."
     : "- **Screenshots:** not included in this file. Download the ZIP export from Squint to get them.";
   return [
     `# Squint review: ${inlineText(document.project.name)}`,

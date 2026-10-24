@@ -14,7 +14,7 @@ interface ExportMenuProps {
   commentCount: number;
 }
 
-const NO_COMMENTS = "Add a comment first. Exports list a project's comments.";
+const NO_COMMENTS = "Add a comment first. There's nothing to export yet.";
 const BUSY = "Preparing your export…";
 
 interface ExportRun {

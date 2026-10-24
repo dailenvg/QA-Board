@@ -3,7 +3,10 @@
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 
-/** A snapshot whose image is no longer in this browser's storage. */
+/**
+ * A snapshot whose image can't be loaded: gone from this browser's storage
+ * (owner) or from the share's server (client). The copy fits both.
+ */
 export function SnapshotMissing({ onRetake }: { onRetake: (() => void) | null }) {
   return (
     <div
@@ -12,9 +15,9 @@ export function SnapshotMissing({ onRetake }: { onRetake: (() => void) | null })
     >
       <div className="flex max-w-sm flex-col items-center gap-3">
         <div role="alert" className="flex flex-col gap-3">
-          <h2 className="text-title font-bold">This snapshot isn&apos;t in this browser anymore</h2>
+          <h2 className="text-title font-bold">This snapshot can&apos;t be shown</h2>
           <p className="text-body text-muted">
-            Its picture was removed from this browser&apos;s storage. The comments are still here.
+            Its image couldn&apos;t be loaded. The comments placed on it are still listed.
           </p>
         </div>
         {onRetake ? (

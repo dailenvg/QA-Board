@@ -21,10 +21,17 @@ function ImageUnavailable({ onReplace }: { onReplace: ScreenshotHandler | null }
     <div role="alert" className="grid h-full min-h-80 place-items-center p-6 text-center">
       <div className="flex max-w-sm flex-col items-center gap-3">
         <h2 className="text-title font-bold">This image couldn&apos;t be displayed</h2>
-        <p className="text-body text-muted">
-          It may be damaged, or it was removed from this browser&apos;s storage. Upload it again to
-          keep reviewing.
-        </p>
+        {/* No onReplace: a shared link, where the image comes from the server. */}
+        {onReplace ? (
+          <p className="text-body text-muted">
+            It may be damaged, or it was removed from this browser&apos;s storage. Upload it again
+            to keep reviewing.
+          </p>
+        ) : (
+          <p className="text-body text-muted">
+            It may be damaged, or the server couldn&apos;t send it. Reload the page to try again.
+          </p>
+        )}
         {onReplace ? <ScreenshotUpload label="Replace image" onImage={onReplace} /> : null}
       </div>
     </div>

@@ -86,7 +86,7 @@ export function ShareDialog({
         <div ref={linkedView} className="flex flex-col gap-4">
           <CopyLinkField
             url={url}
-            label="Review link"
+            label="Share link"
             openLabel={null}
             testId="share-url"
             className=""
@@ -119,8 +119,8 @@ export function ShareDialog({
         <div className="flex flex-col items-start gap-3">
           {gone ? (
             <p role="alert" className="text-body text-muted">
-              This project&apos;s link no longer works. It was revoked, or the server no longer has
-              it. Create a new link to share again.
+              This project&apos;s share link no longer works. It was revoked, or the server no
+              longer has it. Create a new link to share again.
             </p>
           ) : (
             <p className="text-body text-muted">

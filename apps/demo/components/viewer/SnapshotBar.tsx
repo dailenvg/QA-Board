@@ -31,7 +31,7 @@ export function SnapshotBar({
   const now = useNow();
   const variants = useRevealVariants();
   const capturing = capture.status === "capturing";
-  const refreshLabel = capturing ? "Taking snapshot…" : "Refresh snapshot";
+  const refreshLabel = capturing ? "Taking a snapshot…" : "Refresh snapshot";
   return (
     <motion.div
       variants={variants}

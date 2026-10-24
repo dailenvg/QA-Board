@@ -19,9 +19,10 @@ export function ShareUnavailable() {
       >
         <SquintMascot mood="thinking" size={120} />
         <div>
-          <h1 className="text-title font-bold">This review link isn&apos;t available</h1>
+          <h1 className="text-title font-bold">This link isn&apos;t available</h1>
           <p className="mt-2 text-body text-muted">
-            It may have been turned off by the person who shared it. Ask them for a new link.
+            The project owner may have revoked it, or the address is incomplete. Ask them for a new
+            link.
           </p>
         </div>
         <Logo linked={false} caption="Visual review" />

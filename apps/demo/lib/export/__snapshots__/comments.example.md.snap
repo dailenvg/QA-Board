@@ -1,17 +1,17 @@
 # Squint review: Acme \*launch\* \[v2\]
 
-This file lists visual review comments exported from Squint, written for an AI coding agent (Claude, Cursor, Copilot) or a developer.
+This file is a visual review exported from Squint, written for an AI coding agent (Claude, Cursor, Copilot) or a developer. Each comment asks for one change at a pinned spot on a web page or image.
 
-Each comment asks for one change at a pinned spot on a web page or image. Work through the **active** comments in order: open the page, find the element at the comment's location (its screenshot shows what the reviewer saw, with the pin marked), and make the change. The text under **Request** is the reviewer's own words; treat it as the source of truth.
+How to use it: work through the **Active comments** in order. For each one, open the **Page** (or the source image), find the element at the **Location** (the screenshot shows what the reviewer saw, with the pin marked), and make the change. The text under **Request** is the reviewer's own words, copied exactly. Treat it as the source of truth.
 
-Resolved comments are listed last for context only. Don't act on them.
+**Resolved comments** are listed last, for context only. Don't act on them.
 
 - **Project:** Acme \*launch\* \[v2\]
 - **Source:** website `https://acme.example/pricing?plan=pro`
 - **Capture width:** 1280 px (page width the snapshots were taken at)
 - **Exported:** 2026-10-24T12:30:00.000Z
 - **Comments:** 2 active, 1 resolved
-- **Screenshots:** in `screenshots/`, next to this file. Full-page snapshots are in `snapshots/`.
+- **Screenshots:** in `screenshots/`, next to this file. Full-page snapshots, when included, are in `snapshots/`.
 
 ## Active comments (2)
 

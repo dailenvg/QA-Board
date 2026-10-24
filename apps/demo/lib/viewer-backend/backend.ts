@@ -55,7 +55,7 @@ export interface ViewerBackend {
   ): Promise<CaptureOutcome | null>;
 }
 
-export const OWNER_ONLY = "Only the person who shared this project can do that.";
+export const OWNER_ONLY = "Only the project owner can do that.";
 
 export const ViewerBackendContext = createContext<ViewerBackend | null>(null);
 

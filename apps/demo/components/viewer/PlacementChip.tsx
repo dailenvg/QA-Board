@@ -16,7 +16,7 @@ function copyFor(
       return {
         icon: "globe",
         label: "Live page",
-        hint: "Placed on the live site before snapshots. Its pin sits on the visible frame in Browse mode, so it may not line up after scrolling.",
+        hint: "Placed on the live site before Squint took snapshots. Its pin shows in Browse mode, over the visible frame, so it may not line up after you scroll.",
       };
     case "earlier":
       return {
@@ -28,7 +28,7 @@ function copyFor(
       return {
         icon: "alert",
         label: "Snapshot unavailable",
-        hint: "The snapshot this pin was placed on is no longer saved.",
+        hint: "The snapshot this pin was placed on isn't available anymore.",
       };
   }
 }
