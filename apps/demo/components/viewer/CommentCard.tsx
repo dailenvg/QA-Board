@@ -141,7 +141,8 @@ export function CommentCard({
             <p
               id={pageId}
               data-testid="comment-page"
-              className="mt-2 inline-flex items-center gap-1.5 rounded-pill bg-seg px-2.5 py-0.5 text-label font-semibold text-ink-2"
+              // Same chip as PlacementChip's (8px gap, 12px by 4px padding), on the 4px grid.
+              className="mt-2 inline-flex items-center gap-2 rounded-pill bg-seg px-3 py-1 text-label font-semibold text-ink-2"
             >
               <Icon name="image" className="size-3.5" />
               Page {pageNumber}

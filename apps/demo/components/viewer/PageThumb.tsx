@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "motion/react";
-import { hoverLift, instant, spring, useRevealVariants } from "@/lib/motion";
+import { instant, press, spring, useRevealVariants } from "@/lib/motion";
 import { distinctPageName } from "@/lib/store/pages";
 import type { Page } from "@/lib/store/types";
 import { BlobImage } from "../ui/BlobImage";
@@ -40,10 +40,12 @@ export function PageThumb({ page, number, open, current, onSelect }: PageThumbPr
         title={page.name}
         data-testid="page-thumb"
         data-page={number}
-        {...(reduce ? {} : hoverLift)}
+        // A grow, not a lift: the strip scrolls sideways, so a lift would clip at its top edge.
+        {...(reduce ? {} : press)}
         className="group relative flex flex-col items-center gap-1 rounded-tile p-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
       >
-        <span className="relative block h-14 w-20 overflow-hidden rounded-row bg-card shadow-seg">
+        {/* Smaller on phones, so the strip leaves the page itself more of the screen. */}
+        <span className="relative block h-10 w-14 overflow-hidden rounded-row bg-card shadow-seg sm:h-14 sm:w-20">
           <BlobImage
             blobKey={page.blobKey}
             alt=""

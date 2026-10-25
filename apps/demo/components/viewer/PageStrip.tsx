@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef } from "react";
 import { staggerGroup } from "@/lib/motion";
 import type { CommentCounts } from "@/lib/store/status";
@@ -28,12 +28,25 @@ const stagger = staggerGroup(0.03, 0.04);
  */
 export function PageStrip({ pages, number, counts, onSelect, onStep }: PageStripProps) {
   const listRef = useRef<HTMLOListElement>(null);
+  const reduce = useReducedMotion();
+  const first = number <= 1;
+  const last = number >= pages.length;
 
+  // Only the strip scrolls sideways: scrollIntoView would also scroll the page or panel.
   useEffect(() => {
-    listRef.current
-      ?.querySelector('[aria-current="page"]')
-      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [number]);
+    const list = listRef.current;
+    const item = list?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!list || !item) return;
+    const bounds = list.getBoundingClientRect();
+    const box = item.getBoundingClientRect();
+    const by =
+      box.left < bounds.left
+        ? box.left - bounds.left - 8
+        : box.right > bounds.right
+          ? box.right - bounds.right + 8
+          : 0;
+    if (by) list.scrollBy({ left: by, behavior: reduce ? "auto" : "smooth" });
+  }, [number, reduce]);
 
   return (
     <nav
@@ -42,28 +55,34 @@ export function PageStrip({ pages, number, counts, onSelect, onStep }: PageStrip
       className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 rounded-panel bg-panel p-2"
     >
       <div className="flex items-center gap-1">
+        {/*
+         * aria-disabled, not disabled: at the first or last page the button keeps keyboard
+         * focus instead of dropping it to the page. Stepping past either end does nothing.
+         */}
         <Button
           variant="ghost"
           size="icon"
           onClick={() => onStep(-1)}
-          disabled={number <= 1}
+          aria-disabled={first || undefined}
           aria-label="Previous page"
           title="Previous page (PageUp or [)"
         >
           <Icon name="chevronLeft" className="size-5" />
         </Button>
-        <p
-          aria-live="polite"
-          data-testid="page-position"
-          className="min-w-24 text-center text-body font-semibold tabular-nums"
-        >
-          Page {number} of {pages.length}
-        </p>
+        {/* The hidden widest text holds the width, so the buttons don't shift as numbers grow. */}
+        <div className="grid min-w-24 text-center text-body font-semibold tabular-nums">
+          <span aria-hidden="true" className="invisible col-start-1 row-start-1">
+            Page {pages.length} of {pages.length}
+          </span>
+          <p aria-live="polite" data-testid="page-position" className="col-start-1 row-start-1">
+            Page {number} of {pages.length}
+          </p>
+        </div>
         <Button
           variant="ghost"
           size="icon"
           onClick={() => onStep(1)}
-          disabled={number >= pages.length}
+          aria-disabled={last || undefined}
           aria-label="Next page"
           title="Next page (PageDown or ])"
         >
@@ -80,7 +99,8 @@ export function PageStrip({ pages, number, counts, onSelect, onStep }: PageStrip
         initial="hidden"
         animate="visible"
         aria-label="All pages"
-        className="flex min-w-0 flex-1 basis-64 gap-1 overflow-x-auto p-1"
+        // p-2: room for the thumbnails' focus rings and count badges inside the scroll box.
+        className="flex min-w-0 flex-1 basis-64 gap-1 overflow-x-auto p-2"
       >
         {pages.map((page, index) => (
           <PageThumb

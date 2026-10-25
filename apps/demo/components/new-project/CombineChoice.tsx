@@ -38,7 +38,7 @@ export function CombineChoice({ value, onChange }: CombineChoiceProps) {
             <label
               key={option.value}
               data-testid={`grouping-${option.value}`}
-              className={`relative flex min-h-11 cursor-pointer flex-col gap-1 rounded-tile p-4 transition-colors has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-focus ${
+              className={`relative flex min-h-11 cursor-pointer flex-col gap-1 rounded-tile p-4 pr-12 transition-colors has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-focus ${
                 selected ? "bg-brand-soft" : "bg-card ring-1 ring-line ring-inset hover:bg-hover"
               }`}
             >
@@ -57,6 +57,18 @@ export function CombineChoice({ value, onChange }: CombineChoiceProps) {
                 onChange={() => onChange(option.value)}
                 className="sr-only"
               />
+              {/*
+               * A radio mark, so the choice reads without telling the colors apart (WCAG
+               * 1.4.1); its ring is field-line, 3.4:1 on the card (1.4.11).
+               */}
+              <span
+                aria-hidden="true"
+                className={`absolute top-4 right-4 grid size-5 place-items-center rounded-pill ring-2 ring-inset ${
+                  selected ? "ring-brand-text" : "ring-field-line"
+                }`}
+              >
+                {selected ? <span className="size-2 rounded-pill bg-brand-text" /> : null}
+              </span>
               <span className="relative text-body font-semibold">{option.title}</span>
               <span className="relative text-meta text-muted">{option.hint}</span>
             </label>

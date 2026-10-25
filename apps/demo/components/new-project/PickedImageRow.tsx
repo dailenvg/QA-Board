@@ -117,6 +117,7 @@ export function PickedImageRow({
         size="icon"
         onClick={() => onRemove(item.key)}
         aria-label={`Remove ${item.fileName}`}
+        data-remove-key={item.key}
         className="text-muted hover:text-danger"
       >
         <Icon name="close" className="size-4" />

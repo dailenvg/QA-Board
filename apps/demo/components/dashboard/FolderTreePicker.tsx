@@ -74,8 +74,11 @@ export function FolderTreePicker({
                 checked={selected}
                 disabled={Boolean(problem)}
                 aria-describedby={problem ? reasonId : undefined}
+                // The dialog opens on the chosen folder, not on the first enabled one.
+                data-autofocus={selected && !problem ? true : undefined}
                 onChange={() => onChange(option.value)}
-                className="size-4 shrink-0 accent-brand"
+                // brand-text: cobalt is 2.4:1 on dark cards (WCAG 1.4.11), the dark variant 7.8:1.
+                className="size-4 shrink-0 accent-brand-text"
               />
               <Icon name={option.icon} className="size-4 shrink-0" />
               <span className="min-w-0 flex-1 truncate">{option.label}</span>

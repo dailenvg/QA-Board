@@ -202,6 +202,12 @@ export function ViewerView({
     overlayRef.current.focus({ preventScroll: true });
   }, [mode, stageVersion]);
 
+  // Another page starts at its top, not wherever the last one was scrolled to. Declared
+  // before the effect below, so a card that switches pages still scrolls to its pin.
+  useEffect(() => {
+    canvasAreaRef.current?.scrollTo({ top: 0, left: 0 });
+  }, [pageId]);
+
   // Bring the other half of a selection into view once React has rendered it (and, for a
   // pin on another snapshot, once that snapshot has loaded).
   useEffect(() => {

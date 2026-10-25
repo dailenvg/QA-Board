@@ -172,7 +172,11 @@ export function NewProjectForm({
         icons="sm"
         options={SOURCE_OPTIONS}
         value={kind}
-        onChange={setKind}
+        onChange={(next) => {
+          setKind(next);
+          // "Choose a PDF." doesn't belong under the image dropzone, and so on.
+          setSourceError(null);
+        }}
         stretch
       />
 
@@ -247,6 +251,10 @@ export function NewProjectForm({
       />
 
       <FieldError id={formErrorId} message={formError} />
+      {/* The submit button's text changes while focused, which screen readers don't read out. */}
+      <p aria-live="polite" className="sr-only">
+        {creating ?? ""}
+      </p>
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button variant="secondary" onClick={onCancel}>

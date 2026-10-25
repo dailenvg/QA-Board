@@ -106,6 +106,12 @@ test("the sidebar tree works from the keyboard and remembers what's open", async
   await expect(treeItem(page, "Omega")).toBeFocused();
   // One Tab stop: Shift+Tab leaves the tree.
   await expect(page.getByRole("tree").locator('[tabindex="0"]')).toHaveCount(1);
+  // Shift+F10 opens the focused folder's menu; Escape brings focus back to the folder.
+  await page.keyboard.press("Shift+F10");
+  await expect(page.getByRole("menuitem", { name: "New folder inside" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(treeItem(page, "Omega")).toBeFocused();
+  await expect(page.getByRole("menu")).toHaveCount(0);
 
   // Closed folders stay closed after a reload; Enter opens a folder's page.
   await alpha.focus();
@@ -195,8 +201,14 @@ test("deleting a folder deletes everything inside it, counted first, and revokes
     "1 share link stops working",
   ]);
   await expect(confirm).toContainText("This can't be undone.");
-  // Cancel is focused first, so Enter never deletes by accident.
-  await expect(confirm.getByRole("button", { name: "Cancel" })).toBeFocused();
+  // Comments and a share link go with it, so its name must be typed first; Enter alone
+  // never deletes.
+  const typed = confirm.getByLabel("Type Alpha to confirm");
+  await expect(typed).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(confirm.getByRole("alert")).toContainText("Type Alpha to confirm");
+  await expect(confirm).toBeVisible();
+  await typed.fill("Alpha");
   await confirm.getByRole("button", { name: "Delete folder" }).click();
 
   await expect(page).toHaveURL(/\/$/);

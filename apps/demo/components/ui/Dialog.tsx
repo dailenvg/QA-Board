@@ -53,6 +53,13 @@ function useFocusTrap(open: boolean, panel: RefObject<HTMLDivElement | null>, on
       const first = items[0];
       const last = items[items.length - 1];
       if (!first || !last) return;
+      // Focus fell out of the panel (its element was removed or disabled): bring it back
+      // instead of letting Tab reach the page behind the modal.
+      if (!node.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+        return;
+      }
       if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
         last.focus();

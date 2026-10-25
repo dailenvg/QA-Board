@@ -15,8 +15,12 @@ interface BreadcrumbProps {
 /** With more folders above than this, the middle ones fold behind a "…" button. */
 const SHOWN_ANCESTORS = 2;
 
+/*
+ * Names truncate on an inner span: `truncate` on the flex container itself clips
+ * without the ellipsis, so a cut-off name wouldn't read as cut off.
+ */
 const CRUMB =
-  "inline-flex min-h-11 max-w-40 items-center truncate rounded-pill px-2 text-body font-medium text-muted transition-colors hover:bg-hover hover:text-ink active:bg-seg sm:max-w-56";
+  "inline-flex min-h-11 max-w-40 items-center rounded-pill px-2 text-body font-medium text-muted transition-colors hover:bg-hover hover:text-ink active:bg-seg sm:max-w-56";
 
 function Separator() {
   return <Icon name="chevronRight" className="size-4 shrink-0 text-muted" />;
@@ -47,9 +51,9 @@ export function Breadcrumb({ ancestors, current }: BreadcrumbProps) {
           ref={unfolded && index === 1 ? revealed : undefined}
           href={folderHref(folder.id)}
           scroll={false}
-          className={CRUMB}
+          className={`${CRUMB} min-w-0`}
         >
-          {folder.name}
+          <span className="truncate">{folder.name}</span>
         </Link>
       </li>
     );
@@ -62,7 +66,8 @@ export function Breadcrumb({ ancestors, current }: BreadcrumbProps) {
           type="button"
           onClick={() => setUnfolded(true)}
           aria-label={`Show ${hidden.length} more ${hidden.length === 1 ? "folder" : "folders"}`}
-          className={`${CRUMB} justify-center`}
+          // min-w-11: "…" alone is narrower than a 44px target.
+          className={`${CRUMB} min-w-11 justify-center`}
         >
           …
         </button>
@@ -79,11 +84,12 @@ export function Breadcrumb({ ancestors, current }: BreadcrumbProps) {
           </Link>
         </li>
         {crumbs}
-        <li className="flex min-w-0 items-center gap-1">
+        <li className="flex min-h-11 min-w-0 items-center gap-1">
           <Separator />
+          {/* A flex item (blockified), so `truncate` shows its ellipsis; the li keeps the 44px row. */}
           <span
             aria-current="page"
-            className="inline-flex min-h-11 max-w-40 items-center truncate px-2 text-body font-semibold text-ink sm:max-w-56"
+            className="max-w-40 min-w-0 truncate px-2 text-body font-semibold text-ink sm:max-w-56"
           >
             {current.name}
           </span>

@@ -19,6 +19,16 @@ interface FolderDialogsProps {
 
 const count = (value: number, noun: string) => `${value} ${noun}${value === 1 ? "" : "s"}`;
 
+/**
+ * Friction in proportion to the loss: comments are review work nobody can redo
+ * from the source files, and a share link breaks for clients too, so either
+ * one asks for the folder's name to be typed. Empty folders, or ones holding
+ * only uncommented projects, keep the one-step confirm.
+ */
+function needsTypedName({ comments, shared }: FolderContents): boolean {
+  return comments > 0 || shared > 0;
+}
+
 /** What goes with the folder, counted, and that it can't be undone. */
 function DeleteSummary({ subfolders, projects, comments, shared }: FolderContents) {
   if (subfolders + projects === 0) return <p>This folder is empty.</p>;
@@ -80,6 +90,7 @@ export function FolderDialogs({
         title={removing ? `Delete ${removing.folder.name}?` : "Delete folder?"}
         description={removing ? <DeleteSummary {...removing.contents} /> : ""}
         confirmLabel="Delete folder"
+        confirmText={removing && needsTypedName(removing.contents) ? removing.folder.name : null}
         onConfirm={() => removing && onDelete(removing.folder)}
       />
     </>
