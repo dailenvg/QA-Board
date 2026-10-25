@@ -103,14 +103,27 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
     [data, persistent, folders, showNewProject, showRename, showDelete, report, leavingFolderId],
   );
 
-  /** On the Overview the new sheet drops into its folder, so stay and offer a way in. */
-  const onCreated = (project: Project) => {
+  /**
+   * One project opens, unless it was made on the Overview: the new sheet drops into its
+   * folder there, so stay and offer a way in. Several stay put and offer their folder.
+   */
+  const onCreated = (projects: Project[]) => {
     newProject.close();
+    const [project] = projects;
+    if (!project) return;
+    const folder = folders.find((entry) => entry.id === project.folderId);
+    if (projects.length > 1) {
+      const added = `Added ${projects.length} projects`;
+      toast({
+        message: folder ? `${added} to ${folder.name}` : added,
+        action: { label: "Open folder", onAction: () => router.push(folderHref(project.folderId)) },
+      });
+      return;
+    }
     if (!onOverview) {
       router.push(projectHref(project.id));
       return;
     }
-    const folder = folders.find((entry) => entry.id === project.folderId);
     toast({
       message: folder ? `Added ${project.name} to ${folder.name}` : `Added ${project.name}`,
       action: { label: "Open", onAction: () => router.push(projectHref(project.id)) },

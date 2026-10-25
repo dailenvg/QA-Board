@@ -82,6 +82,37 @@ export async function createImageProject(page: Page, fileName: string): Promise<
   await expect(page.getByRole("img", { name: /the image under review/ })).toBeVisible();
 }
 
+/** Browser-drawn PNGs named `<label>.png` (lowercase), each showing its label. */
+export async function samplePngFiles(
+  page: Page,
+  labels: readonly string[],
+): Promise<Array<{ name: string; mimeType: string; buffer: Buffer }>> {
+  const files = [];
+  for (const label of labels) {
+    files.push({
+      name: `${label.toLowerCase()}.png`,
+      mimeType: "image/png",
+      buffer: await samplePng(page, label),
+    });
+  }
+  return files;
+}
+
+/** Chooses images in the New project dialog and waits until each is prepared. */
+export async function pickImages(
+  page: Page,
+  files: ReadonlyArray<{ name: string; mimeType: string; buffer: Buffer }>,
+): Promise<Locator> {
+  await page.getByTestId("new-project").click();
+  const dialog = newProjectDialog(page);
+  await dialog.getByRole("radio", { name: "Image" }).click();
+  await dialog.locator('input[type="file"]').setInputFiles([...files]);
+  await expect(dialog.locator('[data-testid="picked-image"][data-status="ready"]')).toHaveCount(
+    files.length,
+  );
+  return dialog;
+}
+
 /** Drops a pin and posts a comment; `author` is only asked for on the first comment. */
 export async function postComment(
   page: Page,

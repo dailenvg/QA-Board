@@ -1,21 +1,19 @@
 "use client";
 
-import Image from "next/image";
 import { useId, useState, type DragEvent } from "react";
 import { ACCEPT_ATTRIBUTE } from "@/lib/image";
-import type { ImageUpload } from "@/lib/store/actions";
 import { FieldError } from "../ui/FieldError";
 import { Icon } from "../ui/Icon";
 
 interface ImageDropzoneProps {
-  image: ImageUpload | null;
-  processing: boolean;
+  /** Some images are already chosen: the prompt offers to add more. */
+  hasImages: boolean;
   error: string | null;
-  onFile: (file: File) => void;
+  onFiles: (files: File[]) => void;
 }
 
-/** Drop target and file picker for PNG, JPG, WebP and GIF images, with a preview. */
-export function ImageDropzone({ image, processing, error, onFile }: ImageDropzoneProps) {
+/** Drop target and file picker for one or more PNG, JPG, WebP and GIF images. */
+export function ImageDropzone({ hasImages, error, onFiles }: ImageDropzoneProps) {
   const inputId = useId();
   const hintId = useId();
   const errorId = useId();
@@ -24,14 +22,14 @@ export function ImageDropzone({ image, processing, error, onFile }: ImageDropzon
   const onDrop = (event: DragEvent<HTMLLabelElement>) => {
     event.preventDefault();
     setDragging(false);
-    const file = event.dataTransfer.files[0];
-    if (file) onFile(file);
+    const files = [...event.dataTransfer.files];
+    if (files.length) onFiles(files);
   };
 
   return (
     <div>
       <span className="mb-2 block text-body font-semibold" id={`${inputId}-label`}>
-        Image
+        Images
       </span>
       <label
         htmlFor={inputId}
@@ -42,8 +40,8 @@ export function ImageDropzone({ image, processing, error, onFile }: ImageDropzon
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
         data-testid="image-dropzone"
-        className={`relative flex min-h-40 flex-col items-center justify-center gap-2 overflow-hidden rounded-tile border-2 border-dashed p-5 text-center transition-colors has-[input:focus-visible]:border-focus has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-focus ${
-          processing ? "cursor-progress" : "cursor-pointer"
+        className={`relative flex cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-tile border-2 border-dashed p-5 text-center transition-colors has-[input:focus-visible]:border-focus has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-focus ${
+          hasImages ? "min-h-24" : "min-h-40"
         } ${
           dragging
             ? "border-brand bg-brand-soft"
@@ -52,40 +50,24 @@ export function ImageDropzone({ image, processing, error, onFile }: ImageDropzon
               : "border-field-line bg-card hover:bg-hover active:bg-seg"
         }`}
       >
-        {image ? (
-          <>
-            <span className="relative block h-28 w-full">
-              <Image src={image.dataUrl} alt="" fill unoptimized className="object-contain" />
-            </span>
-            <span className="max-w-full truncate text-meta font-medium text-ink-2">
-              {image.fileName}
-            </span>
-            <span className="text-meta font-semibold text-brand-text">
-              Choose a different image
-            </span>
-          </>
-        ) : (
-          <>
-            <Icon name="upload" className="size-6 text-muted" />
-            <span className="text-body font-semibold">
-              {processing ? "Preparing image…" : "Drop an image here, or choose a file"}
-            </span>
-            <span id={hintId} className="text-meta text-muted">
-              PNG, JPG, WebP or GIF, up to 15 MB
-            </span>
-          </>
-        )}
+        <Icon name="upload" className="size-6 text-muted" />
+        <span className="text-body font-semibold">
+          {hasImages ? "Add more images" : "Drop images here, or choose files"}
+        </span>
+        <span id={hintId} className="text-meta text-muted">
+          PNG, JPG, WebP or GIF, up to 15 MB each. Choose several to combine them into pages.
+        </span>
         <input
           id={inputId}
           type="file"
+          multiple
           accept={ACCEPT_ATTRIBUTE}
           aria-labelledby={`${inputId}-label`}
           aria-describedby={`${hintId} ${errorId}`}
           aria-invalid={error ? true : undefined}
-          disabled={processing}
           onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) onFile(file);
+            const files = [...(event.target.files ?? [])];
+            if (files.length) onFiles(files);
             event.target.value = "";
           }}
           className="sr-only"
