@@ -32,11 +32,13 @@ import { ExportMenu } from "./ExportMenu";
 import { PinPopover } from "./PinPopover";
 import { commentSurfaceKey, placementOf, surfaceKey } from "./surface";
 import { useCommentActions } from "./use-comment-actions";
+import { useViewerDraft } from "./use-viewer-draft";
+import { useViewerPage } from "./use-viewer-page";
 import { useViewerSurface } from "./use-viewer-surface";
 import { ViewerStage } from "./ViewerStage";
 import { ViewerTopBar } from "./ViewerTopBar";
 import type { DraftStorage } from "@/lib/share-client/draft-storage";
-import type { CommentTab, Draft, PinPoint, ScreenshotHandler, ViewerMode } from "./types";
+import type { CommentTab, PinPoint, ScreenshotHandler, ViewerMode } from "./types";
 
 /** One celebration: the mascot's hop plus its rest beat. */
 const CELEBRATION_MS = RESOLVED_HOP * 2 * 1000;
@@ -54,16 +56,6 @@ interface ViewerViewProps {
   panelNote?: string;
   /** Keeps an unsent draft across reloads (shared links), and warns before leaving it. */
   draftStorage?: DraftStorage;
-}
-
-const RESTORED = "This comment wasn't sent before the page closed. Retry to post it, or cancel it.";
-
-/** A draft kept from before a reload, shown as unsent until it's posted. */
-function restoreDraft(storage: DraftStorage | undefined): Draft | null {
-  const stored = storage?.load();
-  return stored
-    ? { ...stored, pageId: stored.pageId ?? null, sending: false, error: RESTORED, crop: null }
-    : null;
 }
 
 type ScrollRequest = { id: string; target: "pin" | "card"; nonce: number } | null;
@@ -90,11 +82,11 @@ export function ViewerView({
   const now = useNow();
   const reduce = useReducedMotion();
   const docked = !useMediaQuery("(min-width: 1024px)");
-  const [draft, setDraft] = useState<Draft | null>(() => restoreDraft(draftStorage));
-  const view = useViewerSurface(project, data, {
+  const [draft, setDraft] = useViewerDraft(draftStorage);
+  const pages = useViewerPage(project, draft?.pageId ?? null);
+  const view = useViewerSurface(project, data, pages, {
     mode: draft ? "comment" : "browse",
     snapshotId: draft?.snapshotId ?? null,
-    pageId: draft?.pageId ?? null,
   });
   const [tab, setTab] = useState<CommentTab>("active");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -171,38 +163,6 @@ export function ViewerView({
   useShortcut("c", () => setMode(mode === "comment" ? "browse" : "comment"));
   // The open popover takes Escape first.
   useShortcut("escape", () => setMode("browse"), mode === "comment" && !stageDraft && !openComment);
-
-  const unsent = Boolean(draftStorage && draft?.body.trim());
-
-  // Keep the draft with text across a reload; drop it once posted or cancelled.
-  useEffect(() => {
-    if (!draftStorage) return;
-    if (!draft?.body.trim()) {
-      draftStorage.save(null);
-      return;
-    }
-    const { x, y, body, surfaceKey, snapshotId, pageId, commentId, author } = draft;
-    draftStorage.save({
-      x,
-      y,
-      body,
-      surfaceKey,
-      snapshotId,
-      pageId,
-      commentId,
-      ...(author ? { author } : {}),
-    });
-  }, [draft, draftStorage]);
-
-  // Leaving with an unsent comment asks first.
-  useEffect(() => {
-    if (!unsent) return;
-    const warn = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-    };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [unsent]);
 
   /** After the composer closes, keyboard users carry on from the canvas instead of the page top. */
   const returnFocusToCanvas = () => overlayRef.current?.focus({ preventScroll: true });

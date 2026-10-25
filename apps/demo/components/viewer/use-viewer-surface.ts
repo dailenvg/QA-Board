@@ -7,44 +7,31 @@ import {
   breakpointOfComment,
   type Breakpoint,
 } from "@/lib/store/breakpoints";
-import { findPage } from "@/lib/store/pages";
 import { snapshotsFor } from "@/lib/store/snapshots";
 import type { Comment, Project, Snapshot, SquintData } from "@/lib/store/types";
 import { stageSurface, surfaceTargetOf, type StageSource } from "./surface";
 import type { ViewerMode } from "./types";
+import type { ViewerPage } from "./use-viewer-page";
 
 const IDLE: CaptureState = { status: "idle" };
 
-/** The page being viewed (`pageId`, else the first) of a page project. */
-function stageSourceOf(project: Project, pageId: string | null): StageSource {
-  const { source } = project;
-  if (source.kind === "url") return { kind: "url" };
-  const page = findPage(project, pageId ?? undefined)?.page ?? source.pages[0];
-  if (!page) throw new Error("A page project has no pages.");
-  return { kind: "pages", page };
-}
-
 /**
- * Mode, breakpoint, the snapshot or page being viewed, and snapshot capture
- * for one project. Websites are reviewed per breakpoint: each has its own
- * latest snapshot, captured at that breakpoint's width. Leaving Comment mode
- * on a website returns to the latest snapshot next time. Page projects show
- * one page at a time (the first, until another is chosen).
+ * Mode, breakpoint, the snapshot being viewed, and snapshot capture for one
+ * project. Websites are reviewed per breakpoint: each has its own latest
+ * snapshot, captured at that breakpoint's width. Leaving Comment mode on a
+ * website returns to the latest snapshot next time. Page projects show the
+ * page `pages` says, which a comment's card can change.
  */
 export function useViewerSurface(
   project: Project,
   data: SquintData,
-  /** Where to start, such as a restored draft's snapshot (and so its breakpoint) or page. */
-  initial: { mode: ViewerMode; snapshotId: string | null; pageId: string | null } = {
-    mode: "browse",
-    snapshotId: null,
-    pageId: null,
-  },
+  pages: ViewerPage,
+  /** Where to start, such as a restored draft's snapshot (and so its breakpoint). */
+  initial: { mode: ViewerMode; snapshotId: string | null },
 ) {
   const kind = project.source.kind;
   const [mode, setModeState] = useState<ViewerMode>(initial.mode);
   const [viewedId, setViewedId] = useState<string | null>(initial.snapshotId);
-  const [pageId, setPageId] = useState<string | null>(initial.pageId);
   const [breakpoint, setBreakpointState] = useState<Breakpoint>(() => {
     const start = data.snapshots.find((snapshot) => snapshot.id === initial.snapshotId);
     return start ? breakpointOf(start.width) : "desktop";
@@ -62,7 +49,8 @@ export function useViewerSurface(
   );
   const latest = latestOf(breakpoint);
   const viewed = (viewedId && snapshots.get(viewedId)) || null;
-  const surface = stageSurface(stageSourceOf(project, pageId), mode, viewed, latest);
+  const stage: StageSource = pages.page ? { kind: "pages", page: pages.page } : { kind: "url" };
+  const surface = stageSurface(stage, mode, viewed, latest);
   const backend = useViewerBackend();
   const url = kind === "url" ? project.source.url : null;
   const capturer = useMemo(
@@ -101,7 +89,7 @@ export function useViewerSurface(
     const target = surfaceTargetOf(comment, kind, snapshots, latestOf(at)?.id ?? null);
     if (!target) return;
     if (target.mode) setModeState(target.mode);
-    if (target.pageId) setPageId(target.pageId);
+    if (target.pageId) pages.selectPage(target.pageId);
     setBreakpointState(at);
     setViewedId(target.viewedSnapshotId);
   };
