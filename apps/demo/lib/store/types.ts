@@ -2,15 +2,51 @@ export interface Folder {
   id: string;
   name: string;
   createdAt: number;
+  /** The folder it sits in; null at the top level. */
+  parentId: string | null;
 }
 
-export type ProjectSource =
-  | { kind: "url"; url: string }
+/**
+ * One picture of a page-based project. Comments on it carry its id, and their
+ * pins and crops are in its px.
+ */
+export interface Page {
   /**
-   * The picture lives in the blob store under `blobKey` (`image:<projectId>`).
-   * `referenceUrl` keeps the original site when a screenshot replaced a URL.
+   * Unique within its project only: a project's single page migrated from
+   * version 2 has the id `MIGRATED_PAGE_ID` (see `persist.ts`), the same in
+   * every project. Never use a page id as a key outside its project.
    */
-  | { kind: "image"; blobKey: string; fileName: string; referenceUrl?: string };
+  id: string;
+  /**
+   * Key of the picture in the blob store: `image:<projectId>` on pages migrated
+   * from version 2, `page:<pageId>` on pages added since.
+   */
+  blobKey: string;
+  /** Shown to reviewers and in exports: the image's file name, or "Page 3" of a PDF. */
+  name: string;
+  /**
+   * Natural size of the stored picture in px. Missing on pages migrated from
+   * version 2, which never recorded it; read it from the image when needed.
+   */
+  width?: number;
+  height?: number;
+}
+
+/** What a page-based project was made from. */
+export type PageOrigin = "image" | "pdf";
+
+/** A page-based project's source. Always at least one page, in reading order. */
+export interface PagesSource {
+  kind: "pages";
+  origin: PageOrigin;
+  pages: Page[];
+  /** The uploaded file (the first one, for images combined into one project). */
+  fileName: string;
+  /** The original site, when a screenshot replaced a website project. */
+  referenceUrl?: string;
+}
+
+export type ProjectSource = { kind: "url"; url: string } | PagesSource;
 
 /** The owner's side of a shared review link. Secrets stay in this browser. */
 export interface ProjectShare {
@@ -39,7 +75,7 @@ export interface Project {
 
 export type CommentStatus = "active" | "resolved";
 
-/** A region in surface pixels: snapshot page px, or an image's natural px. */
+/** A region in surface pixels: a snapshot's page px, or a page's natural px. */
 export interface Rect {
   x: number;
   y: number;
@@ -74,7 +110,7 @@ export interface Snapshot {
 export interface CommentCrop {
   /** Key of the PNG in the blob store. */
   blobKey: string;
-  /** The region shown, in surface px (the snapshot's page px, or the image's natural px). */
+  /** The region shown, in surface px (the snapshot's page px, or the page's natural px). */
   rect: Rect;
 }
 
@@ -83,7 +119,8 @@ export interface Comment {
   projectId: string;
   /**
    * Pin position as a percentage (0 to 100) of the surface: the snapshot when
-   * `snapshotId` is set, else the image, else (older website comments) the visible frame.
+   * `snapshotId` is set, the page when `pageId` is set, else (older website
+   * comments) the visible frame.
    */
   x: number;
   y: number;
@@ -93,8 +130,14 @@ export interface Comment {
   createdAt: number;
   updatedAt: number;
   resolvedAt?: number;
-  /** The snapshot the pin was placed on. Missing on image comments and older website comments. */
+  /**
+   * The snapshot the pin was placed on. A comment sits on one surface: a
+   * snapshot (`snapshotId`), a page (`pageId`), or, with neither, the live
+   * frame of a website project (older comments only).
+   */
   snapshotId?: string;
+  /** The page the pin was placed on: set on every page-project comment that isn't on a snapshot. */
+  pageId?: string;
   /** Added shortly after the comment is posted, once the picture is saved. */
   crop?: CommentCrop;
 }
@@ -113,8 +156,11 @@ export interface PendingRevocation {
 }
 
 export interface SquintData {
-  /** 2 since images moved out of localStorage; version 1 data is migrated on load. */
-  version: 2;
+  /**
+   * 3 since image projects hold pages and folders nest. Version 2 (images in
+   * the blob store) and version 1 (images inline) are migrated on load.
+   */
+  version: 3;
   folders: Folder[];
   projects: Project[];
   comments: Comment[];

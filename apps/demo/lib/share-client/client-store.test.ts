@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STATE } from "@/test/share-fixture";
+import { COMMENT, STATE } from "@/test/share-fixture";
 import { createClientStore, SHARED_PROJECT_ID, toViewerData } from "./client-store";
 
 describe("client store", () => {
@@ -18,6 +18,35 @@ describe("client store", () => {
     });
     expect(data.snapshots[0]).toMatchObject({ id: "snap-1", blobKey: "snapshot:snap-1" });
     expect(data.folders).toEqual([]);
+  });
+
+  it("reads each shared page's picture through its share key, and keeps comments' pages", () => {
+    const view = {
+      project: {
+        name: "Mockups",
+        source: {
+          kind: "pages" as const,
+          origin: "image" as const,
+          fileName: "home.png",
+          pages: [
+            { id: "p1", name: "home.png", width: 1200, height: 900 },
+            { id: "p2", name: "about.png" },
+          ],
+        },
+      },
+      snapshots: [],
+      comments: [{ ...COMMENT, id: "k", snapshotId: undefined, pageId: "p2" }],
+    };
+    const { data, project } = toViewerData(createClientStore(view).getServerSnapshot());
+    expect(project.source).toEqual({
+      ...view.project.source,
+      pages: [
+        { id: "p1", name: "home.png", width: 1200, height: 900, blobKey: "page:p1" },
+        { id: "p2", name: "about.png", blobKey: "page:p2" },
+      ],
+    });
+    expect(data.version).toBe(3);
+    expect(data.comments[0]).toMatchObject({ id: "k", pageId: "p2" });
   });
 
   it("adds an accepted comment once, even if a refresh brought it first", () => {

@@ -2,7 +2,12 @@
 
 import { useId, useState, type FormEvent } from "react";
 import { prepareImage } from "@/lib/image";
-import { createFolder, createImageProject, createProject } from "@/lib/store/actions";
+import {
+  createFolder,
+  createPagesProject,
+  createProject,
+  type ImageUpload,
+} from "@/lib/store/actions";
 import type { Folder, Project } from "@/lib/store/types";
 import { baseName, displayHost, normalizeUrl } from "@/lib/url";
 import { Button } from "../ui/Button";
@@ -10,13 +15,13 @@ import { FieldError } from "../ui/FieldError";
 import { FIELD_CLASS } from "../ui/field-styles";
 import { SegmentedControl, type SegmentOption } from "../ui/SegmentedControl";
 import { FolderPicker, NEW_FOLDER } from "./FolderPicker";
-import { ImageDropzone, type PickedImage } from "./ImageDropzone";
+import { ImageDropzone } from "./ImageDropzone";
 import { UrlField } from "./UrlField";
 
 type SourceKind = "url" | "image";
 
 /** What the form collected: an address, or a prepared image to store. */
-type SourceDraft = { kind: "url"; url: string } | { kind: "image"; image: PickedImage };
+type SourceDraft = { kind: "url"; url: string } | { kind: "image"; image: ImageUpload };
 
 const SOURCE_OPTIONS: ReadonlyArray<SegmentOption<SourceKind>> = [
   { value: "url", label: "Website", icon: "globe" },
@@ -44,7 +49,7 @@ export function NewProjectForm({
   const [kind, setKind] = useState<SourceKind>("url");
   const [url, setUrl] = useState("");
   const [urlError, setUrlError] = useState<string | null>(null);
-  const [image, setImage] = useState<PickedImage | null>(null);
+  const [image, setImage] = useState<ImageUpload | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [name, setName] = useState("");
@@ -78,7 +83,8 @@ export function NewProjectForm({
       setImageError(result.error);
       return;
     }
-    setImage({ dataUrl: result.dataUrl, fileName: file.name });
+    const { dataUrl, width, height } = result;
+    setImage({ dataUrl, fileName: file.name, width, height });
   };
 
   const resolveSource = (): SourceDraft | null => {
@@ -115,7 +121,14 @@ export function NewProjectForm({
       return Promise.resolve(createProject({ folderId: folder, name: projectName, source: draft }));
     }
     const projectName = name.trim() || baseName(draft.image.fileName);
-    return createImageProject({ folderId: folder, name: projectName, image: draft.image });
+    const { image: picked } = draft;
+    return createPagesProject({
+      folderId: folder,
+      name: projectName,
+      origin: "image",
+      fileName: picked.fileName,
+      images: [picked],
+    });
   };
 
   const submit = async (event: FormEvent) => {

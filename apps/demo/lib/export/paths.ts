@@ -14,19 +14,39 @@ export function extensionFor(mimeType: string): string {
   return EXTENSIONS[mimeType] ?? "img";
 }
 
-/** `screenshots/03-1a2b3c4d.png`: pin number, padded so files sort in pin order. */
-export function screenshotPath(number: number, commentId: string, total: number): string {
-  const width = Math.max(2, String(total).length);
+/** `07` of 12, `007` of 120: numbers padded so files sort in order. */
+function padded(number: number, total: number): string {
+  return String(number).padStart(Math.max(2, String(total).length), "0");
+}
+
+/** Where a screenshot's pin is, for its file name: page `number` of `total`. */
+export interface PageNumber {
+  number: number;
+  total: number;
+}
+
+/**
+ * `screenshots/03-1a2b3c4d.png`: pin number, padded so files sort in pin
+ * order. A pin on a page names it too: `screenshots/03-p02-1a2b3c4d.png`.
+ */
+export function screenshotPath(
+  number: number,
+  commentId: string,
+  total: number,
+  page: PageNumber | null = null,
+): string {
   const shortId = commentId.replace(/[^a-z\d]/gi, "").slice(0, 8) || "comment";
-  return `screenshots/${String(number).padStart(width, "0")}-${shortId}.png`;
+  const onPage = page ? `p${padded(page.number, page.total)}-` : "";
+  return `screenshots/${padded(number, total)}-${onPage}${shortId}.png`;
 }
 
 export function snapshotPath(snapshotId: string, mimeType: string): string {
   return `snapshots/${snapshotId.replace(/[^a-z\d-]/gi, "")}.${extensionFor(mimeType)}`;
 }
 
-export function sourceImagePath(mimeType: string): string {
-  return `source-image.${extensionFor(mimeType)}`;
+/** `pages/02.webp`: a page's image, numbered in reading order. */
+export function pagePath(page: PageNumber, mimeType: string): string {
+  return `pages/${padded(page.number, page.total)}.${extensionFor(mimeType)}`;
 }
 
 /** Lowercase ASCII words joined by hyphens, for file names. */

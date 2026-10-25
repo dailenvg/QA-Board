@@ -1,7 +1,14 @@
-import { cropBlobKey, projectImageKey, snapshotBlobKey } from "../blob-store/keys";
+import { cropBlobKey, snapshotBlobKey } from "../blob-store/keys";
 import { SHARE_LIMITS } from "../share/limits";
-import type { SharedComment, SharedSnapshot, ShareState } from "../share/types";
-import type { Comment, Project, Snapshot } from "../store/types";
+import type {
+  SharedComment,
+  SharedPage,
+  SharedSnapshot,
+  SharedSource,
+  ShareState,
+} from "../share/types";
+import { pagesOf } from "../store/pages";
+import type { Comment, Page, Project, Snapshot } from "../store/types";
 
 /**
  * Trimmed and capped exactly as the server's schema stores it, so content
@@ -22,7 +29,28 @@ function sharedComment(comment: Comment): SharedComment {
     updatedAt: comment.updatedAt,
     ...(comment.resolvedAt !== undefined ? { resolvedAt: comment.resolvedAt } : {}),
     ...(comment.snapshotId ? { snapshotId: comment.snapshotId } : {}),
+    ...(comment.pageId ? { pageId: comment.pageId } : {}),
     ...(comment.crop ? { crop: { rect: comment.crop.rect } } : {}),
+  };
+}
+
+function sharedPage({ id, name, width, height }: Page, index: number): SharedPage {
+  return {
+    id,
+    name: cap(name, SHARE_LIMITS.fileName) || `Page ${index + 1}`,
+    ...(width !== undefined && height !== undefined ? { width, height } : {}),
+  };
+}
+
+function sharedSource(project: Project): SharedSource {
+  const { source } = project;
+  if (source.kind === "url") return { kind: "url", url: source.url };
+  return {
+    kind: "pages",
+    origin: source.origin,
+    fileName: cap(source.fileName, SHARE_LIMITS.fileName) || "image",
+    ...(source.referenceUrl ? { referenceUrl: source.referenceUrl } : {}),
+    pages: source.pages.map(sharedPage),
   };
 }
 
@@ -43,27 +71,24 @@ export function toShareState(
   comments: readonly Comment[],
   snapshots: readonly Snapshot[],
 ): ShareState {
-  const { source } = project;
   return {
     project: {
       name: cap(project.name, SHARE_LIMITS.projectName) || "Untitled",
-      source:
-        source.kind === "url"
-          ? { kind: "url", url: source.url }
-          : {
-              kind: "image",
-              fileName: cap(source.fileName, SHARE_LIMITS.fileName) || "image",
-              ...(source.referenceUrl ? { referenceUrl: source.referenceUrl } : {}),
-            },
+      source: sharedSource(project),
     },
     snapshots: snapshots.map(sharedSnapshot),
     comments: comments.map(sharedComment),
   };
 }
 
-/** The local blob key for a share's blob key (`image` is the project's own image). */
-export function localBlobKey(serverKey: string, projectId: string): string {
-  return serverKey === "image" ? projectImageKey(projectId) : serverKey;
+/**
+ * The local blob key for a share's blob key: a page's picture is wherever the
+ * page says (`page:<pageId>` on the server); null for a page the project doesn't have.
+ */
+export function localBlobKey(serverKey: string, project: Project): string | null {
+  const pageId = /^page:(.+)$/.exec(serverKey)?.[1];
+  if (pageId === undefined) return serverKey;
+  return pagesOf(project).find((page) => page.id === pageId)?.blobKey ?? null;
 }
 
 export function fromSharedComment(comment: SharedComment, projectId: string): Comment {

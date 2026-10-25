@@ -6,13 +6,14 @@ import type { FolderFile } from "./glass-folder/GlassFolder";
 
 function toFile(data: SquintData, project: Project): FolderFile {
   const { source } = project;
+  const { status, previewKey } = summarize(data, project);
   return {
     id: project.id,
     name: project.name,
     href: projectHref(project.id),
-    status: summarize(data, project).status,
-    ...(source.kind === "image"
-      ? { imageKey: source.blobKey, meta: "Image" }
+    status,
+    ...(source.kind === "pages"
+      ? { ...(previewKey ? { imageKey: previewKey } : {}), meta: "Image" }
       : { meta: displayHost(source.url) }),
   };
 }

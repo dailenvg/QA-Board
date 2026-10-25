@@ -10,35 +10,43 @@ import { Skeleton } from "../ui/Skeleton";
 
 interface ProjectThumbnailProps {
   source: ProjectSource;
-  /** A website's latest snapshot (desktop first), shown instead of the favicon card once taken. */
+  /**
+   * A page project's first page; a website's latest snapshot (desktop first),
+   * shown instead of the favicon card once taken.
+   */
   previewKey: string | null;
 }
 
 const SIZES = "(min-width: 1024px) 25vw, 100vw";
 /** While the picture is read from storage, so a missing-image card doesn't flash first. */
 const PENDING = <Skeleton className="size-full" />;
+const NO_IMAGE = (
+  <span className="grid h-full place-items-center text-muted">
+    <Icon name="image" className="size-6" />
+  </span>
+);
 
 /**
- * Card preview: the image itself; for a website, its latest snapshot, or a
- * browser-window card with the site's favicon until there is one.
+ * Card preview: a page project's first page; for a website, its latest
+ * snapshot, or a browser-window card with the site's favicon until there is one.
  */
 export function ProjectThumbnail({ source, previewKey }: ProjectThumbnailProps) {
   return (
     <div className="relative aspect-[16/10] overflow-hidden rounded-tile bg-card">
-      {source.kind === "image" ? (
-        <BlobImage
-          blobKey={source.blobKey}
-          alt=""
-          fill
-          sizes={SIZES}
-          className="object-cover object-top"
-          pending={PENDING}
-          fallback={
-            <span className="grid h-full place-items-center text-muted">
-              <Icon name="image" className="size-6" />
-            </span>
-          }
-        />
+      {source.kind === "pages" ? (
+        previewKey ? (
+          <BlobImage
+            blobKey={previewKey}
+            alt=""
+            fill
+            sizes={SIZES}
+            className="object-cover object-top"
+            pending={PENDING}
+            fallback={NO_IMAGE}
+          />
+        ) : (
+          NO_IMAGE
+        )
       ) : previewKey ? (
         <BlobImage
           blobKey={previewKey}

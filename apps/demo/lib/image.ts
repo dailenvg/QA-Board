@@ -8,7 +8,9 @@ const MAX_EDGE = 2400;
 const TARGET_CHARS = 1_600_000;
 const QUALITIES = [0.86, 0.74, 0.62, 0.5];
 
-export type ImageResult = { ok: true; dataUrl: string } | { ok: false; error: string };
+/** A prepared image and its size in px. */
+export type ImageResult =
+  { ok: true; dataUrl: string; width: number; height: number } | { ok: false; error: string };
 
 export function validateImageFile(file: File): string | null {
   if (!(ACCEPTED_IMAGE_TYPES as readonly string[]).includes(file.type)) {
@@ -68,7 +70,9 @@ export async function prepareImage(file: File): Promise<ImageResult> {
   context.drawImage(image, 0, 0, canvas.width, canvas.height);
   for (const quality of QUALITIES) {
     const dataUrl = encode(canvas, quality);
-    if (dataUrl.length <= TARGET_CHARS) return { ok: true, dataUrl };
+    if (dataUrl.length <= TARGET_CHARS) {
+      return { ok: true, dataUrl, width: canvas.width, height: canvas.height };
+    }
   }
   return {
     ok: false,

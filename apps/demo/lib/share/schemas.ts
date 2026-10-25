@@ -26,12 +26,35 @@ const rect = z.object({
   height: z.number().finite().positive(),
 });
 
+const edge = z.number().int().min(1).max(SHARE_LIMITS.pageEdge);
+
+const pageSchema = z
+  .object({
+    id,
+    name: text(SHARE_LIMITS.fileName),
+    width: edge.optional(),
+    height: edge.optional(),
+  })
+  .refine((page) => (page.width === undefined) === (page.height === undefined), {
+    message: "Width and height come together",
+  });
+
+const pagesSchema = z
+  .array(pageSchema)
+  .min(1)
+  .max(SHARE_LIMITS.pages)
+  .refine((pages) => new Set(pages.map((page) => page.id)).size === pages.length, {
+    message: "Page ids are unique",
+  });
+
 export const sourceSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("url"), url: httpUrl }),
   z.object({
-    kind: z.literal("image"),
+    kind: z.literal("pages"),
+    origin: z.enum(["image", "pdf"]),
     fileName: text(SHARE_LIMITS.fileName),
     referenceUrl: httpUrl.optional(),
+    pages: pagesSchema,
   }),
 ]);
 
@@ -56,6 +79,7 @@ const commentFields = {
   body: text(SHARE_LIMITS.body),
   author: text(SHARE_LIMITS.author),
   snapshotId: id.optional(),
+  pageId: id.optional(),
   crop: z.object({ rect }).optional(),
 };
 
@@ -92,12 +116,12 @@ export const clientCommentSchema = z.object(commentFields);
 
 export const captureSchema = z.object({ width: z.number().finite() });
 
-/** `image`, `snapshot:<id>` or `crop:<commentId>`. */
-export const blobKeySchema = z.string().regex(/^(image|(snapshot|crop):[A-Za-z0-9_-]{1,64})$/);
+/** `page:<pageId>`, `snapshot:<id>` or `crop:<commentId>`. */
+export const blobKeySchema = z.string().regex(/^(page|snapshot|crop):[A-Za-z0-9_-]{1,64}$/);
 
 export type BlobKind = keyof typeof SHARE_LIMITS.blobBytes;
 
 export function blobKind(key: string): BlobKind {
-  if (key === "image") return "image";
+  if (key.startsWith("page:")) return "page";
   return key.startsWith("snapshot:") ? "snapshot" : "crop";
 }

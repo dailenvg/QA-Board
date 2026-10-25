@@ -61,7 +61,9 @@ const RESTORED = "This comment wasn't sent before the page closed. Retry to post
 /** A draft kept from before a reload, shown as unsent until it's posted. */
 function restoreDraft(storage: DraftStorage | undefined): Draft | null {
   const stored = storage?.load();
-  return stored ? { ...stored, sending: false, error: RESTORED, crop: null } : null;
+  return stored
+    ? { ...stored, pageId: stored.pageId ?? null, sending: false, error: RESTORED, crop: null }
+    : null;
 }
 
 type ScrollRequest = { id: string; target: "pin" | "card"; nonce: number } | null;
@@ -92,6 +94,7 @@ export function ViewerView({
   const view = useViewerSurface(project, data, {
     mode: draft ? "comment" : "browse",
     snapshotId: draft?.snapshotId ?? null,
+    pageId: draft?.pageId ?? null,
   });
   const [tab, setTab] = useState<CommentTab>("active");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -118,7 +121,7 @@ export function ViewerView({
   const stageKey = surfaceKey(surface);
   const comments = useMemo(() => commentsFor(data, project.id), [data, project.id]);
   const numbers = useMemo(() => pinNumbers(comments), [comments]);
-  /** The comments at the current breakpoint (all of them on image projects). */
+  /** The comments at the current breakpoint (all of them on page projects). */
   const listed = useMemo(
     () =>
       website
@@ -126,7 +129,7 @@ export function ViewerView({
         : comments,
     [website, comments, snapshots, breakpoint],
   );
-  const onStage = listed.filter((comment) => commentSurfaceKey(comment, source.kind) === stageKey);
+  const onStage = listed.filter((comment) => commentSurfaceKey(comment) === stageKey);
   // Resolved pins only show on the Resolved tab.
   const pins =
     tab === "active" ? onStage.filter((comment) => comment.status === "active") : onStage;
@@ -178,13 +181,14 @@ export function ViewerView({
       draftStorage.save(null);
       return;
     }
-    const { x, y, body, surfaceKey, snapshotId, commentId, author } = draft;
+    const { x, y, body, surfaceKey, snapshotId, pageId, commentId, author } = draft;
     draftStorage.save({
       x,
       y,
       body,
       surfaceKey,
       snapshotId,
+      pageId,
       commentId,
       ...(author ? { author } : {}),
     });
@@ -234,7 +238,7 @@ export function ViewerView({
     const comment = comments.find((entry) => entry.id === id);
     if (!comment) return;
     // A second click on a card deselects it, unless its pin is on another surface: then it shows it.
-    const shown = commentSurfaceKey(comment, source.kind) === stageKey;
+    const shown = commentSurfaceKey(comment) === stageKey;
     const next = selectedId === id && from === "card" && shown ? null : id;
     setSelectedId(next);
     // A pin toggles its popover. On phones and tablets it's the pin's detail view, so the
@@ -261,6 +265,7 @@ export function ViewerView({
       body: draft?.body ?? "",
       surfaceKey: stageKey,
       snapshotId: surface.kind === "snapshot" ? (surface.snapshot?.id ?? null) : null,
+      pageId: surface.kind === "page" ? surface.page.id : null,
       commentId: newId(),
       sending: false,
       error: null,
@@ -299,7 +304,11 @@ export function ViewerView({
       author,
     };
     const result = await backend.addComment(
-      draft.snapshotId ? { ...input, snapshotId: draft.snapshotId } : input,
+      {
+        ...input,
+        ...(draft.snapshotId ? { snapshotId: draft.snapshotId } : {}),
+        ...(draft.pageId ? { pageId: draft.pageId } : {}),
+      },
       crop,
     );
     if (!result.ok) {
@@ -355,7 +364,8 @@ export function ViewerView({
 
   const saveScreenshot: ScreenshotHandler = async (image) => {
     const referenceUrl = source.kind === "url" ? source.url : source.referenceUrl;
-    const result = await backend.replaceWithImage(project.id, image, referenceUrl);
+    const pageId = surface.kind === "page" ? surface.page.id : null;
+    const result = await backend.replaceWithImage(project.id, image, { referenceUrl, pageId });
     if (result.ok) view.showLatest();
     return result.ok ? null : result.error;
   };

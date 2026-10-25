@@ -1,6 +1,18 @@
 import type { ExportDocument } from "./types";
 
-export const JSON_SCHEMA = "squint.comments/1";
+/**
+ * Changelog:
+ * - `squint.comments/2` (pages): image projects became page projects.
+ *   `project.source` is `{ kind: "pages", origin, fileName, referenceUrl,
+ *   pages }` (was `{ kind: "image", fileName, referenceUrl, width, height,
+ *   file }`); each page has `id`, `number`, `name`, `width`, `height`, `file`
+ *   and `omitted`, and its image is `pages/<NN>.<ext>` (was
+ *   `source-image.<ext>`). `location.surface` "image" became "page", and
+ *   `location.page` (`{ id, number, name }`, else null) says which page.
+ *   A screenshot of a pin on a page is `screenshots/<NN>-p<PP>-<id>.png`.
+ * - `squint.comments/1`: the first version.
+ */
+export const JSON_SCHEMA = "squint.comments/2";
 
 const iso = (time: number) => new Date(time).toISOString();
 const isoOrNull = (time: number | null) => (time === null ? null : iso(time));

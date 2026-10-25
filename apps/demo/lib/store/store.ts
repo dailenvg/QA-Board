@@ -2,7 +2,7 @@ import { migrateImages } from "./migrate-images";
 import {
   createInitialData,
   isQuotaError,
-  LEGACY_STORAGE_KEY,
+  LEGACY_STORAGE_KEYS,
   parseData,
   STORAGE_KEY,
   type PendingImage,
@@ -42,16 +42,17 @@ function emit(): void {
 
 function removeLegacy(): void {
   try {
-    localStorage.removeItem(LEGACY_STORAGE_KEY);
+    for (const key of LEGACY_STORAGE_KEYS) localStorage.removeItem(key);
   } catch {
-    // Leaving the old copy behind is harmless; version 2 is read first.
+    // Leaving an old copy behind is harmless; version 3 is read first.
   }
 }
 
 /**
- * Version 1 data: move its images to the blob store, then save it as version
- * 2 and drop the old copy. If any step fails, version 1 stays exactly as it
- * was and this visit runs unsaved (the next load tries again).
+ * Data saved by an earlier version (already upgraded in memory): move any
+ * version 1 images to the blob store, then save it as version 3 and drop the
+ * old copies. All or nothing: if any step fails, the old copy stays exactly
+ * as it was and this visit runs unsaved (the next load tries again).
  */
 function migrate(data: SquintData, images: readonly PendingImage[]): void {
   if (migrating) return;
@@ -65,11 +66,15 @@ function migrate(data: SquintData, images: readonly PendingImage[]): void {
   });
 }
 
+/** The version 3 copy, else the newest older one (`legacy`). */
 function readStored(): { raw: string | null; legacy: boolean } {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (raw !== null) return { raw, legacy: false };
-  const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
-  return { raw: legacy, legacy: legacy !== null };
+  for (const key of LEGACY_STORAGE_KEYS) {
+    const legacy = localStorage.getItem(key);
+    if (legacy !== null) return { raw: legacy, legacy: true };
+  }
+  return { raw: null, legacy: false };
 }
 
 function load(): StoreState {
@@ -83,7 +88,7 @@ function load(): StoreState {
   if (raw === null) return { status: "ready", data: seed(), persistent: true };
   const parsed = parseData(raw);
   if (!parsed.ok) return { status: "corrupt", reason: parsed.reason, raw };
-  if (!legacy && parsed.pendingImages.length === 0) {
+  if (!legacy && parsed.storedVersion === 3 && parsed.pendingImages.length === 0) {
     return { status: "ready", data: parsed.data, persistent: true };
   }
   migrate(parsed.data, parsed.pendingImages);

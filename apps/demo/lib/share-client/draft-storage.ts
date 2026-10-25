@@ -5,6 +5,8 @@ export interface StoredDraft {
   body: string;
   surfaceKey: string;
   snapshotId: string | null;
+  /** Missing on drafts kept before pages. */
+  pageId?: string | null;
   commentId: string;
   author?: string;
 }
@@ -23,6 +25,7 @@ function isDraft(value: unknown): value is StoredDraft {
     typeof draft.body === "string" &&
     typeof draft.surfaceKey === "string" &&
     (draft.snapshotId === null || typeof draft.snapshotId === "string") &&
+    (draft.pageId === undefined || draft.pageId === null || typeof draft.pageId === "string") &&
     typeof draft.commentId === "string" &&
     (draft.author === undefined || typeof draft.author === "string")
   );

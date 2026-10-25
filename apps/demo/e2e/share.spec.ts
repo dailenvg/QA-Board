@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
+  createImageProject,
   createUrlProject,
   hideComments,
   mockCapture,
@@ -218,7 +219,7 @@ test("deleting a shared project revokes its link once Undo is gone", async ({ pa
     .poll(() =>
       page.evaluate(
         () =>
-          (JSON.parse(localStorage.getItem("squint:v2") ?? "{}") as { revocations: unknown[] })
+          (JSON.parse(localStorage.getItem("squint:v3") ?? "{}") as { revocations: unknown[] })
             .revocations.length,
       ),
     )
@@ -331,5 +332,40 @@ test("an unsent client comment survives a reload, with a warning before leaving"
   await expect(composer).toHaveCount(0);
   await showComments(client);
   await expect(card(client, "Half-written thought")).toHaveCount(1);
+  await clientContext.close();
+});
+
+test("an image project is shared as its page, and a client's comment comes back on it", async ({
+  page,
+  browser,
+}) => {
+  await openFolder(page);
+  await createImageProject(page, "checkout.png");
+  await postComment(page, "Owner note", { x: 100, y: 80 }, "Ana");
+
+  await page.getByTestId("share-button").click();
+  const dialog = page.getByTestId("share-dialog");
+  await dialog.getByTestId("create-share-link").click();
+  const link = await dialog.getByTestId("share-url").inputValue();
+  await expect(dialog.getByTestId("sync-status")).toContainText("Synced");
+  await page.keyboard.press("Escape");
+
+  const clientContext = await browser.newContext();
+  const client = await clientContext.newPage();
+  await client.goto(link);
+  await expect(client.getByRole("img", { name: /the image under review/ })).toBeVisible();
+  await expect(client.getByRole("button", { name: "Comment 1 by Ana", exact: true })).toBeVisible();
+  const sent = client.waitForResponse(
+    (response) => response.url().includes("/comments") && response.request().method() === "POST",
+  );
+  await postComment(client, "Client note", { x: 160, y: 120 }, "Cleo");
+  const response = await sent;
+  expect(response.status()).toBe(201);
+  // The comment names the page it's on, as the server requires on a page project.
+  expect(await response.json()).toMatchObject({ pageId: expect.any(String) });
+
+  await showComments(page);
+  await pullUntil(page, card(page, "Client note"));
+  await expect(page.getByRole("button", { name: "Comment 2 by Cleo", exact: true })).toBeVisible();
   await clientContext.close();
 });

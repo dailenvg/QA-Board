@@ -50,3 +50,41 @@ export const LEGACY_V1 = {
   ],
   authorName: "Ana",
 } as const;
+
+/**
+ * `squint:v2` as Squint saved it before pages: the image in the blob store,
+ * folders without parents, and a comment on a snapshot from the image
+ * project's website days.
+ */
+export const LEGACY_V2 = {
+  ...LEGACY_V1,
+  version: 2,
+  projects: [
+    LEGACY_V1.projects[0],
+    {
+      ...LEGACY_V1.projects[1],
+      source: {
+        kind: "image",
+        blobKey: "image:mock",
+        fileName: "checkout.png",
+        referenceUrl: "https://example.com/checkout",
+      },
+    },
+  ],
+  comments: [
+    ...LEGACY_V1.comments,
+    { ...LEGACY_V1.comments[1], id: "c3", snapshotId: "s1", status: "active" },
+  ],
+  snapshots: [
+    {
+      id: "s1",
+      projectId: "mock",
+      width: 1280,
+      height: 3000,
+      createdAt: 1_700_000_000_250,
+      blobKey: "snapshot:s1",
+      sourceUrl: "https://example.com/checkout",
+    },
+  ],
+  revocations: [],
+} as const;

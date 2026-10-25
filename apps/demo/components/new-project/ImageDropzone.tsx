@@ -3,16 +3,12 @@
 import Image from "next/image";
 import { useId, useState, type DragEvent } from "react";
 import { ACCEPT_ATTRIBUTE } from "@/lib/image";
+import type { ImageUpload } from "@/lib/store/actions";
 import { FieldError } from "../ui/FieldError";
 import { Icon } from "../ui/Icon";
 
-export interface PickedImage {
-  dataUrl: string;
-  fileName: string;
-}
-
 interface ImageDropzoneProps {
-  image: PickedImage | null;
+  image: ImageUpload | null;
   processing: boolean;
   error: string | null;
   onFile: (file: File) => void;

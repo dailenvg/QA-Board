@@ -3,5 +3,11 @@ export const snapshotBlobKey = (snapshotId: string) => `snapshot:${snapshotId}`;
 
 export const cropBlobKey = (commentId: string) => `crop:${commentId}`;
 
-/** An image project's picture. Replacing the image overwrites it in place. */
+/**
+ * The picture of an image project from before pages (versions 1 and 2). Its
+ * migrated page keeps pointing at it, so nothing is copied.
+ */
 export const projectImageKey = (projectId: string) => `image:${projectId}`;
+
+/** A page's picture, for pages added since version 3. Page ids from `newId` are unique. */
+export const pageImageKey = (pageId: string) => `page:${pageId}`;

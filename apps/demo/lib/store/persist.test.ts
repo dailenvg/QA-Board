@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { LEGACY_V1 } from "@/test/legacy-v1";
+import { LEGACY_V1, LEGACY_V2 } from "@/test/legacy-v1";
+import { MIGRATED_PAGE_ID } from "./pages";
 import { parseData } from "./persist";
+
+/** The checkout mockup as a version 3 project: one page, still on its version 2 blob. */
+const MOCK_PAGES = {
+  kind: "pages",
+  origin: "image",
+  pages: [{ id: MIGRATED_PAGE_ID, blobKey: "image:mock", name: "checkout.png" }],
+  fileName: "checkout.png",
+};
 
 const snapshot = {
   id: "s1",
@@ -28,26 +37,113 @@ function parse(value: unknown) {
 }
 
 describe("parseData", () => {
-  it("reads version 1 data, moving inline images out as pending blob writes", () => {
+  it("reads version 1 data as version 3, moving inline images out as pending blob writes", () => {
     const result = parse(LEGACY_V1);
     expect(result.repaired).toBe(false);
-    expect(result.data.version).toBe(2);
+    expect(result.storedVersion).toBe(1);
+    expect(result.data.version).toBe(3);
     expect(result.data.snapshots).toEqual([]);
-    expect(result.data.comments).toEqual(LEGACY_V1.comments);
+    expect(result.data.folders).toEqual([{ ...LEGACY_V1.folders[0], parentId: null }]);
+    const [onSite, onImage] = LEGACY_V1.comments;
+    expect(result.data.comments).toEqual([onSite, { ...onImage, pageId: MIGRATED_PAGE_ID }]);
     expect(result.data.authorName).toBe("Ana");
     const [site, mock] = LEGACY_V1.projects;
-    expect(result.data.projects).toEqual([
-      site,
-      { ...mock, source: { kind: "image", blobKey: "image:mock", fileName: "checkout.png" } },
-    ]);
+    expect(result.data.projects).toEqual([site, { ...mock, source: MOCK_PAGES }]);
     expect(result.pendingImages).toEqual([{ key: "image:mock", dataUrl: mock.source.dataUrl }]);
   });
 
-  it("reads version 2 data as it is, with nothing pending", () => {
-    const first = parse(LEGACY_V1);
-    const again = parse({ ...first.data });
-    expect(again.data).toEqual(first.data);
-    expect(again.pendingImages).toEqual([]);
+  it("reads version 2 data as version 3: each image becomes one page on its own blob", () => {
+    const result = parse(LEGACY_V2);
+    expect(result.repaired).toBe(false);
+    expect(result.storedVersion).toBe(2);
+    expect(result.pendingImages).toEqual([]);
+    expect(result.data.projects[1]?.source).toEqual({
+      ...MOCK_PAGES,
+      referenceUrl: "https://example.com/checkout",
+    });
+    // Comments on the image move onto its page; those on a snapshot stay there.
+    expect(
+      result.data.comments.map(({ id, snapshotId, pageId }) => [id, snapshotId, pageId]),
+    ).toEqual([
+      ["c1", undefined, undefined],
+      ["c2", undefined, MIGRATED_PAGE_ID],
+      ["c3", "s1", undefined],
+    ]);
+    expect(result.data.folders.every((folder) => folder.parentId === null)).toBe(true);
+  });
+
+  it("is idempotent: version 3 data reads back exactly as it was saved", () => {
+    for (const legacy of [LEGACY_V1, LEGACY_V2]) {
+      const first = parse(legacy);
+      const again = parse(first.data);
+      expect(again.data).toEqual(first.data);
+      expect(again.storedVersion).toBe(3);
+      expect(again.repaired).toBe(false);
+      expect(again.pendingImages).toEqual([]);
+    }
+  });
+
+  it("refuses page projects without pages, or with a page id twice", () => {
+    const data = parse(LEGACY_V2).data;
+    const [site, mock] = data.projects;
+    if (!site || mock?.source.kind !== "pages") throw new Error("fixture");
+    const [page] = mock.source.pages;
+    const withPages = (pages: unknown[]) =>
+      parseData(
+        JSON.stringify({
+          ...data,
+          projects: [site, { ...mock, source: { ...mock.source, pages } }],
+        }),
+      );
+    expect(withPages([]).ok).toBe(false);
+    expect(withPages([page, page]).ok).toBe(false);
+    expect(withPages([{ ...page, width: 10 }]).ok).toBe(false);
+    expect(withPages([{ ...page, id: "other", width: 10, height: 20 }]).ok).toBe(true);
+  });
+
+  it("keeps every comment on a surface its project has", () => {
+    const data = parse(LEGACY_V2).data;
+    const [onSite, onPage, onSnapshot] = data.comments;
+    if (!onSite || !onPage || !onSnapshot) throw new Error("fixture");
+    const result = parse({
+      ...data,
+      comments: [
+        { ...onSite, pageId: MIGRATED_PAGE_ID },
+        { ...onPage, pageId: "gone" },
+        { ...onSnapshot, pageId: MIGRATED_PAGE_ID },
+      ],
+    });
+    expect(result.repaired).toBe(true);
+    expect(result.data.comments).toEqual([onSite, onPage, onSnapshot]);
+  });
+
+  it("moves folders with an unknown parent to the top level and breaks cycles", () => {
+    const folder = (id: string, parentId: string | null) => ({
+      id,
+      name: id,
+      createdAt: 1,
+      parentId,
+    });
+    const result = parse({
+      ...parse(LEGACY_V2).data,
+      folders: [
+        folder("default", null),
+        folder("a", "b"),
+        folder("b", "a"),
+        folder("self", "self"),
+        folder("lost", "nowhere"),
+        folder("child", "default"),
+      ],
+    });
+    expect(result.repaired).toBe(true);
+    expect(result.data.folders.map(({ id, parentId }) => [id, parentId])).toEqual([
+      ["default", null],
+      ["a", "b"],
+      ["b", null],
+      ["self", null],
+      ["lost", null],
+      ["child", "default"],
+    ]);
   });
 
   it("doesn't migrate the image of a project that repair drops", () => {

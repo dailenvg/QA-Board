@@ -85,7 +85,7 @@ test("a website project exports its comments as ZIP, Markdown and JSON", async (
     filesIncluded: boolean;
     comments: Array<{ number: number; body: string; author: string; screenshot: { file: string } }>;
   };
-  expect(json).toMatchObject({ schema: "squint.comments/1", filesIncluded: true });
+  expect(json).toMatchObject({ schema: "squint.comments/2", filesIncluded: true });
   expect(json.comments).toEqual([
     expect.objectContaining({
       number: 1,
@@ -104,7 +104,7 @@ test("a website project exports its comments as ZIP, Markdown and JSON", async (
   const bareJson = await exportAs(page, "JSON");
   expect(bareJson.name).toMatch(new RegExp(`^launch-page${date.source}\\.json$`));
   expect(JSON.parse(bareJson.bytes.toString("utf8"))).toMatchObject({
-    schema: "squint.comments/1",
+    schema: "squint.comments/2",
     filesIncluded: false,
     counts: { active: 1, resolved: 0 },
   });
@@ -114,7 +114,7 @@ test("a website project exports its comments as ZIP, Markdown and JSON", async (
   ).toBeVisible();
 });
 
-test("an image project's ZIP carries the image and each comment's screenshot", async ({ page }) => {
+test("an image project's ZIP carries its page and each comment's screenshot", async ({ page }) => {
   await openFolder(page);
   await createImageProject(page, "checkout.png");
   await postComment(page, "Bigger button.", { x: 100, y: 80 }, "Leo");
@@ -125,9 +125,17 @@ test("an image project's ZIP carries the image and each comment's screenshot", a
   const files = unzipSync(new Uint8Array(zip.bytes));
   const names = Object.keys(files);
   expect(names).toEqual(expect.arrayContaining(["comments.md", "comments.json"]));
-  expect(names.some((name) => /^source-image\.(webp|jpg)$/.test(name))).toBe(true);
-  expect(names.some((name) => /^screenshots\/01-.+\.png$/.test(name))).toBe(true);
+  expect(names.some((name) => /^pages\/01\.(webp|jpg)$/.test(name))).toBe(true);
+  expect(names.some((name) => /^screenshots\/01-p01-.+\.png$/.test(name))).toBe(true);
   const markdown = strFromU8(files["comments.md"] ?? new Uint8Array());
   expect(markdown).toContain("- **Source:** image `checkout.png` (");
-  expect(markdown).toMatch(/x \d+ px, y \d+ px on a \d+ × \d+ px image/);
+  expect(markdown).toMatch(/of page 1 = x \d+ px, y \d+ px on a \d+ × \d+ px image/);
+  expect(markdown).toContain("- **Page:** 1 of 1, `checkout.png`; image [pages/01.");
+  const json = JSON.parse(strFromU8(files["comments.json"] ?? new Uint8Array())) as {
+    comments: Array<{ location: { surface: string; page: { number: number; name: string } } }>;
+  };
+  expect(json.comments[0]?.location).toMatchObject({
+    surface: "page",
+    page: { number: 1, name: "checkout.png" },
+  });
 });

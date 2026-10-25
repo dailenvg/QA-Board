@@ -1,12 +1,29 @@
-import type { CommentStatus, Rect } from "../store/types";
+import type { CommentStatus, PageOrigin, Rect } from "../store/types";
+
+/** A page of a shared page project. Its picture is the blob `page:<id>`. */
+export interface SharedPage {
+  /** Unique within the share. */
+  id: string;
+  name: string;
+  /** Natural size in px, when the owner's browser knows it. */
+  width?: number;
+  height?: number;
+}
 
 /**
  * What a share holds, as it travels between browsers and the server. Times
  * are epoch ms, like the local store. Images are addressed by blob key:
- * `image` (an image project's picture), `snapshot:<id>`, `crop:<commentId>`.
+ * `page:<pageId>`, `snapshot:<id>`, `crop:<commentId>`.
  */
 export type SharedSource =
-  { kind: "url"; url: string } | { kind: "image"; fileName: string; referenceUrl?: string };
+  | { kind: "url"; url: string }
+  | {
+      kind: "pages";
+      origin: PageOrigin;
+      fileName: string;
+      referenceUrl?: string;
+      pages: SharedPage[];
+    };
 
 export interface SharedProject {
   name: string;
@@ -34,6 +51,8 @@ export interface SharedComment {
   updatedAt: number;
   resolvedAt?: number;
   snapshotId?: string;
+  /** The page the pin is on: one of the project's pages (page projects, when not on a snapshot). */
+  pageId?: string;
   /** The picture is the blob `crop:<id>`. */
   crop?: { rect: Rect };
 }

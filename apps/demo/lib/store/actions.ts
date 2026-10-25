@@ -1,14 +1,18 @@
-import { putBlob } from "../blob-store/blob-store";
-import { projectImageKey } from "../blob-store/keys";
+import { deleteBlobs, putBlob } from "../blob-store/blob-store";
+import { pageImageKey } from "../blob-store/keys";
 import { dataUrlToBlob } from "../image";
 import { scheduleBlobSweep } from "./blob-sweep";
 import { newId } from "./id";
-import { dispatch, type Result } from "./store";
+import { findPage, MAX_PAGES } from "./pages";
+import { dispatch, getSnapshot, type Result } from "./store";
 import type {
   Comment,
   CommentCrop,
   CommentStatus,
   Folder,
+  Page,
+  PageOrigin,
+  PagesSource,
   Project,
   ProjectShare,
   ProjectSource,
@@ -18,6 +22,7 @@ import type {
 const NAME_LIMIT = 80;
 const IMAGE_SAVE_ERROR =
   "This browser couldn't save the image. Free up some space, then try again.";
+const PROJECT_GONE = "This project is no longer here. It may have been deleted in another tab.";
 
 /** Runs a delete, then lets the blob sweep tidy up once undo is no longer likely. */
 function withSweep(result: Result): Result {
@@ -34,8 +39,9 @@ function withValue<T>(result: Result, value: T): Result<T> {
   return result.ok ? { ok: true, value } : result;
 }
 
-export function createFolder(name: string): Result<Folder> {
-  const folder: Folder = { id: newId(), name: cleanName(name), createdAt: Date.now() };
+/** A new folder, at the top level or inside `parentId`. */
+export function createFolder(name: string, parentId: string | null = null): Result<Folder> {
+  const folder: Folder = { id: newId(), name: cleanName(name), createdAt: Date.now(), parentId };
   return withValue(dispatch({ type: "folder/create", folder }), folder);
 }
 
@@ -46,15 +52,13 @@ export const deleteFolder = (id: string) =>
   withSweep(dispatch({ type: "folder/delete", id, at: Date.now() }));
 
 export function createProject(input: {
-  /** Set when something (an image) was already stored under this project's id. */
-  id?: string;
   folderId: string;
   name: string;
   source: ProjectSource;
 }): Result<Project> {
   const now = Date.now();
   const project: Project = {
-    id: input.id ?? newId(),
+    id: newId(),
     folderId: input.folderId,
     name: cleanName(input.name),
     source: input.source,
@@ -73,46 +77,101 @@ export const moveProject = (id: string, folderId: string) =>
 export const replaceProjectSource = (id: string, source: ProjectSource) =>
   dispatch({ type: "project/replace-source", id, source, at: Date.now() });
 
-/** An image chosen in the browser, already downscaled (`prepareImage`). */
+/** An image chosen in the browser (or a rendered PDF page), already downscaled (`prepareImage`). */
 export interface ImageUpload {
   dataUrl: string;
   fileName: string;
+  /** Natural size of the prepared image, in px. */
+  width: number;
+  height: number;
 }
 
-async function storeProjectImage(projectId: string, image: ImageUpload): Promise<string | null> {
-  const blobKey = projectImageKey(projectId);
-  return (await putBlob(blobKey, await dataUrlToBlob(image.dataUrl))) ? blobKey : null;
+const tooManyPages = `A project holds up to ${MAX_PAGES} pages.`;
+
+/** Stores each image as a new page, all or nothing: on a refused write, none stay. */
+async function storePages(images: readonly ImageUpload[]): Promise<Page[] | null> {
+  const pages = images.map(({ fileName, width, height }) => {
+    const id = newId();
+    return { id, blobKey: pageImageKey(id), name: fileName, width, height };
+  });
+  const saved = await Promise.all(
+    pages.map(async (page, index) => {
+      const image = images[index];
+      return image ? putBlob(page.blobKey, await dataUrlToBlob(image.dataUrl)) : false;
+    }),
+  );
+  if (saved.every(Boolean)) return pages;
+  await deleteBlobs(pages.map((page) => page.blobKey));
+  return null;
 }
 
-/** Stores the picture in the blob store, then creates the image project around it. */
-export async function createImageProject(input: {
+/** Stores the pictures in the blob store, then creates a page project around them, in order. */
+export async function createPagesProject(input: {
   folderId: string;
   name: string;
-  image: ImageUpload;
+  origin: PageOrigin;
+  fileName: string;
+  images: readonly ImageUpload[];
 }): Promise<Result<Project>> {
-  const id = newId();
-  const blobKey = await storeProjectImage(id, input.image);
-  if (!blobKey) return { ok: false, error: IMAGE_SAVE_ERROR };
-  const { fileName } = input.image;
-  return createProject({ id, ...input, source: { kind: "image", blobKey, fileName } });
+  const { folderId, name, origin, fileName, images } = input;
+  if (images.length === 0 || images.length > MAX_PAGES) return { ok: false, error: tooManyPages };
+  const pages = await storePages(images);
+  if (!pages) return { ok: false, error: IMAGE_SAVE_ERROR };
+  const created = createProject({
+    folderId,
+    name,
+    source: { kind: "pages", origin, pages, fileName },
+  });
+  if (!created.ok) await deleteBlobs(pages.map((page) => page.blobKey));
+  return created;
+}
+
+function findProject(id: string): Project | null {
+  const state = getSnapshot();
+  return state.status === "ready"
+    ? (state.data.projects.find((project) => project.id === id) ?? null)
+    : null;
+}
+
+/** `source` with `page` showing `image` (whose picture is already stored under the page's key). */
+function withPageImage(source: PagesSource, page: Page, image: ImageUpload): PagesSource {
+  const { fileName, width, height } = image;
+  const pages = source.pages.map((entry) =>
+    entry.id === page.id ? { ...entry, name: fileName, width, height } : entry,
+  );
+  // A one-page project is named after its file; a page of many keeps the project's name.
+  return { ...source, pages, ...(pages.length === 1 ? { fileName } : {}) };
 }
 
 /**
- * Makes `image` the project's picture: a website project becomes an image
- * project (keeping its address as `referenceUrl`), an image project gets a new image.
+ * Makes `image` a page's picture. A website project becomes a one-page image
+ * project (keeping its address as `referenceUrl`, and moving its frame pins
+ * onto the page); on a page project, the page `pageId` (else the first)
+ * gets the new picture in place, so its comments stay on it.
  */
 export async function replaceWithImage(
   projectId: string,
   image: ImageUpload,
-  referenceUrl: string | undefined,
+  target: { referenceUrl: string | undefined; pageId: string | null },
 ): Promise<Result> {
-  const blobKey = await storeProjectImage(projectId, image);
-  if (!blobKey) return { ok: false, error: IMAGE_SAVE_ERROR };
+  const project = findProject(projectId);
+  if (!project) return { ok: false, error: PROJECT_GONE };
+  const { source } = project;
+  if (source.kind === "pages") {
+    const page = findPage(project, target.pageId ?? undefined)?.page ?? source.pages[0];
+    if (!page) return { ok: false, error: IMAGE_SAVE_ERROR };
+    const saved = await putBlob(page.blobKey, await dataUrlToBlob(image.dataUrl));
+    if (!saved) return { ok: false, error: IMAGE_SAVE_ERROR };
+    return replaceProjectSource(projectId, withPageImage(source, page, image));
+  }
+  const pages = await storePages([image]);
+  if (!pages) return { ok: false, error: IMAGE_SAVE_ERROR };
   return replaceProjectSource(projectId, {
-    kind: "image",
-    blobKey,
+    kind: "pages",
+    origin: "image",
+    pages,
     fileName: image.fileName,
-    ...(referenceUrl ? { referenceUrl } : {}),
+    ...(target.referenceUrl ? { referenceUrl: target.referenceUrl } : {}),
   });
 }
 
@@ -131,6 +190,7 @@ export function addComment(input: {
   body: string;
   author: string;
   snapshotId?: string;
+  pageId?: string;
 }): Result<Comment> {
   const now = Date.now();
   const comment: Comment = {
@@ -144,6 +204,7 @@ export function addComment(input: {
     createdAt: now,
     updatedAt: now,
     ...(input.snapshotId ? { snapshotId: input.snapshotId } : {}),
+    ...(input.pageId ? { pageId: input.pageId } : {}),
   };
   return withValue(dispatch({ type: "comment/add", comment }), comment);
 }

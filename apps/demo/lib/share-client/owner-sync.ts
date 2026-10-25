@@ -91,7 +91,8 @@ async function uploadMissing(project: Project, share: ProjectShare, keys: readon
   let done = 0;
   update(project.id, { uploading: keys.length ? { done, total: keys.length } : null });
   for (const key of keys) {
-    const blob = await getBlob(localBlobKey(key, project.id));
+    const local = localBlobKey(key, project);
+    const blob = local ? await getBlob(local) : null;
     // A missing local image stays missing for clients too; nothing to retry.
     if (blob) {
       const uploaded = await ownerApi.upload(share, key, blob);

@@ -64,19 +64,18 @@ export function ViewerStage({
       />
     ) : null;
 
-  if (source.kind === "image") {
-    return (
-      snapshotStage ?? (
-        <ImageStage
-          blobKey={source.blobKey}
-          projectName={project.name}
-          overlay={overlay}
-          imageRef={imageRef}
-          onReady={onReady}
-          onReplace={onScreenshot}
-        />
-      )
-    );
+  if (source.kind === "pages") {
+    if (snapshotStage) return snapshotStage;
+    return surface.kind === "page" ? (
+      <ImageStage
+        blobKey={surface.page.blobKey}
+        projectName={project.name}
+        overlay={overlay}
+        imageRef={imageRef}
+        onReady={onReady}
+        onReplace={onScreenshot}
+      />
+    ) : null;
   }
   return (
     <>

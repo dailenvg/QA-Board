@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { IMAGE_EXPORT, URL_EXPORT } from "@/test/export-fixture";
+import { IMAGE_EXPORT, PAGES_EXPORT, URL_EXPORT } from "@/test/export-fixture";
 import { buildExportDocument } from "./build-document";
 import { toMarkdown } from "./markdown";
 
@@ -52,12 +52,28 @@ describe("toMarkdown", () => {
     const image = toMarkdown(buildExportDocument(IMAGE_EXPORT), { withFiles: true });
     expect(image).toContain("- **Source:** image `checkout.png` (1200 × 900 px)");
     expect(image).toContain(
-      "- **Original image:** [source-image.png](source-image.png), next to this file",
+      "- **Pages:**\n  - Page 1, `checkout.png` (1200 × 900 px): [pages/01.png](pages/01.png)",
     );
     const bare = toMarkdown(buildExportDocument(IMAGE_EXPORT), { withFiles: false });
-    expect(bare).toContain("- **Original image:** `source-image.png` in the ZIP export");
-    expect(zipMarkdown).not.toContain("Original image");
-    expect(image).toContain("x 300 px, y 450 px on a 1200 × 900 px image");
+    expect(bare).toContain(
+      "  - Page 1, `checkout.png` (1200 × 900 px): `pages/01.png` in the ZIP export",
+    );
+    expect(zipMarkdown).not.toContain("**Pages:**");
+    expect(image).toContain("of page 1 = x 300 px, y 450 px on a 1200 × 900 px image");
     expect(image).toContain("## Resolved comments (0, for context only)\n\nNone yet.");
+  });
+
+  it("labels every comment with its page, and lists each page's image or why it's missing", () => {
+    const deck = toMarkdown(buildExportDocument(PAGES_EXPORT), { withFiles: true });
+    expect(deck).toContain("- **Source:** PDF `deck.pdf`, 3 pages");
+    expect(deck).toContain(
+      "  - Page 1, `Page 1` (1600 × 900 px): not included (left out to keep the export small)",
+    );
+    expect(deck).toContain(
+      "- **Location:** 50% from the left, 10% from the top of page 3 = x 800 px, y 90 px on a 1600 × 900 px page",
+    );
+    expect(deck).toContain("- **Page:** 3 of 3, `Page 3`; image [pages/03.webp](pages/03.webp)");
+    expect(deck).toContain("![Screenshot for comment 2](screenshots/02-p02-ffff6666.png)");
+    expect(deck).toContain("Page images, when included, are in `pages/`.");
   });
 });
