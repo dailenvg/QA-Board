@@ -228,3 +228,48 @@ test("deleting a folder deletes everything inside it, counted first, and revokes
     .poll(async () => (await page.request.get(link)).status(), { timeout: 10_000 })
     .toBe(404);
 });
+
+test("Move folder fits a phone with a long folder name, its reasons in full, and passes axe", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  const long = "Quarterly campaign assets for the spring product launch and partner events";
+  await openFolder(page);
+  await page.getByTestId("new-folder").click();
+  await nameNewFolder(page, "New folder", long);
+  await newSubfolder(page, long, "Beta");
+
+  const dialog = await openMoveFolder(page);
+  await expect(dialog.getByTestId("folder-tree-picker")).toBeVisible();
+  // Nothing scrolls sideways: not the page, not the dialog.
+  const overflow = await page.evaluate(() => {
+    const panel = document.querySelector('[role="dialog"]');
+    return {
+      page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      dialog: panel ? panel.scrollWidth - panel.clientWidth : -1,
+    };
+  });
+  expect(overflow).toEqual({ page: 0, dialog: 0 });
+  // Each reason shows in full, inside the dialog.
+  const panel = await dialog.boundingBox();
+  for (const reason of ["Already here", "This folder"]) {
+    const text = dialog.getByText(reason, { exact: true });
+    await expect(text).toBeVisible();
+    expect(await text.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    const box = await text.boundingBox();
+    expect(box && panel && box.x + box.width <= panel.x + panel.width).toBe(true);
+  }
+  // Once the dialog has finished popping in: mid-fade, its colors aren't the real ones.
+  await expect
+    .poll(() =>
+      dialog.evaluate((element) => {
+        for (let node: Element | null = element; node; node = node.parentElement) {
+          if (getComputedStyle(node).opacity !== "1") return false;
+        }
+        return true;
+      }),
+    )
+    .toBe(true);
+  const axe = await new AxeBuilder({ page }).include('[role="dialog"]').analyze();
+  expect(axe.violations.map(({ id, nodes }) => ({ id, nodes: nodes.length }))).toEqual([]);
+});

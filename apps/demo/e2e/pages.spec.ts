@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import {
   openFolder,
@@ -88,6 +89,9 @@ test("combined images become pages: reorder, comment on page 2, switch pages, de
     // Each part is its own (flex) span, so Chrome puts a space before each comma.
     page.getByRole("button", { name: /^Page 2 ?, 1 open comment ?, one\.png$/ }),
   ).toHaveAttribute("aria-current", "page");
+  // The strip passes axe with a page's open-comment count showing (its names hold what shows).
+  const strip = await new AxeBuilder({ page }).include('[data-testid="page-strip"]').analyze();
+  expect(strip.violations.map(({ id, nodes }) => ({ id, nodes: nodes.length }))).toEqual([]);
 
   // Keyboard paging, not while typing: [ and ] switch pages.
   await page.keyboard.press("]");
