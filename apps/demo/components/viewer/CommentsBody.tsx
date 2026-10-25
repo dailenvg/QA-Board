@@ -25,6 +25,8 @@ interface CommentsBodyProps extends CommentCardActions {
    * "Nothing resolved on Mobile yet").
    */
   scope?: string;
+  /** Page numbers by page id, on projects with several pages: each card says its page. */
+  pageNumbers?: ReadonlyMap<string, number>;
 }
 
 function emptyCopy(tab: CommentTab, total: number, scope: string | undefined) {
@@ -55,6 +57,7 @@ export function CommentsBody({
   now,
   listRef,
   scope,
+  pageNumbers,
   ...actions
 }: CommentsBodyProps) {
   const variants = useRevealVariants();
@@ -80,6 +83,7 @@ export function CommentsBody({
               comment={comment}
               number={numbers.get(comment.id) ?? 0}
               placement={placements.get(comment.id) ?? null}
+              pageNumber={(comment.pageId && pageNumbers?.get(comment.pageId)) || null}
               canModerate={canModerate}
               selected={comment.id === selectedId}
               now={now}

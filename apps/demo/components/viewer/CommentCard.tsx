@@ -26,6 +26,8 @@ interface CommentCardProps extends CommentCardActions {
   number: number;
   /** Where the pin lives, when that isn't the current snapshot. */
   placement: Placement | null;
+  /** The page it's on, on projects with several pages. */
+  pageNumber: number | null;
   /** Shows Resolve/Reopen, Edit and Delete. Off on a shared link. */
   canModerate: boolean;
   selected: boolean;
@@ -40,6 +42,7 @@ export function CommentCard({
   comment,
   number,
   placement,
+  pageNumber,
   canModerate,
   selected,
   now,
@@ -55,6 +58,10 @@ export function CommentCard({
   const itemRef = useRef<HTMLLIElement>(null);
   const bodyId = useId();
   const placementId = useId();
+  const pageId = useId();
+  const described = [bodyId, pageNumber ? pageId : null, placement ? placementId : null]
+    .filter(Boolean)
+    .join(" ");
   const resolved = comment.status === "resolved";
   const edited = comment.updatedAt > comment.createdAt;
   // Without the action row (shared link), this keeps the card's bottom inset at 16px.
@@ -108,7 +115,7 @@ export function CommentCard({
             type="button"
             data-card-select
             aria-pressed={selected}
-            aria-describedby={placement ? `${bodyId} ${placementId}` : bodyId}
+            aria-describedby={described}
             onClick={() => onSelect(comment.id)}
             className="flex w-full items-center gap-2 text-left after:absolute after:inset-0 after:rounded-tile focus-visible:outline-none"
           >
@@ -130,6 +137,16 @@ export function CommentCard({
             {comment.body}
           </p>
           {edited ? <p className="mt-1 text-label text-muted">Edited</p> : null}
+          {pageNumber ? (
+            <p
+              id={pageId}
+              data-testid="comment-page"
+              className="mt-2 inline-flex items-center gap-1.5 rounded-pill bg-seg px-2.5 py-0.5 text-label font-semibold text-ink-2"
+            >
+              <Icon name="image" className="size-3.5" />
+              Page {pageNumber}
+            </p>
+          ) : null}
           {placement ? <PlacementChip id={placementId} placement={placement} now={now} /> : null}
         </div>
       )}

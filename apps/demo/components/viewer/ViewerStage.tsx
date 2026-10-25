@@ -1,6 +1,9 @@
 "use client";
 
+import { motion, useReducedMotion } from "motion/react";
 import type { ReactNode, Ref } from "react";
+import { duration, ease } from "@/lib/motion";
+import { findPage, pagesOf } from "@/lib/store/pages";
 import type { CaptureState } from "@/lib/capture/use-capture";
 import type { Project, Snapshot } from "@/lib/store/types";
 import { ImageStage } from "./ImageStage";
@@ -26,6 +29,13 @@ interface ViewerStageProps {
   onScreenshot: ScreenshotHandler | null;
 }
 
+/** "page 2 of 3" on projects with several pages, else null. */
+function pageLabel(project: Project, pageId: string): string | null {
+  const total = pagesOf(project).length;
+  const found = findPage(project, pageId);
+  return found && total > 1 ? `page ${found.number} of ${total}` : null;
+}
+
 /**
  * The canvas for the current surface. A website's live frame stays mounted
  * under its snapshot, so going back to Browse doesn't reload the site.
@@ -44,6 +54,7 @@ export function ViewerStage({
   onBrowse,
   onScreenshot,
 }: ViewerStageProps) {
+  const reduce = useReducedMotion();
   const { source } = project;
   const website = source.kind === "url";
   const snapshotStage =
@@ -66,15 +77,24 @@ export function ViewerStage({
 
   if (source.kind === "pages") {
     if (snapshotStage) return snapshotStage;
+    // Each page fades in as it comes on stage, so a page change reads as one.
     return surface.kind === "page" ? (
-      <ImageStage
-        blobKey={surface.page.blobKey}
-        projectName={project.name}
-        overlay={overlay}
-        imageRef={imageRef}
-        onReady={onReady}
-        onReplace={onScreenshot}
-      />
+      <motion.div
+        key={surface.page.id}
+        initial={reduce ? false : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: duration.component, ease: ease.out }}
+      >
+        <ImageStage
+          blobKey={surface.page.blobKey}
+          projectName={project.name}
+          pageLabel={pageLabel(project, surface.page.id)}
+          overlay={overlay}
+          imageRef={imageRef}
+          onReady={onReady}
+          onReplace={onScreenshot}
+        />
+      </motion.div>
     ) : null;
   }
   return (

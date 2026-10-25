@@ -32,6 +32,12 @@ export function useViewerSurface(
   const kind = project.source.kind;
   const [mode, setModeState] = useState<ViewerMode>(initial.mode);
   const [viewedId, setViewedId] = useState<string | null>(initial.snapshotId);
+  // Showing another page puts that page on the stage, not an earlier snapshot.
+  const [stagedPageId, setStagedPageId] = useState(pages.page?.id);
+  if (stagedPageId !== pages.page?.id) {
+    setStagedPageId(pages.page?.id);
+    setViewedId(null);
+  }
   const [breakpoint, setBreakpointState] = useState<Breakpoint>(() => {
     const start = data.snapshots.find((snapshot) => snapshot.id === initial.snapshotId);
     return start ? breakpointOf(start.width) : "desktop";

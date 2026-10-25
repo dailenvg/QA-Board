@@ -10,6 +10,8 @@ import type { ScreenshotHandler } from "./types";
 interface ImageStageProps {
   blobKey: string;
   projectName: string;
+  /** Which page this is ("page 2 of 3"), on projects with several. */
+  pageLabel: string | null;
   overlay: ReactNode;
   imageRef: Ref<HTMLImageElement>;
   onReady: () => void;
@@ -42,6 +44,7 @@ function ImageUnavailable({ onReplace }: { onReplace: ScreenshotHandler | null }
 export function ImageStage({
   blobKey,
   projectName,
+  pageLabel,
   overlay,
   imageRef,
   onReady,
@@ -65,7 +68,7 @@ export function ImageStage({
     <div className="p-3 sm:p-5">
       <SurfaceImage
         src={image.url}
-        alt={`${projectName}, the image under review`}
+        alt={`${projectName}, ${pageLabel ? `${pageLabel}, ` : ""}the image under review`}
         overlay={overlay}
         imageRef={imageRef}
         onReady={onReady}

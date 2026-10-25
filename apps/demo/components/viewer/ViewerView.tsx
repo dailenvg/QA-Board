@@ -13,7 +13,8 @@ import {
   type Breakpoint,
 } from "@/lib/store/breakpoints";
 import { newId } from "@/lib/store/id";
-import { commentsFor, pinNumbers } from "@/lib/store/selectors";
+import { pagesOf } from "@/lib/store/pages";
+import { commentsFor, pageCounts, pinNumbers } from "@/lib/store/selectors";
 import { countComments, deriveStatus } from "@/lib/store/status";
 import type { Comment, Project, SquintData } from "@/lib/store/types";
 import { useDialogState } from "@/lib/use-dialog-state";
@@ -29,6 +30,8 @@ import { CanvasLayer } from "./CanvasLayer";
 import { CommentsBody } from "./CommentsBody";
 import { CommentsPanel } from "./CommentsPanel";
 import { ExportMenu } from "./ExportMenu";
+import { PageFilter, type PageScope } from "./PageFilter";
+import { PageStrip } from "./PageStrip";
 import { PinPopover } from "./PinPopover";
 import { commentSurfaceKey, placementOf, surfaceKey } from "./surface";
 import { useCommentActions } from "./use-comment-actions";
@@ -84,6 +87,7 @@ export function ViewerView({
   const docked = !useMediaQuery("(min-width: 1024px)");
   const [draft, setDraft] = useViewerDraft(draftStorage);
   const pages = useViewerPage(project, draft?.pageId ?? null);
+  const [pageScope, setPageScope] = useState<PageScope>("all");
   const view = useViewerSurface(project, data, pages, {
     mode: draft ? "comment" : "browse",
     snapshotId: draft?.snapshotId ?? null,
@@ -92,6 +96,12 @@ export function ViewerView({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   /** The pin whose comment popover is open. */
   const [openId, setOpenId] = useState<string | null>(null);
+  // Another page swaps the stage, so it closes an open popover, as mode and breakpoint do.
+  const [shownPageId, setShownPageId] = useState(pages.page?.id);
+  if (shownPageId !== pages.page?.id) {
+    setShownPageId(pages.page?.id);
+    setOpenId(null);
+  }
   const popoverId = useId();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [scrollRequest, setScrollRequest] = useState<ScrollRequest>(null);
@@ -113,13 +123,27 @@ export function ViewerView({
   const stageKey = surfaceKey(surface);
   const comments = useMemo(() => commentsFor(data, project.id), [data, project.id]);
   const numbers = useMemo(() => pinNumbers(comments), [comments]);
-  /** The comments at the current breakpoint (all of them on page projects). */
-  const listed = useMemo(
+  const severalPages = pages.total > 1;
+  const pageId = pages.page?.id;
+  /**
+   * The comments at the current breakpoint on websites; on page projects all of them, or
+   * those on the page shown ("This page").
+   */
+  const listed = useMemo(() => {
+    if (website) {
+      return comments.filter((comment) => breakpointOfComment(comment, snapshots) === breakpoint);
+    }
+    return severalPages && pageScope === "page"
+      ? comments.filter((comment) => comment.pageId === pageId)
+      : comments;
+  }, [website, comments, snapshots, breakpoint, severalPages, pageScope, pageId]);
+  const perPage = useMemo(() => pageCounts(data, project), [data, project]);
+  const pageNumbers = useMemo(
     () =>
-      website
-        ? comments.filter((comment) => breakpointOfComment(comment, snapshots) === breakpoint)
-        : comments,
-    [website, comments, snapshots, breakpoint],
+      severalPages
+        ? new Map(pagesOf(project).map((page, index) => [page.id, index + 1]))
+        : undefined,
+    [severalPages, project],
   );
   const onStage = listed.filter((comment) => commentSurfaceKey(comment) === stageKey);
   // Resolved pins only show on the Resolved tab.
@@ -396,8 +420,15 @@ export function ViewerView({
       selectedId={selectedId}
       now={now}
       listRef={listRef}
-      // With comments at another breakpoint, an empty list names this one.
-      scope={website && comments.length > listed.length ? BREAKPOINT_LABEL[breakpoint] : undefined}
+      // With comments at another breakpoint (or page), an empty list names this one.
+      scope={
+        comments.length > listed.length
+          ? website
+            ? BREAKPOINT_LABEL[breakpoint]
+            : `page ${pages.number}`
+          : undefined
+      }
+      pageNumbers={pageNumbers}
       canModerate={owner}
       onSelect={(id) => select(id, "card")}
       onEdit={commentActions.edit}
@@ -433,29 +464,40 @@ export function ViewerView({
         }
       />
       <div className="flex min-h-0 flex-1 gap-4">
-        <main
-          id="main"
-          ref={canvasAreaRef}
-          data-testid="canvas-area"
-          data-mode={mode}
-          data-surface={surface.kind}
-          className={`relative min-h-0 min-w-0 flex-1 overflow-auto rounded-panel bg-tile ${scrollInset}`}
-        >
-          <ViewerStage
-            project={project}
-            surface={surface}
-            latest={view.latest}
-            overlay={overlay}
-            imageRef={imageRef}
-            onReady={() => setStageVersion((value) => value + 1)}
-            capture={view.capture.state}
-            onCapture={view.capture.capture}
-            frameWidth={website && breakpoint !== "desktop" ? BREAKPOINT_WIDTH[breakpoint] : null}
-            onShowLatest={view.showLatest}
-            onBrowse={() => setMode("browse")}
-            onScreenshot={owner ? saveScreenshot : null}
-          />
-        </main>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+          {severalPages ? (
+            <PageStrip
+              pages={pagesOf(project)}
+              number={pages.number}
+              counts={perPage}
+              onSelect={pages.selectPage}
+              onStep={pages.step}
+            />
+          ) : null}
+          <main
+            id="main"
+            ref={canvasAreaRef}
+            data-testid="canvas-area"
+            data-mode={mode}
+            data-surface={surface.kind}
+            className={`relative min-h-0 min-w-0 flex-1 overflow-auto rounded-panel bg-tile ${scrollInset}`}
+          >
+            <ViewerStage
+              project={project}
+              surface={surface}
+              latest={view.latest}
+              overlay={overlay}
+              imageRef={imageRef}
+              onReady={() => setStageVersion((value) => value + 1)}
+              capture={view.capture.state}
+              onCapture={view.capture.capture}
+              frameWidth={website && breakpoint !== "desktop" ? BREAKPOINT_WIDTH[breakpoint] : null}
+              onShowLatest={view.showLatest}
+              onBrowse={() => setMode("browse")}
+              onScreenshot={owner ? saveScreenshot : null}
+            />
+          </main>
+        </div>
         <CommentsPanel
           docked={docked}
           sheetOpen={sheetOpen}
@@ -467,14 +509,13 @@ export function ViewerView({
           celebrating={celebrating}
           note={sheetNote}
         >
-          {panelNotice && !docked ? (
-            <div className="flex min-h-0 flex-1 flex-col gap-3">
-              {panelNotice}
-              {commentsBody}
-            </div>
-          ) : (
-            commentsBody
-          )}
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
+            {panelNotice && !docked ? panelNotice : null}
+            {severalPages ? (
+              <PageFilter value={pageScope} onChange={setPageScope} number={pages.number} />
+            ) : null}
+            {commentsBody}
+          </div>
         </CommentsPanel>
       </div>
       <ConfirmDialog
