@@ -86,7 +86,8 @@ export function ViewerView({
   const reduce = useReducedMotion();
   const docked = !useMediaQuery("(min-width: 1024px)");
   const [draft, setDraft] = useViewerDraft(draftStorage);
-  const pages = useViewerPage(project, draft?.pageId ?? null);
+  const canvasAreaRef = useRef<HTMLElement>(null);
+  const pages = useViewerPage(project, draft?.pageId ?? null, () => canvasAreaRef.current);
   const [pageScope, setPageScope] = useState<PageScope>("all");
   const view = useViewerSurface(project, data, pages, {
     mode: draft ? "comment" : "browse",
@@ -112,7 +113,6 @@ export function ViewerView({
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
-  const canvasAreaRef = useRef<HTMLElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const handledScroll = useRef(0);
   const focusCanvasPending = useRef(false);
@@ -520,6 +520,12 @@ export function ViewerView({
             {severalPages ? (
               <PageFilter value={pageScope} onChange={setPageScope} number={pages.number} />
             ) : null}
+            {/* Like "n projects shown" on folder pages: what "This page" leaves in the list. */}
+            <p aria-live="polite" className="sr-only">
+              {severalPages && pageScope === "page"
+                ? `${listed.length === 1 ? "1 comment" : `${listed.length} comments`} on page ${pages.number}`
+                : ""}
+            </p>
             {commentsBody}
           </div>
         </CommentsPanel>

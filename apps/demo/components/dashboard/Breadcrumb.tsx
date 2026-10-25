@@ -53,7 +53,9 @@ export function Breadcrumb({ ancestors, current }: BreadcrumbProps) {
           scroll={false}
           className={`${CRUMB} min-w-0`}
         >
-          <span className="truncate">{folder.name}</span>
+          <span title={folder.name} className="truncate">
+            {folder.name}
+          </span>
         </Link>
       </li>
     );
@@ -89,6 +91,7 @@ export function Breadcrumb({ ancestors, current }: BreadcrumbProps) {
           {/* A flex item (blockified), so `truncate` shows its ellipsis; the li keeps the 44px row. */}
           <span
             aria-current="page"
+            title={current.name}
             className="max-w-40 min-w-0 truncate px-2 text-body font-semibold text-ink sm:max-w-56"
           >
             {current.name}

@@ -1,3 +1,4 @@
+import { useReducedMotion } from "motion/react";
 import { useCallback, useState } from "react";
 import { pagesOf } from "@/lib/store/pages";
 import type { Page, Project } from "@/lib/store/types";
@@ -29,13 +30,23 @@ function linkPage(number: number): void {
   window.history.replaceState(window.history.state, "", url);
 }
 
+/** How much of the canvas a PageDown or PageUp keeps in view: a tenth, for context. */
+const READ_OVERLAP = 0.1;
+
 /**
  * The page shown of a page project: `initialPageId` (such as a restored
  * draft's), else the one a `?page=<n>` link names, else the first. Choosing a
- * page keeps it on the address. With several pages, PageUp / PageDown and
- * `[` / `]` step through them (not while typing).
+ * page keeps it on the address. With several pages (not while typing): `[`
+ * and `]` switch pages, and PageDown and PageUp read on like a PDF reader,
+ * scrolling the canvas (`scroller`) by a screen and switching pages only at
+ * its end.
  */
-export function useViewerPage(project: Project, initialPageId: string | null): ViewerPage {
+export function useViewerPage(
+  project: Project,
+  initialPageId: string | null,
+  scroller: () => HTMLElement | null,
+): ViewerPage {
+  const reduce = useReducedMotion();
   const pages = pagesOf(project);
   const [pageId, setPageId] = useState<string | null>(() => initialPageId ?? linkedPage(pages));
   const index = Math.max(
@@ -60,8 +71,22 @@ export function useViewerPage(project: Project, initialPageId: string | null): V
     if (next) selectPage(next.id);
   };
 
-  useShortcut("pageup", () => step(-1), several);
-  useShortcut("pagedown", () => step(1), several);
+  /** PageDown (1) or PageUp (-1): a screen further, or the next page once at the end. */
+  const read = (by: -1 | 1) => {
+    const area = scroller();
+    if (area) {
+      const end = by > 0 ? area.scrollHeight - area.clientHeight : 0;
+      if (Math.abs(area.scrollTop - end) > 1) {
+        const distance = Math.round(area.clientHeight * (1 - READ_OVERLAP));
+        area.scrollBy({ top: by * distance, behavior: reduce ? "auto" : "smooth" });
+        return;
+      }
+    }
+    step(by);
+  };
+
+  useShortcut("pageup", () => read(-1), several);
+  useShortcut("pagedown", () => read(1), several);
   useShortcut("[", () => step(-1), several);
   useShortcut("]", () => step(1), several);
 

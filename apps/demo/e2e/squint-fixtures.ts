@@ -87,17 +87,18 @@ export async function createImageProject(page: Page, fileName: string): Promise<
   await expect(page.getByRole("img", { name: /the image under review/ })).toBeVisible();
 }
 
-/** Browser-drawn PNGs named `<label>.png` (lowercase), each showing its label. */
+/** Browser-drawn PNGs named `<label>.png` (lowercase), each showing its label; `heights` by label. */
 export async function samplePngFiles(
   page: Page,
   labels: readonly string[],
+  heights: Readonly<Record<string, number>> = {},
 ): Promise<Array<{ name: string; mimeType: string; buffer: Buffer }>> {
   const files = [];
   for (const label of labels) {
     files.push({
       name: `${label.toLowerCase()}.png`,
       mimeType: "image/png",
-      buffer: await samplePng(page, label),
+      buffer: await samplePng(page, label, heights[label]),
     });
   }
   return files;
@@ -132,21 +133,27 @@ export async function postComment(
   await expect(composer).toHaveCount(0);
 }
 
-/** A real PNG, drawn by the browser, so the upload goes through decoding and downscaling. */
-export async function samplePng(page: Page, label = "Mockup"): Promise<Buffer> {
-  const dataUrl = await page.evaluate((text) => {
-    const canvas = document.createElement("canvas");
-    canvas.width = 1200;
-    canvas.height = 900;
-    const context = canvas.getContext("2d");
-    if (!context) throw new Error("no canvas");
-    context.fillStyle = "#d8fc6c";
-    context.fillRect(0, 0, 1200, 900);
-    context.fillStyle = "#0c54cc";
-    context.font = "bold 96px sans-serif";
-    context.fillText(text, 80, 200);
-    return canvas.toDataURL("image/png");
-  }, label);
+/**
+ * A real PNG, drawn by the browser, so the upload goes through decoding and
+ * downscaling. 1200 px wide, `height` tall.
+ */
+export async function samplePng(page: Page, label = "Mockup", height = 900): Promise<Buffer> {
+  const dataUrl = await page.evaluate(
+    ({ text, tall }) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1200;
+      canvas.height = tall;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("no canvas");
+      context.fillStyle = "#d8fc6c";
+      context.fillRect(0, 0, 1200, tall);
+      context.fillStyle = "#0c54cc";
+      context.font = "bold 96px sans-serif";
+      context.fillText(text, 80, 200);
+      return canvas.toDataURL("image/png");
+    },
+    { text: label, tall: height },
+  );
   return Buffer.from(dataUrl.split(",")[1] ?? "", "base64");
 }
 

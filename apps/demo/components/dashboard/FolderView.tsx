@@ -83,7 +83,17 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
           <h2 id="subfolders-heading" className="text-heading font-bold">
             Subfolders
           </h2>
-          <FolderGrid workspace={workspace} folders={subfolders} labelledBy="subfolders-heading" />
+          {/*
+           * On touch, folder cards pull their headroom up (FolderCard); on the Overview the
+           * hero's padding takes it, here this padding does, so the first row clears the heading.
+           */}
+          <div className="[@media(hover:none)]:pt-8">
+            <FolderGrid
+              workspace={workspace}
+              folders={subfolders}
+              labelledBy="subfolders-heading"
+            />
+          </div>
         </section>
       ) : null}
       {subfolders.length ? <h2 className="text-heading font-bold">Projects</h2> : null}

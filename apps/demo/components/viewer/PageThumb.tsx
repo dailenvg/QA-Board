@@ -59,7 +59,8 @@ export function PageThumb({ page, number, open, current, onSelect }: PageThumbPr
             <motion.span
               layoutId="page-thumb-current"
               transition={reduce ? instant : spring.snappy}
-              className="pointer-events-none absolute inset-0 rounded-row ring-2 ring-brand-text ring-inset"
+              // A white halo inside the ring, as pins have, so it shows on busy pages too.
+              className="pointer-events-none absolute inset-0 rounded-row shadow-[inset_0_0_0_4px_var(--color-pin-halo)] ring-2 ring-brand-text ring-inset"
             />
           ) : null}
         </span>
@@ -72,7 +73,7 @@ export function PageThumb({ page, number, open, current, onSelect }: PageThumbPr
           <span
             aria-hidden="true"
             data-testid="page-thumb-count"
-            className="absolute -top-0.5 -right-0.5 min-w-5 rounded-pill bg-card px-1.5 text-center text-label font-semibold text-comments-text tabular-nums shadow-seg ring-1 ring-comments"
+            className="absolute -top-1 -right-1 min-w-5 rounded-pill bg-card px-1.5 text-center text-label font-semibold text-comments-text tabular-nums shadow-seg ring-1 ring-comments"
           >
             {open}
           </span>

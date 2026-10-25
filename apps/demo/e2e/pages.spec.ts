@@ -55,7 +55,9 @@ test("combined images become pages: reorder, comment on page 2, switch pages, de
   page,
 }) => {
   await openFolder(page);
-  const dialog = await pickImages(page, await samplePngFiles(page, ["One", "Two", "Three"]));
+  // "One" (page 2 once reordered) is tall, so it scrolls on every screen.
+  const files = await samplePngFiles(page, ["One", "Two", "Three"], { One: 3600 });
+  const dialog = await pickImages(page, files);
   await dialog.getByTestId("grouping-combine").click();
 
   // Keyboard reorder: three.png moves to the front, and the move is announced.
@@ -86,12 +88,29 @@ test("combined images become pages: reorder, comment on page 2, switch pages, de
     page.getByRole("button", { name: "Page 2, one.png, 1 open comment" }),
   ).toHaveAttribute("aria-current", "page");
 
-  // Keyboard paging, not while typing.
+  // Keyboard paging, not while typing: [ and ] switch pages.
   await page.keyboard.press("]");
   await expect(position).toHaveText("Page 3 of 3");
   await page.keyboard.press("[");
   await expect(position).toHaveText("Page 2 of 3");
+
+  // PageDown reads on like a PDF reader: a screen further down, and only at the end of the
+  // page, the next page. PageUp on a page that's at its top goes back a page.
+  const canvas = page.getByTestId("canvas-area");
+  const scroll = () => canvas.evaluate((element) => element.scrollTop);
+  await expect
+    .poll(() => canvas.evaluate((element) => element.scrollHeight > element.clientHeight * 2))
+    .toBe(true);
+  await expect.poll(scroll).toBe(0);
   await page.keyboard.press("PageDown");
+  await expect.poll(scroll).toBeGreaterThan(0);
+  await expect(position).toHaveText("Page 2 of 3");
+  await canvas.evaluate((element) => element.scrollTo({ top: element.scrollHeight }));
+  await page.keyboard.press("PageDown");
+  await expect(position).toHaveText("Page 3 of 3");
+  await page.keyboard.press("PageUp");
+  await expect(position).toHaveText("Page 2 of 3");
+  await page.keyboard.press("]");
   await expect(position).toHaveText("Page 3 of 3");
   await expect(page.getByRole("button", { name: "Comment 1 by Ana", exact: true })).toHaveCount(0);
 
@@ -101,6 +120,7 @@ test("combined images become pages: reorder, comment on page 2, switch pages, de
   await expect(card.getByTestId("comment-page")).toHaveText("Page 2");
   await page.getByTestId("scope-page").click();
   await expect(page.getByTestId("comments-empty")).toContainText("No comments on page 3 yet");
+  await expect(page.getByText("0 comments on page 3", { exact: true })).toBeAttached();
   await page.getByTestId("scope-all").click();
   await card.getByRole("button", { name: /Comment 1 by Ana/ }).click();
   await expect(position).toHaveText("Page 2 of 3");

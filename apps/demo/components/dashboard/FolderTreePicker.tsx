@@ -49,7 +49,7 @@ export function FolderTreePicker({
       <legend className="mb-2 block text-body font-semibold">{legend}</legend>
       <div
         data-testid="folder-tree-picker"
-        className="-mx-1 flex max-h-72 flex-col gap-0.5 overflow-y-auto rounded-tile bg-card p-1 ring-1 ring-line ring-inset"
+        className="-mx-1 flex max-h-72 flex-col gap-1 overflow-y-auto rounded-tile bg-card p-1 ring-1 ring-line ring-inset"
       >
         {options.map((option) => {
           const problem = problemFor(option.value);

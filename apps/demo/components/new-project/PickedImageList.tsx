@@ -69,7 +69,7 @@ export function PickedImageList({
         onReorder={onReorder}
         aria-label={orderable ? "Pages, in order" : "Chosen images"}
         data-testid="picked-images"
-        className="flex max-h-72 flex-col gap-2 overflow-y-auto p-0.5"
+        className="flex max-h-72 flex-col gap-2 overflow-y-auto p-1"
       >
         <AnimatePresence initial={false}>
           {items.map((item, index) => (

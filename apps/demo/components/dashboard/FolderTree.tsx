@@ -54,7 +54,7 @@ export function FolderTree({ folders, counts, activeId, labelledBy, actionsFor }
     [folders, expanded],
   );
   const [focusedId, setFocusedId] = useState<string | null>(null);
-  const items = useRef(new Map<string, HTMLAnchorElement>());
+  const items = useRef(new Map<string, HTMLLIElement>());
   const moved = useRef(false);
 
   // Opening a folder's page opens the folders above it, so it shows in the tree.
@@ -111,7 +111,7 @@ export function FolderTree({ folders, counts, activeId, labelledBy, actionsFor }
       aria-labelledby={labelledBy}
       onKeyDown={onKeyDown}
       data-testid="folder-tree"
-      className="-m-1 flex flex-col gap-0.5 p-1 max-lg:max-h-56 max-lg:overflow-y-auto"
+      className="-m-1 flex flex-col gap-1 p-1 max-lg:max-h-56 max-lg:overflow-y-auto"
     >
       <AnimatePresence initial={false}>
         {rows.map((row) => {

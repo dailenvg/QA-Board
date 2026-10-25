@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { createImageProject, folderCard, openFolder, postComment } from "./squint-fixtures";
 
@@ -17,7 +18,7 @@ async function newSubfolder(page: Page, parent: string, name: string) {
 }
 
 function treeItem(page: Page, name: string): Locator {
-  return page.getByRole("treeitem", { name: new RegExp(`^${name} ?,`) });
+  return page.getByRole("treeitem", { name: new RegExp(`^${name} \\d`) });
 }
 
 function breadcrumb(page: Page): Locator {
@@ -32,7 +33,7 @@ test("folders nest: Alpha > Beta > Gamma > Delta, with breadcrumbs, subfolders a
   await nameNewFolder(page, "New folder", "Alpha");
   await newSubfolder(page, "Alpha", "Beta");
   // From the sidebar tree's menu too.
-  await treeItem(page, "Beta").locator("..").getByTestId("folder-tree-menu").click();
+  await treeItem(page, "Beta").getByTestId("folder-tree-menu").click();
   await page.getByRole("menuitem", { name: "New folder inside" }).click();
   await nameNewFolder(page, "New folder in Beta", "Gamma");
   await newSubfolder(page, "Gamma", "Delta");
@@ -112,6 +113,10 @@ test("the sidebar tree works from the keyboard and remembers what's open", async
   await page.keyboard.press("Escape");
   await expect(treeItem(page, "Omega")).toBeFocused();
   await expect(page.getByRole("menu")).toHaveCount(0);
+
+  // The tree passes axe, nested and with its row menus.
+  const axe = await new AxeBuilder({ page }).include('[role="tree"]').analyze();
+  expect(axe.violations.map(({ id, nodes }) => ({ id, nodes: nodes.length }))).toEqual([]);
 
   // Closed folders stay closed after a reload; Enter opens a folder's page.
   await alpha.focus();
@@ -213,6 +218,10 @@ test("deleting a folder deletes everything inside it, counted first, and revokes
 
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByTestId("toast")).toContainText("Deleted Alpha");
+  // The menu that opened the dialog went with the folder: focus lands on the page, not nowhere.
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.closest("main") !== null))
+    .toBe(true);
   await expect(treeItem(page, "Alpha")).toHaveCount(0);
   await expect(treeItem(page, "Beta")).toHaveCount(0);
   await expect

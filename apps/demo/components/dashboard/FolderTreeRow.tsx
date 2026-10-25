@@ -2,7 +2,7 @@
 
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
-import { useRef, type KeyboardEvent } from "react";
+import { useId, useRef, type KeyboardEvent } from "react";
 import { duration, ease, instant, spring } from "@/lib/motion";
 import { folderHref } from "@/lib/routes";
 import type { FolderNode } from "@/lib/store/folders";
@@ -21,7 +21,7 @@ interface FolderTreeRowProps {
   /** 1-based place among its siblings. */
   position: { index: number; size: number };
   actions: MenuItem[];
-  itemRef: (element: HTMLAnchorElement | null) => void;
+  itemRef: (element: HTMLLIElement | null) => void;
   onToggle: () => void;
   onFocus: () => void;
 }
@@ -35,12 +35,13 @@ function isMenuKey(event: KeyboardEvent): boolean {
 }
 
 /**
- * One folder in the sidebar tree: a disclosure arrow (pointer only; the
- * keyboard uses the arrow keys), the folder's link, which is the treeitem,
- * and its menu. The menu's trigger stays out of the Tab order, so the tree
- * keeps one Tab stop; from the keyboard, Shift+F10 or the context-menu key on
- * the row opens it, and focus comes back to the row. The active row shares
- * the sidebar's gliding indicator.
+ * One folder in the sidebar tree: the row is the treeitem, holding a
+ * disclosure arrow (pointer only; the keyboard uses the arrow keys), the
+ * folder's link (Enter on the row follows it) and its menu. The link and the
+ * menu's trigger stay out of the Tab order, so the tree keeps one Tab stop;
+ * from the keyboard, Shift+F10 or the context-menu key on the row opens the
+ * menu, and focus comes back to the row. The active row shares the sidebar's
+ * gliding indicator.
  */
 export function FolderTreeRow({
   node,
@@ -58,26 +59,60 @@ export function FolderTreeRow({
   const reduce = useReducedMotion();
   const { folder, depth, hasChildren } = node;
   const menu = useRef<MenuHandle>(null);
-  const link = useRef<HTMLAnchorElement | null>(null);
+  const row = useRef<HTMLLIElement | null>(null);
+  const link = useRef<HTMLAnchorElement>(null);
+  const labelId = useId();
   /** The menu was opened from the keyboard, so the browser's own context menu stays shut. */
   const keyboardMenu = useRef(false);
 
-  const onKeyDown = (event: KeyboardEvent<HTMLAnchorElement>) => {
-    if (!isMenuKey(event)) return;
-    event.preventDefault();
-    keyboardMenu.current = true;
-    menu.current?.open();
+  const onKeyDown = (event: KeyboardEvent<HTMLLIElement>) => {
+    // Keys in the row's open menu are the menu's own.
+    if (event.target !== event.currentTarget) return;
+    if (event.key === "Enter") {
+      event.preventDefault();
+      link.current?.click();
+    } else if (isMenuKey(event)) {
+      event.preventDefault();
+      keyboardMenu.current = true;
+      menu.current?.open();
+    }
   };
 
   return (
+    // The row is the treeitem, so the tree owns treeitems only (axe aria-required-children);
+    // its link and menu button inside are out of the Tab order, and Enter follows the link.
     <motion.li
-      role="none"
+      ref={(element: HTMLLIElement | null) => {
+        row.current = element;
+        itemRef(element);
+      }}
+      role="treeitem"
+      aria-labelledby={labelId}
+      aria-level={depth + 1}
+      aria-setsize={position.size}
+      aria-posinset={position.index}
+      aria-expanded={hasChildren ? open : undefined}
+      aria-current={active ? "page" : undefined}
+      aria-keyshortcuts="Shift+F10"
+      tabIndex={tabbable ? 0 : -1}
+      onFocus={onFocus}
+      onKeyDown={onKeyDown}
+      onPointerDown={() => {
+        keyboardMenu.current = false;
+      }}
+      onContextMenu={(event) => {
+        // Windows sends the context-menu key's `contextmenu` after its keydown; a right-click
+        // keeps the browser's menu (Open in new tab and so on).
+        if (!keyboardMenu.current) return;
+        keyboardMenu.current = false;
+        event.preventDefault();
+      }}
       layout={reduce ? false : "position"}
       initial={reduce ? false : { opacity: 0, y: -4 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -4, transition: { duration: reduce ? 0 : duration.micro } }}
       transition={{ duration: reduce ? 0 : duration.micro, ease: ease.out }}
-      className="group relative flex min-h-11 items-center rounded-row"
+      className="group relative flex min-h-11 items-center rounded-row focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
       style={{ paddingLeft: `${depth * INDENT}rem` }}
     >
       {active ? (
@@ -103,33 +138,12 @@ export function FolderTreeRow({
         <span aria-hidden="true" className="size-11 shrink-0" />
       )}
       <Link
-        ref={(element) => {
-          link.current = element;
-          itemRef(element);
-        }}
+        ref={link}
+        id={labelId}
         href={folderHref(folder.id)}
         scroll={false}
-        role="treeitem"
-        aria-level={depth + 1}
-        aria-setsize={position.size}
-        aria-posinset={position.index}
-        aria-expanded={hasChildren ? open : undefined}
-        aria-current={active ? "page" : undefined}
-        aria-keyshortcuts="Shift+F10"
-        tabIndex={tabbable ? 0 : -1}
-        onFocus={onFocus}
-        onKeyDown={onKeyDown}
-        onPointerDown={() => {
-          keyboardMenu.current = false;
-        }}
-        onContextMenu={(event) => {
-          // Windows sends the context-menu key's `contextmenu` after its keydown; a right-click
-          // keeps the browser's menu (Open in new tab and so on).
-          if (!keyboardMenu.current) return;
-          keyboardMenu.current = false;
-          event.preventDefault();
-        }}
-        className={`relative flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-row pr-2 text-nav focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
+        tabIndex={-1}
+        className={`relative flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-row pr-2 text-nav ${
           active
             ? "font-semibold"
             : onPath
@@ -138,13 +152,15 @@ export function FolderTreeRow({
         }`}
       >
         <Icon name="folder" className={`size-5 shrink-0 ${onPath ? "text-brand-text" : ""}`} />
-        <span className="min-w-0 flex-1 truncate whitespace-nowrap">{folder.name}</span>
+        <span title={folder.name} className="min-w-0 flex-1 truncate whitespace-nowrap">
+          {folder.name}
+        </span>
         {/*
          * With a pointer, the row menu shows over the count on hover, so names keep the room.
-         * Faded, not hidden, so the count stays in the row's accessible name.
+         * A focused row shows the menu beside the count instead, so what's read is what shows.
          */}
-        <span className="text-label font-semibold text-muted tabular-nums [@media(hover:hover)]:group-focus-within:opacity-0 [@media(hover:hover)]:group-hover:opacity-0">
-          <span className="sr-only">, </span>
+        <span className="text-label font-semibold text-muted tabular-nums [@media(hover:hover)]:group-hover:group-not-focus-within:opacity-0">
+          {/* Name, then count, as they show ("Alpha 3 projects"): WCAG 2.5.3, label in name. */}
           {count}
           <span className="sr-only">
             {count === 1 ? " project" : " projects"}
@@ -157,9 +173,9 @@ export function FolderTreeRow({
         items={actions}
         triggerTabIndex={-1}
         handle={menu}
-        returnFocus={() => link.current}
+        returnFocus={() => row.current}
         testId="folder-tree-menu"
-        className="relative shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 has-[[aria-expanded=true]]:opacity-100 [@media(hover:hover)]:absolute [@media(hover:hover)]:right-0 [@media(hover:none)]:opacity-100"
+        className="relative shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 has-[[aria-expanded=true]]:opacity-100 [@media(hover:hover)]:absolute [@media(hover:hover)]:right-0 [@media(hover:hover)]:group-focus-within:static [@media(hover:none)]:opacity-100"
       />
     </motion.li>
   );
