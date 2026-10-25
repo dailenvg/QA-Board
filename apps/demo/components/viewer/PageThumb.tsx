@@ -27,7 +27,6 @@ const MISSING = (
 export function PageThumb({ page, number, open, current, onSelect }: PageThumbProps) {
   const reduce = useReducedMotion();
   const variants = useRevealVariants();
-  const comments = open === 1 ? "1 open comment" : `${open} open comments`;
   const name = distinctPageName(page.name, number);
   return (
     // `initial`/`animate` come from the strip's list, so thumbnails stagger in on mount.
@@ -36,7 +35,8 @@ export function PageThumb({ page, number, open, current, onSelect }: PageThumbPr
         type="button"
         onClick={onSelect}
         aria-current={current ? "page" : undefined}
-        aria-label={`Page ${number}${name ? `, ${name}` : ""}${open ? `, ${comments}` : ""}`}
+        // No aria-label: the name comes from the content ("Page 2, 1 open comment, one.png"),
+        // so it contains the visible number and count (WCAG 2.5.3).
         title={page.name}
         data-testid="page-thumb"
         data-page={number}
@@ -67,17 +67,20 @@ export function PageThumb({ page, number, open, current, onSelect }: PageThumbPr
         <span
           className={`text-label tabular-nums ${current ? "font-semibold text-ink" : "text-muted group-hover:text-ink"}`}
         >
+          <span className="sr-only">Page </span>
           {number}
         </span>
         {open ? (
           <span
-            aria-hidden="true"
             data-testid="page-thumb-count"
             className="absolute -top-1 -right-1 min-w-5 rounded-pill bg-card px-1.5 text-center text-label font-semibold text-comments-text tabular-nums shadow-seg ring-1 ring-comments"
           >
+            <span className="sr-only">, </span>
             {open}
+            <span className="sr-only">{open === 1 ? " open comment" : " open comments"}</span>
           </span>
         ) : null}
+        {name ? <span className="sr-only">, {name}</span> : null}
       </motion.button>
     </motion.li>
   );

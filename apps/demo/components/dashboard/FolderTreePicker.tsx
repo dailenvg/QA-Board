@@ -45,7 +45,9 @@ export function FolderTreePicker({
   ];
 
   return (
-    <fieldset>
+    // min-w-0: a fieldset's default min-inline-size is min-content, so a long folder name would
+    // widen it past the dialog (WCAG 1.4.10) instead of truncating, and push reasons off-screen.
+    <fieldset className="min-w-0">
       <legend className="mb-2 block text-body font-semibold">{legend}</legend>
       <div
         data-testid="folder-tree-picker"
@@ -81,9 +83,10 @@ export function FolderTreePicker({
                 className="size-4 shrink-0 accent-brand-text"
               />
               <Icon name={option.icon} className="size-4 shrink-0" />
+              {/* The name gives way; the reason (shrink-0, unwrapped) always shows in full. */}
               <span className="min-w-0 flex-1 truncate">{option.label}</span>
               {problem ? (
-                <span id={reasonId} className="shrink-0 text-label">
+                <span id={reasonId} className="shrink-0 text-label whitespace-nowrap">
                   {problem}
                 </span>
               ) : null}

@@ -85,7 +85,8 @@ test("combined images become pages: reorder, comment on page 2, switch pages, de
   await postComment(page, "Fix the second page.", { x: 120, y: 90 }, "Ana");
   await expect(page.locator('[data-testid="page-thumb"][data-page="2"]')).toContainText("1");
   await expect(
-    page.getByRole("button", { name: "Page 2, one.png, 1 open comment" }),
+    // Each part is its own (flex) span, so Chrome puts a space before each comma.
+    page.getByRole("button", { name: /^Page 2 ?, 1 open comment ?, one\.png$/ }),
   ).toHaveAttribute("aria-current", "page");
 
   // Keyboard paging, not while typing: [ and ] switch pages.
