@@ -61,12 +61,12 @@ export function usePickedImages() {
             settle(key, { key, fileName, status: "failed", error: result.error });
             return;
           }
-          const { dataUrl, width, height } = result;
+          const { blob, width, height } = result;
           settle(key, {
             key,
             fileName,
             status: "ready",
-            image: { dataUrl, fileName, width, height },
+            image: { blob, fileName, width, height },
           });
         });
       });

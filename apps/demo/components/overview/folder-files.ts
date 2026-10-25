@@ -13,7 +13,10 @@ function toFile(data: SquintData, project: Project): FolderFile {
     href: projectHref(project.id),
     status,
     ...(source.kind === "pages"
-      ? { ...(previewKey ? { imageKey: previewKey } : {}), meta: "Image" }
+      ? {
+          ...(previewKey ? { imageKey: previewKey } : {}),
+          meta: source.origin === "pdf" ? "PDF" : "Image",
+        }
       : { meta: displayHost(source.url) }),
   };
 }

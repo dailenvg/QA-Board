@@ -27,7 +27,7 @@ export function ScreenshotUpload({ label, variant = "primary", onImage }: Screen
     const result = await prepareImage(file);
     const error = result.ok
       ? await onImage({
-          dataUrl: result.dataUrl,
+          blob: result.blob,
           fileName: file.name,
           width: result.width,
           height: result.height,

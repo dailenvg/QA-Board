@@ -1,3 +1,4 @@
+import { distinctPageName } from "../store/pages";
 import { fencedText, inlineCode, inlineText } from "./escape";
 import type {
   ExportComment,
@@ -24,6 +25,12 @@ const INTRO = [
 ];
 
 type PagesSource = Extract<ExportSource, { kind: "pages" }>;
+
+/** ", `about.png`"; nothing for a PDF page named after its number. */
+function nameText(page: ExportPage): string {
+  const name = distinctPageName(page.name, page.number);
+  return name ? `, ${inlineCode(name)}` : "";
+}
 
 const sizeText = (page: ExportPage) =>
   page.width && page.height ? ` (${page.width} × ${page.height} px)` : "";
@@ -68,7 +75,7 @@ function pagesList(document: ExportDocument, options: MarkdownOptions): string[]
     "- **Pages:**",
     ...source.pages.map(
       (page) =>
-        `  - Page ${page.number}, ${inlineCode(page.name)}${sizeText(page)}: ${pageFile(page, options)}`,
+        `  - Page ${page.number}${nameText(page)}${sizeText(page)}: ${pageFile(page, options)}`,
     ),
   ];
 }
@@ -147,7 +154,7 @@ function pageLines(
   }
   const site = comment.pageUrl ? [`- **Site:** ${inlineCode(comment.pageUrl)}`] : [];
   return [
-    `- **Page:** ${page.number} of ${source.pages.length}, ${inlineCode(page.name)}; image ${pageFile(found, options)}`,
+    `- **Page:** ${page.number} of ${source.pages.length}${nameText(found)}; image ${pageFile(found, options)}`,
     ...site,
   ];
 }

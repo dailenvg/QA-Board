@@ -2,15 +2,18 @@ export const ACCEPTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "i
 export const ACCEPT_ATTRIBUTE = ACCEPTED_IMAGE_TYPES.join(",");
 export const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 
-/** Longest stored edge. Large screenshots are scaled down so they fit in localStorage. */
-const MAX_EDGE = 2400;
-/** Target size of the stored data URL; quality steps down until it fits. */
-const TARGET_CHARS = 1_600_000;
+/** Longest stored edge of an uploaded image or a rendered PDF page. */
+export const MAX_EDGE = 2400;
+/** Target size of a stored picture; quality steps down until it fits. */
+const TARGET_BYTES = 1_200_000;
 const QUALITIES = [0.86, 0.74, 0.62, 0.5];
 
-/** A prepared image and its size in px. */
+/** A prepared picture and its size in px. */
 export type ImageResult =
-  { ok: true; dataUrl: string; width: number; height: number } | { ok: false; error: string };
+  { ok: true; blob: Blob; width: number; height: number } | { ok: false; error: string };
+
+const TOO_DETAILED = "That image is too detailed to store in this browser. Try a smaller one.";
+const NO_CANVAS = "This browser couldn't process the image. Try again in a different browser.";
 
 export function validateImageFile(file: File): string | null {
   if (!(ACCEPTED_IMAGE_TYPES as readonly string[]).includes(file.type)) {
@@ -18,6 +21,11 @@ export function validateImageFile(file: File): string | null {
   }
   if (file.size > MAX_IMAGE_BYTES) return "That image is over 15 MB. Try a smaller one.";
   return null;
+}
+
+/** The scale that fits `width` × `height` within `MAX_EDGE`, never above `limit`. */
+export function fitScale(width: number, height: number, limit = 1): number {
+  return Math.min(limit, MAX_EDGE / Math.max(width, height));
 }
 
 function loadImage(file: File): Promise<HTMLImageElement> {
@@ -36,9 +44,29 @@ function loadImage(file: File): Promise<HTMLImageElement> {
   });
 }
 
-function encode(canvas: HTMLCanvasElement, quality: number): string {
-  const webp = canvas.toDataURL("image/webp", quality);
-  return webp.startsWith("data:image/webp") ? webp : canvas.toDataURL("image/jpeg", quality);
+function toBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob | null> {
+  return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+}
+
+/** WebP, or JPEG where the browser can't write WebP (it falls back to PNG then). */
+async function encode(canvas: HTMLCanvasElement, quality: number): Promise<Blob | null> {
+  const webp = await toBlob(canvas, "image/webp", quality);
+  if (webp?.type === "image/webp") return webp;
+  return toBlob(canvas, "image/jpeg", quality);
+}
+
+/**
+ * Encodes a canvas the way every stored picture is: WebP (else JPEG), its
+ * quality stepping down until it's at most about 1.2 MB. Null when even the
+ * lowest quality is too big, or the browser can't encode it.
+ */
+export async function encodeCanvas(canvas: HTMLCanvasElement): Promise<Blob | null> {
+  for (const quality of QUALITIES) {
+    const blob = await encode(canvas, quality);
+    if (!blob) return null;
+    if (blob.size <= TARGET_BYTES) return blob;
+  }
+  return null;
 }
 
 /**
@@ -54,30 +82,19 @@ export async function prepareImage(file: File): Promise<ImageResult> {
   } catch {
     return { ok: false, error: "That image couldn't be read. Try another file." };
   }
-  const scale = Math.min(1, MAX_EDGE / Math.max(image.naturalWidth, image.naturalHeight));
+  const scale = fitScale(image.naturalWidth, image.naturalHeight);
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
   canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
   const context = canvas.getContext("2d");
-  if (!context) {
-    return {
-      ok: false,
-      error: "This browser couldn't process the image. Try again in a different browser.",
-    };
-  }
+  if (!context) return { ok: false, error: NO_CANVAS };
   context.fillStyle = "#ffffff";
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.drawImage(image, 0, 0, canvas.width, canvas.height);
-  for (const quality of QUALITIES) {
-    const dataUrl = encode(canvas, quality);
-    if (dataUrl.length <= TARGET_CHARS) {
-      return { ok: true, dataUrl, width: canvas.width, height: canvas.height };
-    }
-  }
-  return {
-    ok: false,
-    error: "That image is too detailed to store in this browser. Try a smaller one.",
-  };
+  const blob = await encodeCanvas(canvas);
+  return blob
+    ? { ok: true, blob, width: canvas.width, height: canvas.height }
+    : { ok: false, error: TOO_DETAILED };
 }
 
 /** Decodes a `data:` URL into a Blob (no network involved). */

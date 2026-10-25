@@ -2,6 +2,7 @@
 
 import { motion, useReducedMotion } from "motion/react";
 import { hoverLift, instant, spring, useRevealVariants } from "@/lib/motion";
+import { distinctPageName } from "@/lib/store/pages";
 import type { Page } from "@/lib/store/types";
 import { BlobImage } from "../ui/BlobImage";
 import { Icon } from "../ui/Icon";
@@ -27,6 +28,7 @@ export function PageThumb({ page, number, open, current, onSelect }: PageThumbPr
   const reduce = useReducedMotion();
   const variants = useRevealVariants();
   const comments = open === 1 ? "1 open comment" : `${open} open comments`;
+  const name = distinctPageName(page.name, number);
   return (
     // `initial`/`animate` come from the strip's list, so thumbnails stagger in on mount.
     <motion.li variants={variants} className="shrink-0">
@@ -34,7 +36,7 @@ export function PageThumb({ page, number, open, current, onSelect }: PageThumbPr
         type="button"
         onClick={onSelect}
         aria-current={current ? "page" : undefined}
-        aria-label={`Page ${number}, ${page.name}${open ? `, ${comments}` : ""}`}
+        aria-label={`Page ${number}${name ? `, ${name}` : ""}${open ? `, ${comments}` : ""}`}
         title={page.name}
         data-testid="page-thumb"
         data-page={number}

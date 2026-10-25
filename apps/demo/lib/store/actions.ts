@@ -1,6 +1,5 @@
 import { deleteBlobs, putBlob } from "../blob-store/blob-store";
 import { pageImageKey } from "../blob-store/keys";
-import { dataUrlToBlob } from "../image";
 import { scheduleBlobSweep } from "./blob-sweep";
 import { newId } from "./id";
 import { findPage, MAX_PAGES } from "./pages";
@@ -21,7 +20,7 @@ import type {
 
 const NAME_LIMIT = 80;
 const IMAGE_SAVE_ERROR =
-  "This browser couldn't save the image. Free up some space, then try again.";
+  "This browser couldn't save the images. Free up some space, then try again.";
 const PROJECT_GONE = "This project is no longer here. It may have been deleted in another tab.";
 
 /** Runs a delete, then lets the blob sweep tidy up once undo is no longer likely. */
@@ -79,7 +78,8 @@ export const replaceProjectSource = (id: string, source: ProjectSource) =>
 
 /** An image chosen in the browser (or a rendered PDF page), already downscaled (`prepareImage`). */
 export interface ImageUpload {
-  dataUrl: string;
+  /** The encoded picture (WebP or JPEG), kept as a Blob rather than a data URL to spare memory. */
+  blob: Blob;
   fileName: string;
   /** Natural size of the prepared image, in px. */
   width: number;
@@ -95,9 +95,9 @@ async function storePages(images: readonly ImageUpload[]): Promise<Page[] | null
     return { id, blobKey: pageImageKey(id), name: fileName, width, height };
   });
   const saved = await Promise.all(
-    pages.map(async (page, index) => {
+    pages.map((page, index) => {
       const image = images[index];
-      return image ? putBlob(page.blobKey, await dataUrlToBlob(image.dataUrl)) : false;
+      return image ? putBlob(page.blobKey, image.blob) : Promise.resolve(false);
     }),
   );
   if (saved.every(Boolean)) return pages;
@@ -164,7 +164,7 @@ export async function replaceWithImage(
   if (source.kind === "pages") {
     const page = findPage(project, target.pageId ?? undefined)?.page ?? source.pages[0];
     if (!page) return { ok: false, error: IMAGE_SAVE_ERROR };
-    const saved = await putBlob(page.blobKey, await dataUrlToBlob(image.dataUrl));
+    const saved = await putBlob(page.blobKey, image.blob);
     if (!saved) return { ok: false, error: IMAGE_SAVE_ERROR };
     return replaceProjectSource(projectId, withPageImage(source, page, image));
   }

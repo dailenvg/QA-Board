@@ -67,12 +67,12 @@ describe("toMarkdown", () => {
     const deck = toMarkdown(buildExportDocument(PAGES_EXPORT), { withFiles: true });
     expect(deck).toContain("- **Source:** PDF `deck.pdf`, 3 pages");
     expect(deck).toContain(
-      "  - Page 1, `Page 1` (1600 × 900 px): not included (left out to keep the export small)",
+      "  - Page 1 (1600 × 900 px): not included (left out to keep the export small)",
     );
     expect(deck).toContain(
       "- **Location:** 50% from the left, 10% from the top of page 3 = x 800 px, y 90 px on a 1600 × 900 px page",
     );
-    expect(deck).toContain("- **Page:** 3 of 3, `Page 3`; image [pages/03.webp](pages/03.webp)");
+    expect(deck).toContain("- **Page:** 3 of 3; image [pages/03.webp](pages/03.webp)");
     expect(deck).toContain("![Screenshot for comment 2](screenshots/02-p02-ffff6666.png)");
     expect(deck).toContain("Page images, when included, are in `pages/`.");
   });

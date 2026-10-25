@@ -1,8 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
 import { useId, useState, type FormEvent } from "react";
-import { useRevealVariants } from "@/lib/motion";
 import {
   createFolder,
   createPagesProject,
@@ -16,23 +14,50 @@ import { Button } from "../ui/Button";
 import { FieldError } from "../ui/FieldError";
 import { FIELD_CLASS } from "../ui/field-styles";
 import { SegmentedControl, type SegmentOption } from "../ui/SegmentedControl";
-import { CombineChoice, type ImageGrouping } from "./CombineChoice";
+import type { ImageGrouping } from "./CombineChoice";
 import { FolderPicker, NEW_FOLDER } from "./FolderPicker";
-import { ImageDropzone } from "./ImageDropzone";
-import { PickedImageList } from "./PickedImageList";
+import { ImagesField } from "./ImagesField";
+import { PdfPicker } from "./PdfPicker";
 import { UrlField } from "./UrlField";
+import { usePdfImport, type PdfImport } from "./use-pdf-import";
 import { usePickedImages, type PickedImage } from "./use-picked-images";
 
-type SourceKind = "url" | "image";
+type SourceKind = "url" | "image" | "pdf";
 
-/** What the form collected: an address, or prepared images and how to group them. */
+/** What the form collected: an address, prepared images and how to group them, or a PDF's pages. */
 type SourceDraft =
-  { kind: "url"; url: string } | { kind: "image"; images: ImageUpload[]; grouping: ImageGrouping };
+  | { kind: "url"; url: string }
+  | { kind: "image"; images: ImageUpload[]; grouping: ImageGrouping }
+  | { kind: "pdf"; fileName: string; pages: ImageUpload[] };
 
 const SOURCE_OPTIONS: ReadonlyArray<SegmentOption<SourceKind>> = [
   { value: "url", label: "Website", icon: "globe" },
   { value: "image", label: "Image", icon: "image" },
+  { value: "pdf", label: "PDF", icon: "fileText", testId: "source-pdf" },
 ];
+
+const PLACEHOLDER: Record<SourceKind, string> = {
+  url: "Homepage redesign",
+  image: "Checkout mockup",
+  pdf: "Pitch deck",
+};
+
+/** Why the PDF can't be used yet, or null once its pages are ready. */
+function pdfProblem(state: PdfImport): string | null {
+  switch (state.status) {
+    case "idle":
+      return "Choose a PDF.";
+    case "opening":
+    case "rendering":
+      return "Wait for the PDF to finish rendering.";
+    case "confirm":
+      return "Choose whether to use the first pages, or cancel.";
+    case "failed":
+      return state.error;
+    case "ready":
+      return null;
+  }
+}
 
 interface NewProjectFormProps {
   folders: readonly Folder[];
@@ -75,7 +100,8 @@ export function NewProjectForm({
   const [urlError, setUrlError] = useState<string | null>(null);
   const picked = usePickedImages();
   const [grouping, setGrouping] = useState<ImageGrouping>("separate");
-  const [imageError, setImageError] = useState<string | null>(null);
+  const pdf = usePdfImport();
+  const [sourceError, setSourceError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [urlSuggestion, setUrlSuggestion] = useState<string | null>(null);
   const [folderId, setFolderId] = useState(defaultFolderId);
@@ -85,10 +111,9 @@ export function NewProjectForm({
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const nameId = useId();
   const formErrorId = useId();
-  const reveal = useRevealVariants();
   const several = picked.items.length > 1;
   const combining = several && grouping === "combine";
-  const named = kind === "url" || !several || combining;
+  const named = kind !== "image" || !several || combining;
 
   const checkUrl = (): SourceDraft | null => {
     const result = normalizeUrl(url);
@@ -108,8 +133,16 @@ export function NewProjectForm({
       setUrlError("Enter a website address.");
       return null;
     }
+    if (kind === "pdf") {
+      const problem = pdfProblem(pdf.state);
+      // A failed PDF already shows its error in the picker.
+      setSourceError(pdf.state.status === "failed" ? null : problem);
+      return pdf.state.status === "ready"
+        ? { kind: "pdf", fileName: pdf.state.fileName, pages: pdf.state.pages }
+        : null;
+    }
     const problem = imagesProblem(picked.items);
-    setImageError(problem);
+    setSourceError(problem);
     return problem
       ? null
       : {
@@ -146,6 +179,20 @@ export function NewProjectForm({
     });
   };
 
+  const createPdf = async (
+    draft: Extract<SourceDraft, { kind: "pdf" }>,
+    folder: string,
+  ): Promise<Result<Project[]>> => {
+    const result = await createPagesProject({
+      folderId: folder,
+      name: name.trim() || baseName(draft.fileName),
+      origin: "pdf",
+      fileName: draft.fileName,
+      images: draft.pages,
+    });
+    return result.ok ? { ok: true, value: [result.value] } : result;
+  };
+
   /** One project per image, in order; stops at the first failure, keeping those already made. */
   const createEach = async (images: ImageUpload[], folder: string): Promise<Result<Project[]>> => {
     const created: Project[] = [];
@@ -167,6 +214,7 @@ export function NewProjectForm({
       const result = createProject({ folderId: folder, name: projectName, source: draft });
       return result.ok ? { ok: true, value: [result.value] } : result;
     }
+    if (draft.kind === "pdf") return createPdf(draft, folder);
     if (draft.grouping === "separate" && draft.images.length > 1) {
       return createEach(draft.images, folder);
     }
@@ -193,19 +241,23 @@ export function NewProjectForm({
     onCreated(created.value);
   };
 
-  const firstName = picked.items[0]?.fileName;
-  const suggestion = kind === "url" ? urlSuggestion : firstName ? baseName(firstName) : null;
-  const placeholder = suggestion ?? (kind === "url" ? "Homepage redesign" : "Checkout mockup");
+  const pdfName = pdf.state.status === "idle" ? null : pdf.state.fileName;
+  const fileName = kind === "pdf" ? pdfName : picked.items[0]?.fileName;
+  const suggestion = kind === "url" ? urlSuggestion : fileName ? baseName(fileName) : null;
+  const placeholder = suggestion ?? PLACEHOLDER[kind];
   const creating = progress
     ? progress.total > 1 && !combining
       ? `Creating ${progress.done + 1} of ${progress.total}…`
       : "Creating…"
     : null;
-  const submitLabel = combining
-    ? `Create project with ${picked.items.length} pages`
-    : several
-      ? `Create ${picked.items.length} projects`
-      : "Create project";
+  const pdfPages = pdf.state.status === "ready" ? pdf.state.pages.length : 0;
+  const pages = kind === "pdf" ? pdfPages : combining ? picked.items.length : 0;
+  const submitLabel =
+    pages > 1
+      ? `Create project with ${pages} pages`
+      : kind === "image" && several
+        ? `Create ${picked.items.length} projects`
+        : "Create project";
 
   return (
     <form
@@ -217,6 +269,7 @@ export function NewProjectForm({
       <SegmentedControl
         label="Project source"
         layoutId="new-project-source"
+        icons="sm"
         options={SOURCE_OPTIONS}
         value={kind}
         onChange={setKind}
@@ -235,42 +288,25 @@ export function NewProjectForm({
             if (url.trim()) checkUrl();
           }}
         />
+      ) : kind === "image" ? (
+        <ImagesField
+          picked={picked}
+          grouping={grouping}
+          onGrouping={setGrouping}
+          error={sourceError}
+          onChange={() => setSourceError(null)}
+        />
       ) : (
-        <div className="flex flex-col gap-4">
-          <ImageDropzone
-            hasImages={picked.items.length > 0}
-            error={imageError ?? picked.notice}
-            onFiles={(files) => {
-              setImageError(null);
-              picked.add(files);
-            }}
-          />
-          <AnimatePresence initial={false}>
-            {several ? (
-              <motion.div
-                key="grouping"
-                variants={reveal}
-                initial="hidden"
-                animate="visible"
-                exit="exit"
-              >
-                <CombineChoice value={grouping} onChange={setGrouping} />
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
-          {picked.items.length ? (
-            <PickedImageList
-              items={picked.items}
-              orderable={combining}
-              onMove={picked.move}
-              onReorder={picked.reorder}
-              onRemove={(key) => {
-                setImageError(null);
-                picked.remove(key);
-              }}
-            />
-          ) : null}
-        </div>
+        <PdfPicker
+          state={pdf.state}
+          error={sourceError}
+          onFile={(file) => {
+            setSourceError(null);
+            void pdf.choose(file);
+          }}
+          onTakeFirstPages={pdf.takeFirstPages}
+          onCancel={pdf.cancel}
+        />
       )}
 
       {named ? (

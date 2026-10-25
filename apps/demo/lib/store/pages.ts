@@ -10,6 +10,14 @@ export const MIGRATED_PAGE_ID = "page-1";
 /** Most pages one project holds (PDF imports offer the first 50). */
 export const MAX_PAGES = 50;
 
+/**
+ * A page's name where it adds something: a PDF page's "Page 3" only repeats
+ * its number, so it's left out (null).
+ */
+export function distinctPageName(name: string, number: number): string | null {
+  return name.trim() === `Page ${number}` ? null : name;
+}
+
 /** A project's pages in reading order; none for a website. */
 export function pagesOf(project: Project): readonly Page[] {
   return project.source.kind === "pages" ? project.source.pages : [];

@@ -20,7 +20,7 @@ export function NewProjectDialog({ open, onClose, ...formProps }: NewProjectDial
       open={open}
       onClose={onClose}
       title="New project"
-      description="Review a live website, or one or more images."
+      description="Review a live website, images or a PDF."
       testId="new-project-dialog"
     >
       <NewProjectForm onCancel={onClose} {...formProps} />

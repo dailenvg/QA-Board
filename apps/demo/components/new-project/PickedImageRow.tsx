@@ -4,6 +4,7 @@ import { Reorder, useDragControls, useReducedMotion } from "motion/react";
 import Image from "next/image";
 import type { KeyboardEvent } from "react";
 import { fadeOnly, instant, spring } from "@/lib/motion";
+import { useObjectUrl } from "@/lib/use-object-url";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { Skeleton } from "../ui/Skeleton";
@@ -30,7 +31,16 @@ function Thumbnail({ item }: { item: PickedImage }) {
       </span>
     );
   }
-  return <Image src={item.image.dataUrl} alt="" fill unoptimized className="object-cover" />;
+  return <Preview blob={item.image.blob} />;
+}
+
+function Preview({ blob }: { blob: Blob }) {
+  const url = useObjectUrl(blob);
+  return url ? (
+    <Image src={url} alt="" fill unoptimized className="object-cover" />
+  ) : (
+    <Skeleton className="size-full" />
+  );
 }
 
 function statusText(item: PickedImage, index: number, orderable: boolean): string {

@@ -66,10 +66,7 @@ beforeEach(() => {
       ? new Response(null, { status: 503 })
       : null,
   );
-  const realFetch = globalThis.fetch;
   vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
-    // Decoding a prepared image (`dataUrlToBlob`) never touches the network.
-    if (typeof input === "string" && input.startsWith("data:")) return realFetch(input);
     const body = typeof init?.body === "string" ? init.body.length : 0;
     sent.push({
       method: init?.method ?? "GET",
@@ -307,8 +304,8 @@ describe("sharing a page project", () => {
 
     // Replacing page 2's picture in place sends it again, under its next revision.
     const { replaceWithImage } = await import("../store/actions");
-    const png = `data:image/png;base64,${Buffer.from(PNG).toString("base64")}`;
-    const image = { dataUrl: png, fileName: "about-v2.png", width: 800, height: 600 };
+    const blob = new Blob([PNG], { type: "image/png" });
+    const image = { blob, fileName: "about-v2.png", width: 800, height: 600 };
     expect(
       (await replaceWithImage("p1", image, { referenceUrl: undefined, pageId: "pg2" })).ok,
     ).toBe(true);
