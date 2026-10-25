@@ -103,6 +103,10 @@ const ICONS = {
     ["path", { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" }],
     ["path", { d: "M12 7v6M9 10h6" }],
   ],
+  monitor: [
+    ["rect", { x: 2, y: 3, width: 20, height: 14, rx: 2 }],
+    ["path", { d: "M8 21h8M12 17v4" }],
+  ],
   moon: [["path", { d: "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" }]],
   more: [
     ["circle", { cx: 5, cy: 12, r: 1 }],
@@ -134,6 +138,10 @@ const ICONS = {
     ["path", { d: "M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" }],
     ["path", { d: "M21 3v5h-5" }],
   ],
+  smartphone: [
+    ["rect", { x: 5, y: 2, width: 14, height: 20, rx: 2 }],
+    ["path", { d: "M12 18h.01" }],
+  ],
   sun: [
     ["circle", { cx: 12, cy: 12, r: 4 }],
     [
@@ -142,6 +150,10 @@ const ICONS = {
         d: "M12 2v2M12 20v2m-7.07-17.07 1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41",
       },
     ],
+  ],
+  tablet: [
+    ["rect", { x: 4, y: 2, width: 16, height: 20, rx: 2 }],
+    ["path", { d: "M12 18h.01" }],
   ],
   trash: [
     ["path", { d: "M3 6h18" }],

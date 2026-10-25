@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import { LEGACY_V1 } from "@/test/legacy-v1";
 import { parseData } from "./persist";
 import { reduce, REVOKE_GRACE_MS } from "./reducer";
-import { prunableSnapshotIds, referencedBlobKeys, snapshotsFor } from "./snapshots";
+import {
+  previewSnapshot,
+  prunableSnapshotIds,
+  referencedBlobKeys,
+  snapshotsFor,
+} from "./snapshots";
 import type { Comment, Snapshot, SquintData } from "./types";
 
 function legacy(): SquintData {
@@ -11,10 +16,10 @@ function legacy(): SquintData {
   return result.data;
 }
 
-const snap = (id: string, createdAt: number, projectId = "site"): Snapshot => ({
+const snap = (id: string, createdAt: number, projectId = "site", width = 1280): Snapshot => ({
   id,
   projectId,
-  width: 1280,
+  width,
   height: 3000,
   createdAt,
   blobKey: `snapshot:${id}`,
@@ -56,6 +61,25 @@ describe("snapshots in the reducer", () => {
     const pruned = reduce(data, { type: "snapshot/prune", held: [] });
     expect(snapshotsFor(pruned, "site").map((entry) => entry.id)).toEqual(["a", "c"]);
     expect(reduce(pruned, { type: "snapshot/prune", held: [] })).toBe(pruned);
+  });
+
+  it("keeps the latest snapshot of each breakpoint", () => {
+    const data = withSnapshots(
+      snap("desk-old", 1),
+      snap("desk", 2),
+      snap("phone", 3, "site", 390),
+      snap("tablet-old", 4, "site", 768),
+      snap("tablet", 5, "site", 768),
+    );
+    expect([...prunableSnapshotIds(data)].sort()).toEqual(["desk-old", "tablet-old"]);
+  });
+
+  it("previews a project with its newest desktop snapshot, else its newest one", () => {
+    const data = withSnapshots(snap("desk", 1), snap("phone", 2, "site", 390));
+    expect(previewSnapshot(data, "site")?.id).toBe("desk");
+    const phoneOnly = withSnapshots(snap("phone", 1, "site", 390));
+    expect(previewSnapshot(phoneOnly, "site")?.id).toBe("phone");
+    expect(previewSnapshot(legacy(), "site")).toBeNull();
   });
 
   it("keeps a snapshot whose image a pending Undo holds", () => {

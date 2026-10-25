@@ -6,13 +6,23 @@ import { BlobImage } from "../ui/BlobImage";
 import type { ProjectSource } from "@/lib/store/types";
 import { displayHost, faviconUrl } from "@/lib/url";
 import { Icon } from "../ui/Icon";
+import { Skeleton } from "../ui/Skeleton";
 
 interface ProjectThumbnailProps {
   source: ProjectSource;
+  /** A website's latest snapshot (desktop first), shown instead of the favicon card once taken. */
+  previewKey: string | null;
 }
 
-/** Card preview: the image itself, or a browser-window card with the site's favicon. */
-export function ProjectThumbnail({ source }: ProjectThumbnailProps) {
+const SIZES = "(min-width: 1024px) 25vw, 100vw";
+/** While the picture is read from storage, so a missing-image card doesn't flash first. */
+const PENDING = <Skeleton className="size-full" />;
+
+/**
+ * Card preview: the image itself; for a website, its latest snapshot, or a
+ * browser-window card with the site's favicon until there is one.
+ */
+export function ProjectThumbnail({ source, previewKey }: ProjectThumbnailProps) {
   return (
     <div className="relative aspect-[16/10] overflow-hidden rounded-tile bg-card">
       {source.kind === "image" ? (
@@ -20,13 +30,24 @@ export function ProjectThumbnail({ source }: ProjectThumbnailProps) {
           blobKey={source.blobKey}
           alt=""
           fill
-          sizes="(min-width: 1024px) 25vw, 100vw"
+          sizes={SIZES}
           className="object-cover object-top"
+          pending={PENDING}
           fallback={
             <span className="grid h-full place-items-center text-muted">
               <Icon name="image" className="size-6" />
             </span>
           }
+        />
+      ) : previewKey ? (
+        <BlobImage
+          blobKey={previewKey}
+          alt=""
+          fill
+          sizes={SIZES}
+          className="object-cover object-top"
+          pending={PENDING}
+          fallback={<SiteCard url={source.url} />}
         />
       ) : (
         <SiteCard url={source.url} />

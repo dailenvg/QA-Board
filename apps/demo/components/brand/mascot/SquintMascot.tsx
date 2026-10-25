@@ -48,6 +48,17 @@ export type SquintMascotProps = {
   accessory?: Accessory;
   /** Perks up as if hovered, for a parent that owns the hover or focus. */
   perked?: boolean;
+  /**
+   * Holds the mood's pose (and its props) instead of looping it: for a mascot
+   * that stays on screen beside content, where endless motion distracts
+   * (WCAG 2.2.2). Blinks still happen.
+   */
+  still?: boolean;
+  /**
+   * The root element when the mascot isn't a button: `span` for phrasing
+   * contexts, such as inside a button. Looks the same either way.
+   */
+  as?: "div" | "span";
   /** Accessible name. */
   label?: string;
   className?: string;
@@ -75,6 +86,8 @@ export function SquintMascot({
   ink = eyeColor,
   accessory,
   perked: perkedByParent = false,
+  still = false,
+  as = "div",
   label = "Squint",
   className,
 }: SquintMascotProps) {
@@ -94,13 +107,13 @@ export function SquintMascot({
   useEffect(() => {
     let alive = true;
     void controls.start(`${mood}:enter`).then(() => {
-      if (alive && !reduce && spec.loop) void controls.start(`${mood}:loop`);
+      if (alive && !reduce && !still && spec.loop) void controls.start(`${mood}:loop`);
     });
     return () => {
       alive = false;
     };
     // `held` re-binds the squash and shadow layers to controls when a drag ends.
-  }, [mood, reduce, held, controls, spec.loop]);
+  }, [mood, reduce, still, held, controls, spec.loop]);
 
   const blinking = useBlink(spec.blinks && !held);
   const gaze = useGaze(rootRef, {
@@ -148,7 +161,9 @@ export function SquintMascot({
 
   const lifted = perked || perkedByParent;
   const eyeBoost = held ? 1.2 : lifted ? 1.06 : 1;
-  const Root = (interactive ? motion.button : motion.div) as typeof motion.div;
+  const Root = (
+    interactive ? motion.button : as === "span" ? motion.span : motion.div
+  ) as typeof motion.div;
 
   return (
     <Root
@@ -262,7 +277,7 @@ export function SquintMascot({
               </motion.g>
 
               {/* Drawn after the body so badges and props sit in front of it. */}
-              <MoodProps mood={mood} color={color} reduce={reduce} />
+              <MoodProps mood={mood} color={color} reduce={reduce || still} />
             </motion.g>
           </motion.g>
         </motion.g>

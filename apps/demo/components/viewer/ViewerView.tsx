@@ -1,11 +1,17 @@
 "use client";
 
 import { useReducedMotion } from "motion/react";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { RESOLVED_HOP } from "../brand/mascot/moods";
 import { toPagePx } from "@/lib/crop/geometry";
 import { planCommentCrop } from "@/lib/crop/plan-comment-crop";
 import { renderCrop } from "@/lib/crop/render-crop";
+import {
+  activeByBreakpoint,
+  BREAKPOINT_WIDTH,
+  breakpointOfComment,
+  type Breakpoint,
+} from "@/lib/store/breakpoints";
 import { newId } from "@/lib/store/id";
 import { commentsFor, pinNumbers } from "@/lib/store/selectors";
 import { countComments, deriveStatus } from "@/lib/store/status";
@@ -18,17 +24,19 @@ import { useTimedFlag } from "@/lib/use-timed-flag";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { useToast } from "../ui/ToastProvider";
 import { useViewerBackend, type PendingCrop } from "@/lib/viewer-backend/backend";
+import { BREAKPOINT_LABEL, BreakpointSwitch } from "./BreakpointSwitch";
 import { CanvasLayer } from "./CanvasLayer";
 import { CommentsBody } from "./CommentsBody";
 import { CommentsPanel } from "./CommentsPanel";
 import { ExportMenu } from "./ExportMenu";
+import { PinPopover } from "./PinPopover";
 import { commentSurfaceKey, placementOf, surfaceKey } from "./surface";
 import { useCommentActions } from "./use-comment-actions";
 import { useViewerSurface } from "./use-viewer-surface";
 import { ViewerStage } from "./ViewerStage";
 import { ViewerTopBar } from "./ViewerTopBar";
 import type { DraftStorage } from "@/lib/share-client/draft-storage";
-import type { CommentTab, Draft, PinPoint, ScreenshotHandler } from "./types";
+import type { CommentTab, Draft, PinPoint, ScreenshotHandler, ViewerMode } from "./types";
 
 /** One celebration: the mascot's hop plus its rest beat. */
 const CELEBRATION_MS = RESOLVED_HOP * 2 * 1000;
@@ -59,9 +67,11 @@ function restoreDraft(storage: DraftStorage | undefined): Draft | null {
 type ScrollRequest = { id: string; target: "pin" | "card"; nonce: number } | null;
 
 /**
- * Viewer layout and state: mode, surface, tab, selection, draft pin, and
- * comment actions. Changes go through the viewer backend (the owner's store or
- * a shared link's server); on a shared link, moderation controls are hidden.
+ * Viewer layout and state: mode, breakpoint, surface, tab, selection, the open
+ * pin popover, draft pin, and comment actions. Changes go through the viewer
+ * backend (the owner's store or a shared link's server); on a shared link,
+ * moderation controls are hidden. Website comments are listed and pinned per
+ * breakpoint; pin numbers stay project-wide, so exports and shared links match.
  */
 export function ViewerView({
   data,
@@ -85,6 +95,9 @@ export function ViewerView({
   });
   const [tab, setTab] = useState<CommentTab>("active");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  /** The pin whose comment popover is open. */
+  const [openId, setOpenId] = useState<string | null>(null);
+  const popoverId = useId();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [scrollRequest, setScrollRequest] = useState<ScrollRequest>(null);
   /** Bumped whenever an image surface finishes loading, so pins drawn on it can be found. */
@@ -99,30 +112,62 @@ export function ViewerView({
   const handledScroll = useRef(0);
   const focusCanvasPending = useRef(false);
 
-  const { mode, setMode, surface } = view;
+  const { mode, surface, breakpoint, snapshots, latestOf } = view;
   const { source } = project;
+  const website = source.kind === "url";
   const stageKey = surfaceKey(surface);
   const comments = useMemo(() => commentsFor(data, project.id), [data, project.id]);
   const numbers = useMemo(() => pinNumbers(comments), [comments]);
-  const onStage = comments.filter(
-    (comment) => commentSurfaceKey(comment, source.kind) === stageKey,
+  /** The comments at the current breakpoint (all of them on image projects). */
+  const listed = useMemo(
+    () =>
+      website
+        ? comments.filter((comment) => breakpointOfComment(comment, snapshots) === breakpoint)
+        : comments,
+    [website, comments, snapshots, breakpoint],
   );
+  const onStage = listed.filter((comment) => commentSurfaceKey(comment, source.kind) === stageKey);
+  // Resolved pins only show on the Resolved tab.
+  const pins =
+    tab === "active" ? onStage.filter((comment) => comment.status === "active") : onStage;
+  const openComment = pins.find((comment) => comment.id === openId) ?? null;
   const placements = useMemo(
     () =>
       new Map(
-        comments.map((comment) => [
-          comment.id,
-          placementOf(comment, source.kind, view.snapshots, view.latest?.id ?? null),
-        ]),
+        comments.map((comment) => {
+          const at = website ? breakpointOfComment(comment, snapshots) : breakpoint;
+          const latestId = latestOf(at)?.id ?? null;
+          return [comment.id, placementOf(comment, source.kind, snapshots, latestId)];
+        }),
       ),
-    [comments, source.kind, view.snapshots, view.latest],
+    [comments, website, source.kind, snapshots, breakpoint, latestOf],
   );
   const counts = countComments(comments);
+  const listedCounts = countComments(listed);
+  const breakpointCounts = useMemo(
+    () => activeByBreakpoint(comments, snapshots),
+    [comments, snapshots],
+  );
   const originalUrl = source.kind === "url" ? source.url : (source.referenceUrl ?? null);
   const stageDraft = draft?.surfaceKey === stageKey ? draft : null;
 
+  /** Mode and breakpoint changes swap the stage, so they close an open popover. */
+  const setMode = (next: ViewerMode) => {
+    setOpenId(null);
+    view.setMode(next);
+  };
+  const setBreakpoint = (next: Breakpoint) => {
+    setOpenId(null);
+    view.setBreakpoint(next);
+  };
+  const changeTab = (next: CommentTab) => {
+    if (next !== tab) setOpenId(null);
+    setTab(next);
+  };
+
   useShortcut("c", () => setMode(mode === "comment" ? "browse" : "comment"));
-  useShortcut("escape", () => setMode("browse"), mode === "comment" && !stageDraft);
+  // The open popover takes Escape first.
+  useShortcut("escape", () => setMode("browse"), mode === "comment" && !stageDraft && !openComment);
 
   const unsent = Boolean(draftStorage && draft?.body.trim());
 
@@ -192,10 +237,12 @@ export function ViewerView({
     const shown = commentSurfaceKey(comment, source.kind) === stageKey;
     const next = selectedId === id && from === "card" && shown ? null : id;
     setSelectedId(next);
+    // A pin toggles its popover. On phones and tablets it's the pin's detail view, so the
+    // comments sheet stays as it is rather than opening over it.
+    setOpenId(from === "pin" && openId !== id ? id : null);
     if (!next) return;
     if (from === "pin") {
       if (comment.status === "resolved") setTab("resolved");
-      setSheetOpen(true);
     } else {
       view.showSurfaceOf(comment);
     }
@@ -208,6 +255,7 @@ export function ViewerView({
       return;
     }
     setSelectedId(null);
+    setOpenId(null);
     setDraft({
       ...point,
       body: draft?.body ?? "",
@@ -268,12 +316,42 @@ export function ViewerView({
     returnFocusToCanvas();
   };
 
+  const forget = (id: string) => setSelectedId((current) => (current === id ? null : current));
+
   const commentActions = useCommentActions({
     backend,
     toast,
-    onResolved: celebrate,
-    onRemoved: (id) => setSelectedId((current) => (current === id ? null : current)),
+    onResolved: (id) => {
+      forget(id);
+      celebrate();
+      // On the Active tab a resolved pin leaves the stage (from its card too), so Undo
+      // mustn't bring its popover back.
+      if (tab === "active") setOpenId((current) => (current === id ? null : current));
+    },
+    // Undo brings a deleted comment back, but not its popover.
+    onRemoved: (id) => {
+      forget(id);
+      setOpenId((current) => (current === id ? null : current));
+    },
   });
+
+  /** Escape and the close button hand focus back to the pin; a click elsewhere keeps it there. */
+  const closePopover = (returnFocus: boolean) => {
+    const id = openId;
+    setOpenId(null);
+    if (!returnFocus || !id) return;
+    const pin = document.querySelector<HTMLElement>(`[data-pin-id="${CSS.escape(id)}"]`);
+    if (pin) pin.focus({ preventScroll: true });
+    else returnFocusToCanvas();
+  };
+
+  /** On the Active tab a resolved pin leaves the stage, so its popover closes with it. */
+  const resolveFromPopover = (id: string) => {
+    commentActions.resolve(id);
+    if (tab !== "active") return;
+    setOpenId(null);
+    returnFocusToCanvas();
+  };
 
   const saveScreenshot: ScreenshotHandler = async (image) => {
     const referenceUrl = source.kind === "url" ? source.url : source.referenceUrl;
@@ -282,13 +360,30 @@ export function ViewerView({
     return result.ok ? null : result.error;
   };
 
+  const popover = openComment ? (
+    <PinPopover
+      key={openComment.id}
+      id={popoverId}
+      comment={openComment}
+      number={numbers.get(openComment.id) ?? 0}
+      placement={placements.get(openComment.id) ?? null}
+      now={now}
+      canModerate={owner}
+      onResolve={resolveFromPopover}
+      onReopen={commentActions.reopen}
+      onClose={closePopover}
+    />
+  ) : null;
+
   const overlay = (
     <CanvasLayer
-      comments={onStage}
+      comments={pins}
       numbers={numbers}
-      tab={tab}
       mode={mode}
       selectedId={selectedId}
+      openId={openComment?.id ?? null}
+      popoverId={popoverId}
+      popover={popover}
       draft={stageDraft}
       authorName={data.authorName}
       composerRef={composerRef}
@@ -324,14 +419,15 @@ export function ViewerView({
 
   const commentsBody = (
     <CommentsBody
-      comments={comments}
+      comments={listed}
       numbers={numbers}
       placements={placements}
       tab={tab}
-      onTab={setTab}
       selectedId={selectedId}
       now={now}
       listRef={listRef}
+      // With comments at another breakpoint, an empty list names this one.
+      scope={website && comments.length > listed.length ? BREAKPOINT_LABEL[breakpoint] : undefined}
       canModerate={owner}
       onSelect={(id) => select(id, "card")}
       onEdit={commentActions.edit}
@@ -350,6 +446,15 @@ export function ViewerView({
         mode={mode}
         onMode={setMode}
         originalUrl={originalUrl}
+        breakpoints={
+          website ? (
+            <BreakpointSwitch
+              value={breakpoint}
+              onChange={setBreakpoint}
+              counts={breakpointCounts}
+            />
+          ) : null
+        }
         actions={
           <>
             <ExportMenu data={data} project={project} commentCount={comments.length} />
@@ -375,6 +480,7 @@ export function ViewerView({
             onReady={() => setStageVersion((value) => value + 1)}
             capture={view.capture.state}
             onCapture={view.capture.capture}
+            frameWidth={website && breakpoint !== "desktop" ? BREAKPOINT_WIDTH[breakpoint] : null}
             onShowLatest={view.showLatest}
             onBrowse={() => setMode("browse")}
             onScreenshot={owner ? saveScreenshot : null}
@@ -383,9 +489,11 @@ export function ViewerView({
         <CommentsPanel
           docked={docked}
           sheetOpen={sheetOpen}
-          onToggleSheet={() => setSheetOpen((value) => !value)}
-          active={counts.active}
-          resolved={counts.resolved}
+          onSheetOpen={setSheetOpen}
+          tab={tab}
+          onTab={changeTab}
+          active={listedCounts.active}
+          resolved={listedCounts.resolved}
           celebrating={celebrating}
           note={sheetNote}
         >

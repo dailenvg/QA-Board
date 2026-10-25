@@ -18,7 +18,9 @@ interface ViewerStageProps {
   /** An image surface finished loading, so its pins are on screen. */
   onReady: () => void;
   capture: CaptureState;
-  onCapture: (width: number) => void;
+  onCapture: () => void;
+  /** Width the live site is framed at (tablet and phone breakpoints); null for full width. */
+  frameWidth: number | null;
   onShowLatest: () => void;
   onBrowse: () => void;
   onScreenshot: ScreenshotHandler | null;
@@ -37,6 +39,7 @@ export function ViewerStage({
   onReady,
   capture,
   onCapture,
+  frameWidth,
   onShowLatest,
   onBrowse,
   onScreenshot,
@@ -83,6 +86,7 @@ export function ViewerStage({
         overlay={surface.kind === "frame" ? overlay : null}
         onScreenshot={onScreenshot}
         commentMode={surface.kind !== "frame"}
+        frameWidth={frameWidth}
       />
       {snapshotStage}
     </>

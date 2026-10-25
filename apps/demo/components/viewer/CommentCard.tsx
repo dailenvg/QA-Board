@@ -7,6 +7,7 @@ import { absoluteTime, relativeTime } from "@/lib/relative-time";
 import type { Comment } from "@/lib/store/types";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
+import { CommentBadge } from "./CommentBadge";
 import { CommentCropThumb } from "./CommentCropThumb";
 import { CommentEditor } from "./CommentEditor";
 import { PlacementChip } from "./PlacementChip";
@@ -111,14 +112,7 @@ export function CommentCard({
             onClick={() => onSelect(comment.id)}
             className="flex w-full items-center gap-2 text-left after:absolute after:inset-0 after:rounded-tile focus-visible:outline-none"
           >
-            <span
-              className={`grid size-6 shrink-0 place-items-center rounded-pin text-label font-bold ${
-                resolved ? "bg-resolved-soft text-resolved-text" : "bg-brand text-on-brand"
-              }`}
-            >
-              <span className="sr-only">Comment </span>
-              {number}
-            </span>
+            <CommentBadge comment={comment} number={number} />
             <span className="min-w-0 flex-1 truncate text-body font-semibold">
               <span className="sr-only">by </span>
               {comment.author}

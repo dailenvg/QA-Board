@@ -4,7 +4,6 @@ import { useEffect, type ReactNode, type Ref } from "react";
 import type { CaptureState } from "@/lib/capture/use-capture";
 import { absoluteTime } from "@/lib/relative-time";
 import type { Snapshot } from "@/lib/store/types";
-import { useElementWidth } from "@/lib/use-element-width";
 import { CaptureFailed } from "./CaptureFailed";
 import { CaptureProgress } from "./CaptureProgress";
 import { SnapshotBar } from "./SnapshotBar";
@@ -17,7 +16,8 @@ interface SnapshotStageProps {
   /** The website to capture; null on image projects, which only show older snapshots. */
   captureUrl: string | null;
   capture: CaptureState;
-  onCapture: (width: number) => void;
+  /** Captures the current breakpoint, at its fixed width. */
+  onCapture: () => void;
   onShowLatest: () => void;
   showLatestLabel: string;
   onScreenshot: ScreenshotHandler | null;
@@ -43,8 +43,8 @@ function announcement(snapshot: Snapshot | null, isLatest: boolean, capture: Cap
 
 /**
  * Comment surface for websites: a full-page snapshot in the scrolling canvas,
- * so pins stay on the content. The first visit captures one at the stage's
- * width, with progress and failure states.
+ * so pins stay on the content. The first visit to each breakpoint captures
+ * one at that breakpoint's width, with progress and failure states.
  */
 export function SnapshotStage({
   snapshot,
@@ -60,13 +60,12 @@ export function SnapshotStage({
   imageRef,
   onReady,
 }: SnapshotStageProps) {
-  const [measure, width] = useElementWidth<HTMLDivElement>();
-  const firstCapture = !snapshot && captureUrl !== null && capture.status === "idle" && width > 0;
-  const retake = captureUrl ? () => onCapture(width) : null;
+  const firstCapture = !snapshot && captureUrl !== null && capture.status === "idle";
+  const retake = captureUrl ? onCapture : null;
 
   useEffect(() => {
-    if (firstCapture) onCapture(width);
-  }, [firstCapture, width, onCapture]);
+    if (firstCapture) onCapture();
+  }, [firstCapture, onCapture]);
 
   const body = snapshot ? (
     <SnapshotImage
@@ -79,7 +78,7 @@ export function SnapshotStage({
   ) : capture.status === "failed" ? (
     <CaptureFailed
       message={capture.message}
-      onRetry={() => onCapture(width)}
+      onRetry={onCapture}
       onScreenshot={onScreenshot}
       onBrowse={onBrowse}
     />
@@ -102,9 +101,7 @@ export function SnapshotStage({
           showLatestLabel={showLatestLabel}
         />
       ) : null}
-      <div ref={measure} className="flex-1 p-3 sm:p-5">
-        {body}
-      </div>
+      <div className="flex-1 p-3 sm:p-5">{body}</div>
     </div>
   );
 }

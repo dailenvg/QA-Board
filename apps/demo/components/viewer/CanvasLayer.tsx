@@ -1,19 +1,24 @@
 "use client";
 
 import { AnimatePresence } from "motion/react";
-import type { Ref } from "react";
+import type { ReactNode, Ref } from "react";
 import type { Comment } from "@/lib/store/types";
 import { CommentOverlay } from "./CommentOverlay";
 import { Composer } from "./Composer";
 import { Pin } from "./Pin";
-import type { CommentTab, Draft, PinPoint, ViewerMode } from "./types";
+import type { Draft, PinPoint, ViewerMode } from "./types";
 
 interface CanvasLayerProps {
+  /** The pins to draw: this surface's comments shown on the current tab. */
   comments: readonly Comment[];
   numbers: ReadonlyMap<string, number>;
-  tab: CommentTab;
   mode: ViewerMode;
   selectedId: string | null;
+  /** The comment whose popover is open, and that popover's element id. */
+  openId: string | null;
+  popoverId: string;
+  /** The open pin's popover (`PinPopover`); never shown while a draft is being written. */
+  popover: ReactNode;
   draft: Draft | null;
   authorName: string | null;
   composerRef: Ref<HTMLTextAreaElement>;
@@ -29,15 +34,17 @@ interface CanvasLayerProps {
 
 /**
  * Everything drawn over the preview. Pins never block the page in Browse mode;
- * the click catcher only exists in Comment mode. Resolved pins appear (muted)
- * only on the Resolved tab.
+ * the click catcher only exists in Comment mode. A pin opens its comment's
+ * popover beside it.
  */
 export function CanvasLayer({
   comments,
   numbers,
-  tab,
   mode,
   selectedId,
+  openId,
+  popoverId,
+  popover,
   draft,
   authorName,
   composerRef,
@@ -50,8 +57,6 @@ export function CanvasLayer({
   onDraftSubmit,
   onDraftCancel,
 }: CanvasLayerProps) {
-  const visible =
-    tab === "active" ? comments.filter((comment) => comment.status === "active") : comments;
   return (
     <div className="pointer-events-none absolute inset-0 rounded-[inherit]">
       {mode === "comment" ? (
@@ -60,7 +65,7 @@ export function CanvasLayer({
         </div>
       ) : null}
       <AnimatePresence>
-        {visible.map((comment) => {
+        {comments.map((comment) => {
           const number = numbers.get(comment.id) ?? 0;
           const resolved = comment.status === "resolved";
           return (
@@ -71,7 +76,10 @@ export function CanvasLayer({
               x={comment.x}
               y={comment.y}
               tone={resolved ? "resolved" : "active"}
+              author={comment.author}
               selected={comment.id === selectedId}
+              expanded={comment.id === openId}
+              popoverId={popoverId}
               label={`Comment ${number} by ${comment.author}${resolved ? ", resolved" : ""}`}
               onSelect={() => onSelect(comment.id)}
             />
@@ -88,6 +96,7 @@ export function CanvasLayer({
           />
         ) : null}
       </AnimatePresence>
+      <AnimatePresence>{draft ? null : popover}</AnimatePresence>
       <AnimatePresence>
         {draft ? (
           <div key="composer" className="pointer-events-auto">

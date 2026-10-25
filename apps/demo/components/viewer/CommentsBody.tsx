@@ -4,7 +4,6 @@ import { AnimatePresence, motion } from "motion/react";
 import type { RefObject } from "react";
 import { staggerGroup, useRevealVariants } from "@/lib/motion";
 import type { Comment } from "@/lib/store/types";
-import { SegmentedControl } from "../ui/SegmentedControl";
 import { CommentCard, type CommentCardActions } from "./CommentCard";
 import type { Placement } from "./surface";
 import type { CommentTab } from "./types";
@@ -15,20 +14,29 @@ interface CommentsBodyProps extends CommentCardActions {
   placements: ReadonlyMap<string, Placement | null>;
   /** False on a shared link: comments can be read and selected, not changed. */
   canModerate: boolean;
+  /** Picked in the panel's header (`PanelHeading`). */
   tab: CommentTab;
-  onTab: (tab: CommentTab) => void;
   selectedId: string | null;
   now: number;
   listRef: RefObject<HTMLUListElement | null>;
+  /**
+   * The breakpoint being listed, when the project has comments at another
+   * one: an empty list then says where it's empty ("No comments on Mobile yet",
+   * "Nothing resolved on Mobile yet").
+   */
+  scope?: string;
 }
 
-function emptyCopy(tab: CommentTab, total: number) {
+function emptyCopy(tab: CommentTab, total: number, scope: string | undefined) {
   if (tab === "resolved") {
-    return { title: "Nothing resolved yet", body: "Resolved comments show up here." };
+    return {
+      title: scope ? `Nothing resolved on ${scope} yet` : "Nothing resolved yet",
+      body: "Resolved comments show up here.",
+    };
   }
   return total === 0
     ? {
-        title: "No comments yet",
+        title: scope ? `No comments on ${scope} yet` : "No comments yet",
         body: "Choose Comment (or press C), then click or tap anywhere to drop a pin.",
       }
     : { title: "All caught up", body: "Every comment here is resolved." };
@@ -36,40 +44,25 @@ function emptyCopy(tab: CommentTab, total: number) {
 
 const stagger = staggerGroup();
 
-/** Active / Resolved switcher and the comment list for the selected tab. */
+/** The comment list for the selected tab, with its empty states. */
 export function CommentsBody({
   comments,
   numbers,
   placements,
   canModerate,
   tab,
-  onTab,
   selectedId,
   now,
   listRef,
+  scope,
   ...actions
 }: CommentsBodyProps) {
   const variants = useRevealVariants();
-  const active = comments.filter((comment) => comment.status === "active");
-  const resolved = comments.filter((comment) => comment.status === "resolved");
-  const shown = tab === "active" ? active : resolved;
-  const empty = emptyCopy(tab, comments.length);
+  const shown = comments.filter((comment) => comment.status === tab);
+  const empty = emptyCopy(tab, comments.length, scope);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="px-3">
-        <SegmentedControl
-          label="Comment status"
-          layoutId="comment-tab-thumb"
-          stretch
-          value={tab}
-          onChange={onTab}
-          options={[
-            { value: "active", label: `Active (${active.length})`, testId: "tab-active" },
-            { value: "resolved", label: `Resolved (${resolved.length})`, testId: "tab-resolved" },
-          ]}
-        />
-      </div>
+    <div className="flex min-h-0 flex-1 flex-col">
       {/* Cards inherit `hidden` → `visible` from this list, so they stagger in on mount. */}
       <motion.ul
         ref={listRef}

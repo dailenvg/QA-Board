@@ -14,6 +14,8 @@ interface UrlStageProps {
   onScreenshot: ScreenshotHandler | null;
   /** In Comment mode the snapshot covers this stage, and the framed site leaves the tab order. */
   commentMode: boolean;
+  /** Frames the site at a device width (centered, never wider than the stage); null fills it. */
+  frameWidth: number | null;
 }
 
 type Decision = "checking" | "load" | "blocked" | "unreachable";
@@ -33,7 +35,14 @@ function decide(check: FrameCheckState, forced: boolean): Decision {
  * loads in the iframe. Only older pins (from before snapshots) are drawn
  * here, on the visible frame, since a cross-origin page's scroll can't be read.
  */
-export function UrlStage({ url, projectName, overlay, onScreenshot, commentMode }: UrlStageProps) {
+export function UrlStage({
+  url,
+  projectName,
+  overlay,
+  onScreenshot,
+  commentMode,
+  frameWidth,
+}: UrlStageProps) {
   const [attempt, setAttempt] = useState(0);
   const [forced, setForced] = useState(false);
   const decision = decide(useFrameCheck(url, attempt), forced);
@@ -42,7 +51,11 @@ export function UrlStage({ url, projectName, overlay, onScreenshot, commentMode 
     <div
       data-testid="canvas"
       hidden={commentMode}
-      className="relative h-full min-h-80 w-full overflow-hidden rounded-panel"
+      data-frame-width={frameWidth ?? undefined}
+      style={frameWidth ? { maxWidth: frameWidth } : undefined}
+      className={`relative mx-auto h-full min-h-80 w-full overflow-hidden rounded-panel ${
+        frameWidth ? "shadow-float ring-1 ring-line" : ""
+      }`}
     >
       {decision === "checking" ? (
         <div role="status" className="absolute inset-0 flex flex-col gap-3 bg-card p-6">

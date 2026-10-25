@@ -1,9 +1,10 @@
 "use client";
 
 import { motion, useReducedMotion } from "motion/react";
-import { useId, useRef, type KeyboardEvent } from "react";
+import { useId } from "react";
 import { instant, spring } from "@/lib/motion";
 import { Icon, type IconName } from "./Icon";
+import { useRadioGroup } from "./use-radio-group";
 
 export interface SegmentOption<T extends string> {
   value: T;
@@ -16,6 +17,10 @@ export interface SegmentOption<T extends string> {
   disabled?: boolean;
   /** Why the option is unavailable: shown as the tooltip and announced to screen readers. */
   disabledReason?: string;
+  /** A small count beside the label, such as open comments; hidden at zero. */
+  count?: number;
+  /** What the count is, for screen readers: "3 open comments". */
+  countLabel?: string;
 }
 
 interface SegmentedControlProps<T extends string> {
@@ -29,9 +34,35 @@ interface SegmentedControlProps<T extends string> {
   stretch?: boolean;
   /** Track color: `seg` on panels, `panel` on the page background. */
   surface?: "seg" | "panel";
+  /** Selected thumb: raised neutral, or filled brand blue for the control that sets the app's mode. */
+  tone?: "neutral" | "brand";
+  /** `wide`: labels show from the `xl` breakpoint up; below it the options are icon-only. */
+  labels?: "always" | "wide";
+  /** `sm`: count chips show from the `sm` breakpoint up; below it they're only read out. */
+  counts?: "always" | "sm";
 }
 
-const STEPS: Record<string, number> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+const THUMB = {
+  neutral: "bg-seg-on shadow-seg",
+  brand: "bg-brand shadow-seg",
+} as const;
+
+const SELECTED_TEXT = {
+  neutral: "font-semibold text-ink",
+  brand: "font-semibold text-on-brand",
+} as const;
+
+/**
+ * Count chips (12px text, so 4.5:1). On the track: blue on brand-soft (4.5:1
+ * light, 5.4:1 dark). On a neutral thumb a recessed `seg` pill instead, since
+ * brand-soft over the dark thumb drops to 4.1:1 (5.2:1 light, 7.1:1 dark here).
+ * On the brand thumb a 15% white wash keeps white numbers at 4.9:1 (20% is 4.4:1).
+ */
+const COUNT = {
+  track: "bg-brand-soft text-brand-text",
+  neutral: "bg-seg text-brand-text",
+  brand: "bg-on-brand/15 text-on-brand",
+} as const;
 
 /**
  * Pill segmented control with radio-group semantics: one Tab stop, arrow keys
@@ -47,33 +78,15 @@ export function SegmentedControl<T extends string>({
   className = "",
   stretch = false,
   surface = "seg",
+  tone = "neutral",
+  labels = "always",
+  counts = "always",
 }: SegmentedControlProps<T>) {
   const reduce = useReducedMotion();
-  const buttons = useRef<Array<HTMLButtonElement | null>>([]);
   const baseId = useId();
-  const enabled = options.flatMap((option, index) => (option.disabled ? [] : [index]));
-  const selectedIndex = options.findIndex((option) => option.value === value);
-  // The one Tab stop: the selected option, or the first available one.
-  const tabStop =
-    selectedIndex >= 0 && !options[selectedIndex]?.disabled ? selectedIndex : (enabled[0] ?? -1);
-
-  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
-    if (enabled.length === 0) return;
-    const position = enabled.indexOf(index);
-    let next: number | undefined;
-    if (event.key === "Home") next = enabled[0];
-    else if (event.key === "End") next = enabled[enabled.length - 1];
-    else if (event.key in STEPS) {
-      const from = position >= 0 ? position : 0;
-      next = enabled[(from + (STEPS[event.key] ?? 0) + enabled.length) % enabled.length];
-    }
-    if (next === undefined) return;
-    event.preventDefault();
-    const option = options[next];
-    if (!option) return;
-    buttons.current[next]?.focus();
-    if (option.value !== value) onChange(option.value);
-  };
+  const group = useRadioGroup(options, value, onChange);
+  const labelClass = labels === "wide" ? "relative max-xl:sr-only" : "relative";
+  const countClass = counts === "sm" ? "max-sm:sr-only" : "";
 
   return (
     <div
@@ -90,28 +103,26 @@ export function SegmentedControl<T extends string>({
         return (
           <button
             key={option.value}
-            ref={(node) => {
-              buttons.current[index] = node;
-            }}
+            ref={group.ref(index)}
             type="button"
             role="radio"
             aria-checked={selected}
             aria-disabled={disabled || undefined}
             aria-describedby={disabled && option.disabledReason ? reasonId : undefined}
-            tabIndex={index === tabStop ? 0 : -1}
+            tabIndex={index === group.tabStop ? 0 : -1}
             title={disabled ? (option.disabledReason ?? option.title) : option.title}
             data-testid={option.testId}
             onClick={() => {
               if (!disabled) onChange(option.value);
             }}
-            onKeyDown={(event) => onKeyDown(event, index)}
-            className={`relative flex min-h-11 items-center justify-center gap-2 rounded-pill px-4 text-body whitespace-nowrap transition-colors duration-150 ${
-              stretch ? "flex-1" : ""
-            } ${
+            onKeyDown={(event) => group.onKeyDown(event, index)}
+            className={`relative flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-pill text-body whitespace-nowrap transition-colors duration-150 ${
+              labels === "wide" ? "px-3 xl:px-4" : "px-4"
+            } ${stretch ? "flex-1" : ""} ${
               disabled
                 ? "cursor-not-allowed font-medium text-muted opacity-50"
                 : selected
-                  ? "font-semibold text-ink"
+                  ? SELECTED_TEXT[tone]
                   : "font-medium text-muted hover:bg-hover/60 hover:text-ink active:bg-hover"
             }`}
           >
@@ -119,11 +130,22 @@ export function SegmentedControl<T extends string>({
               <motion.span
                 layoutId={layoutId}
                 transition={reduce ? instant : spring.snappy}
-                className="absolute inset-0 rounded-pill bg-seg-on shadow-seg"
+                className={`absolute inset-0 rounded-pill ${THUMB[tone]}`}
               />
             ) : null}
             {option.icon ? <Icon name={option.icon} className="relative size-4" /> : null}
-            <span className="relative">{option.label}</span>
+            <span className={labelClass}>{option.label}</span>
+            {option.count ? (
+              <span
+                className={`relative min-w-5 rounded-pill px-1.5 text-center text-label font-semibold tabular-nums ${
+                  selected ? COUNT[tone] : COUNT.track
+                } ${countClass}`}
+              >
+                <span className="sr-only">, </span>
+                {option.count}
+                {option.countLabel ? <span className="sr-only"> {option.countLabel}</span> : null}
+              </span>
+            ) : null}
           </button>
         );
       })}

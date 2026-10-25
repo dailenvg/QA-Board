@@ -4,6 +4,7 @@ import { snapshotPng } from "./sample-snapshot";
 import {
   createImageProject,
   createUrlProject,
+  hideComments,
   mockCapture,
   mockFrameCheck,
   onlyCommentCard,
@@ -55,11 +56,16 @@ test("a website comment pins to a snapshot, scrolls with it and keeps a screensh
   const pinName = "Comment 1 by Ana";
   await expect(page.getByRole("button", { name: pinName, exact: true })).toBeVisible();
 
-  // The pin rides along with the snapshot as the canvas scrolls.
+  // The pin rides along with the snapshot as the canvas scrolls. On a phone the desktop
+  // snapshot is scaled to fit, so the canvas may scroll less than asked.
   const area = page.getByTestId("canvas-area");
   const before = await pinTip(page, pinName);
-  await area.evaluate((node) => node.scrollBy({ top: 300, behavior: "instant" }));
-  await expect.poll(async () => before - (await pinTip(page, pinName))).toBeCloseTo(300, 0);
+  const scrolled = await area.evaluate((node) => {
+    node.scrollBy({ top: 300, behavior: "instant" });
+    return node.scrollTop;
+  });
+  expect(scrolled).toBeGreaterThan(50);
+  await expect.poll(async () => before - (await pinTip(page, pinName))).toBeCloseTo(scrolled, 0);
   await area.evaluate((node) => node.scrollTo({ top: 0, behavior: "instant" }));
 
   await showComments(page);
@@ -84,6 +90,59 @@ test("a website comment pins to a snapshot, scrolls with it and keeps a screensh
   await showComments(page);
   await expect(onlyCommentCard(page).getByTestId("comment-crop").locator("img")).toBeVisible();
   expect(captures()).toBe(1);
+});
+
+test("each breakpoint keeps its own snapshot and comments, and a pin opens its comment", async ({
+  page,
+  baseURL,
+}) => {
+  const captures = await mockCapture(page);
+  await sandboxProject(page, baseURL, "Breakpoint review");
+  const captureWidth = async (action: () => Promise<void>) => {
+    const request = page.waitForRequest("**/api/capture");
+    await action();
+    return ((await request).postDataJSON() as { width: number }).width;
+  };
+
+  // Desktop is the default, captured at its fixed width whatever the window's size.
+  expect(await captureWidth(() => page.getByTestId("mode-comment").click())).toBe(1440);
+  await expect(snapshotImage(page)).toBeVisible();
+  await postComment(page, "Desktop hero.", { x: 120, y: 90 }, "Ana");
+  const pin = page.getByRole("button", { name: "Comment 1 by Ana", exact: true });
+  await expect(page.getByTestId("breakpoint-desktop")).toContainText("1");
+
+  // The pin opens its comment beside it; Escape closes it and hands focus back to the pin.
+  await pin.click();
+  const popover = page.getByRole("dialog", { name: "Comment 1 by Ana" });
+  await expect(popover).toContainText("Desktop hero.");
+  await expect(pin).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press("Escape");
+  await expect(popover).toHaveCount(0);
+  await expect(pin).toBeFocused();
+  await expect(page.getByTestId("canvas-area")).toHaveAttribute("data-mode", "comment");
+
+  // Mobile gets its own capture, and none of Desktop's pins or comments.
+  expect(await captureWidth(() => page.getByTestId("breakpoint-mobile").click())).toBe(390);
+  await expect(snapshotImage(page)).toBeVisible();
+  await expect(pin).toHaveCount(0);
+  await showComments(page);
+  await expect(page.getByTestId("comments-empty")).toBeVisible();
+  await hideComments(page);
+
+  // Browse frames the live site at the breakpoint's width.
+  await page.getByTestId("mode-browse").click();
+  await expect(page.getByTestId("canvas")).toHaveAttribute("data-frame-width", "390");
+
+  // Back on Desktop, its snapshot and pin are still there, without another capture.
+  await page.getByTestId("breakpoint-desktop").click();
+  await page.getByTestId("mode-comment").click();
+  await expect(pin).toBeVisible();
+  expect(captures()).toBe(2);
+
+  // The project's card shows the desktop snapshot instead of the favicon card.
+  await openFolder(page);
+  const card = page.getByTestId("project-card").filter({ hasText: "Breakpoint review" });
+  await expect(card.locator('img[src^="blob:"]')).toBeVisible();
 });
 
 test("refreshing the snapshot keeps earlier comments on their own snapshot", async ({
@@ -168,6 +227,29 @@ test("an image comment gets a screenshot that survives delete and undo", async (
   await expect(card).toHaveCount(0);
   await page.getByTestId("toast").getByRole("button", { name: "Undo" }).click();
   await expect(card.getByTestId("comment-crop").locator("img")).toBeVisible();
+});
+
+test("undoing a delete doesn't reopen the comment's popover", async ({ page }) => {
+  await openFolder(page);
+  await createImageProject(page, "popover-undo.png");
+  await postComment(page, "Button too close.", { x: 100, y: 80 }, "Leo");
+  await hideComments(page);
+  await page.getByRole("button", { name: "Comment 1 by Leo", exact: true }).click();
+  const popover = page.getByTestId("pin-popover");
+  await expect(popover).toBeVisible();
+
+  // Space, since a click (or Enter on a pressable button) outside the popover closes it first.
+  const showToggle = page.getByRole("button", { name: /Show comments/ });
+  if (await showToggle.isVisible()) await showToggle.press("Space");
+  await onlyCommentCard(page).getByRole("button", { name: "Delete comment 1" }).press("Space");
+  await page
+    .getByRole("dialog", { name: "Delete comment 1?" })
+    .getByRole("button", { name: "Delete comment" })
+    .press("Space");
+  await expect(popover).toHaveCount(0);
+  await page.getByTestId("toast").getByRole("button", { name: "Undo" }).press("Space");
+  await expect(onlyCommentCard(page)).toBeVisible();
+  await expect(popover).not.toBeVisible();
 });
 
 test("projects saved before snapshots still load, with website pins labelled Live page", async ({

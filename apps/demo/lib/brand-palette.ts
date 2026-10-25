@@ -52,6 +52,15 @@ export const NATIVE_PET_PALETTE: readonly PaletteEntry[] = PRODUCTS.map((product
   return { ...product, light, ink: light ? NAVY : PAPER };
 });
 
+function paletteEntry(id: string): PaletteEntry {
+  const entry = NATIVE_PET_PALETTE.find((product) => product.id === id);
+  if (!entry) throw new Error(`No palette entry "${id}".`);
+  return entry;
+}
+
+/** Allergy green: resolved pins, badges and the Resolved mascot. */
+export const RESOLVED_GREEN = paletteEntry("allergy");
+
 /**
  * The palette in grid order: neighbours alternate warm and cool, and the three
  * reds (Omega Oil, Sockeye Salmon, Bladder) sit five apart.
@@ -72,11 +81,7 @@ const GRID_ORDER = [
   "bladder",
   "skin-coat",
   "colostrum",
-].map((id) => {
-  const entry = NATIVE_PET_PALETTE.find((product) => product.id === id);
-  if (!entry) throw new Error(`No palette entry "${id}".`);
-  return entry;
-});
+].map(paletteEntry);
 
 /**
  * Each row steps this far through GRID_ORDER. It shares no factor with the
@@ -96,5 +101,70 @@ export function paletteForCell(index: number, columns: number): PaletteEntry {
   const col = index % cols;
   const entry = GRID_ORDER[(col + row * ROW_STEP) % GRID_ORDER.length];
   if (!entry) throw new Error("The brand palette is empty.");
+  return entry;
+}
+
+/** Green means resolved on pins and badges, so no commenter is given a green. */
+export const RESOLVED_GREENS: ReadonlySet<string> = new Set([
+  "allergy",
+  "colostrum",
+  "clean-breath",
+]);
+
+/**
+ * Left out of the commenter set for clashing with UI state: The Daily's lime
+ * is the selection ring around a selected pin.
+ */
+export const COMMENTER_EXCLUDED: ReadonlySet<string> = new Set(["daily", ...RESOLVED_GREENS]);
+
+/** Pin and badge numbers are 12px bold, not large text, so they need 4.5:1 (WCAG 1.4.3). */
+export const MIN_NUMBER_CONTRAST = 4.5;
+
+/** A commenter's color: `ink` is the number color (navy or paper), `contrast` its ratio. */
+export interface CommenterColor extends PaletteEntry {
+  contrast: number;
+}
+
+/** Navy or paper, whichever reads better on `hex`, with its contrast ratio. */
+function numberInk(hex: string): { ink: string; contrast: number } {
+  const onNavy = contrast(hex, NAVY);
+  const onPaper = contrast(hex, PAPER);
+  return onNavy >= onPaper ? { ink: NAVY, contrast: onNavy } : { ink: PAPER, contrast: onPaper };
+}
+
+/**
+ * The colors commenters are given: the palette without greens and The Daily,
+ * and without any color where neither navy nor paper numbers reach 4.5:1.
+ * The palette's hexes stay as they are; a color that can't carry a readable
+ * number is simply not used for pins.
+ */
+export const COMMENTER_PALETTE: readonly CommenterColor[] = NATIVE_PET_PALETTE.flatMap(
+  (entry): CommenterColor[] => {
+    if (COMMENTER_EXCLUDED.has(entry.id)) return [];
+    const { ink, contrast: ratio } = numberInk(entry.hex);
+    if (ratio < MIN_NUMBER_CONTRAST) return [];
+    return [{ ...entry, light: ink === NAVY, ink, contrast: ratio }];
+  },
+);
+
+/** FNV-1a: a small, stable string hash (the same in every browser and on every visit). */
+function hash(text: string): number {
+  let value = 0x811c9dc5;
+  for (let index = 0; index < text.length; index += 1) {
+    value ^= text.charCodeAt(index);
+    value = Math.imul(value, 0x01000193);
+  }
+  return value >>> 0;
+}
+
+/**
+ * A commenter's pin color, from their name: the same person keeps the same
+ * color across projects, shared links and reloads. Case and spacing don't
+ * matter. Picked from COMMENTER_PALETTE, so its `ink` is the number color.
+ */
+export function commenterColor(author: string): CommenterColor {
+  const key = author.trim().replace(/\s+/g, " ").toLowerCase();
+  const entry = COMMENTER_PALETTE[hash(key) % COMMENTER_PALETTE.length];
+  if (!entry) throw new Error("The commenter palette is empty.");
   return entry;
 }

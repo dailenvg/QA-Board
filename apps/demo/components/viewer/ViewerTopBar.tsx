@@ -21,9 +21,14 @@ interface ViewerTopBarProps {
   originalUrl: string | null;
   /** Project-level actions next to the original-site link, such as Export. */
   actions: ReactNode;
+  /** The breakpoint switcher, on website projects. */
+  breakpoints?: ReactNode;
 }
 
-/** Leading slot, project name and status, Browse/Comment toggle, actions, and the original site link. */
+/**
+ * Leading slot, project name and status, Browse/Comment toggle, the breakpoint
+ * switcher (websites), actions, and the original site link.
+ */
 export function ViewerTopBar({
   project,
   leading,
@@ -32,6 +37,7 @@ export function ViewerTopBar({
   onMode,
   originalUrl,
   actions,
+  breakpoints,
 }: ViewerTopBarProps) {
   return (
     // Its own layer, so the Export menu opens over the snapshot bar and pins below it.
@@ -42,14 +48,15 @@ export function ViewerTopBar({
         <StatusChip status={status} />
       </div>
       {/*
-       * Phones: the mode switch fills the row, and when the actions don't fit beside it
-       * (Export, Share, sync retry, original site) they wrap to their own row instead of
-       * pushing the bar off-screen.
+       * Phones: the mode switch fills the row, and when the breakpoints and actions don't
+       * fit beside it (Export, Share, sync retry, original site) they wrap to their own row
+       * instead of pushing the bar off-screen.
        */}
       <div className="flex flex-wrap items-center justify-end gap-2 max-sm:w-full">
         <SegmentedControl
           label="Mode"
           layoutId="viewer-mode-thumb"
+          tone="brand"
           value={mode}
           onChange={onMode}
           className="max-sm:flex-1 max-sm:[&>button]:flex-1"
@@ -71,6 +78,7 @@ export function ViewerTopBar({
           ]}
         />
         <Kbd className="hidden lg:inline">C</Kbd>
+        {breakpoints}
         <div className="flex items-center gap-2">
           {actions}
           {originalUrl ? (

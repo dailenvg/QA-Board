@@ -7,9 +7,9 @@ import type { ViewerBackend } from "@/lib/viewer-backend/backend";
 interface CommentActionsOptions {
   backend: ViewerBackend;
   toast: (toast: ToastInput) => void;
-  /** Called after a successful resolve (the mascot celebrates). */
-  onResolved: () => void;
-  /** Called before a comment goes away, so a selection on it can be cleared. */
+  /** Called after a successful resolve (the mascot celebrates, and a selection on it is cleared). */
+  onResolved: (id: string) => void;
+  /** Called before a comment is deleted, so a selection or open popover on it can be cleared. */
   onRemoved: (id: string) => void;
 }
 
@@ -28,8 +28,7 @@ export function useCommentActions({
   return {
     resolve: (id: string) => {
       if (!report(backend.setCommentStatus(id, "resolved"))) return;
-      onRemoved(id);
-      onResolved();
+      onResolved(id);
       toast({
         message: "Comment resolved",
         action: { label: "Undo", onAction: () => backend.setCommentStatus(id, "active") },
