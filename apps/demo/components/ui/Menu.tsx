@@ -27,6 +27,11 @@ interface MenuProps {
   triggerClassName?: string;
   /** Unavailable right now: the trigger stays focusable and explains why. */
   disabledReason?: string | null;
+  /**
+   * -1 keeps the trigger out of the Tab order, for menus inside a widget with
+   * its own keyboard model (a tree row); its actions must be reachable elsewhere.
+   */
+  triggerTabIndex?: number;
 }
 
 const TRIGGER_CLASS =
@@ -42,6 +47,7 @@ export function Menu({
   text,
   triggerClassName = TRIGGER_CLASS,
   disabledReason = null,
+  triggerTabIndex,
 }: MenuProps) {
   const [open, setOpen] = useState(false);
   /** A disabled trigger was clicked or tapped: show its reason, since touch has no tooltip. */
@@ -108,6 +114,7 @@ export function Menu({
       <button
         ref={trigger}
         type="button"
+        tabIndex={triggerTabIndex}
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={open}

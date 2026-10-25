@@ -9,7 +9,10 @@ import {
 } from "./squint-fixtures";
 
 function overviewLink(page: Page): Locator {
-  return page.getByRole("link", { name: "Overview", exact: true });
+  // The sidebar's: folder pages also have one in their breadcrumb.
+  return page
+    .getByRole("complementary", { name: "Workspace" })
+    .getByRole("link", { name: "Overview", exact: true });
 }
 
 /** Creates a website project through the New project dialog, which stays on the Overview. */
@@ -108,7 +111,7 @@ test("a folder is one link to its page, with a decorative mascot key and no extr
   await expect(page).toHaveURL(new RegExp(`/f/${DEFAULT_FOLDER.id}$`));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(DEFAULT_FOLDER.name);
   await expect(page.getByTestId("project-card")).toHaveCount(1);
-  await expect(page.getByRole("link", { name: /^My projects/ })).toHaveAttribute(
+  await expect(page.getByRole("treeitem", { name: /^My projects/ })).toHaveAttribute(
     "aria-current",
     "page",
   );

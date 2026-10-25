@@ -4,7 +4,14 @@ import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { OVERVIEW_HREF, folderHref, projectHref } from "@/lib/routes";
 import { createFolder, deleteFolder, renameFolder } from "@/lib/store/actions";
-import { pickFolder, projectCount, sortedFolders } from "@/lib/store/selectors";
+import {
+  canDeleteFolder,
+  folderContents,
+  projectsInside,
+  subtreeIds,
+  type FolderContents,
+} from "@/lib/store/folders";
+import { pickFolder, sortedFolders } from "@/lib/store/selectors";
 import type { Folder, Project, SquintData } from "@/lib/store/types";
 import { useSquint } from "@/lib/store/use-squint";
 import { useDialogState } from "@/lib/use-dialog-state";
@@ -56,16 +63,20 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
   const leavingFolderId = leaving?.folderId ?? null;
 
   const folders = useMemo(() => (data ? sortedFolders(data) : []), [data]);
-  const entries = useMemo(
-    () => (data ? folders.map((folder) => ({ folder, count: projectCount(data, folder.id) })) : []),
+  const counts = useMemo(
+    () =>
+      new Map(
+        data ? folders.map((folder) => [folder.id, projectsInside(data, folder.id).length]) : [],
+      ),
     [data, folders],
   );
 
   const newProject = useDialogState<{ folderId?: string }>();
-  const newFolder = useDialogState<true>();
+  const newFolder = useDialogState<{ parentId: string | null }>();
   const folderRename = useDialogState<Folder>();
-  const folderDelete = useDialogState<{ folder: Folder; projects: number; shared: number }>();
+  const folderDelete = useDialogState<{ folder: Folder; contents: FolderContents }>();
   const { show: showNewProject } = newProject;
+  const { show: showNewFolder } = newFolder;
   const { show: showRename } = folderRename;
   const { show: showDelete } = folderDelete;
 
@@ -81,27 +92,49 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
     [toast],
   );
 
-  const workspace = useMemo<WorkspaceValue | null>(
-    () =>
-      data
-        ? {
-            data,
-            persistent,
-            folders,
-            openNewProject: (folderId) => showNewProject({ folderId }),
-            renameFolder: showRename,
-            deleteFolder: (folder) =>
-              showDelete({
-                folder,
-                projects: projectCount(data, folder.id),
-                shared: data.projects.filter((p) => p.folderId === folder.id && p.share).length,
-              }),
-            report,
-            leavingFolderId,
-          }
-        : null,
-    [data, persistent, folders, showNewProject, showRename, showDelete, report, leavingFolderId],
-  );
+  const workspace = useMemo<WorkspaceValue | null>(() => {
+    if (!data) return null;
+    const deleteFolder = (folder: Folder) =>
+      showDelete({ folder, contents: folderContents(data, folder.id) });
+    const deletable = (folder: Folder) => canDeleteFolder(folders, folder.id);
+    return {
+      data,
+      persistent,
+      folders,
+      openNewProject: (folderId) => showNewProject({ folderId }),
+      newFolder: (parentId) => showNewFolder({ parentId }),
+      renameFolder: showRename,
+      deleteFolder,
+      canDeleteFolder: deletable,
+      folderActions: (folder) => [
+        {
+          label: "New folder inside",
+          icon: "folderPlus",
+          onSelect: () => showNewFolder({ parentId: folder.id }),
+        },
+        { label: "Rename folder", icon: "pencil", onSelect: () => showRename(folder) },
+        {
+          label: deletable(folder) ? "Delete folder" : "Can't delete your only folder",
+          icon: "trash",
+          onSelect: () => deleteFolder(folder),
+          danger: true,
+          disabled: !deletable(folder),
+        },
+      ],
+      report,
+      leavingFolderId,
+    };
+  }, [
+    data,
+    persistent,
+    folders,
+    showNewProject,
+    showNewFolder,
+    showRename,
+    showDelete,
+    report,
+    leavingFolderId,
+  ]);
 
   /**
    * One project opens, unless it was made on the Overview: the new sheet drops into its
@@ -136,12 +169,14 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
       <div className="flex min-h-dvh flex-col gap-4 overflow-x-clip p-4 lg:flex-row lg:items-start">
         {workspace ? (
           <Sidebar
-            entries={entries}
+            folders={folders}
+            counts={counts}
+            actionsFor={workspace.folderActions}
             activeId={routeFolderId ?? null}
             overviewActive={onOverview}
             persistent={persistent}
             onNewProject={() => showNewProject({})}
-            onNewFolder={() => newFolder.show(true)}
+            onNewFolder={() => showNewFolder({ parentId: null })}
           />
         ) : (
           <SidebarSkeleton />
@@ -166,8 +201,9 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
             create={newFolder}
             rename={folderRename}
             remove={folderDelete}
-            onCreate={(name) => {
-              const result = createFolder(name);
+            parentOf={(parentId) => folders.find((folder) => folder.id === parentId) ?? null}
+            onCreate={(name, parentId) => {
+              const result = createFolder(name, parentId);
               if (!result.ok) return result.error;
               newFolder.close();
               router.push(folderHref(result.value.id), { scroll: false });
@@ -181,7 +217,9 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
             }}
             onDelete={(target) => {
               folderDelete.close();
-              const viewing = target.id === routeFolderId;
+              // The folder's page, or a subfolder's, is open: leave it once the folder is gone.
+              const viewing =
+                routeFolderId !== undefined && subtreeIds(folders, target.id).has(routeFolderId);
               if (viewing) setLeaving({ folderId: target.id, from: pathname });
               if (!report(deleteFolder(target.id), `Deleted ${target.name}`)) {
                 setLeaving(null);

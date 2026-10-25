@@ -3,6 +3,7 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useId } from "react";
 import { duration, ease } from "@/lib/motion";
+import { flattenFolderTree } from "@/lib/store/folders";
 import type { Folder } from "@/lib/store/types";
 import { FieldError } from "../ui/FieldError";
 import { FIELD_CLASS } from "../ui/field-styles";
@@ -20,7 +21,7 @@ interface FolderPickerProps {
   newNameError: string | null;
 }
 
-/** Folder select with an inline "New folder" option that reveals a name field. */
+/** Folder select (the folder tree, indented) with an inline "New folder" option that reveals a name field. */
 export function FolderPicker({
   folders,
   value,
@@ -45,9 +46,10 @@ export function FolderPicker({
         onChange={(event) => onChange(event.target.value)}
         className={FIELD_CLASS}
       >
-        {folders.map((folder) => (
+        {flattenFolderTree(folders).map(({ folder, depth }) => (
           <option key={folder.id} value={folder.id}>
-            {folder.name}
+            {/* Nested folders are indented under their parents (non-breaking spaces show in a select). */}
+            {`${"\u00a0".repeat(depth * 3)}${folder.name}`}
           </option>
         ))}
         <option value={NEW_FOLDER}>New folder…</option>

@@ -3,7 +3,7 @@
 import { useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Folder } from "@/lib/store/types";
-import { Menu } from "../ui/Menu";
+import { Menu, type MenuItem } from "../ui/Menu";
 import { SegmentedControl } from "../ui/SegmentedControl";
 import { STATUS_FILTER_OPTIONS, type StatusFilterValue } from "./status-filter";
 
@@ -12,9 +12,10 @@ interface DashboardHeaderProps {
   chips: readonly string[];
   filter: StatusFilterValue;
   onFilter: (value: StatusFilterValue) => void;
-  canDeleteFolder: boolean;
-  onRenameFolder: () => void;
-  onDeleteFolder: () => void;
+  /** The folder's actions (new folder inside, rename, move, delete). */
+  actions: MenuItem[];
+  /** Where the folder sits, above its name. */
+  breadcrumb: ReactNode;
 }
 
 /** Folder title with summary chips, folder actions and the status filter. */
@@ -23,30 +24,17 @@ export function DashboardHeader({
   chips,
   filter,
   onFilter,
-  canDeleteFolder,
-  onRenameFolder,
-  onDeleteFolder,
+  actions,
+  breadcrumb,
 }: DashboardHeaderProps) {
   return (
     // No horizontal padding: title, filter and project grid share main's content box.
     <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3 pt-2">
       <div className="min-w-0">
+        {breadcrumb}
         <div className="flex items-center gap-1">
           <h1 className="truncate text-title font-bold">{folder.name}</h1>
-          <Menu
-            label="Folder actions"
-            testId="folder-menu"
-            items={[
-              { label: "Rename folder", icon: "pencil", onSelect: onRenameFolder },
-              {
-                label: canDeleteFolder ? "Delete folder" : "Can't delete your only folder",
-                icon: "trash",
-                onSelect: onDeleteFolder,
-                danger: true,
-                disabled: !canDeleteFolder,
-              },
-            ]}
-          />
+          <Menu label="Folder actions" testId="folder-menu" items={actions} />
         </div>
         <ul className="mt-1 flex flex-wrap gap-2" aria-label="Folder summary">
           {chips.map((chip) => (

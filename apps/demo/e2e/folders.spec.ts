@@ -1,0 +1,120 @@
+import { expect, test, type Locator, type Page } from "@playwright/test";
+import { createImageProject, folderCard, openFolder } from "./squint-fixtures";
+
+/** Fills the New folder dialog (whatever opened it) and waits for the new folder's page. */
+async function nameNewFolder(page: Page, title: string | RegExp, name: string) {
+  const dialog = page.getByRole("dialog", { name: title });
+  await dialog.getByLabel("Folder name").fill(name);
+  await dialog.getByRole("button", { name: "Create folder" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
+}
+
+/** "New folder inside" from the folder page's own menu. */
+async function newSubfolder(page: Page, parent: string, name: string) {
+  await page.getByTestId("folder-menu").click();
+  await page.getByRole("menuitem", { name: "New folder inside" }).click();
+  await nameNewFolder(page, `New folder in ${parent}`, name);
+}
+
+function treeItem(page: Page, name: string): Locator {
+  return page.getByRole("treeitem", { name: new RegExp(`^${name} ?,`) });
+}
+
+function breadcrumb(page: Page): Locator {
+  return page.getByRole("navigation", { name: "Breadcrumb" });
+}
+
+test("folders nest: Alpha > Beta > Gamma > Delta, with breadcrumbs, subfolders and the tree", async ({
+  page,
+}) => {
+  await openFolder(page);
+  await page.getByTestId("new-folder").click();
+  await nameNewFolder(page, "New folder", "Alpha");
+  await newSubfolder(page, "Alpha", "Beta");
+  // From the sidebar tree's menu too.
+  await treeItem(page, "Beta").locator("..").getByTestId("folder-tree-menu").click();
+  await page.getByRole("menuitem", { name: "New folder inside" }).click();
+  await nameNewFolder(page, "New folder in Beta", "Gamma");
+  await newSubfolder(page, "Gamma", "Delta");
+
+  // The tree shows where Delta is: its ancestors open, each a level deeper.
+  await expect(treeItem(page, "Delta")).toHaveAttribute("aria-current", "page");
+  await expect(treeItem(page, "Delta")).toHaveAttribute("aria-level", "4");
+  for (const name of ["Alpha", "Beta", "Gamma"]) {
+    await expect(treeItem(page, name)).toHaveAttribute("aria-expanded", "true");
+  }
+
+  // Deep: the middle folds behind "…", which unfolds in place.
+  const crumbs = breadcrumb(page);
+  await expect(crumbs.getByRole("listitem")).toHaveText([
+    "Overview",
+    "Alpha",
+    "…",
+    "Gamma",
+    "Delta",
+  ]);
+  await expect(crumbs.getByText("Delta")).toHaveAttribute("aria-current", "page");
+  await crumbs.getByRole("button", { name: "Show 1 more folder" }).click();
+  await expect(crumbs.getByRole("link", { name: "Beta" })).toBeFocused();
+  await crumbs.getByRole("link", { name: "Beta" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Beta");
+  await expect(breadcrumb(page).getByRole("listitem")).toHaveText(["Overview", "Alpha", "Beta"]);
+
+  // A project deep inside counts for every folder above it.
+  await treeItem(page, "Gamma").click();
+  await createImageProject(page, "deep.png");
+  await page.getByRole("link", { name: "Back to Gamma" }).click();
+  await breadcrumb(page).getByRole("link", { name: "Alpha" }).click();
+  const subfolders = page.getByRole("region", { name: "Subfolders" });
+  await expect(subfolders.getByTestId("folder-card").filter({ hasText: "Beta" })).toContainText(
+    "1 project in 3 folders",
+  );
+  await expect(treeItem(page, "Alpha")).toContainText("1");
+
+  // The Overview shows top-level folders only, counting what's inside.
+  await breadcrumb(page).getByRole("link", { name: "Overview" }).click();
+  const cards = page.getByTestId("folder-card");
+  await expect(cards).toHaveCount(2);
+  await expect(folderCard(page, "Alpha")).toContainText("1 project in 4 folders");
+  await expect(folderCard(page, "Beta")).toHaveCount(0);
+});
+
+test("the sidebar tree works from the keyboard and remembers what's open", async ({ page }) => {
+  await openFolder(page);
+  await page.getByTestId("new-folder").click();
+  await nameNewFolder(page, "New folder", "Alpha");
+  await newSubfolder(page, "Alpha", "Beta");
+  await page.getByTestId("new-folder").click();
+  await nameNewFolder(page, "New folder", "Omega");
+
+  const alpha = treeItem(page, "Alpha");
+  await treeItem(page, "Omega").focus();
+  await page.keyboard.press("Home");
+  await expect(treeItem(page, "My projects")).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(alpha).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await expect(alpha).toHaveAttribute("aria-expanded", "false");
+  await expect(treeItem(page, "Beta")).toHaveCount(0);
+  await page.keyboard.press("ArrowRight");
+  await expect(alpha).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press("ArrowRight");
+  await expect(treeItem(page, "Beta")).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await expect(alpha).toBeFocused();
+  await page.keyboard.press("End");
+  await expect(treeItem(page, "Omega")).toBeFocused();
+  // One Tab stop: Shift+Tab leaves the tree.
+  await expect(page.getByRole("tree").locator('[tabindex="0"]')).toHaveCount(1);
+
+  // Closed folders stay closed after a reload; Enter opens a folder's page.
+  await alpha.focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(alpha).toHaveAttribute("aria-expanded", "false");
+  await page.reload();
+  await expect(treeItem(page, "Alpha")).toHaveAttribute("aria-expanded", "false");
+  await treeItem(page, "Alpha").focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Alpha");
+  await expect(treeItem(page, "Alpha")).toHaveAttribute("aria-current", "page");
+});

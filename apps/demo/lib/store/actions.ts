@@ -47,6 +47,11 @@ export function createFolder(name: string, parentId: string | null = null): Resu
 export const renameFolder = (id: string, name: string) =>
   dispatch({ type: "folder/rename", id, name: cleanName(name) });
 
+/** Moves a folder into `parentId`, or to the top level (null). The reducer refuses cycles. */
+export const moveFolder = (id: string, parentId: string | null) =>
+  dispatch({ type: "folder/move", id, parentId });
+
+/** Deletes a folder with everything inside it; shared projects inside are revoked. */
 export const deleteFolder = (id: string) =>
   withSweep(dispatch({ type: "folder/delete", id, at: Date.now() }));
 

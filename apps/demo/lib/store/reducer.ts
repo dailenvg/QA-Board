@@ -1,3 +1,4 @@
+import { folderMoveProblem, subtreeIds } from "./folders";
 import { placeComment } from "./pages";
 import { prunableSnapshotIds } from "./snapshots";
 import type {
@@ -15,6 +16,9 @@ import type {
 export type Action =
   | { type: "folder/create"; folder: Folder }
   | { type: "folder/rename"; id: string; name: string }
+  /** Moves a folder into another (`parentId`), or to the top level (null). Never into itself. */
+  | { type: "folder/move"; id: string; parentId: string | null }
+  /** Deletes the folder and everything inside it, at any depth. */
   | { type: "folder/delete"; id: string; at: number }
   | { type: "project/create"; project: Project }
   | { type: "project/rename"; id: string; name: string; at: number }
@@ -173,15 +177,25 @@ export function reduce(data: SquintData, action: Action): SquintData {
           folder.id === action.id ? { ...folder, name: action.name } : folder,
         ),
       };
+    case "folder/move":
+      if (folderMoveProblem(data.folders, action.id, action.parentId)) return data;
+      return {
+        ...data,
+        folders: data.folders.map((folder) =>
+          folder.id === action.id ? { ...folder, parentId: action.parentId } : folder,
+        ),
+      };
     case "folder/delete": {
-      // Every project needs a folder, so the last folder stays.
-      if (data.folders.length <= 1) return data;
-      const removedProjects = data.projects.filter((project) => project.folderId === action.id);
+      if (!data.folders.some((folder) => folder.id === action.id)) return data;
+      const folderIds = subtreeIds(data.folders, action.id);
+      // Every project needs a folder, so the last folders stay.
+      if (folderIds.size >= data.folders.length) return data;
+      const removedProjects = data.projects.filter((project) => folderIds.has(project.folderId));
       const removed = new Set(removedProjects.map((p) => p.id));
       // Folder deletes can't be undone, so their links are revoked right away.
       return {
         ...revoke(data, removedProjects, action.at),
-        folders: data.folders.filter((folder) => folder.id !== action.id),
+        folders: data.folders.filter((folder) => !folderIds.has(folder.id)),
         projects: data.projects.filter((project) => !removed.has(project.id)),
         comments: data.comments.filter((comment) => !removed.has(comment.projectId)),
         snapshots: data.snapshots.filter((snapshot) => !removed.has(snapshot.projectId)),

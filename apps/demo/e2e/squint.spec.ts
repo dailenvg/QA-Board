@@ -33,7 +33,7 @@ test("a website project takes a comment from posted to resolved, reopened and de
   await folderDialog.getByLabel("Folder name").fill("Client work");
   await folderDialog.getByRole("button", { name: "Create folder" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Client work");
-  await expect(page.getByRole("link", { name: /Client work/ })).toHaveAttribute(
+  await expect(page.getByRole("treeitem", { name: /Client work/ })).toHaveAttribute(
     "aria-current",
     "page",
   );

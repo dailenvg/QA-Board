@@ -57,10 +57,6 @@ export function sortedFolders(data: SquintData): Folder[] {
   return [...data.folders].sort((a, b) => a.createdAt - b.createdAt);
 }
 
-export function projectCount(data: SquintData, folderId: string): number {
-  return data.projects.filter((project) => project.folderId === folderId).length;
-}
-
 /** Pin numbers follow creation order across the project, resolved or not. */
 export function pinNumbers(comments: readonly Comment[]): Map<string, number> {
   return new Map(comments.map((comment, index) => [comment.id, index + 1]));

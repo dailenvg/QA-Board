@@ -5,10 +5,15 @@ import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { Kbd } from "../ui/Kbd";
 import { ThemeToggle } from "../ui/ThemeToggle";
-import { FolderNav, type FolderEntry } from "./FolderNav";
+import type { Folder } from "@/lib/store/types";
+import type { MenuItem } from "../ui/Menu";
+import { FolderNav } from "./FolderNav";
 
 interface SidebarProps {
-  entries: readonly FolderEntry[];
+  folders: readonly Folder[];
+  /** Projects in each folder, its subfolders' included. */
+  counts: ReadonlyMap<string, number>;
+  actionsFor: (folder: Folder) => MenuItem[];
   activeId: string | null;
   overviewActive: boolean;
   persistent: boolean;
@@ -18,7 +23,9 @@ interface SidebarProps {
 
 /** Floating workspace panel: brand, primary action, navigation and appearance. */
 export function Sidebar({
-  entries,
+  folders,
+  counts,
+  actionsFor,
   activeId,
   overviewActive,
   persistent,
@@ -47,7 +54,9 @@ export function Sidebar({
       </Button>
 
       <FolderNav
-        entries={entries}
+        folders={folders}
+        counts={counts}
+        actionsFor={actionsFor}
         activeId={activeId}
         overviewActive={overviewActive}
         onCreate={onNewFolder}

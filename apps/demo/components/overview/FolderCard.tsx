@@ -9,9 +9,8 @@ import type { Theme } from "@/lib/theme";
 import { useElementWidth } from "@/lib/use-element-width";
 import { useEngagement } from "@/lib/use-engagement";
 import { useMediaQuery } from "@/lib/use-media-query";
-import { Menu } from "../ui/Menu";
+import { Menu, type MenuItem } from "../ui/Menu";
 import { FolderMascot } from "./FolderMascot";
-import { projectCountLabel } from "./folder-files";
 import { GlassFolder, type FolderFile } from "./glass-folder/GlassFolder";
 import { FOLDER_ASPECT, FOLDER_MAX_WIDTH, HEADROOM, W } from "./glass-folder/geometry";
 import { folderArt } from "./glass-folder/recipes";
@@ -23,13 +22,13 @@ const APPEAR_STAGGER_MAX = 4;
 interface FolderCardProps {
   folder: Folder;
   files: readonly FolderFile[];
+  /** What it holds, such as "5 projects in 3 folders". */
+  meta: string;
   index: number;
   /** The folder's color, shared by its art and its mascot. */
   swatch: PaletteEntry;
   tone: Theme;
-  canDelete: boolean;
-  onRename: () => void;
-  onDelete: () => void;
+  actions: MenuItem[];
 }
 
 /**
@@ -39,23 +38,13 @@ interface FolderCardProps {
  * While hovered, focused or showing its menu, the card rises above its
  * neighbours so the fan can overlap them.
  */
-export function FolderCard({
-  folder,
-  files,
-  index,
-  swatch,
-  tone,
-  canDelete,
-  onRename,
-  onDelete,
-}: FolderCardProps) {
+export function FolderCard({ folder, files, meta, index, swatch, tone, actions }: FolderCardProps) {
   const [measure, width] = useElementWidth<HTMLDivElement>();
   const [engaged, engagement] = useEngagement();
   const touch = useMediaQuery("(hover: none)");
   const reduce = useReducedMotion();
   const variants = useRevealVariants();
   const { recipe, seed } = folderArt(folder.id, swatch);
-  const meta = projectCountLabel(files.length);
 
   return (
     <motion.li
@@ -86,16 +75,7 @@ export function FolderCard({
               <Menu
                 label={`Actions for ${folder.name}`}
                 testId="folder-card-menu"
-                items={[
-                  { label: "Rename folder", icon: "pencil", onSelect: onRename },
-                  {
-                    label: canDelete ? "Delete folder" : "Can't delete your only folder",
-                    icon: "trash",
-                    onSelect: onDelete,
-                    danger: true,
-                    disabled: !canDelete,
-                  },
-                ]}
+                items={actions}
               />
             }
             appearDelay={Math.min(index, APPEAR_STAGGER_MAX) * APPEAR_STAGGER_MS}

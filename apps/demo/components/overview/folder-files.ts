@@ -1,4 +1,5 @@
 import { projectHref } from "@/lib/routes";
+import { projectsInside } from "@/lib/store/folders";
 import { summarize } from "@/lib/store/selectors";
 import type { Project, SquintData } from "@/lib/store/types";
 import { displayHost } from "@/lib/url";
@@ -21,16 +22,23 @@ function toFile(data: SquintData, project: Project): FolderFile {
   };
 }
 
-/** A folder's projects as glass-folder files, newest first (by creation, so edits don't reshuffle). */
+/**
+ * The projects in a folder and its subfolders as glass-folder files, newest first (by
+ * creation, so edits don't reshuffle).
+ */
 export function folderFiles(data: SquintData, folderId: string): FolderFile[] {
-  return data.projects
-    .filter((project) => project.folderId === folderId)
+  return projectsInside(data, folderId)
     .sort((a, b) => b.createdAt - a.createdAt)
     .map((project) => toFile(data, project));
 }
 
-/** "No projects", "1 project", "3 projects". */
-export function projectCountLabel(count: number): string {
+/**
+ * "No projects", "1 project", "3 projects". A folder's count includes its
+ * subfolders' projects; with `folders` (the folder and its subfolders) above
+ * one, it says so: "5 projects in 3 folders".
+ */
+export function projectCountLabel(count: number, folders = 1): string {
   if (count === 0) return "No projects";
-  return `${count} ${count === 1 ? "project" : "projects"}`;
+  const projects = `${count} ${count === 1 ? "project" : "projects"}`;
+  return folders > 1 ? `${projects} in ${folders} folders` : projects;
 }
