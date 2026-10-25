@@ -1,4 +1,5 @@
 import type { ImageUpload } from "../store/actions";
+import { pageByteBudget } from "../page-budget";
 import { MAX_PAGES } from "../store/pages";
 
 /** Largest PDF accepted, before anything is read. */
@@ -8,6 +9,14 @@ export const MAX_PDF_PAGES = MAX_PAGES;
 
 /** Why pdf.js couldn't open a file. */
 export type PdfOpenFailure = "password" | "corrupt";
+
+/** Thrown by `renderPage` when a page can't be stored within its budget, even smaller. */
+export class PdfPageTooDetailedError extends Error {
+  constructor() {
+    super("too-detailed");
+    this.name = "PdfPageTooDetailedError";
+  }
+}
 
 /** Thrown by an engine's `open` when pdf.js refuses the file. */
 export class PdfOpenError extends Error {
@@ -20,8 +29,11 @@ export class PdfOpenError extends Error {
 /** An open PDF. Destroy it when done (or cancelled): that stops its worker and frees its memory. */
 export interface PdfDocument {
   pageCount: number;
-  /** Page `number` (1-based) as a stored-size picture; rejects if it can't be rendered. */
-  renderPage(number: number, signal: AbortSignal): Promise<ImageUpload>;
+  /**
+   * Page `number` (1-based) as a stored picture of at most `maxBytes`; rejects
+   * if it can't be rendered (`PdfPageTooDetailedError` when it can't fit).
+   */
+  renderPage(number: number, signal: AbortSignal, maxBytes: number): Promise<ImageUpload>;
   destroy(): Promise<void>;
 }
 
@@ -38,6 +50,8 @@ export const PDF_MESSAGES = {
   empty: "That PDF has no pages. Choose another PDF.",
   render: (page: number) =>
     `Page ${page} of that PDF couldn't be rendered, so nothing was added. Try exporting the PDF again.`,
+  tooDetailed: (page: number) =>
+    `Page ${page} of that PDF is too detailed to store, so nothing was added. Export the PDF at a lower resolution, then try again.`,
 } as const;
 
 /** `%PDF-`, which readers accept anywhere in the first 1 KB (some files carry a few bytes before it). */
@@ -85,8 +99,10 @@ export type RenderResult =
 
 /**
  * Renders pages 1 to `count`, one at a time, reporting each as it starts.
- * All or nothing: a page that fails fails the whole PDF (naming the page),
- * and a cancel stops after the page in progress. The caller destroys the document.
+ * Each page is stored within its share of the project's budget
+ * (`pageByteBudget`), so a PDF of up to 50 pages fits in a share. All or
+ * nothing: a page that fails fails the whole PDF (naming the page), and a
+ * cancel stops after the page in progress. The caller destroys the document.
  */
 export async function renderPdfPages(
   document: PdfDocument,
@@ -95,16 +111,20 @@ export async function renderPdfPages(
 ): Promise<RenderResult> {
   const { signal, onProgress } = options;
   const total = Math.min(count, document.pageCount);
+  const budget = pageByteBudget(total);
   const pages: ImageUpload[] = [];
   for (let number = 1; number <= total; number += 1) {
     if (signal.aborted) return { ok: false, cancelled: true };
     onProgress(number, total);
     try {
-      pages.push(await document.renderPage(number, signal));
-    } catch {
-      return signal.aborted
-        ? { ok: false, cancelled: true }
-        : { ok: false, cancelled: false, error: PDF_MESSAGES.render(number) };
+      pages.push(await document.renderPage(number, signal, budget));
+    } catch (error) {
+      if (signal.aborted) return { ok: false, cancelled: true };
+      const message =
+        error instanceof PdfPageTooDetailedError
+          ? PDF_MESSAGES.tooDetailed(number)
+          : PDF_MESSAGES.render(number);
+      return { ok: false, cancelled: false, error: message };
     }
   }
   return signal.aborted ? { ok: false, cancelled: true } : { ok: true, pages };

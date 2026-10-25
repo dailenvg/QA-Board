@@ -1,3 +1,4 @@
+import { MAX_PDF_PAGES } from "@/lib/pdf/render-pdf";
 import type { ImageUpload } from "@/lib/store/actions";
 import type { ImageGrouping } from "./CombineChoice";
 import type { PdfImport } from "./use-pdf-import";
@@ -33,7 +34,7 @@ export function pdfProblem(state: PdfImport): string | null {
     case "rendering":
       return "Wait for the PDF to finish rendering.";
     case "confirm":
-      return "Choose whether to use the first pages, or cancel.";
+      return `Choose Use the first ${MAX_PDF_PAGES} pages, or Cancel and pick a shorter PDF.`;
     case "failed":
       return state.error;
     case "ready":

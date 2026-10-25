@@ -92,12 +92,13 @@ describe("folder tree", () => {
   });
 
   it("refuses moves into the folder itself or anything inside it", () => {
-    expect(folderMoveProblem(FOLDERS, "a", "a")).toMatch(/inside itself/);
-    expect(folderMoveProblem(FOLDERS, "a", "c")).toMatch(/its own subfolders/);
-    expect(folderMoveProblem(FOLDERS, "b", "a")).toMatch(/already here/);
+    expect(folderMoveProblem(FOLDERS, "a", "a")).toBe("self");
+    expect(folderMoveProblem(FOLDERS, "a", "c")).toBe("descendant");
+    expect(folderMoveProblem(FOLDERS, "b", "a")).toBe("same-parent");
     expect(folderMoveProblem(FOLDERS, "b", "d")).toBeNull();
     expect(folderMoveProblem(FOLDERS, "c", null)).toBeNull();
-    expect(folderMoveProblem(FOLDERS, "c", "gone")).toMatch(/no longer exists/);
+    expect(folderMoveProblem(FOLDERS, "c", "gone")).toBe("missing-target");
+    expect(folderMoveProblem(FOLDERS, "gone", null)).toBe("missing");
   });
 
   it("counts what a folder holds at any depth", () => {

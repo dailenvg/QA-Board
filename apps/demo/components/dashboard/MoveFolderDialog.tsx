@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { folderMoveProblem } from "@/lib/store/folders";
+import { folderMoveProblem, type FolderMoveProblem } from "@/lib/store/folders";
 import type { Folder } from "@/lib/store/types";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
@@ -16,13 +16,18 @@ interface MoveFolderDialogProps {
   onClose: () => void;
 }
 
-/** Short reasons for the picker: a folder can't go inside itself or its subfolders. */
+/** Each reason a choice is unavailable, as the picker shows it beside the choice. */
+const REASON: Record<FolderMoveProblem, string> = {
+  self: "This folder",
+  descendant: "Inside this folder",
+  "same-parent": "Already here",
+  missing: "No longer here",
+  "missing-target": "No longer here",
+};
+
 function reason(folders: readonly Folder[], folder: Folder, value: string): string | null {
-  const parentId = value === TOP_LEVEL ? null : value;
-  if (parentId === folder.id) return "This folder";
-  const problem = folderMoveProblem(folders, folder.id, parentId);
-  if (!problem) return null;
-  return problem.includes("subfolders") ? "Inside this folder" : "Already here";
+  const problem = folderMoveProblem(folders, folder.id, value === TOP_LEVEL ? null : value);
+  return problem ? REASON[problem] : null;
 }
 
 /** Picks where a folder goes: another folder, or the top level. */

@@ -2,7 +2,12 @@ import type * as PdfJsModule from "pdfjs-dist";
 import type { PDFDocumentLoadingTask, PDFPageProxy } from "pdfjs-dist";
 import { encodeCanvas, fitScale } from "../image";
 import type { ImageUpload } from "../store/actions";
-import { PdfOpenError, type PdfDocument, type PdfEngine } from "./render-pdf";
+import {
+  PdfOpenError,
+  PdfPageTooDetailedError,
+  type PdfDocument,
+  type PdfEngine,
+} from "./render-pdf";
 
 /**
  * pdf.js's worker, bundled with the app: webpack emits it as a static file of
@@ -19,6 +24,7 @@ async function renderPage(
   pdfjs: PdfJs,
   page: PDFPageProxy,
   signal: AbortSignal,
+  maxBytes: number,
 ): Promise<ImageUpload> {
   const base = page.getViewport({ scale: 1 });
   const viewport = page.getViewport({ scale: fitScale(base.width, base.height, MAX_UPSCALE) });
@@ -36,10 +42,9 @@ async function renderPage(
   signal.addEventListener("abort", cancel, { once: true });
   try {
     await task.promise;
-    const blob = await encodeCanvas(canvas);
-    if (!blob) throw new Error("The page couldn't be encoded.");
-    const { width, height } = canvas;
-    return { blob, fileName: `Page ${page.pageNumber}`, width, height };
+    const encoded = await encodeCanvas(canvas, maxBytes);
+    if (!encoded) throw new PdfPageTooDetailedError();
+    return { ...encoded, fileName: `Page ${page.pageNumber}` };
   } finally {
     signal.removeEventListener("abort", cancel);
     // Hand the bitmap back right away rather than at garbage collection.
@@ -52,9 +57,9 @@ async function renderPage(
 function documentOf(pdfjs: PdfJs, task: PDFDocumentLoadingTask, pageCount: number): PdfDocument {
   return {
     pageCount,
-    async renderPage(number, signal) {
+    async renderPage(number, signal, maxBytes) {
       const pdf = await task.promise;
-      return renderPage(pdfjs, await pdf.getPage(number), signal);
+      return renderPage(pdfjs, await pdf.getPage(number), signal, maxBytes);
     },
     // Destroying the loading task also ends the worker it started.
     destroy: () => task.destroy(),

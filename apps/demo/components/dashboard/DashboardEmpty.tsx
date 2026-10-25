@@ -15,7 +15,7 @@ interface DashboardEmptyProps {
 const COPY = {
   folder: {
     title: "Nothing to review yet",
-    body: "Add a website or an image, then drop pins on it to leave feedback.",
+    body: "Add a website, images or a PDF, then drop pins on it to leave feedback.",
     action: "New project",
   },
   filter: {

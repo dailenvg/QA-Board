@@ -24,13 +24,14 @@ export function shareSizeProblem(images: readonly ShareImage[]): string | null {
     (image) => image.kind === "page" && image.size > SHARE_LIMITS.blobBytes.page,
   );
   if (page) {
-    return `This project is too big to share: ${page.label ?? "a page"} is ${megabytes(page.size)}, and a shared page can be up to ${megabytes(SHARE_LIMITS.blobBytes.page)}.`;
+    return `This project is too big to share: ${page.label ?? "a page"} is ${megabytes(page.size)}, and a shared page can be up to ${megabytes(SHARE_LIMITS.blobBytes.page)}. Replace that page with a smaller image, then try again.`;
   }
   const total = images
     .filter((image) => image.size <= SHARE_LIMITS.blobBytes[image.kind])
     .reduce((sum, image) => sum + image.size, 0);
   if (total <= SHARE_LIMITS.totalBytes) return null;
-  return `This project is too big to share: its images add up to ${megabytes(total)}, and a share link holds up to ${megabytes(SHARE_LIMITS.totalBytes)}.`;
+  // Pages are stored to fit (`pageByteBudget`), so what tips it over is snapshots and screenshots.
+  return `This project is too big to share: its images add up to ${megabytes(total)}, and a share link holds up to ${megabytes(SHARE_LIMITS.totalBytes)}. Comment screenshots and earlier snapshots count too: delete comments you no longer need, then try again.`;
 }
 
 /** Every image a share of `project` would upload, by its size in this browser (missing ones skipped). */

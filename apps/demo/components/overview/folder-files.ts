@@ -34,11 +34,11 @@ export function folderFiles(data: SquintData, folderId: string): FolderFile[] {
 
 /**
  * "No projects", "1 project", "3 projects". A folder's count includes its
- * subfolders' projects; with `folders` (the folder and its subfolders) above
- * one, it says so: "5 projects in 3 folders".
+ * subfolders' projects, and says so when it has subfolders: "5 projects in
+ * all" (as the sidebar tree reads it). Short, so it fits a folder card.
  */
-export function projectCountLabel(count: number, folders = 1): string {
+export function projectCountLabel(count: number, hasSubfolders = false): string {
   if (count === 0) return "No projects";
   const projects = `${count} ${count === 1 ? "project" : "projects"}`;
-  return folders > 1 ? `${projects} in ${folders} folders` : projects;
+  return hasSubfolders ? `${projects} in all` : projects;
 }

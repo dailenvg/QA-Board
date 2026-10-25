@@ -66,21 +66,27 @@ export function subtreeIds(folders: readonly Folder[], folderId: string): Set<st
   return ids;
 }
 
+/**
+ * Why a folder can't move somewhere: it's gone, the target is gone, it's
+ * already there, the target is the folder itself, or one of its subfolders.
+ * The UI words each one.
+ */
+export type FolderMoveProblem =
+  "missing" | "missing-target" | "same-parent" | "self" | "descendant";
+
 /** Why `folderId` can't move into `parentId` (null: the top level), or null when it can. */
 export function folderMoveProblem(
   folders: readonly Folder[],
   folderId: string,
   parentId: string | null,
-): string | null {
+): FolderMoveProblem | null {
   const folder = folders.find((entry) => entry.id === folderId);
-  if (!folder) return "That folder no longer exists.";
-  if (parentId === folder.parentId) return "It's already here.";
+  if (!folder) return "missing";
+  if (parentId === folder.parentId) return "same-parent";
   if (parentId === null) return null;
-  if (parentId === folderId) return "A folder can't go inside itself.";
-  if (!folders.some((entry) => entry.id === parentId)) return "That folder no longer exists.";
-  if (subtreeIds(folders, folderId).has(parentId)) {
-    return "A folder can't go inside one of its own subfolders.";
-  }
+  if (parentId === folderId) return "self";
+  if (!folders.some((entry) => entry.id === parentId)) return "missing-target";
+  if (subtreeIds(folders, folderId).has(parentId)) return "descendant";
   return null;
 }
 

@@ -23,8 +23,8 @@ describe("source drafts", () => {
     expect(pdfProblem({ status: "rendering", fileName: "d.pdf", page: 2, total: 3 })).toBe(
       "Wait for the PDF to finish rendering.",
     );
-    expect(pdfProblem({ status: "confirm", fileName: "d.pdf", pageCount: 60 })).toContain(
-      "first pages",
+    expect(pdfProblem({ status: "confirm", fileName: "d.pdf", pageCount: 60 })).toBe(
+      "Choose Use the first 50 pages, or Cancel and pick a shorter PDF.",
     );
     expect(pdfProblem({ status: "failed", fileName: "d.pdf", error: "Broken" })).toBe("Broken");
     expect(pdfProblem({ status: "ready", fileName: "d.pdf", pages: [image] })).toBeNull();

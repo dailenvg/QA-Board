@@ -50,7 +50,10 @@ export function FolderGrid({ workspace, folders, labelledBy }: FolderGridProps) 
       new Map(
         folders.map((folder) => {
           const files = folderFiles(data, folder.id);
-          const meta = projectCountLabel(files.length, subtreeIds(data.folders, folder.id).size);
+          const meta = projectCountLabel(
+            files.length,
+            subtreeIds(data.folders, folder.id).size > 1,
+          );
           return [folder.id, { files, meta }];
         }),
       ),

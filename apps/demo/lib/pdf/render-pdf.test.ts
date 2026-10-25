@@ -5,12 +5,14 @@ import {
   openPdf,
   PDF_MESSAGES,
   PdfOpenError,
+  PdfPageTooDetailedError,
   renderPdfPages,
   type PdfDocument,
   type PdfEngine,
 } from "./render-pdf";
 
 const encoder = new TextEncoder();
+const image = { blob: new Blob(["x"]), fileName: "Page", width: 10, height: 10 };
 const pdfFile = (body = "%PDF-1.7\n...") => new Blob([encoder.encode(body)]);
 
 /** A stand-in document: `fail` pages reject; `onRender` runs as each page starts. */
@@ -156,6 +158,18 @@ describe("renderPdfPages", () => {
     expect(result).toEqual({ ok: false, cancelled: false, error: PDF_MESSAGES.render(4) });
     expect(PDF_MESSAGES.render(4)).toContain("Page 4");
     expect(document.rendered).toEqual([1, 2, 3]);
+  });
+
+  it("names a page too detailed to store, with what to do", async () => {
+    const document = fakeDocument(3);
+    document.renderPage = (number) =>
+      number === 2 ? Promise.reject(new PdfPageTooDetailedError()) : Promise.resolve(image);
+    const result = await renderPdfPages(document, 3, {
+      signal: new AbortController().signal,
+      onProgress: () => {},
+    });
+    expect(result).toEqual({ ok: false, cancelled: false, error: PDF_MESSAGES.tooDetailed(2) });
+    expect(PDF_MESSAGES.tooDetailed(2)).toMatch(/Page 2 .*too detailed.*lower resolution/);
   });
 
   it("treats a page rejected by a cancel as cancelled, not failed", async () => {

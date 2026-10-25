@@ -2,6 +2,8 @@ import { deleteBlobs, putBlob } from "../blob-store/blob-store";
 import { pageImageKey } from "../blob-store/keys";
 import { scheduleBlobSweep } from "./blob-sweep";
 import { newId } from "./id";
+import { fitPicture } from "../image";
+import { fitPages, pageByteBudget } from "../page-budget";
 import { findPage, MAX_PAGES } from "./pages";
 import { dispatch, getSnapshot, type Result } from "./store";
 import type {
@@ -19,8 +21,13 @@ import type {
 } from "./types";
 
 const NAME_LIMIT = 80;
-const IMAGE_SAVE_ERROR =
-  "This browser couldn't save the images. Free up some space, then try again.";
+/** What couldn't be saved: a replaced page's picture, one image, several, or a PDF's pages. */
+const SAVE_ERROR = {
+  picture: "This browser couldn't save the picture. Free up some space, then try again.",
+  image: "This browser couldn't save the image. Free up some space, then try again.",
+  images: "This browser couldn't save the images. Free up some space, then try again.",
+  pdf: "This browser couldn't save the PDF pages. Free up some space, then try again.",
+} as const;
 const PROJECT_GONE = "This project is no longer here. It may have been deleted in another tab.";
 
 /** Runs a delete, then lets the blob sweep tidy up once undo is no longer likely. */
@@ -91,7 +98,11 @@ export interface ImageUpload {
   height: number;
 }
 
-const tooManyPages = `A project holds up to ${MAX_PAGES} pages.`;
+const TOO_MANY_PAGES = `A project holds up to ${MAX_PAGES} pages.`;
+const NO_IMAGES = "Choose at least one image.";
+/** A picture that can't be stored small enough to share alongside the project's other pages. */
+const tooDetailed = (name: string, pages: number) =>
+  `${name} is too detailed to store as one of ${pages} pages. Remove it or use a smaller image, then try again.`;
 
 /** Stores each image as a new page, all or nothing: on a refused write, none stay. */
 async function storePages(images: readonly ImageUpload[]): Promise<Page[] | null> {
@@ -110,7 +121,12 @@ async function storePages(images: readonly ImageUpload[]): Promise<Page[] | null
   return null;
 }
 
-/** Stores the pictures in the blob store, then creates a page project around them, in order. */
+/**
+ * Stores the pictures in the blob store, then creates a page project around
+ * them, in order. Each is first fitted to its share of the page budget
+ * (`fitPages`), so the project can always be shared; a single image keeps
+ * today's quality, and PDF pages arrive already fitted.
+ */
 export async function createPagesProject(input: {
   folderId: string;
   name: string;
@@ -119,9 +135,19 @@ export async function createPagesProject(input: {
   images: readonly ImageUpload[];
 }): Promise<Result<Project>> {
   const { folderId, name, origin, fileName, images } = input;
-  if (images.length === 0 || images.length > MAX_PAGES) return { ok: false, error: tooManyPages };
-  const pages = await storePages(images);
-  if (!pages) return { ok: false, error: IMAGE_SAVE_ERROR };
+  if (images.length === 0) return { ok: false, error: NO_IMAGES };
+  if (images.length > MAX_PAGES) return { ok: false, error: TOO_MANY_PAGES };
+  const fitted = await fitPages(images);
+  if (!fitted.ok) {
+    const failed = images[fitted.index]?.fileName ?? `Image ${fitted.index + 1}`;
+    return { ok: false, error: tooDetailed(failed, images.length) };
+  }
+  const pages = await storePages(fitted.pictures);
+  if (!pages) {
+    const error =
+      origin === "pdf" ? SAVE_ERROR.pdf : SAVE_ERROR[images.length > 1 ? "images" : "image"];
+    return { ok: false, error };
+  }
   const created = createProject({
     folderId,
     name,
@@ -168,13 +194,16 @@ export async function replaceWithImage(
   const { source } = project;
   if (source.kind === "pages") {
     const page = findPage(project, target.pageId ?? undefined)?.page ?? source.pages[0];
-    if (!page) return { ok: false, error: IMAGE_SAVE_ERROR };
-    const saved = await putBlob(page.blobKey, image.blob);
-    if (!saved) return { ok: false, error: IMAGE_SAVE_ERROR };
-    return replaceProjectSource(projectId, withPageImage(source, page, image));
+    if (!page) return { ok: false, error: PROJECT_GONE };
+    // Within the page's share of the budget, like the project's other pages.
+    const fitted = await fitPicture(image, pageByteBudget(source.pages.length));
+    if (!fitted) return { ok: false, error: tooDetailed(image.fileName, source.pages.length) };
+    const saved = await putBlob(page.blobKey, fitted.blob);
+    if (!saved) return { ok: false, error: SAVE_ERROR.picture };
+    return replaceProjectSource(projectId, withPageImage(source, page, fitted));
   }
   const pages = await storePages([image]);
-  if (!pages) return { ok: false, error: IMAGE_SAVE_ERROR };
+  if (!pages) return { ok: false, error: SAVE_ERROR.picture };
   return replaceProjectSource(projectId, {
     kind: "pages",
     origin: "image",

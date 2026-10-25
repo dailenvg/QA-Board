@@ -22,7 +22,7 @@ const APPEAR_STAGGER_MAX = 4;
 interface FolderCardProps {
   folder: Folder;
   files: readonly FolderFile[];
-  /** What it holds, such as "5 projects in 3 folders". */
+  /** What it holds, such as "5 projects in all" (subfolders included). */
   meta: string;
   index: number;
   /** The folder's color, shared by its art and its mascot. */

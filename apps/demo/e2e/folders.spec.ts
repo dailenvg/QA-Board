@@ -68,7 +68,7 @@ test("folders nest: Alpha > Beta > Gamma > Delta, with breadcrumbs, subfolders a
   await breadcrumb(page).getByRole("link", { name: "Alpha" }).click();
   const subfolders = page.getByRole("region", { name: "Subfolders" });
   await expect(subfolders.getByTestId("folder-card").filter({ hasText: "Beta" })).toContainText(
-    "1 project in 3 folders",
+    "1 project in all",
   );
   await expect(treeItem(page, "Alpha")).toContainText("1");
 
@@ -76,7 +76,7 @@ test("folders nest: Alpha > Beta > Gamma > Delta, with breadcrumbs, subfolders a
   await breadcrumb(page).getByRole("link", { name: "Overview" }).click();
   const cards = page.getByTestId("folder-card");
   await expect(cards).toHaveCount(2);
-  await expect(folderCard(page, "Alpha")).toContainText("1 project in 4 folders");
+  await expect(folderCard(page, "Alpha")).toContainText("1 project in all");
   await expect(folderCard(page, "Beta")).toHaveCount(0);
 });
 

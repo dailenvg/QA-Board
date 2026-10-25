@@ -60,13 +60,13 @@ describe("share size", () => {
     expect(shareSizeProblem([page(15 * MB), page(15 * MB), page(10 * MB)])).toBeNull();
     expect(shareSizeProblem([page(1 * MB), { kind: "snapshot", size: 9 * MB }])).toBeNull();
     expect(shareSizeProblem([page(15 * MB), page(15 * MB), page(11 * MB)])).toBe(
-      "This project is too big to share: its images add up to 41 MB, and a share link holds up to 40 MB.",
+      "This project is too big to share: its images add up to 41 MB, and a share link holds up to 40 MB. Comment screenshots and earlier snapshots count too: delete comments you no longer need, then try again.",
     );
   });
 
   it("names a page too big to share on its own", () => {
     expect(shareSizeProblem([{ kind: "page", size: 16 * MB, label: "page 3" }])).toBe(
-      "This project is too big to share: page 3 is 16 MB, and a shared page can be up to 15 MB.",
+      "This project is too big to share: page 3 is 16 MB, and a shared page can be up to 15 MB. Replace that page with a smaller image, then try again.",
     );
   });
 });

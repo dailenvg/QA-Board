@@ -164,7 +164,7 @@ export function FolderTreeRow({
           {count}
           <span className="sr-only">
             {count === 1 ? " project" : " projects"}
-            {hasChildren ? ", subfolders included" : ""}
+            {hasChildren ? " in all" : ""}
           </span>
         </span>
       </Link>

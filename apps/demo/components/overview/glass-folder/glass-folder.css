@@ -519,6 +519,9 @@
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
   color: var(--gf-ink-soft);
+  /* Long counts ("12 projects, including subfolders") end in an ellipsis; the link reads it all. */
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
   animation: gf-roll 0.5s var(--gf-ease) both;
 }
