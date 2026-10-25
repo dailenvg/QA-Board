@@ -24,7 +24,7 @@ export function shareSizeProblem(images: readonly ShareImage[]): string | null {
     (image) => image.kind === "page" && image.size > SHARE_LIMITS.blobBytes.page,
   );
   if (page) {
-    return `This project is too big to share: ${page.label ?? "a page"} is ${megabytes(page.size)}, and a shared page can be up to ${megabytes(SHARE_LIMITS.blobBytes.page)}. Replace that page with a smaller image, then try again.`;
+    return `This project is too big to share: ${page.label ?? "a page"} is ${megabytes(page.size)}, and a shared page can be up to ${megabytes(SHARE_LIMITS.blobBytes.page)}. Make a new project from a smaller copy of that image, then share that.`;
   }
   const total = images
     .filter((image) => image.size <= SHARE_LIMITS.blobBytes[image.kind])

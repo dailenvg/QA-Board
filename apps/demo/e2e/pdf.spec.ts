@@ -108,7 +108,7 @@ test("a damaged PDF, or a file that isn't one, says so and adds nothing", async 
   await expect(dialog.getByRole("alert")).toContainText("That PDF couldn't be read.");
 });
 
-test("a PDF over 50 pages offers its first 50, and Cancel stops rendering", async ({ page }) => {
+test("a PDF over 50 pages offers its first 50, and Stop rendering stops it", async ({ page }) => {
   await openFolder(page);
   const dialog = await pdfMode(page);
   const labels = Array.from({ length: 51 }, (_, index) => `Slide ${index + 1}`);
@@ -121,7 +121,7 @@ test("a PDF over 50 pages offers its first 50, and Cancel stops rendering", asyn
   await expect(choice).toContainText("long.pdf has 51 pages. A project holds up to 50.");
   await choice.getByRole("button", { name: "Use the first 50 pages" }).click();
   await expect(dialog.getByTestId("pdf-progress")).toContainText(/Rendering page \d+ of 50/);
-  await dialog.getByRole("button", { name: "Cancel", exact: true }).first().click();
+  await dialog.getByRole("button", { name: "Stop rendering" }).click();
   await expect(dialog.getByTestId("pdf-progress")).toHaveCount(0);
   await expect(dialog.getByTestId("pdf-dropzone")).toContainText("Drop a PDF here");
   await dialog.getByTestId("create-project").click();

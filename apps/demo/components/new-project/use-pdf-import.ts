@@ -7,7 +7,7 @@ import type { ImageUpload } from "@/lib/store/actions";
 export type PdfImport =
   | { status: "idle" }
   | { status: "opening"; fileName: string }
-  /** Over the page limit: waiting for "Use the first 50 pages" or Cancel. */
+  /** Over the page limit: waiting for "Use the first 50 pages" or "Choose another PDF". */
   | { status: "confirm"; fileName: string; pageCount: number }
   | { status: "rendering"; fileName: string; page: number; total: number }
   | { status: "ready"; fileName: string; pages: ImageUpload[] }

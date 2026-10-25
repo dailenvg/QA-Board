@@ -24,7 +24,7 @@ describe("source drafts", () => {
       "Wait for the PDF to finish rendering.",
     );
     expect(pdfProblem({ status: "confirm", fileName: "d.pdf", pageCount: 60 })).toBe(
-      "Use the first 50 pages, or cancel and pick a shorter PDF.",
+      "Use the first 50 pages, or choose another PDF.",
     );
     expect(pdfProblem({ status: "failed", fileName: "d.pdf", error: "Broken" })).toBe("Broken");
     expect(pdfProblem({ status: "ready", fileName: "d.pdf", pages: [image] })).toBeNull();

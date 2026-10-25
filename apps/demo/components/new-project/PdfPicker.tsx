@@ -57,8 +57,9 @@ function Progress({
           />
         </div>
       </div>
+      {/* Not "Cancel": the dialog's own Cancel is on screen too, and closes it. */}
       <Button variant="secondary" size="sm" onClick={onCancel}>
-        Cancel
+        Stop rendering
       </Button>
     </div>
   );
@@ -112,7 +113,7 @@ function StatusPanel({
               Use the first {MAX_PDF_PAGES} pages
             </Button>
             <Button variant="secondary" size="sm" onClick={onCancel}>
-              Cancel
+              Choose another PDF
             </Button>
           </div>
         </div>
@@ -149,7 +150,7 @@ function announcement(state: PdfImport): string {
 
 /**
  * One PDF (up to 50 MB): a drop target and file picker, then its progress
- * through reading and rendering, with Cancel, and its errors.
+ * through reading and rendering, with Stop rendering, and its errors.
  */
 export function PdfPicker({ state, error, onFile, onTakeFirstPages, onCancel }: PdfPickerProps) {
   const inputId = useId();
@@ -162,7 +163,7 @@ export function PdfPicker({ state, error, onFile, onTakeFirstPages, onCancel }: 
   const message = state.status === "failed" ? state.error : error;
   const busy = state.status === "opening" || state.status === "rendering";
 
-  // Each step's buttons leave with it (Use the first 50, Cancel). If focus was on one, it
+  // Each step's buttons leave with it (Use the first 50, Stop rendering). If focus was on one, it
   // moves to the next step's button, or back to the file picker, never to the page.
   useEffect(() => {
     const active = document.activeElement;

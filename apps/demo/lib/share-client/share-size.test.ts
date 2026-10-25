@@ -66,7 +66,7 @@ describe("share size", () => {
 
   it("names a page too big to share on its own", () => {
     expect(shareSizeProblem([{ kind: "page", size: 16 * MB, label: "page 3" }])).toBe(
-      "This project is too big to share: page 3 is 16 MB, and a shared page can be up to 15 MB. Replace that page with a smaller image, then try again.",
+      "This project is too big to share: page 3 is 16 MB, and a shared page can be up to 15 MB. Make a new project from a smaller copy of that image, then share that.",
     );
   });
 });
