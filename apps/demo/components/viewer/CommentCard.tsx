@@ -7,7 +7,11 @@ import { absoluteTime, relativeTime } from "@/lib/relative-time";
 import type { Comment } from "@/lib/store/types";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
+import { CommentBadge } from "./CommentBadge";
+import { CommentCropThumb } from "./CommentCropThumb";
 import { CommentEditor } from "./CommentEditor";
+import { PlacementChip } from "./PlacementChip";
+import type { Placement } from "./surface";
 
 export interface CommentCardActions {
   onSelect: (id: string) => void;
@@ -20,14 +24,23 @@ export interface CommentCardActions {
 interface CommentCardProps extends CommentCardActions {
   comment: Comment;
   number: number;
+  /** Where the pin lives, when that isn't the current snapshot. */
+  placement: Placement | null;
+  /** Shows Resolve/Reopen, Edit and Delete. Off on a shared link. */
+  canModerate: boolean;
   selected: boolean;
   now: number;
 }
 
-/** One comment: select it to find its pin; edit, resolve or reopen, and delete it. */
+/**
+ * One comment: select it to find its pin (switching to its snapshot if
+ * needed); see what the commenter saw; edit, resolve or reopen, and delete it.
+ */
 export function CommentCard({
   comment,
   number,
+  placement,
+  canModerate,
   selected,
   now,
   onSelect,
@@ -41,8 +54,11 @@ export function CommentCard({
   const variants = useRevealVariants();
   const itemRef = useRef<HTMLLIElement>(null);
   const bodyId = useId();
+  const placementId = useId();
   const resolved = comment.status === "resolved";
   const edited = comment.updatedAt > comment.createdAt;
+  // Without the action row (shared link), this keeps the card's bottom inset at 16px.
+  const bottomInset = canModerate ? "" : "pb-2";
 
   /** Closing the editor hands focus back to the Edit button instead of dropping it to the page. */
   const finishEditing = () => {
@@ -61,7 +77,7 @@ export function CommentCard({
       exit="exit"
       data-testid="comment-card"
       data-comment-id={comment.id}
-      className="relative rounded-tile bg-card transition-colors has-[[data-card-select]:hover]:bg-hover/60 has-[[data-card-select]:active]:bg-hover has-[[data-card-select]:focus-visible]:ring-2 has-[[data-card-select]:focus-visible]:ring-focus"
+      className={`relative rounded-tile bg-card transition-colors has-[[data-card-select]:hover]:bg-hover/60 has-[[data-card-select]:active]:bg-hover has-[[data-card-select]:focus-visible]:ring-2 has-[[data-card-select]:focus-visible]:ring-focus ${bottomInset}`}
     >
       {selected ? (
         <motion.span
@@ -92,18 +108,11 @@ export function CommentCard({
             type="button"
             data-card-select
             aria-pressed={selected}
-            aria-describedby={bodyId}
+            aria-describedby={placement ? `${bodyId} ${placementId}` : bodyId}
             onClick={() => onSelect(comment.id)}
             className="flex w-full items-center gap-2 text-left after:absolute after:inset-0 after:rounded-tile focus-visible:outline-none"
           >
-            <span
-              className={`grid size-6 shrink-0 place-items-center rounded-pin text-label font-bold ${
-                resolved ? "bg-resolved-soft text-resolved-text" : "bg-brand text-on-brand"
-              }`}
-            >
-              <span className="sr-only">Comment </span>
-              {number}
-            </span>
+            <CommentBadge comment={comment} number={number} />
             <span className="min-w-0 flex-1 truncate text-body font-semibold">
               <span className="sr-only">by </span>
               {comment.author}
@@ -121,10 +130,13 @@ export function CommentCard({
             {comment.body}
           </p>
           {edited ? <p className="mt-1 text-label text-muted">Edited</p> : null}
+          {placement ? <PlacementChip id={placementId} placement={placement} now={now} /> : null}
         </div>
       )}
 
-      {editing ? null : (
+      {editing || !comment.crop ? null : <CommentCropThumb crop={comment.crop} number={number} />}
+
+      {editing || !canModerate ? null : (
         // `relative` lifts the actions above the select button's card-wide ::after.
         <div className="relative flex items-center gap-1 px-2 pb-2">
           {resolved ? (

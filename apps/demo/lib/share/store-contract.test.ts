@@ -1,0 +1,511 @@
+import { PGlite } from "@electric-sql/pglite";
+import { describe, expect, it } from "vitest";
+import { COMMENT, JPEG, PNG, RECORD, SNAPSHOT } from "@/test/share-fixture";
+import { createMemoryStore } from "./memory-store";
+import { migrate, type Queryable } from "./migrate";
+import { createPostgresStore } from "./postgres-store";
+import { inlineBackend, type BlobBackend } from "./blob-backend";
+import type { ShareServices } from "./server";
+import {
+  addClientComment,
+  captureForClient,
+  expireStalePending,
+  PENDING_STALE_MS,
+  pullChanges,
+  readBlob,
+} from "./service";
+import type { ShareStore } from "./store";
+
+/**
+ * PGlite is Postgres compiled to WebAssembly: the real SQL, no server. Like
+ * `pg`, parameterless queries use the simple protocol (several statements allowed).
+ */
+function adapt(db: PGlite): Queryable {
+  return {
+    async query<Row>(text: string, params?: unknown[]) {
+      if (params?.length) return db.query<Row>(text, params);
+      const results = await db.exec(text);
+      return { rows: (results.at(-1)?.rows ?? []) as Row[] };
+    },
+  };
+}
+
+async function pglite(): Promise<Queryable> {
+  const db = adapt(new PGlite());
+  await migrate(db);
+  return db;
+}
+
+/** Stored blobs, with each per-claim crop key's random nonce masked as `<claim>`. */
+async function storedBlobs(store: ShareStore) {
+  const sizes = await store.blobSizes(RECORD.id);
+  return sizes.map(({ key, size }) => ({
+    key: key.replace(/^(crop:[^:]+):.+$/, "$1:<claim>"),
+    size,
+  }));
+}
+
+const stores: Array<[string, () => Promise<ShareStore>]> = [
+  ["memory", () => Promise.resolve(createMemoryStore())],
+  ["postgres", async () => createPostgresStore(await pglite())],
+];
+
+describe.each(stores)("%s share store", (_name, make) => {
+  it("creates, finds by id and token hash, and updates the project", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    expect(await store.byId(RECORD.id)).toEqual(RECORD);
+    expect(await store.byTokenHash(RECORD.tokenHash)).toEqual(RECORD);
+    expect(await store.byTokenHash("c".repeat(64))).toBeNull();
+    const project = { name: "Renamed", source: RECORD.project.source };
+    await store.setProject(RECORD.id, project, 9);
+    expect(await store.byId(RECORD.id)).toMatchObject({ project, updatedAt: 9 });
+  });
+
+  it("keeps origin and seq when an upsert replaces a row, and refuses taken ids on insert", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    await store.upsertSnapshot(RECORD.id, SNAPSHOT, "owner");
+    expect(await store.insertComment(RECORD.id, COMMENT, "client")).toBe(true);
+    expect(await store.insertComment(RECORD.id, COMMENT, "client")).toBe(false);
+    const [before] = await store.comments(RECORD.id);
+    await store.upsertComment(RECORD.id, { ...COMMENT, status: "resolved" }, "owner");
+    const [after] = await store.comments(RECORD.id);
+    expect(after).toEqual({
+      item: { ...COMMENT, status: "resolved" },
+      origin: "client",
+      seq: before?.seq,
+    });
+    const [snapshot] = await store.snapshots(RECORD.id);
+    expect(snapshot?.seq).toBeLessThan(after?.seq ?? 0);
+  });
+
+  it("stores blobs, lists sizes, and deletes rows", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    const blob = {
+      key: "crop:c-1",
+      contentType: "image/png",
+      size: PNG.length,
+      location: { kind: "inline" as const, bytes: PNG },
+    };
+    await store.putBlob(RECORD.id, blob);
+    expect(await store.blobSizes(RECORD.id)).toEqual([{ key: "crop:c-1", size: PNG.length }]);
+    const read = await store.getBlob(RECORD.id, "crop:c-1");
+    expect(read?.location.kind === "inline" && [...read.location.bytes]).toEqual([...PNG]);
+    expect(await store.deleteBlobs(RECORD.id, ["crop:c-1"])).toHaveLength(1);
+    expect(await store.getBlob(RECORD.id, "crop:c-1")).toBeNull();
+    await store.upsertSnapshot(RECORD.id, SNAPSHOT, "owner");
+    await store.deleteSnapshots(RECORD.id, [SNAPSHOT.id]);
+    expect(await store.snapshots(RECORD.id)).toEqual([]);
+  });
+
+  it("keeps a pending comment invisible but claimed, then confirms it with a fresh seq", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    const claim = { claim: "n-1", cropKey: "crop:c-1:n-1" };
+    expect(await store.insertComment(RECORD.id, COMMENT, "client", claim)).toBe(true);
+    expect(await store.comments(RECORD.id)).toEqual([]);
+    expect(await store.comments(RECORD.id, { includePending: true })).toHaveLength(1);
+    expect(await store.cropKeyOf(RECORD.id, COMMENT.id)).toBeNull();
+    expect(await store.insertComment(RECORD.id, COMMENT, "client")).toBe(false);
+    await store.upsertSnapshot(RECORD.id, SNAPSHOT, "client");
+    const [snapshot] = await store.snapshots(RECORD.id);
+    expect(await store.confirmComment(RECORD.id, COMMENT.id, "n-other")).toBe(false);
+    expect(await store.deleteClaim(RECORD.id, COMMENT.id, "n-other")).toBe(false);
+    expect(await store.confirmComment(RECORD.id, COMMENT.id, "n-1")).toBe(true);
+    const [confirmed] = await store.comments(RECORD.id);
+    expect(confirmed?.item).toEqual(COMMENT);
+    expect(await store.cropKeyOf(RECORD.id, COMMENT.id)).toBe("crop:c-1:n-1");
+    // Confirmed after the snapshot was added, so a pull at the snapshot's seq still sees it.
+    expect(confirmed?.seq).toBeGreaterThan(snapshot?.seq ?? Infinity);
+    // Once visible, the claim can neither confirm again nor delete it.
+    expect(await store.confirmComment(RECORD.id, COMMENT.id, "n-1")).toBe(false);
+    expect(await store.deleteClaim(RECORD.id, COMMENT.id, "n-1")).toBe(false);
+    expect(await store.comments(RECORD.id)).toHaveLength(1);
+  });
+
+  it("keeps a pending snapshot invisible until it's confirmed with a fresh seq", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    await store.insertPendingSnapshot(RECORD.id, SNAPSHOT);
+    expect(await store.snapshots(RECORD.id)).toEqual([]);
+    expect(await store.snapshots(RECORD.id, { includePending: true })).toHaveLength(1);
+    await store.upsertComment(RECORD.id, COMMENT, "client");
+    const [comment] = await store.comments(RECORD.id);
+    expect(await store.confirmSnapshot(RECORD.id, SNAPSHOT.id)).toBe(true);
+    const [confirmed] = await store.snapshots(RECORD.id);
+    expect(confirmed).toMatchObject({ item: SNAPSHOT, origin: "client" });
+    expect(confirmed?.seq).toBeGreaterThan(comment?.seq ?? Infinity);
+    expect(await store.confirmSnapshot(RECORD.id, SNAPSHOT.id)).toBe(false);
+    expect(await store.deleteStalePendingSnapshots(RECORD.id, Number.MAX_SAFE_INTEGER)).toEqual([]);
+  });
+
+  it("expires only stale pending snapshots", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    await store.insertPendingSnapshot(RECORD.id, { ...SNAPSHOT, id: "old", createdAt: 1 });
+    await store.insertPendingSnapshot(RECORD.id, { ...SNAPSHOT, id: "new", createdAt: 5 });
+    await store.upsertSnapshot(RECORD.id, { ...SNAPSHOT, id: "owner", createdAt: 1 }, "owner");
+    expect(await store.deleteStalePendingSnapshots(RECORD.id, 2)).toEqual(["old"]);
+    expect(await store.confirmSnapshot(RECORD.id, "old")).toBe(false);
+    const left = await store.snapshots(RECORD.id, { includePending: true });
+    expect(left.map((row) => row.item.id).sort()).toEqual(["new", "owner"]);
+  });
+
+  it("binds confirms and deletes to the claim that holds the row", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    const pending = { ...COMMENT, createdAt: 1 };
+    await store.insertComment(RECORD.id, pending, "client", { claim: "a", cropKey: "crop:c-1:a" });
+    // Expiry wins: the expired claim can't confirm or delete what comes after it.
+    expect(await store.deleteStalePending(RECORD.id, 2)).toEqual([COMMENT.id]);
+    expect(await store.confirmComment(RECORD.id, COMMENT.id, "a")).toBe(false);
+    await store.insertComment(RECORD.id, COMMENT, "client", { claim: "b", cropKey: "crop:c-1:b" });
+    expect(await store.deleteClaim(RECORD.id, COMMENT.id, "a")).toBe(false);
+    expect(await store.confirmComment(RECORD.id, COMMENT.id, "a")).toBe(false);
+    expect(await store.deleteClaim(RECORD.id, COMMENT.id, "b")).toBe(true);
+    expect(await store.comments(RECORD.id, { includePending: true })).toEqual([]);
+  });
+
+  it("keeps upload parts in order until they're deleted", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    await store.putBlobPart(RECORD.id, "snapshot:snap-1", 1, new Uint8Array([3, 4]));
+    await store.putBlobPart(RECORD.id, "snapshot:snap-1", 0, new Uint8Array([1, 2]));
+    const parts = await store.blobParts(RECORD.id, "snapshot:snap-1");
+    expect(parts.map(({ part, bytes }) => [part, [...bytes]])).toEqual([
+      [0, [1, 2]],
+      [1, [3, 4]],
+    ]);
+    await store.deleteBlobParts(RECORD.id, "snapshot:snap-1");
+    expect(await store.blobParts(RECORD.id, "snapshot:snap-1")).toEqual([]);
+  });
+
+  it("removes a share with everything under it", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    await store.upsertComment(RECORD.id, COMMENT, "owner");
+    await store.putBlob(RECORD.id, {
+      key: "image",
+      contentType: "image/png",
+      size: 1,
+      location: { kind: "vercel", url: "https://blob.example/x" },
+    });
+    expect(await store.remove(RECORD.id)).toEqual([
+      { kind: "vercel", url: "https://blob.example/x" },
+    ]);
+    expect(await store.byId(RECORD.id)).toBeNull();
+    expect(await store.comments(RECORD.id)).toEqual([]);
+  });
+});
+
+describe("migrate", () => {
+  it("is idempotent", async () => {
+    const db = adapt(new PGlite());
+    expect(await migrate(db)).toEqual([
+      "001_squint_shares",
+      "002_squint_share_blob_parts",
+      "003_squint_share_pending_comments",
+      "004_squint_share_comment_claims",
+      "005_squint_share_pending_snapshots",
+    ]);
+    expect(await migrate(db)).toEqual([]);
+  });
+});
+
+describe.each(stores)("%s store: two posts with the same id at once", (_name, make) => {
+  it("lets exactly one win, stores its crop, and leaves nothing of the other", async () => {
+    const services: ShareServices = { store: await make(), blobs: inlineBackend };
+    const { store } = services;
+    await store.create(RECORD);
+    const input = {
+      id: "same",
+      x: 1,
+      y: 1,
+      body: "Hi",
+      author: "Cleo",
+      crop: { rect: { x: 0, y: 0, width: 4, height: 4 } },
+    };
+    const cropA = new Uint8Array([...PNG, 0xaa]);
+    const cropB = new Uint8Array([...PNG, 0xbb]);
+    const [a, b] = await Promise.all([
+      addClientComment(services, RECORD, input, cropA, 1),
+      addClientComment(services, RECORD, input, cropB, 2),
+    ]);
+    expect([a.ok, b.ok].filter(Boolean)).toHaveLength(1);
+    const loser = a.ok ? b : a;
+    expect(loser).toMatchObject({ ok: false, status: 409 });
+    const winnerCrop = a.ok ? cropA : cropB;
+    const stored = await readBlob(services, RECORD, "crop:same");
+    expect([...(stored?.bytes ?? [])]).toEqual([...winnerCrop]);
+    expect(await storedBlobs(store)).toEqual([
+      { key: "crop:same:<claim>", size: winnerCrop.length },
+    ]);
+    const visible = await store.comments(RECORD.id);
+    expect(visible.map((row) => row.item.createdAt)).toEqual([a.ok ? 1 : 2]);
+  });
+});
+
+describe.each(stores)("%s store: claims orphaned mid-post", (_name, make) => {
+  const NOW = 10_000_000;
+  const STALE = NOW - PENDING_STALE_MS - 1;
+  const rect = { x: 0, y: 0, width: 4, height: 4 };
+  const input = { id: "orphan", x: 1, y: 1, body: "Hi", author: "Cleo", crop: { rect } };
+  const oldCrop = new Uint8Array([...PNG, 0x01]);
+  const newCrop = new Uint8Array([...PNG, 0x02]);
+  const OLD_CLAIM = { claim: "old", cropKey: "crop:orphan:old" };
+
+  /** A share with a pending claim made at `claimedAt`, and the crop its request had stored. */
+  async function orphaned(claimedAt: number): Promise<ShareServices> {
+    const services: ShareServices = { store: await make(), blobs: inlineBackend };
+    const { store } = services;
+    await store.create(RECORD);
+    const comment = {
+      ...input,
+      status: "active" as const,
+      createdAt: claimedAt,
+      updatedAt: claimedAt,
+    };
+    await store.insertComment(RECORD.id, comment, "client", OLD_CLAIM);
+    const location = { kind: "inline" as const, bytes: oldCrop };
+    await store.putBlob(RECORD.id, {
+      key: OLD_CLAIM.cropKey,
+      contentType: "image/png",
+      size: oldCrop.length,
+      location,
+    });
+    return services;
+  }
+
+  it("lets a retry reclaim a stale claim: one visible row, with the retry's crop", async () => {
+    const services = await orphaned(STALE);
+    expect(await addClientComment(services, RECORD, input, newCrop, NOW)).toMatchObject({
+      ok: true,
+    });
+    const visible = await services.store.comments(RECORD.id, { includePending: true });
+    expect(visible.map((row) => [row.item.id, row.item.createdAt])).toEqual([["orphan", NOW]]);
+    expect(await services.store.pendingSince(RECORD.id, "orphan")).toBeNull();
+    const stored = await readBlob(services, RECORD, "crop:orphan");
+    expect([...(stored?.bytes ?? [])]).toEqual([...newCrop]);
+    expect(await storedBlobs(services.store)).toEqual([
+      { key: "crop:orphan:<claim>", size: newCrop.length },
+    ]);
+    const keys = (await services.store.blobSizes(RECORD.id)).map((blob) => blob.key);
+    expect(keys).not.toContain(OLD_CLAIM.cropKey);
+  });
+
+  it("drops the stale crop when the retry has none", async () => {
+    const services = await orphaned(STALE);
+    const { crop: _none, ...plain } = input;
+    expect(await addClientComment(services, RECORD, plain, null, NOW)).toMatchObject({ ok: true });
+    expect(await services.store.blobSizes(RECORD.id)).toEqual([]);
+  });
+
+  it("still refuses a claim in progress (409 pending), so a race has one winner", async () => {
+    const services = await orphaned(NOW - 1_000);
+    expect(await addClientComment(services, RECORD, input, newCrop, NOW)).toMatchObject({
+      ok: false,
+      status: 409,
+      error: "pending",
+    });
+    expect(await services.store.pendingSince(RECORD.id, "orphan")).toBe(NOW - 1_000);
+    expect(await services.store.blobSizes(RECORD.id)).toEqual([
+      { key: OLD_CLAIM.cropKey, size: oldCrop.length },
+    ]);
+  });
+
+  it("expires stale claims and their crops, and leaves fresh ones", async () => {
+    const services = await orphaned(STALE);
+    const fresh = {
+      ...input,
+      id: "fresh",
+      status: "active" as const,
+      createdAt: NOW,
+      updatedAt: NOW,
+    };
+    await services.store.insertComment(RECORD.id, fresh, "client", {
+      claim: "fresh",
+      cropKey: "crop:fresh:fresh",
+    });
+    await expireStalePending(services, RECORD, NOW);
+    const left = await services.store.comments(RECORD.id, { includePending: true });
+    expect(left.map((row) => row.item.id)).toEqual(["fresh"]);
+    expect(await services.store.blobSizes(RECORD.id)).toEqual([]);
+  });
+});
+
+/**
+ * A blob backend whose first save waits until the test lets it finish (or fail):
+ * a slow upload, without real waiting. Later saves go straight through.
+ */
+function gatedBlobs() {
+  let markStarted = () => undefined as void;
+  const started = new Promise<void>((resolve) => (markStarted = resolve));
+  let open = (_error?: Error) => undefined as void;
+  const gate = new Promise<Error | undefined>((resolve) => (open = resolve));
+  let first = true;
+  const blobs: BlobBackend = {
+    ...inlineBackend,
+    save: async (shareId, key, bytes, contentType) => {
+      if (first) {
+        first = false;
+        markStarted();
+        const error = await gate;
+        if (error) throw error;
+      }
+      return inlineBackend.save(shareId, key, bytes, contentType);
+    },
+  };
+  return { blobs, started, finish: () => open(), fail: (error: Error) => open(error) };
+}
+
+describe.each(stores)("%s store: an upload that outlives its claim", (_name, make) => {
+  const T0 = 10_000_000;
+  const LATER = T0 + PENDING_STALE_MS + 1;
+  const rect = { x: 0, y: 0, width: 4, height: 4 };
+  const input = { id: "slow", x: 1, y: 1, body: "Hi", author: "Cleo", crop: { rect } };
+  const cropA = new Uint8Array([...PNG, 0x0a]);
+  const cropB = new Uint8Array([...PNG, 0x0b]);
+
+  /** A share whose first post (`a`, at T0) is stuck mid-upload. */
+  async function stuck() {
+    const gated = gatedBlobs();
+    const services: ShareServices = { store: await make(), blobs: gated.blobs };
+    await services.store.create(RECORD);
+    const a = addClientComment(services, RECORD, input, cropA, T0);
+    await gated.started;
+    return { services, gated, a };
+  }
+
+  async function visibleCrop(services: ShareServices) {
+    const rows = await services.store.comments(RECORD.id);
+    const crop = await readBlob(services, RECORD, "crop:slow");
+    return { rows: rows.map((row) => row.item.createdAt), crop: [...(crop?.bytes ?? [])] };
+  }
+
+  it("Z: expired mid-upload, it reports 409 pending (never 201) and leaves nothing", async () => {
+    const { services, gated, a } = await stuck();
+    await expireStalePending(services, RECORD, LATER);
+    gated.finish();
+    expect(await a).toMatchObject({ ok: false, status: 409, error: "pending" });
+    expect(await services.store.comments(RECORD.id, { includePending: true })).toEqual([]);
+    expect(await services.store.blobSizes(RECORD.id)).toEqual([]);
+    // The client kept its draft; its retry posts it.
+    expect(await addClientComment(services, RECORD, input, cropA, LATER)).toMatchObject({
+      ok: true,
+    });
+    expect(await visibleCrop(services)).toEqual({ rows: [LATER], crop: [...cropA] });
+  });
+
+  it("X: reclaimed mid-upload, its failure deletes neither the retry's row nor its crop", async () => {
+    const { services, gated, a } = await stuck();
+    expect(await addClientComment(services, RECORD, input, cropB, LATER)).toMatchObject({
+      ok: true,
+    });
+    gated.fail(new Error("upload timed out"));
+    await expect(a).rejects.toThrow("upload timed out");
+    expect(await visibleCrop(services)).toEqual({ rows: [LATER], crop: [...cropB] });
+    expect(await storedBlobs(services.store)).toEqual([
+      { key: "crop:slow:<claim>", size: cropB.length },
+    ]);
+  });
+
+  it("Y: reclaimed mid-upload, its late success neither confirms nor overwrites the retry's crop", async () => {
+    const { services, gated, a } = await stuck();
+    expect(await addClientComment(services, RECORD, input, cropB, LATER)).toMatchObject({
+      ok: true,
+    });
+    gated.finish();
+    expect(await a).toMatchObject({ ok: false, status: 409, error: "pending" });
+    expect(await visibleCrop(services)).toEqual({ rows: [LATER], crop: [...cropB] });
+    expect(await storedBlobs(services.store)).toEqual([
+      { key: "crop:slow:<claim>", size: cropB.length },
+    ]);
+    // A retry of the slow post learns it's already there.
+    expect(await addClientComment(services, RECORD, input, cropA, LATER + 1)).toMatchObject({
+      ok: false,
+      status: 409,
+      error: "exists",
+    });
+  });
+
+  it("keeps the crop of an owner or legacy row at `crop:<id>`", async () => {
+    const services: ShareServices = { store: await make(), blobs: inlineBackend };
+    await services.store.create(RECORD);
+    const legacy = { ...input, status: "active" as const, createdAt: T0, updatedAt: T0 };
+    await services.store.insertComment(RECORD.id, legacy, "client");
+    await services.store.putBlob(RECORD.id, {
+      key: "crop:slow",
+      contentType: "image/png",
+      size: cropA.length,
+      location: { kind: "inline", bytes: cropA },
+    });
+    expect(await visibleCrop(services)).toEqual({ rows: [T0], crop: [...cropA] });
+    await expireStalePending(services, RECORD, LATER);
+    expect(await services.store.blobSizes(RECORD.id)).toHaveLength(1);
+  });
+});
+
+describe.each(stores)("%s store: a client capture while its image is stored", (_name, make) => {
+  const T0 = 20_000_000;
+  const image = (_url: URL, width: number) =>
+    Promise.resolve({
+      body: new Uint8Array(JPEG),
+      contentType: "image/jpeg",
+      width,
+      height: 900,
+      scale: 1,
+    });
+
+  /**
+   * A share with a stale pending comment (so expiry runs a cleanup), and a capture stuck
+   * mid-upload. Once the upload finishes, a cleanup runs right after the image's blob row is
+   * written: inside the gap before the snapshot is confirmed.
+   */
+  async function capturing() {
+    const gated = gatedBlobs();
+    const store = await make();
+    const services: ShareServices = { store, blobs: gated.blobs };
+    const hooked: ShareServices = {
+      ...services,
+      store: {
+        ...store,
+        putBlob: async (id, blob) => {
+          await store.putBlob(id, blob);
+          await expireStalePending(services, RECORD, T0);
+        },
+      },
+    };
+    await store.create(RECORD);
+    const stale = { ...COMMENT, id: "stale", createdAt: T0 - PENDING_STALE_MS - 1 };
+    await store.insertComment(RECORD.id, stale, "client", { claim: "x", cropKey: "crop:stale:x" });
+    const added = captureForClient(hooked, RECORD, 1024, image, T0);
+    await gated.started;
+    return { services, gated, added };
+  }
+
+  it("is invisible until stored, and a cleanup in the gap keeps its image", async () => {
+    const { services, gated, added } = await capturing();
+    expect(await services.store.snapshots(RECORD.id)).toEqual([]);
+    expect((await pullChanges(services.store, RECORD, 0)).snapshots).toEqual([]);
+    gated.finish();
+    const result = await added;
+    // The cleanup did run in the gap: it expired the stale comment.
+    expect(await services.store.pendingSince(RECORD.id, "stale")).toBeNull();
+    expect(result.ok).toBe(true);
+    const id = result.ok ? result.value.id : "";
+    expect((await pullChanges(services.store, RECORD, 0)).snapshots.map((s) => s.id)).toEqual([id]);
+    const stored = await readBlob(services, RECORD, `snapshot:${id}`);
+    expect([...(stored?.bytes ?? [])]).toEqual([...JPEG]);
+  });
+
+  it("is expired with its image if it outlives its request, and never reported", async () => {
+    const { services, gated, added } = await capturing();
+    await expireStalePending(services, RECORD, T0 + PENDING_STALE_MS + 1);
+    gated.finish();
+    await expect(added).rejects.toThrow("expired");
+    expect(await services.store.snapshots(RECORD.id, { includePending: true })).toEqual([]);
+    expect(await services.store.blobSizes(RECORD.id)).toEqual([]);
+  });
+});

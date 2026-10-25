@@ -1,9 +1,41 @@
 import { expect, type Locator, type Page } from "@playwright/test";
+import type { CaptureErrorCode } from "../lib/capture/types";
 import type { FrameCheckResult } from "../lib/frame-check/types";
+import { snapshotPng } from "./sample-snapshot";
 
 /** Answers /api/frame-check locally so tests never depend on the network. */
 export async function mockFrameCheck(page: Page, result: FrameCheckResult): Promise<void> {
   await page.route("**/api/frame-check?**", (route) => route.fulfill({ json: result }));
+}
+
+export const SNAPSHOT_HEIGHT = 2400;
+
+/**
+ * Answers /api/capture locally (a striped PNG at the requested width, or an
+ * error), so tests never launch a browser or touch the network. Returns how
+ * many captures were asked for.
+ */
+export async function mockCapture(
+  page: Page,
+  { failWith, delayMs = 0 }: { failWith?: CaptureErrorCode; delayMs?: number } = {},
+): Promise<() => number> {
+  let calls = 0;
+  await page.unroute("**/api/capture");
+  await page.route("**/api/capture", async (route) => {
+    calls += 1;
+    if (delayMs) await new Promise((resolve) => setTimeout(resolve, delayMs));
+    if (failWith) {
+      await route.fulfill({ status: 502, json: { error: failWith } });
+      return;
+    }
+    const { width } = route.request().postDataJSON() as { width: number };
+    await route.fulfill({
+      contentType: "image/png",
+      headers: { "x-capture-width": String(width), "x-capture-height": String(SNAPSHOT_HEIGHT) },
+      body: snapshotPng(width, SNAPSHOT_HEIGHT),
+    });
+  });
+  return () => calls;
 }
 
 /** The seeded folder every fresh browser starts with. */
@@ -85,6 +117,12 @@ export async function samplePng(page: Page, label = "Mockup"): Promise<Buffer> {
 /** The comments panel is a collapsed bottom sheet on small screens. */
 export async function showComments(page: Page): Promise<void> {
   const toggle = page.getByRole("button", { name: /Show comments/ });
+  if (await toggle.isVisible()) await toggle.click();
+}
+
+/** Collapses the comments bottom sheet on small screens, uncovering the canvas. */
+export async function hideComments(page: Page): Promise<void> {
+  const toggle = page.getByRole("button", { name: /Hide comments/ });
   if (await toggle.isVisible()) await toggle.click();
 }
 

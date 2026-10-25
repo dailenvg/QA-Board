@@ -4,8 +4,10 @@ import { motion } from "motion/react";
 import { useId, useState, type FormEvent, type KeyboardEvent, type Ref } from "react";
 import { usePopVariants } from "@/lib/motion";
 import { useMediaQuery } from "@/lib/use-media-query";
+import { SHARE_LIMITS } from "@/lib/share/limits";
 import { Button } from "../ui/Button";
 import { FieldError } from "../ui/FieldError";
+import { Icon } from "../ui/Icon";
 import { FIELD_CLASS } from "../ui/field-styles";
 import type { Draft } from "./types";
 
@@ -14,6 +16,8 @@ interface ComposerProps {
   authorName: string | null;
   textareaRef: Ref<HTMLTextAreaElement>;
   onChange: (body: string) => void;
+  /** The name as it's typed, so it stays with the draft. */
+  onAuthorChange: (author: string) => void;
   onSubmit: (body: string, author: string) => void;
   onCancel: () => void;
 }
@@ -36,12 +40,13 @@ export function Composer({
   authorName,
   textareaRef,
   onChange,
+  onAuthorChange,
   onSubmit,
   onCancel,
 }: ComposerProps) {
   const docked = !useMediaQuery("(min-width: 640px)");
   const variants = usePopVariants();
-  const [author, setAuthor] = useState(authorName ?? "");
+  const [author, setAuthor] = useState(draft.author ?? authorName ?? "");
   const [editingName, setEditingName] = useState(!authorName);
   const [error, setError] = useState<{ field: "name" | "body"; message: string } | null>(null);
   const titleId = useId();
@@ -49,11 +54,14 @@ export function Composer({
   const nameErrorId = useId();
   const bodyId = useId();
   const errorId = useId();
+  const sendErrorId = useId();
+  const cancelHintId = useId();
   const nameError = error?.field === "name" ? error.message : null;
   const bodyError = error?.field === "body" ? error.message : null;
 
   const submit = (event?: FormEvent) => {
     event?.preventDefault();
+    if (draft.sending) return;
     if (!author.trim()) {
       setEditingName(true);
       setError({ field: "name", message: NAME_MISSING });
@@ -70,7 +78,7 @@ export function Composer({
     if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
-      onCancel();
+      if (!draft.sending) onCancel();
     } else if (
       event.key === "Enter" &&
       !event.shiftKey &&
@@ -123,6 +131,7 @@ export function Composer({
               aria-describedby={nameErrorId}
               onChange={(event) => {
                 setAuthor(event.target.value);
+                onAuthorChange(event.target.value);
                 setError((current) => (current?.field === "name" ? null : current));
               }}
               onBlur={() => {
@@ -153,6 +162,7 @@ export function Composer({
             ref={textareaRef}
             value={draft.body}
             rows={3}
+            maxLength={SHARE_LIMITS.body}
             required
             autoFocus={Boolean(authorName)}
             placeholder="What should change here?"
@@ -169,13 +179,46 @@ export function Composer({
             Enter to post · Shift+Enter for a new line
           </p>
         </div>
+        {draft.error ? (
+          <p
+            id={sendErrorId}
+            role="alert"
+            data-testid="composer-send-error"
+            className="flex items-start gap-2 rounded-field bg-danger-soft px-3 py-2 text-meta font-semibold text-danger"
+          >
+            <Icon name="alert" className="mt-0.5 size-4 shrink-0" />
+            {draft.error}
+          </p>
+        ) : null}
         <div className="flex items-center justify-end gap-2">
           <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={onCancel}>
+            {/*
+             * While posting, Cancel waits: a cancelled draft must never still arrive.
+             * If the post fails, Cancel discards it as usual.
+             */}
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-disabled={draft.sending || undefined}
+              aria-describedby={draft.sending ? cancelHintId : undefined}
+              onClick={draft.sending ? undefined : onCancel}
+            >
               Cancel
             </Button>
-            <Button type="submit" size="sm">
-              Post
+            {draft.sending ? (
+              <span id={cancelHintId} className="sr-only">
+                Wait for the comment to finish posting.
+              </span>
+            ) : null}
+            {/* aria-disabled, not disabled: focus stays put, so Retry is right here on failure. */}
+            <Button
+              type="submit"
+              size="sm"
+              aria-disabled={draft.sending || undefined}
+              aria-busy={draft.sending || undefined}
+              aria-describedby={draft.error ? sendErrorId : undefined}
+            >
+              {draft.sending ? "Posting…" : draft.error ? "Retry" : "Post"}
             </Button>
           </div>
         </div>

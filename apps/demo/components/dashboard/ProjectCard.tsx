@@ -40,7 +40,7 @@ export function ProjectCard({
   onMove,
   onDelete,
 }: ProjectCardProps) {
-  const { project, counts, status } = summary;
+  const { project, counts, status, previewKey } = summary;
   const reduce = useReducedMotion();
   const variants = useRevealVariants();
 
@@ -53,7 +53,7 @@ export function ProjectCard({
       data-testid="project-card"
       className="group relative flex flex-col gap-3 rounded-panel bg-tile p-3 pb-4 transition-shadow hover:shadow-float has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-focus has-[[aria-expanded=true]]:z-20"
     >
-      <ProjectThumbnail source={project.source} />
+      <ProjectThumbnail source={project.source} previewKey={previewKey} />
       <div className="flex items-start justify-between gap-2 pl-2">
         <div className="min-w-0 pt-1">
           {/* h2: card titles sit directly under the folder's h1 (no level skipped). */}

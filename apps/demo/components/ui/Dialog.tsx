@@ -16,7 +16,7 @@ interface DialogProps {
   title: string;
   description?: ReactNode;
   children: ReactNode;
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "lg";
   testId?: string;
 }
 
@@ -72,6 +72,8 @@ function useFocusTrap(open: boolean, panel: RefObject<HTMLDivElement | null>, on
   }, [open, panel]);
 }
 
+const WIDTHS = { sm: "max-w-sm", md: "max-w-lg", lg: "max-w-4xl" } as const;
+
 /** Modal dialog: focus-trapped, Escape and backdrop close it, focus returns to the opener. */
 export function Dialog({
   open,
@@ -113,9 +115,7 @@ export function Dialog({
             initial="hidden"
             animate="visible"
             exit="exit"
-            className={`relative flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-y-auto rounded-panel bg-panel p-5 shadow-pop sm:p-6 ${
-              size === "sm" ? "max-w-sm" : "max-w-lg"
-            }`}
+            className={`relative flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-y-auto rounded-panel bg-panel p-5 shadow-pop sm:p-6 ${WIDTHS[size]}`}
           >
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">

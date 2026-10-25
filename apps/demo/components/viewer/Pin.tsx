@@ -2,8 +2,9 @@
 
 import { motion, useReducedMotion } from "motion/react";
 import { press, spring } from "@/lib/motion";
+import { commentTone, type CommentTone } from "./comment-tone";
 
-type PinTone = "active" | "resolved" | "draft";
+type PinTone = "active" | "resolved" | "draft" | "unsent";
 
 interface PinProps {
   id?: string;
@@ -11,34 +12,57 @@ interface PinProps {
   x: number;
   y: number;
   tone: PinTone;
+  /** Colors an active pin by its commenter (resolved pins are green for everyone). */
+  author?: string;
   selected?: boolean;
+  /** The comment's popover is open; it's controlled by `popoverId`. */
+  expanded?: boolean;
+  popoverId?: string;
   label: string;
   onSelect?: () => void;
 }
 
-const TONES: Record<PinTone, string> = {
-  active: "bg-brand text-on-brand",
-  resolved: "border-2 border-resolved bg-card text-resolved-text",
-  draft: "bg-inv text-on-inv",
+const DRAFT_TONES: Record<"draft" | "unsent", CommentTone> = {
+  draft: { className: "bg-inv text-on-inv" },
+  /** A draft whose post failed: kept, and marked until it goes through. */
+  unsent: { className: "bg-danger text-card" },
 };
 
 /**
  * Numbered teardrop marker. Its sharp bottom-left corner sits exactly on the
  * point; the 44px button around it keeps the touch target generous. Halo,
  * selection and focus rings come from `.pin-marker` in globals.css so they
- * stay visible over any page or image.
+ * stay visible over any page or image. Pressing it opens the comment's popover.
  */
-export function Pin({ id, number, x, y, tone, selected = false, label, onSelect }: PinProps) {
+export function Pin({
+  id,
+  number,
+  x,
+  y,
+  tone,
+  author = "",
+  selected = false,
+  expanded = false,
+  popoverId,
+  label,
+  onSelect,
+}: PinProps) {
   const reduce = useReducedMotion();
   const interactive = Boolean(onSelect);
+  const paint =
+    tone === "draft" || tone === "unsent"
+      ? DRAFT_TONES[tone]
+      : commentTone(author, tone === "resolved");
   return (
     <motion.button
       type="button"
       data-pin-id={id}
-      data-testid={tone === "draft" ? "draft-pin" : "pin"}
+      data-testid={tone === "draft" || tone === "unsent" ? "draft-pin" : "pin"}
       data-status={tone}
       aria-label={label}
-      aria-pressed={interactive ? selected : undefined}
+      aria-haspopup={interactive ? "dialog" : undefined}
+      aria-expanded={interactive ? expanded : undefined}
+      aria-controls={expanded ? popoverId : undefined}
       // The draft pin only marks where the composer points; the composer itself is announced.
       aria-hidden={interactive ? undefined : true}
       tabIndex={interactive ? 0 : -1}
@@ -61,9 +85,10 @@ export function Pin({ id, number, x, y, tone, selected = false, label, onSelect 
       <span
         aria-hidden="true"
         data-selected={selected || undefined}
-        className={`pin-marker grid size-8 place-items-center rounded-pin text-label font-bold transition-shadow ${TONES[tone]}`}
+        style={paint.style}
+        className={`pin-marker grid size-8 place-items-center rounded-pin text-label font-bold transition-shadow ${paint.className}`}
       >
-        {number ?? "+"}
+        {number ?? (tone === "unsent" ? "!" : "+")}
       </span>
     </motion.button>
   );

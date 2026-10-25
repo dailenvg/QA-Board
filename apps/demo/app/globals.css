@@ -45,7 +45,6 @@
   --resolved: #0ca86c;
   --resolved-soft: rgb(12 168 108 / 0.14);
   --resolved-text: #06714a;
-  --resolved-pin: #06714a;
 
   --danger: #b32f19;
   --danger-soft: rgb(240 84 60 / 0.12);
@@ -58,6 +57,12 @@
   --pin-halo: #ffffff;
   --pin-band: #18181b;
   --pin-focus: #0c54cc;
+  /*
+   * Resolved pins and badges: Native Pet Allergy green, filled. Navy numbers
+   * read 4.8:1 on it (white would be 2.8:1). Commenters never get a green.
+   */
+  --resolved-pin: #16af74;
+  --on-resolved-pin: #012d61;
   --favicon-bg: #ffffff;
 
   --shadow-seg: 0 1px 2px rgb(0 0 0 / 0.12);
@@ -154,6 +159,7 @@
   --color-resolved-soft: var(--resolved-soft);
   --color-resolved-text: var(--resolved-text);
   --color-resolved-pin: var(--resolved-pin);
+  --color-on-resolved-pin: var(--on-resolved-pin);
 
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);

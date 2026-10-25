@@ -16,6 +16,25 @@ const clamp = (value: number) => Math.min(100, Math.max(0, value));
 const round = (value: number) => Math.round(value * 100) / 100;
 
 /**
+ * Centre of the part of the canvas on screen, so the keyboard crosshair
+ * starts where the user is looking on a tall snapshot.
+ */
+function visibleCentre(node: HTMLElement): PinPoint {
+  const box = node.getBoundingClientRect();
+  if (box.width === 0 || box.height === 0) return { x: 50, y: 50 };
+  const frame = node.closest("main")?.getBoundingClientRect();
+  const top = Math.max(box.top, frame?.top ?? 0, 0);
+  const bottom = Math.min(box.bottom, frame?.bottom ?? window.innerHeight, window.innerHeight);
+  const left = Math.max(box.left, frame?.left ?? 0, 0);
+  const right = Math.min(box.right, frame?.right ?? window.innerWidth, window.innerWidth);
+  if (bottom <= top || right <= left) return { x: 50, y: 50 };
+  return {
+    x: round(clamp((((left + right) / 2 - box.left) / box.width) * 100)),
+    y: round(clamp((((top + bottom) / 2 - box.top) / box.height) * 100)),
+  };
+}
+
+/**
  * Transparent click catcher over the preview in comment mode. Keyboard users
  * focus it, move a crosshair with the arrow keys and press Enter to drop a pin.
  */
@@ -34,7 +53,7 @@ export function CommentOverlay({ onPlace, onExit, ref }: CommentOverlayProps) {
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const step = event.shiftKey ? BIG_STEP : STEP;
-    const current = cursor ?? { x: 50, y: 50 };
+    const current = cursor ?? visibleCentre(event.currentTarget);
     const moves: Record<string, PinPoint> = {
       ArrowLeft: { x: current.x - step, y: current.y },
       ArrowRight: { x: current.x + step, y: current.y },
@@ -64,7 +83,10 @@ export function CommentOverlay({ onPlace, onExit, ref }: CommentOverlayProps) {
       data-testid="comment-overlay"
       onClick={onClick}
       onKeyDown={onKeyDown}
-      onFocus={() => setCursor((value) => value ?? { x: 50, y: 50 })}
+      onFocus={(event) => {
+        const node = event.currentTarget;
+        setCursor((value) => value ?? visibleCentre(node));
+      }}
       onBlur={() => setCursor(null)}
       className="group/overlay absolute inset-0 z-[5] cursor-crosshair focus-visible:outline-none"
     >

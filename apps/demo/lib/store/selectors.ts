@@ -1,3 +1,4 @@
+import { previewSnapshot } from "./snapshots";
 import { countComments, deriveStatus, type CommentCounts, type ProjectStatus } from "./status";
 import type { Comment, Folder, Project, SquintData } from "./types";
 
@@ -5,6 +6,8 @@ export interface ProjectSummary {
   project: Project;
   counts: CommentCounts;
   status: ProjectStatus;
+  /** Blob key of a website project's card picture (see `previewSnapshot`); null until captured. */
+  previewKey: string | null;
 }
 
 export function commentsFor(data: SquintData, projectId: string): Comment[] {
@@ -15,7 +18,8 @@ export function commentsFor(data: SquintData, projectId: string): Comment[] {
 
 export function summarize(data: SquintData, project: Project): ProjectSummary {
   const counts = countComments(commentsFor(data, project.id));
-  return { project, counts, status: deriveStatus(counts) };
+  const preview = project.source.kind === "url" ? previewSnapshot(data, project.id) : null;
+  return { project, counts, status: deriveStatus(counts), previewKey: preview?.blobKey ?? null };
 }
 
 /** Projects in a folder, most recently updated first. */

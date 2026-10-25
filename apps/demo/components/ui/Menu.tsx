@@ -19,15 +19,39 @@ interface MenuProps {
   items: readonly MenuItem[];
   className?: string;
   testId?: string;
+  /** Trigger icon; `more` (···) by default. */
+  icon?: IconName;
+  /** Visible trigger text, hidden on phones. Without it the trigger is icon-only. */
+  text?: string;
+  /** Replaces the default (ghost) trigger styling. */
+  triggerClassName?: string;
+  /** Unavailable right now: the trigger stays focusable and explains why. */
+  disabledReason?: string | null;
 }
 
+const TRIGGER_CLASS =
+  "grid size-11 place-items-center rounded-pill text-muted transition-colors hover:bg-hover hover:text-ink active:bg-seg aria-expanded:bg-hover aria-expanded:text-ink";
+
 /** Overflow menu: arrow keys move, Escape closes and returns focus to the trigger. */
-export function Menu({ label, items, className = "", testId }: MenuProps) {
+export function Menu({
+  label,
+  items,
+  className = "",
+  testId,
+  icon = "more",
+  text,
+  triggerClassName = TRIGGER_CLASS,
+  disabledReason = null,
+}: MenuProps) {
   const [open, setOpen] = useState(false);
+  /** A disabled trigger was clicked or tapped: show its reason, since touch has no tooltip. */
+  const [explaining, setExplaining] = useState(false);
+  const reasonId = useId();
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const menuId = useId();
   const variants = usePopVariants();
+  const showReason = explaining && Boolean(disabledReason);
 
   useEffect(() => {
     if (!open) return;
@@ -38,6 +62,15 @@ export function Menu({ label, items, className = "", testId }: MenuProps) {
     root.current?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')?.focus();
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [open]);
+
+  useEffect(() => {
+    if (!showReason) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setExplaining(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [showReason]);
 
   const close = () => {
     setOpen(false);
@@ -79,19 +112,60 @@ export function Menu({ label, items, className = "", testId }: MenuProps) {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
+        aria-disabled={disabledReason ? true : undefined}
+        aria-describedby={disabledReason ? reasonId : undefined}
+        title={disabledReason ?? undefined}
         data-testid={testId}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          if (disabledReason) {
+            setExplaining((value) => !value);
+            return;
+          }
+          setExplaining(false);
+          setOpen((value) => !value);
+        }}
+        onBlur={() => setExplaining(false)}
         onKeyDown={(event) => {
+          if (event.key === "Escape" && showReason) {
+            event.stopPropagation();
+            setExplaining(false);
+            return;
+          }
           // Menu-button pattern: arrow keys open the menu and move into it.
+          if (disabledReason) return;
           if (!open && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
             event.preventDefault();
             setOpen(true);
           }
         }}
-        className="grid size-11 place-items-center rounded-pill text-muted transition-colors hover:bg-hover hover:text-ink active:bg-seg aria-expanded:bg-hover aria-expanded:text-ink"
+        className={triggerClassName}
       >
-        <Icon name="more" />
+        <Icon name={icon} />
+        {text ? <span className="max-sm:sr-only">{text}</span> : null}
+        {disabledReason ? (
+          <span id={reasonId} className="sr-only">
+            {disabledReason}
+          </span>
+        ) : null}
       </button>
+      <AnimatePresence>
+        {showReason ? (
+          // Visual only: screen readers already get the reason as the trigger's description.
+          <motion.p
+            key="reason"
+            aria-hidden="true"
+            data-testid={testId ? `${testId}-reason` : undefined}
+            variants={variants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            style={{ transformOrigin: "top right" }}
+            className="absolute top-full right-0 z-30 mt-1 w-max max-w-64 rounded-tile bg-inv px-4 py-2 text-meta font-medium text-on-inv shadow-pop"
+          >
+            {disabledReason}
+          </motion.p>
+        ) : null}
+      </AnimatePresence>
       <AnimatePresence>
         {open ? (
           <motion.div
@@ -103,7 +177,7 @@ export function Menu({ label, items, className = "", testId }: MenuProps) {
             animate="visible"
             exit="exit"
             style={{ transformOrigin: "top right" }}
-            className="absolute top-full right-0 z-30 mt-1 flex w-52 flex-col rounded-tile bg-card p-2 shadow-pop ring-1 ring-line"
+            className="absolute top-full right-0 z-30 mt-1 flex w-max max-w-72 min-w-52 flex-col rounded-tile bg-card p-2 shadow-pop ring-1 ring-line"
           >
             {items.map((item) => (
               <button

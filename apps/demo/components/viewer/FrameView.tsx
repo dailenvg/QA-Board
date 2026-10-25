@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Skeleton } from "../ui/Skeleton";
 import { FrameFallback } from "./FrameFallback";
+import type { ScreenshotHandler } from "./types";
 
 /** Long enough for slow sites; framing refusals usually surface well before this. */
 const LOAD_TIMEOUT_MS = 15_000;
@@ -15,34 +16,18 @@ interface FrameViewProps {
   url: string;
   title: string;
   overlay: ReactNode;
-  onScreenshot: (image: { dataUrl: string; fileName: string }) => string | null;
-  /** `true` when the timeout fallback replaces the frame (and its comment overlay), `false` on retry. */
-  onTimeoutChange: (timedOut: boolean) => void;
+  onScreenshot: ScreenshotHandler | null;
   /** In Comment mode the framed site leaves the tab order, so Tab reaches the comment canvas. */
   commentMode: boolean;
 }
 
 /** The live iframe, with a loading veil and a timeout fallback. */
-export function FrameView({
-  url,
-  title,
-  overlay,
-  onScreenshot,
-  onTimeoutChange,
-  commentMode,
-}: FrameViewProps) {
+export function FrameView({ url, title, overlay, onScreenshot, commentMode }: FrameViewProps) {
   const [phase, setPhase] = useState<"loading" | "loaded" | "timeout">("loading");
-  const onTimeoutRef = useRef(onTimeoutChange);
-  useEffect(() => {
-    onTimeoutRef.current = onTimeoutChange;
-  });
 
   useEffect(() => {
     if (phase !== "loading") return;
-    const timer = window.setTimeout(() => {
-      setPhase("timeout");
-      onTimeoutRef.current(true);
-    }, LOAD_TIMEOUT_MS);
+    const timer = window.setTimeout(() => setPhase("timeout"), LOAD_TIMEOUT_MS);
     return () => window.clearTimeout(timer);
   }, [phase]);
 
@@ -75,10 +60,7 @@ export function FrameView({
           reason="timeout"
           url={url}
           onScreenshot={onScreenshot}
-          onRetry={() => {
-            setPhase("loading");
-            onTimeoutChange(false);
-          }}
+          onRetry={() => setPhase("loading")}
         />
       ) : (
         overlay

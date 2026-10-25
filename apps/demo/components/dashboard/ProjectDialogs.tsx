@@ -48,7 +48,11 @@ export function ProjectDialogs({
         open={remove.open}
         onClose={remove.close}
         title={remove.payload ? `Delete ${remove.payload.name}?` : "Delete project?"}
-        description="The project and all its comments will be deleted. You'll have a few seconds to undo it."
+        description={
+          remove.payload?.share
+            ? "The project and all its comments will be deleted, and its share link will stop working. You'll have a few seconds to undo it."
+            : "The project and all its comments will be deleted. You'll have a few seconds to undo it."
+        }
         confirmLabel="Delete project"
         onConfirm={() => remove.payload && onDelete(remove.payload)}
       />

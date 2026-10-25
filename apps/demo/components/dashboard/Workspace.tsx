@@ -16,6 +16,7 @@ import { FolderDialogs } from "./FolderDialogs";
 import { Sidebar } from "./Sidebar";
 import { SidebarSkeleton } from "./SidebarSkeleton";
 import { WorkspaceContext, type Workspace as WorkspaceValue } from "./workspace-context";
+import { Revocations } from "../app-state/Revocations";
 
 interface ReadyStore {
   data: SquintData;
@@ -32,7 +33,10 @@ export function Workspace({ children }: { children: ReactNode }) {
   const state = useSquint();
   if (state.status === "corrupt") return <DataRecovery reason={state.reason} raw={state.raw} />;
   return (
-    <WorkspaceShell store={state.status === "ready" ? state : null}>{children}</WorkspaceShell>
+    <>
+      <Revocations />
+      <WorkspaceShell store={state.status === "ready" ? state : null}>{children}</WorkspaceShell>
+    </>
   );
 }
 
@@ -60,7 +64,7 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
   const newProject = useDialogState<{ folderId?: string }>();
   const newFolder = useDialogState<true>();
   const folderRename = useDialogState<Folder>();
-  const folderDelete = useDialogState<{ folder: Folder; projects: number }>();
+  const folderDelete = useDialogState<{ folder: Folder; projects: number; shared: number }>();
   const { show: showNewProject } = newProject;
   const { show: showRename } = folderRename;
   const { show: showDelete } = folderDelete;
@@ -87,7 +91,11 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
             openNewProject: (folderId) => showNewProject({ folderId }),
             renameFolder: showRename,
             deleteFolder: (folder) =>
-              showDelete({ folder, projects: projectCount(data, folder.id) }),
+              showDelete({
+                folder,
+                projects: projectCount(data, folder.id),
+                shared: data.projects.filter((p) => p.folderId === folder.id && p.share).length,
+              }),
             report,
             leavingFolderId,
           }

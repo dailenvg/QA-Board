@@ -1,4 +1,12 @@
-import { isQuotaError, parseData, createInitialData, STORAGE_KEY } from "./persist";
+import { migrateImages } from "./migrate-images";
+import {
+  createInitialData,
+  isQuotaError,
+  LEGACY_STORAGE_KEY,
+  parseData,
+  STORAGE_KEY,
+  type PendingImage,
+} from "./persist";
 import { reduce, type Action } from "./reducer";
 import type { SquintData } from "./types";
 
@@ -21,27 +29,65 @@ const DEFAULT_FOLDER_ID = "default";
 const LOADING: StoreState = { status: "loading" };
 
 let state: StoreState | null = null;
+let migrating = false;
 const listeners = new Set<() => void>();
 
 function seed(): SquintData {
   return createInitialData(DEFAULT_FOLDER_ID, Date.now());
 }
 
-function load(): StoreState {
-  let raw: string | null;
+function emit(): void {
+  for (const listener of listeners) listener();
+}
+
+function removeLegacy(): void {
   try {
-    raw = localStorage.getItem(STORAGE_KEY);
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
+  } catch {
+    // Leaving the old copy behind is harmless; version 2 is read first.
+  }
+}
+
+/**
+ * Version 1 data: move its images to the blob store, then save it as version
+ * 2 and drop the old copy. If any step fails, version 1 stays exactly as it
+ * was and this visit runs unsaved (the next load tries again).
+ */
+function migrate(data: SquintData, images: readonly PendingImage[]): void {
+  if (migrating) return;
+  migrating = true;
+  void migrateImages(images).then((imagesSaved) => {
+    migrating = false;
+    const saved = imagesSaved && write(data).ok;
+    if (saved) removeLegacy();
+    state = { status: "ready", data, persistent: saved };
+    emit();
+  });
+}
+
+function readStored(): { raw: string | null; legacy: boolean } {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw !== null) return { raw, legacy: false };
+  const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+  return { raw: legacy, legacy: legacy !== null };
+}
+
+function load(): StoreState {
+  let stored: { raw: string | null; legacy: boolean };
+  try {
+    stored = readStored();
   } catch {
     return { status: "ready", data: seed(), persistent: false };
   }
+  const { raw, legacy } = stored;
   if (raw === null) return { status: "ready", data: seed(), persistent: true };
   const parsed = parseData(raw);
   if (!parsed.ok) return { status: "corrupt", reason: parsed.reason, raw };
-  return { status: "ready", data: parsed.data, persistent: true };
-}
-
-function emit(): void {
-  for (const listener of listeners) listener();
+  if (!legacy && parsed.pendingImages.length === 0) {
+    return { status: "ready", data: parsed.data, persistent: true };
+  }
+  migrate(parsed.data, parsed.pendingImages);
+  return LOADING;
 }
 
 function onStorage(event: StorageEvent): void {
@@ -96,6 +142,7 @@ export function dispatch(action: Action): Result {
 export function resetData(): Result {
   const data = seed();
   const saved = write(data);
+  if (saved.ok) removeLegacy();
   state = { status: "ready", data, persistent: saved.ok };
   emit();
   return saved;

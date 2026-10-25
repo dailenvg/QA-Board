@@ -1,8 +1,8 @@
 "use client";
 
-import { OVERVIEW_HREF, folderHref } from "@/lib/routes";
+import type { ReactNode } from "react";
 import type { ProjectStatus } from "@/lib/store/status";
-import type { Folder, Project } from "@/lib/store/types";
+import type { Project } from "@/lib/store/types";
 import { ButtonLink } from "../ui/ButtonLink";
 import { Icon } from "../ui/Icon";
 import { Kbd } from "../ui/Kbd";
@@ -12,49 +12,54 @@ import type { ViewerMode } from "./types";
 
 interface ViewerTopBarProps {
   project: Project;
-  folder: Folder | undefined;
+  /** A way back (owner) or the logo (shared link). */
+  leading: ReactNode;
   status: ProjectStatus;
   mode: ViewerMode;
   onMode: (mode: ViewerMode) => void;
-  /** False while the site is being checked or a fallback replaces it: there's nothing to pin. */
-  commentAvailable: boolean;
   /** The live site behind this project, opened in a new tab. */
   originalUrl: string | null;
+  /** Project-level actions next to the original-site link, such as Export. */
+  actions: ReactNode;
+  /** The breakpoint switcher, on website projects. */
+  breakpoints?: ReactNode;
 }
 
-/** Back link, project name and status, Browse/Comment toggle, and the original site link. */
+/**
+ * Leading slot, project name and status, Browse/Comment toggle, the breakpoint
+ * switcher (websites), actions, and the original site link.
+ */
 export function ViewerTopBar({
   project,
-  folder,
+  leading,
   status,
   mode,
   onMode,
-  commentAvailable,
   originalUrl,
+  actions,
+  breakpoints,
 }: ViewerTopBarProps) {
   return (
-    <header className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-panel bg-panel p-2">
-      <ButtonLink
-        href={folder ? folderHref(folder.id) : OVERVIEW_HREF}
-        variant="ghost"
-        size="sm"
-        className="px-3"
-        ariaLabel={`Back to ${folder?.name ?? "Overview"}`}
-      >
-        <Icon name="chevronLeft" className="size-5" />
-        <span className="hidden max-w-40 truncate sm:inline">{folder?.name ?? "Overview"}</span>
-      </ButtonLink>
+    // Its own layer, so the Export menu opens over the snapshot bar and pins below it.
+    <header className="relative z-40 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-panel bg-panel p-2">
+      {leading}
       <div className="flex min-w-40 flex-1 items-center gap-2">
         <h1 className="truncate text-heading font-bold">{project.name}</h1>
         <StatusChip status={status} />
       </div>
-      <div className="flex items-center gap-2 max-sm:w-full">
+      {/*
+       * Phones: the mode switch fills the row, and when the breakpoints and actions don't
+       * fit beside it (Export, Share, sync retry, original site) they wrap to their own row
+       * instead of pushing the bar off-screen.
+       */}
+      <div className="flex flex-wrap items-center justify-end gap-2 max-sm:w-full">
         <SegmentedControl
           label="Mode"
           layoutId="viewer-mode-thumb"
+          tone="brand"
           value={mode}
           onChange={onMode}
-          className="max-sm:w-full max-sm:[&>button]:flex-1"
+          className="max-sm:flex-1 max-sm:[&>button]:flex-1"
           options={[
             {
               value: "browse",
@@ -69,26 +74,25 @@ export function ViewerTopBar({
               icon: "messagePlus",
               title: "Comment (C)",
               testId: "mode-comment",
-              disabled: !commentAvailable,
-              disabledReason: "Comment mode is available once the page loads.",
             },
           ]}
         />
-        {commentAvailable ? (
-          // Without the open-original button the hint is last; keep it off the panel's curve.
-          <Kbd className={`hidden lg:inline ${originalUrl ? "" : "mr-2"}`}>C</Kbd>
-        ) : null}
-        {originalUrl ? (
-          <ButtonLink
-            href={originalUrl}
-            external
-            variant="secondary"
-            size="icon"
-            ariaLabel="Open the original site in a new tab"
-          >
-            <Icon name="external" className="size-5" />
-          </ButtonLink>
-        ) : null}
+        <Kbd className="hidden lg:inline">C</Kbd>
+        {breakpoints}
+        <div className="flex items-center gap-2">
+          {actions}
+          {originalUrl ? (
+            <ButtonLink
+              href={originalUrl}
+              external
+              variant="secondary"
+              size="icon"
+              ariaLabel="Open the original site in a new tab"
+            >
+              <Icon name="external" className="size-5" />
+            </ButtonLink>
+          ) : null}
+        </div>
       </div>
     </header>
   );

@@ -3,6 +3,7 @@ import {
   createImageProject,
   createUrlProject,
   dropPin,
+  mockCapture,
   mockFrameCheck,
   onlyCommentCard,
   OVERVIEW_HEADLINE,
@@ -22,6 +23,8 @@ test("a website project takes a comment from posted to resolved, reopened and de
     finalUrl: `${baseURL}/sandbox`,
     status: 200,
   });
+  // Comment mode on a website pins to a snapshot of it.
+  await mockCapture(page);
   await openFolder(page);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("My projects");
 
@@ -74,7 +77,7 @@ test("a website project takes a comment from posted to resolved, reopened and de
   await expect(card).toHaveCount(0);
   await expect(page.getByTestId("comments-empty")).toContainText("All caught up");
   await expect(page.getByTestId("pin")).toHaveCount(0);
-  await expect(page.getByTestId("tab-resolved")).toHaveText("Resolved (1)");
+  await expect(page.getByTestId("tab-resolved")).toHaveText("Resolved 1");
   await expect(topBarStatus(page)).toHaveAttribute("data-status", "resolved");
 
   await page.getByTestId("tab-resolved").click();
@@ -256,7 +259,7 @@ test("deleting a comment or a project can be undone", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Comment 2 by Ana", exact: true })).toBeVisible();
   await expect(first).toBeVisible();
   await expect(first.getByRole("button", { name: "Reopen" })).toBeVisible();
-  await expect(page.getByTestId("tab-resolved")).toHaveText("Resolved (1)");
+  await expect(page.getByTestId("tab-resolved")).toHaveText("Resolved 1");
 
   await page.getByRole("link", { name: "Back to My projects" }).click();
   const card = page.getByTestId("project-card").filter({ hasText: "undo-check" });

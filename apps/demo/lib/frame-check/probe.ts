@@ -7,10 +7,10 @@ const TIMEOUT_MS = 6000;
 const MAX_REDIRECTS = 4;
 const USER_AGENT = "Mozilla/5.0 (compatible; SquintFrameCheck/1.0)";
 
-type HostCheck = "public" | "private" | "unresolved";
+export type HostCheck = "public" | "private" | "unresolved";
 
 /** Resolves the host and refuses anything that lands on a private or local address. */
-async function checkHost(url: URL): Promise<HostCheck> {
+export async function checkHost(url: URL): Promise<HostCheck> {
   const host = url.hostname.replace(/^\[|\]$/g, "");
   if (isBlockedHostname(host)) return "private";
   if (isIpLiteral(host)) return isBlockedAddress(host) ? "private" : "public";

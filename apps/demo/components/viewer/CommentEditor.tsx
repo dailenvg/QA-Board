@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState, type FormEvent, type KeyboardEvent } from "react";
+import { SHARE_LIMITS } from "@/lib/share/limits";
 import { Button } from "../ui/Button";
 import { FieldError } from "../ui/FieldError";
 import { FIELD_CLASS } from "../ui/field-styles";
@@ -48,6 +49,7 @@ export function CommentEditor({ initialBody, onSave, onCancel }: CommentEditorPr
         autoFocus
         required
         rows={3}
+        maxLength={SHARE_LIMITS.body}
         value={body}
         aria-invalid={error ? true : undefined}
         aria-describedby={errorId}

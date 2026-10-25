@@ -1,59 +1,76 @@
 "use client";
 
-import Image from "next/image";
-import { useState, type ReactNode } from "react";
+import { useState, type ReactNode, type Ref } from "react";
+import { useBlobUrl } from "@/lib/blob-store/use-blob-url";
 import { Skeleton } from "../ui/Skeleton";
 import { ScreenshotUpload } from "./ScreenshotUpload";
+import { SurfaceImage } from "./SurfaceImage";
+import type { ScreenshotHandler } from "./types";
 
 interface ImageStageProps {
-  dataUrl: string;
+  blobKey: string;
   projectName: string;
   overlay: ReactNode;
-  onReplace: (image: { dataUrl: string; fileName: string }) => string | null;
+  imageRef: Ref<HTMLImageElement>;
+  onReady: () => void;
+  onReplace: ScreenshotHandler | null;
+}
+
+function ImageUnavailable({ onReplace }: { onReplace: ScreenshotHandler | null }) {
+  return (
+    <div role="alert" className="grid h-full min-h-80 place-items-center p-6 text-center">
+      <div className="flex max-w-sm flex-col items-center gap-3">
+        <h2 className="text-title font-bold">This image couldn&apos;t be displayed</h2>
+        {/* No onReplace: a shared link, where the image comes from the server. */}
+        {onReplace ? (
+          <p className="text-body text-muted">
+            It may be damaged, or it was removed from this browser&apos;s storage. Upload it again
+            to keep reviewing.
+          </p>
+        ) : (
+          <p className="text-body text-muted">
+            It may be damaged, or the server couldn&apos;t send it. Reload the page to try again.
+          </p>
+        )}
+        {onReplace ? <ScreenshotUpload label="Replace image" onImage={onReplace} /> : null}
+      </div>
+    </div>
+  );
 }
 
 /** Image canvas at its natural aspect ratio (never upscaled); the canvas area scrolls. */
-export function ImageStage({ dataUrl, projectName, overlay, onReplace }: ImageStageProps) {
-  const [loaded, setLoaded] = useState<{ src: string; width: number } | null>(null);
+export function ImageStage({
+  blobKey,
+  projectName,
+  overlay,
+  imageRef,
+  onReady,
+  onReplace,
+}: ImageStageProps) {
+  const image = useBlobUrl(blobKey);
   const [failed, setFailed] = useState<string | null>(null);
-  const ready = loaded?.src === dataUrl;
 
-  if (failed === dataUrl) {
+  if (image.status === "loading") {
     return (
-      <div role="alert" className="grid h-full min-h-80 place-items-center p-6 text-center">
-        <div className="flex max-w-sm flex-col items-center gap-3">
-          <h2 className="text-title font-bold">This image couldn&apos;t be displayed</h2>
-          <p className="text-body text-muted">
-            The saved file may be damaged. Upload it again to keep reviewing.
-          </p>
-          <ScreenshotUpload label="Replace image" onImage={onReplace} />
-        </div>
+      <div role="status" className="p-3 sm:p-5">
+        <span className="sr-only">Loading the image…</span>
+        <Skeleton className="min-h-80 w-full" />
       </div>
     );
   }
-
+  if (image.status === "missing" || failed === image.url) {
+    return <ImageUnavailable onReplace={onReplace} />;
+  }
   return (
     <div className="p-3 sm:p-5">
-      <div
-        data-testid="canvas"
-        className="relative mx-auto w-full"
-        style={ready ? { maxWidth: loaded.width } : undefined}
-      >
-        {ready ? null : <Skeleton className="absolute inset-0 min-h-80" />}
-        <Image
-          src={dataUrl}
-          alt={`${projectName}, the image under review`}
-          width={0}
-          height={0}
-          sizes="100vw"
-          unoptimized
-          draggable={false}
-          onLoad={(event) => setLoaded({ src: dataUrl, width: event.currentTarget.naturalWidth })}
-          onError={() => setFailed(dataUrl)}
-          className="block h-auto w-full rounded-tile bg-card shadow-float select-none"
-        />
-        {ready ? overlay : null}
-      </div>
+      <SurfaceImage
+        src={image.url}
+        alt={`${projectName}, the image under review`}
+        overlay={overlay}
+        imageRef={imageRef}
+        onReady={onReady}
+        onError={() => setFailed(image.url)}
+      />
     </div>
   );
 }

@@ -75,3 +75,9 @@ export async function prepareImage(file: File): Promise<ImageResult> {
     error: "That image is too detailed to store in this browser. Try a smaller one.",
   };
 }
+
+/** Decodes a `data:` URL into a Blob (no network involved). */
+export async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
+  const response = await fetch(dataUrl);
+  return response.blob();
+}

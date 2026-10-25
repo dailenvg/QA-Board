@@ -1,7 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { deleteProject, moveProject, renameProject, restoreProject } from "@/lib/store/actions";
+import { holdBlobs } from "@/lib/store/blob-sweep";
+import { referencedBlobKeys } from "@/lib/store/snapshots";
+import {
+  deleteProject,
+  finalizeProjectDelete,
+  moveProject,
+  renameProject,
+  restoreProject,
+} from "@/lib/store/actions";
 import { folderSummaries } from "@/lib/store/selectors";
 import type { Folder, Project } from "@/lib/store/types";
 import { useDialogState } from "@/lib/use-dialog-state";
@@ -99,8 +107,14 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
         onDelete={(project) => {
           projectDelete.close();
           const comments = data.comments.filter((comment) => comment.projectId === project.id);
+          const snapshots = data.snapshots.filter((snapshot) => snapshot.projectId === project.id);
+          // Its images stay while Undo is offered, however long the toast is held open.
+          const release = holdBlobs(
+            referencedBlobKeys({ ...data, projects: [project], comments, snapshots }),
+          );
           const result = deleteProject(project.id);
           if (!result.ok) {
+            release();
             report(result);
             return;
           }
@@ -108,7 +122,15 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
             message: `Deleted ${project.name}`,
             action: {
               label: "Undo",
-              onAction: () => report(restoreProject(project, comments), `Restored ${project.name}`),
+              onAction: () => {
+                report(restoreProject(project, comments, snapshots), `Restored ${project.name}`);
+                release();
+              },
+            },
+            // Undo is gone, so the delete is final: a shared link is revoked now.
+            onDismiss: () => {
+              release();
+              finalizeProjectDelete(project.id);
             },
           });
         }}
