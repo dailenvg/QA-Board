@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
   DEFAULT_FOLDER,
@@ -69,8 +70,15 @@ test("creating a project on the Overview stays there and drops it into its folde
   const card = folderCard(page, DEFAULT_FOLDER.name);
   await expect(card.locator(".gf-meta")).toHaveText("1 project");
   await expect(
-    card.getByRole("link", { name: "Homepage, example.com, Ready to review" }),
+    // The name is built from the sheet's spans, so Chrome may space the commas.
+    card.getByRole("link", { name: /^Homepage\s*,\s*example\.com\s*,\s*Ready to review$/ }),
   ).toHaveCount(1);
+  // Each sheet's name must contain its visible text (WCAG 2.5.3).
+  const axe = await new AxeBuilder({ page })
+    .include('[data-testid="folder-sheet"]')
+    .withRules(["label-content-name-mismatch"])
+    .analyze();
+  expect(axe.violations).toEqual([]);
   await expect(card.locator(".gf-front.gf-bump")).toHaveCount(0);
 
   // A project added while its folder is on screen drops in, and the pocket gives under it.
@@ -129,7 +137,7 @@ test("hovering a folder fans its projects out, and each one opens", async ({ pag
   await openOverview(page);
   await addUrlProject(page, "example.com", "Homepage");
   const card = folderCard(page, DEFAULT_FOLDER.name);
-  const sheet = card.getByRole("link", { name: /^Homepage, example\.com/ });
+  const sheet = card.getByRole("link", { name: /^Homepage\s*,\s*example\.com/ });
 
   await page.mouse.move(0, 0);
   await expect.poll(() => sheetLift(sheet)).toBeGreaterThan(0);

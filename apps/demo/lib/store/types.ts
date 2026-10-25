@@ -19,7 +19,8 @@ export interface Page {
   id: string;
   /**
    * Key of the picture in the blob store: `image:<projectId>` on pages migrated
-   * from version 2, `page:<pageId>` on pages added since.
+   * from version 2, `page:<id>` on pages added since. A replaced picture gets a
+   * fresh `page:<id>` key of its own, so this can differ from the page's id.
    */
   blobKey: string;
   /** Shown to reviewers and in exports: the image's file name, or "Page 3" of a PDF. */

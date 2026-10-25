@@ -52,16 +52,13 @@ export function FolderSheet({
     zIndex: stackIndex + 1,
   } as CSSProperties;
   const picture = Boolean(file.imageKey);
-  // Spelled out: flex layout would otherwise pad the parts unevenly ("Name , host").
-  const name = [file.name, file.meta, file.status ? STATUS_LABEL[file.status] : null]
-    .filter(Boolean)
-    .join(", ");
 
+  // The link's name comes from its text, so it always contains what's visible
+  // (WCAG 2.5.3): the name, the host or kind, then the status for screen readers.
   return (
     <div role="listitem" className="gf-sheet-slot">
       <Link
         href={file.href}
-        aria-label={name}
         data-testid="folder-sheet"
         className={`gf-sheet${picture ? " gf-sheet--art" : ""}${dropping ? " gf-sheet--drop" : ""}`}
         style={style}
@@ -88,7 +85,13 @@ export function FolderSheet({
             <span aria-hidden="true" className={`gf-sheet-status ${STATUS_DOT[file.status]}`} />
           ) : null}
           <span className="gf-sheet-name">{file.name}</span>
-          {file.meta ? <span className="gf-sheet-meta">{file.meta}</span> : null}
+          {file.meta ? (
+            <>
+              <span className="sr-only">, </span>
+              <span className="gf-sheet-meta">{file.meta}</span>
+            </>
+          ) : null}
+          {file.status ? <span className="sr-only">, {STATUS_LABEL[file.status]}</span> : null}
         </span>
       </Link>
     </div>
