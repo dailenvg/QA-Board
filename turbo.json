@@ -4,7 +4,7 @@
     "build": {
       "dependsOn": ["^build"],
       "env": ["NEXT_PUBLIC_*", "NEXT_DIST_DIR"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "public/pdfjs/**"]
     },
     "lint": {
       "dependsOn": ["^build"]

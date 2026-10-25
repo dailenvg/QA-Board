@@ -62,10 +62,19 @@ function documentOf(pdfjs: PdfJs, task: PDFDocumentLoadingTask, pageCount: numbe
 }
 
 /**
- * pdf.js, loaded on first use. Locked down: no XFA, no WebAssembly, and no
- * fetching of anything (fonts, CMaps, ICC profiles); the bytes come from
- * memory. pdf.js 6 has no eval-based paths left (`isEvalSupported` is gone),
- * and its scripting sandbox is never loaded.
+ * Where pdf.js reads its standard fonts, CMaps, ICC profiles and image
+ * decoders: this app's own copy (`scripts/copy-pdfjs-assets.mjs`), by version.
+ */
+function assetUrl(version: string, folder: string): string {
+  return `${window.location.origin}/pdfjs/${version}/${folder}/`;
+}
+
+/**
+ * pdf.js, loaded on first use. Locked down: no XFA, and nothing fetched from
+ * anywhere but this app (its fonts, CMaps, ICC profiles and WebAssembly image
+ * decoders are served same-origin); the PDF's bytes come from memory. pdf.js 6
+ * has no eval-based paths left (`isEvalSupported` is gone), and its scripting
+ * sandbox is neither loaded nor served.
  */
 export async function createPdfjsEngine(): Promise<PdfEngine> {
   const pdfjs = await import("pdfjs-dist");
@@ -75,7 +84,12 @@ export async function createPdfjsEngine(): Promise<PdfEngine> {
       const task = pdfjs.getDocument({
         data,
         enableXfa: false,
-        useWasm: false,
+        standardFontDataUrl: assetUrl(pdfjs.version, "standard_fonts"),
+        cMapUrl: assetUrl(pdfjs.version, "cmaps"),
+        cMapPacked: true,
+        iccUrl: assetUrl(pdfjs.version, "iccs"),
+        wasmUrl: assetUrl(pdfjs.version, "wasm"),
+        // The main thread fetches them, from this origin only.
         useWorkerFetch: false,
         disableAutoFetch: true,
         disableStream: true,

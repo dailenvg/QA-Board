@@ -1,6 +1,12 @@
+import { createRequire } from "node:module";
 import { expect, test, type Page } from "@playwright/test";
 import { samplePdf } from "./pdf-fixture";
 import { openFolder, postComment } from "./squint-fixtures";
+
+/** The installed pdf.js version, which names the folder its data is served from. */
+const { version } = createRequire(import.meta.url)("pdfjs-dist/package.json") as {
+  version: string;
+};
 
 /** Opens the New project dialog in PDF mode. */
 async function pdfMode(page: Page) {
@@ -31,7 +37,7 @@ test("a PDF becomes a project with a page per PDF page, rendered without leaving
   await dialog.getByTestId("pdf-input").setInputFiles({
     name: "deck.pdf",
     mimeType: "application/pdf",
-    buffer: samplePdf(["One", "Two", "Three"]),
+    buffer: samplePdf(["One", "Two", "Three"], { cjk: true }),
   });
   await expect(dialog.getByTestId("pdf-ready")).toContainText("deck.pdf");
   await expect(dialog.getByTestId("pdf-ready")).toContainText("3 pages, ready");
@@ -48,6 +54,10 @@ test("a PDF becomes a project with a page per PDF page, rendered without leaving
   const origin = new URL(baseURL ?? "").origin;
   expect(requests.filter((url) => new URL(url).origin !== origin)).toEqual([]);
   expect(requests.some((url) => /pdf\.worker\.min\.[\w-]+\.mjs$/.test(url))).toBe(true);
+  // The CJK text's CMap came from the app's own copy of pdf.js's data.
+  expect(requests.some((url) => /\/pdfjs\/[\d.]+\/cmaps\/UniGB-UCS2-H\.bcmap$/.test(url))).toBe(
+    true,
+  );
   await expect(dialog.getByLabel("Project name (optional)")).toHaveAttribute("placeholder", "deck");
   await expect(dialog.getByTestId("create-project")).toHaveText("Create project with 3 pages");
   await dialog.getByTestId("create-project").click();
@@ -116,4 +126,14 @@ test("a PDF over 50 pages offers its first 50, and Cancel stops rendering", asyn
   await expect(dialog.getByTestId("pdf-dropzone")).toContainText("Drop a PDF here");
   await dialog.getByTestId("create-project").click();
   await expect(dialog.getByRole("alert")).toHaveText("Choose a PDF.");
+});
+
+test("pdf.js's data is served by the app, without its scripting sandbox", async ({ request }) => {
+  const decoder = await request.get(`/pdfjs/${version}/wasm/openjpeg.wasm`);
+  expect(decoder.status()).toBe(200);
+  expect(decoder.headers()["content-type"]).toBe("application/wasm");
+  for (const path of ["standard_fonts/FoxitSerif.pfb", "iccs/CGATS001Compat-v2-micro.icc"]) {
+    expect((await request.get(`/pdfjs/${version}/${path}`)).status()).toBe(200);
+  }
+  expect((await request.get(`/pdfjs/${version}/wasm/quickjs-eval.wasm`)).status()).toBe(404);
 });
