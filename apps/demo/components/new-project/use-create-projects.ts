@@ -44,7 +44,9 @@ export function useCreateProjects() {
       setProgress({ done: created.length, total: images.length });
       const result = await createImages([image], folderId, baseName(image.fileName));
       if (!result.ok) {
-        const made = created.length ? ` ${created.length} of ${images.length} were added.` : "";
+        const made = created.length
+          ? ` ${created.length} of ${images.length} projects were added.`
+          : "";
         return { ok: false, error: `${result.error}${made}` };
       }
       created.push(result.value);

@@ -6,7 +6,7 @@ import type { ExportDocument } from "./types";
  *   `project.source` is `{ kind: "pages", origin, fileName, referenceUrl,
  *   pages }` (was `{ kind: "image", fileName, referenceUrl, width, height,
  *   file }`); each page has `id`, `number`, `name`, `width`, `height`, `file`
- *   and `omitted`, and its image is `pages/<NN>.<ext>` (was
+ *   and `omitted`, and its image is `pages/<PP>.<ext>` (was
  *   `source-image.<ext>`). `location.surface` "image" became "page", and
  *   `location.page` (`{ id, number, name }`, else null) says which page.
  *   A screenshot of a pin on a page is `screenshots/<NN>-p<PP>-<id>.png`.

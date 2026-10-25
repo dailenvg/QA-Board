@@ -35,7 +35,7 @@ export const PDF_MESSAGES = {
   notPdf: "That file isn't a PDF. Choose a PDF file.",
   password: "That PDF is password-protected. Remove the password, then upload it again.",
   corrupt: "That PDF couldn't be read. It may be damaged. Try exporting it again.",
-  empty: "That PDF has no pages.",
+  empty: "That PDF has no pages. Choose another PDF.",
   render: (page: number) =>
     `Page ${page} of that PDF couldn't be rendered, so nothing was added. Try exporting the PDF again.`,
 } as const;

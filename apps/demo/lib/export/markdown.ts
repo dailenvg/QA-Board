@@ -39,7 +39,8 @@ const sizeText = (page: ExportPage) =>
 function pagesSummary(source: PagesSource): string {
   const [first] = source.pages;
   const name = inlineCode(source.fileName);
-  if (source.origin === "pdf") return `PDF ${name}, ${source.pages.length} pages`;
+  const count = source.pages.length;
+  if (source.origin === "pdf") return `PDF ${name}, ${count === 1 ? "1 page" : `${count} pages`}`;
   if (source.pages.length === 1 && first) return `image ${name}${sizeText(first)}`;
   return `${source.pages.length} images, starting with ${name}`;
 }

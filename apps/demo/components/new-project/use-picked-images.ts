@@ -21,7 +21,7 @@ export function moveItem<T>(items: readonly T[], from: number, to: number): T[] 
 }
 
 const tooMany = (left: number) =>
-  `You can add up to ${MAX_PAGES} images at once. ${left === 1 ? "1 image was" : `${left} images were`} left out.`;
+  `You can add up to ${MAX_PAGES} images. ${left === 1 ? "1 image was" : `${left} images were`} left out.`;
 
 /**
  * The images chosen in the new-project form, in order. Files are prepared one

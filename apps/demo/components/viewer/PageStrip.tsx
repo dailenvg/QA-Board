@@ -65,7 +65,7 @@ export function PageStrip({ pages, number, counts, onSelect, onStep }: PageStrip
           onClick={() => onStep(-1)}
           aria-disabled={first || undefined}
           aria-label="Previous page"
-          title="Previous page (PageUp or [)"
+          title="Previous page ([)"
         >
           <Icon name="chevronLeft" className="size-5" />
         </Button>
@@ -84,7 +84,7 @@ export function PageStrip({ pages, number, counts, onSelect, onStep }: PageStrip
           onClick={() => onStep(1)}
           aria-disabled={last || undefined}
           aria-label="Next page"
-          title="Next page (PageDown or ])"
+          title="Next page (])"
         >
           <Icon name="chevronRight" className="size-5" />
         </Button>
