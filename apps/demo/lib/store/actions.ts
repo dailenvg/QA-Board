@@ -168,24 +168,43 @@ function findProject(id: string): Project | null {
 }
 
 /**
- * `source` with `page` showing `image` (already stored under the page's key),
- * one revision on, so a share uploads it again.
+ * `source` with `page` showing `image`, already stored under `blobKey`, one
+ * revision on, so a share uploads it again.
  */
-function withPageImage(source: PagesSource, page: Page, image: ImageUpload): PagesSource {
+function withPageImage(
+  source: PagesSource,
+  page: Page,
+  image: ImageUpload,
+  blobKey: string,
+): PagesSource {
   const { fileName, width, height } = image;
   const rev = (page.rev ?? 0) + 1;
   const pages = source.pages.map((entry) =>
-    entry.id === page.id ? { ...entry, name: fileName, width, height, rev } : entry,
+    entry.id === page.id ? { ...entry, blobKey, name: fileName, width, height, rev } : entry,
   );
   // A one-page project is named after its file; a page of many keeps the project's name.
   return { ...source, pages, ...(pages.length === 1 ? { fileName } : {}) };
 }
 
+/** Records a source whose new pictures are stored under `added`; if that fails, removes them. */
+async function replaceWithStored(
+  projectId: string,
+  source: ProjectSource,
+  added: readonly string[],
+): Promise<Result> {
+  const result = replaceProjectSource(projectId, source);
+  if (!result.ok) await deleteBlobs(added);
+  return result;
+}
+
 /**
  * Makes `image` a page's picture. A website project becomes a one-page image
  * project (keeping its address as `referenceUrl`, and moving its frame pins
- * onto the page); on a page project, the page `pageId` (else the first)
- * gets the new picture in place, so its comments stay on it.
+ * onto the page); on a page project, the page `pageId` (else the first) gets
+ * the new picture, so its comments stay on it. All or nothing: the picture
+ * goes under a new key, the project is updated (size and revision with it),
+ * and only then is the old picture let go (the blob sweep removes it); if
+ * saving the project fails, the new picture is removed and the page is as it was.
  */
 export async function replaceWithImage(
   projectId: string,
@@ -201,19 +220,27 @@ export async function replaceWithImage(
     // Within the page's share of the budget, like the project's other pages.
     const fitted = await fitPicture(image, pageByteBudget(source.pages.length));
     if (!fitted) return { ok: false, error: tooDetailed(image.fileName, source.pages.length) };
-    const saved = await putBlob(page.blobKey, fitted.blob);
+    const blobKey = pageImageKey(newId());
+    const saved = await putBlob(blobKey, fitted.blob);
     if (!saved) return { ok: false, error: SAVE_ERROR.image };
-    return replaceProjectSource(projectId, withPageImage(source, page, fitted));
+    return withSweep(
+      await replaceWithStored(projectId, withPageImage(source, page, fitted, blobKey), [blobKey]),
+    );
   }
   const pages = await storePages([image]);
   if (!pages) return { ok: false, error: SAVE_ERROR.image };
-  return replaceProjectSource(projectId, {
-    kind: "pages",
-    origin: "image",
-    pages,
-    fileName: image.fileName,
-    ...(target.referenceUrl ? { referenceUrl: target.referenceUrl } : {}),
-  });
+  const added = pages.map((entry) => entry.blobKey);
+  return replaceWithStored(
+    projectId,
+    {
+      kind: "pages",
+      origin: "image",
+      pages,
+      fileName: image.fileName,
+      ...(target.referenceUrl ? { referenceUrl: target.referenceUrl } : {}),
+    },
+    added,
+  );
 }
 
 export const deleteProject = (id: string) =>

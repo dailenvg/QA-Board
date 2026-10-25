@@ -48,6 +48,10 @@ export const PDF_MESSAGES = {
   password: "That PDF is password-protected. Remove the password, then upload it again.",
   corrupt: "That PDF couldn't be read. It may be damaged. Try exporting it again.",
   empty: "That PDF has no pages. Choose another PDF.",
+  /** The browser couldn't read the chosen file (moved, deleted or locked since it was chosen). */
+  unreadable: "That file couldn't be read. Try choosing it again.",
+  /** pdf.js itself couldn't be loaded (offline, or a failed download). */
+  unavailable: "PDF support couldn't be loaded. Check your connection, then try again.",
   render: (page: number) =>
     `Page ${page} of that PDF couldn't be rendered, so nothing was added. Try exporting the PDF again.`,
   tooDetailed: (page: number) =>
@@ -76,11 +80,19 @@ export type OpenResult =
  */
 export async function openPdf(file: Blob, engine: PdfEngine): Promise<OpenResult> {
   if (file.size > MAX_PDF_BYTES) return { ok: false, error: PDF_MESSAGES.tooLarge };
-  const head = new Uint8Array(await file.slice(0, HEADER_WINDOW).arrayBuffer());
-  if (!hasPdfHeader(head)) return { ok: false, error: PDF_MESSAGES.notPdf };
+  let head: Uint8Array;
+  let bytes: Uint8Array;
+  try {
+    head = new Uint8Array(await file.slice(0, HEADER_WINDOW).arrayBuffer());
+    if (!hasPdfHeader(head)) return { ok: false, error: PDF_MESSAGES.notPdf };
+    bytes = new Uint8Array(await file.arrayBuffer());
+  } catch {
+    // Reading the file failed (it moved or changed since it was chosen): not pdf.js's doing.
+    return { ok: false, error: PDF_MESSAGES.unreadable };
+  }
   let document: PdfDocument;
   try {
-    document = await engine.open(new Uint8Array(await file.arrayBuffer()));
+    document = await engine.open(bytes);
   } catch (error) {
     const reason = error instanceof PdfOpenError ? error.reason : "corrupt";
     return { ok: false, error: PDF_MESSAGES[reason] };

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { loadPdfEngine } from "@/lib/pdf/load-engine";
-import { MAX_PDF_PAGES, openPdf, renderPdfPages, type PdfDocument } from "@/lib/pdf/render-pdf";
+import { openChosenPdf } from "@/lib/pdf/load-engine";
+import { MAX_PDF_PAGES, renderPdfPages, type PdfDocument } from "@/lib/pdf/render-pdf";
 import type { ImageUpload } from "@/lib/store/actions";
 
 /** Where a chosen PDF is on its way to pages. */
@@ -12,8 +12,6 @@ export type PdfImport =
   | { status: "rendering"; fileName: string; page: number; total: number }
   | { status: "ready"; fileName: string; pages: ImageUpload[] }
   | { status: "failed"; fileName: string; error: string };
-
-const UNAVAILABLE = "PDF support couldn't be loaded. Check your connection, then try again.";
 
 /**
  * Opens a chosen PDF in pdf.js and renders its pages to stored-size
@@ -58,12 +56,7 @@ export function usePdfImport() {
       job.current = current;
       const fileName = file.name;
       setState({ status: "opening", fileName });
-      let opened: Awaited<ReturnType<typeof openPdf>>;
-      try {
-        opened = await openPdf(file, await loadPdfEngine());
-      } catch {
-        opened = { ok: false, error: UNAVAILABLE };
-      }
+      const opened = await openChosenPdf(file);
       if (job.current !== current) {
         if (opened.ok) void opened.document.destroy();
         return;
