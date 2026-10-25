@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { createImageProject, folderCard, openFolder } from "./squint-fixtures";
+import { createImageProject, folderCard, openFolder, postComment } from "./squint-fixtures";
 
 /** Fills the New folder dialog (whatever opened it) and waits for the new folder's page. */
 async function nameNewFolder(page: Page, title: string | RegExp, name: string) {
@@ -117,4 +117,93 @@ test("the sidebar tree works from the keyboard and remembers what's open", async
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Alpha");
   await expect(treeItem(page, "Alpha")).toHaveAttribute("aria-current", "page");
+});
+
+/** "Move folder" from the folder page's own menu. */
+async function openMoveFolder(page: Page): Promise<Locator> {
+  await page.getByTestId("folder-menu").click();
+  await page.getByRole("menuitem", { name: "Move folder" }).click();
+  return page.getByRole("dialog", { name: "Move folder" });
+}
+
+test("a folder moves under another folder, never into itself or its own subfolders", async ({
+  page,
+}) => {
+  await openFolder(page);
+  await page.getByTestId("new-folder").click();
+  await nameNewFolder(page, "New folder", "Alpha");
+  await newSubfolder(page, "Alpha", "Beta");
+  await newSubfolder(page, "Beta", "Gamma");
+  await page.getByTestId("new-folder").click();
+  await nameNewFolder(page, "New folder", "Omega");
+  await treeItem(page, "Beta").click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Beta");
+
+  let dialog = await openMoveFolder(page);
+  const option = (name: string) => dialog.getByRole("radio", { name: new RegExp(`^${name}`) });
+  await expect(option("Top level")).toBeEnabled();
+  await expect(option("Alpha")).toBeDisabled();
+  await expect(option("Beta")).toBeDisabled();
+  await expect(option("Gamma")).toBeDisabled();
+  await expect(dialog.getByTestId("folder-tree-picker")).toContainText("Inside this folder");
+  await option("Omega").check();
+  await dialog.getByTestId("move-folder-submit").click();
+  await expect(page.getByTestId("toast")).toContainText("Moved Beta into Omega");
+  await expect(breadcrumb(page).getByRole("listitem")).toHaveText(["Overview", "Omega", "Beta"]);
+  await expect(treeItem(page, "Beta")).toHaveAttribute("aria-level", "2");
+  await expect(treeItem(page, "Alpha")).not.toHaveAttribute("aria-expanded");
+
+  // Omega can't go into Beta or Gamma now: they're inside it.
+  await treeItem(page, "Omega").click();
+  dialog = await openMoveFolder(page);
+  await expect(option("Beta")).toBeDisabled();
+  await expect(option("Gamma")).toBeDisabled();
+  await expect(option("Top level")).toBeDisabled();
+  await option("Alpha").check();
+  await dialog.getByTestId("move-folder-submit").click();
+  await expect(breadcrumb(page).getByRole("listitem")).toHaveText(["Overview", "Alpha", "Omega"]);
+});
+
+test("deleting a folder deletes everything inside it, counted first, and revokes its links", async ({
+  page,
+}) => {
+  await openFolder(page);
+  await page.getByTestId("new-folder").click();
+  await nameNewFolder(page, "New folder", "Alpha");
+  await createImageProject(page, "top.png");
+  await page.getByRole("link", { name: "Back to Alpha" }).click();
+  await newSubfolder(page, "Alpha", "Beta");
+  await createImageProject(page, "inner.png");
+  await postComment(page, "Inner note", { x: 100, y: 80 }, "Ana");
+  await page.getByTestId("share-button").click();
+  const share = page.getByTestId("share-dialog");
+  await share.getByTestId("create-share-link").click();
+  const link = await share.getByTestId("share-url").inputValue();
+  await expect(share.getByTestId("sync-status")).toContainText("Synced");
+  await page.keyboard.press("Escape");
+  expect((await page.request.get(link)).status()).toBe(200);
+
+  await page.getByRole("link", { name: "Back to Beta" }).click();
+  await breadcrumb(page).getByRole("link", { name: "Alpha" }).click();
+  await page.getByTestId("folder-menu").click();
+  await page.getByRole("menuitem", { name: "Delete folder" }).click();
+  const confirm = page.getByRole("dialog", { name: "Delete Alpha?" });
+  await expect(confirm.getByTestId("folder-delete-counts").getByRole("listitem")).toHaveText([
+    "1 subfolder",
+    "2 projects",
+    "1 comment",
+    "1 share link stops working",
+  ]);
+  await expect(confirm).toContainText("This can't be undone.");
+  // Cancel is focused first, so Enter never deletes by accident.
+  await expect(confirm.getByRole("button", { name: "Cancel" })).toBeFocused();
+  await confirm.getByRole("button", { name: "Delete folder" }).click();
+
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByTestId("toast")).toContainText("Deleted Alpha");
+  await expect(treeItem(page, "Alpha")).toHaveCount(0);
+  await expect(treeItem(page, "Beta")).toHaveCount(0);
+  await expect
+    .poll(async () => (await page.request.get(link)).status(), { timeout: 10_000 })
+    .toBe(404);
 });

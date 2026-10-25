@@ -13,10 +13,14 @@ export interface Workspace {
   /** Opens New folder, at the top level (null) or inside `parentId`. */
   newFolder: (parentId: string | null) => void;
   renameFolder: (folder: Folder) => void;
+  moveFolder: (folder: Folder) => void;
   deleteFolder: (folder: Folder) => void;
   /** False when deleting it (with its subfolders) would leave no folder. */
   canDeleteFolder: (folder: Folder) => boolean;
-  /** The folder actions every folder menu offers (sidebar tree, folder page, folder cards). */
+  /**
+   * The folder actions every folder menu offers (sidebar tree, folder page, folder cards):
+   * new folder inside, rename, move and delete.
+   */
   folderActions: (folder: Folder) => MenuItem[];
   /** Toasts an error result, or `success` when given. Returns whether it worked. */
   report: (result: { ok: boolean; error?: string }, success?: string) => boolean;

@@ -104,8 +104,11 @@ export function FolderTreeRow({
       >
         <Icon name="folder" className={`size-5 shrink-0 ${onPath ? "text-brand-text" : ""}`} />
         <span className="min-w-0 flex-1 truncate whitespace-nowrap">{folder.name}</span>
-        {/* With a pointer, the row menu shows over the count on hover, so names keep the room. */}
-        <span className="text-label font-semibold text-muted tabular-nums [@media(hover:hover)]:group-focus-within:invisible [@media(hover:hover)]:group-hover:invisible">
+        {/*
+         * With a pointer, the row menu shows over the count on hover, so names keep the room.
+         * Faded, not hidden, so the count stays in the row's accessible name.
+         */}
+        <span className="text-label font-semibold text-muted tabular-nums [@media(hover:hover)]:group-focus-within:opacity-0 [@media(hover:hover)]:group-hover:opacity-0">
           <span className="sr-only">, </span>
           {count}
           <span className="sr-only">

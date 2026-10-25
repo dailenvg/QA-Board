@@ -1,10 +1,10 @@
 "use client";
 
-import { useId, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import type { Folder, Project } from "@/lib/store/types";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
-import { FIELD_CLASS } from "../ui/field-styles";
+import { FolderTreePicker } from "./FolderTreePicker";
 
 interface MoveProjectDialogProps {
   open: boolean;
@@ -14,7 +14,7 @@ interface MoveProjectDialogProps {
   onClose: () => void;
 }
 
-/** Picks another folder for a project. */
+/** Picks another folder for a project, in the folder tree. */
 export function MoveProjectDialog({
   open,
   project,
@@ -43,9 +43,9 @@ function MoveForm({
   onMove,
   onClose,
 }: Omit<MoveProjectDialogProps, "open" | "project"> & { project: Project }) {
+  const problemFor = (value: string) => (value === project.folderId ? "Already here" : null);
   const others = folders.filter((folder) => folder.id !== project.folderId);
   const [folderId, setFolderId] = useState(others[0]?.id ?? "");
-  const selectId = useId();
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -54,24 +54,14 @@ function MoveForm({
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-5">
-      <div>
-        <label htmlFor={selectId} className="mb-2 block text-body font-semibold">
-          Folder
-        </label>
-        <select
-          id={selectId}
-          data-autofocus
-          value={folderId}
-          onChange={(event) => setFolderId(event.target.value)}
-          className={FIELD_CLASS}
-        >
-          {others.map((folder) => (
-            <option key={folder.id} value={folder.id}>
-              {folder.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      <FolderTreePicker
+        legend="Folder"
+        folders={folders}
+        value={folderId}
+        onChange={setFolderId}
+        topLevel={false}
+        problemFor={problemFor}
+      />
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button variant="secondary" onClick={onClose}>
           Cancel

@@ -3,10 +3,11 @@
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { OVERVIEW_HREF, folderHref, projectHref } from "@/lib/routes";
-import { createFolder, deleteFolder, renameFolder } from "@/lib/store/actions";
+import { createFolder, deleteFolder, moveFolder, renameFolder } from "@/lib/store/actions";
 import {
   canDeleteFolder,
   folderContents,
+  folderMoveProblem,
   projectsInside,
   subtreeIds,
   type FolderContents,
@@ -20,6 +21,7 @@ import { DataRecovery } from "../app-state/DataRecovery";
 import { NewProjectDialog } from "../new-project/NewProjectDialog";
 import { useToast } from "../ui/ToastProvider";
 import { FolderDialogs } from "./FolderDialogs";
+import { MoveFolderDialog } from "./MoveFolderDialog";
 import { Sidebar } from "./Sidebar";
 import { SidebarSkeleton } from "./SidebarSkeleton";
 import { WorkspaceContext, type Workspace as WorkspaceValue } from "./workspace-context";
@@ -74,10 +76,12 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
   const newProject = useDialogState<{ folderId?: string }>();
   const newFolder = useDialogState<{ parentId: string | null }>();
   const folderRename = useDialogState<Folder>();
+  const folderMove = useDialogState<Folder>();
   const folderDelete = useDialogState<{ folder: Folder; contents: FolderContents }>();
   const { show: showNewProject } = newProject;
   const { show: showNewFolder } = newFolder;
   const { show: showRename } = folderRename;
+  const { show: showMove } = folderMove;
   const { show: showDelete } = folderDelete;
 
   useShortcut("n", () => showNewProject({}), store !== null);
@@ -97,6 +101,11 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
     const deleteFolder = (folder: Folder) =>
       showDelete({ folder, contents: folderContents(data, folder.id) });
     const deletable = (folder: Folder) => canDeleteFolder(folders, folder.id);
+    // Somewhere to go: the top level, or any folder outside this one.
+    const movable = (folder: Folder) =>
+      [null, ...folders.map((entry) => entry.id)].some(
+        (parentId) => !folderMoveProblem(folders, folder.id, parentId),
+      );
     return {
       data,
       persistent,
@@ -104,6 +113,7 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
       openNewProject: (folderId) => showNewProject({ folderId }),
       newFolder: (parentId) => showNewFolder({ parentId }),
       renameFolder: showRename,
+      moveFolder: showMove,
       deleteFolder,
       canDeleteFolder: deletable,
       folderActions: (folder) => [
@@ -114,7 +124,17 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
         },
         { label: "Rename folder", icon: "pencil", onSelect: () => showRename(folder) },
         {
-          label: deletable(folder) ? "Delete folder" : "Can't delete your only folder",
+          label: movable(folder) ? "Move folder" : "Nowhere to move it yet",
+          icon: "folder",
+          onSelect: () => showMove(folder),
+          disabled: !movable(folder),
+        },
+        {
+          label: deletable(folder)
+            ? "Delete folder"
+            : folders.length === 1
+              ? "Can't delete your only folder"
+              : "Can't delete: every other folder is inside it",
           icon: "trash",
           onSelect: () => deleteFolder(folder),
           danger: true,
@@ -131,6 +151,7 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
     showNewProject,
     showNewFolder,
     showRename,
+    showMove,
     showDelete,
     report,
     leavingFolderId,
@@ -196,6 +217,22 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
               pickFolder(folders, newProject.payload?.folderId ?? routeFolderId ?? null).id
             }
             onCreated={onCreated}
+          />
+          <MoveFolderDialog
+            open={folderMove.open}
+            folder={folderMove.payload}
+            folders={folders}
+            onClose={folderMove.close}
+            onMove={(parentId) => {
+              const target = folderMove.payload;
+              folderMove.close();
+              if (!target) return;
+              const parent = folders.find((entry) => entry.id === parentId);
+              report(
+                moveFolder(target.id, parentId),
+                `Moved ${target.name} ${parent ? `into ${parent.name}` : "to the top level"}`,
+              );
+            }}
           />
           <FolderDialogs
             create={newFolder}
