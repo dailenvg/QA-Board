@@ -34,7 +34,7 @@ export function pdfProblem(state: PdfImport): string | null {
     case "rendering":
       return "Wait for the PDF to finish rendering.";
     case "confirm":
-      return `Choose Use the first ${MAX_PDF_PAGES} pages, or Cancel and pick a shorter PDF.`;
+      return `Use the first ${MAX_PDF_PAGES} pages, or cancel and pick a shorter PDF.`;
     case "failed":
       return state.error;
     case "ready":

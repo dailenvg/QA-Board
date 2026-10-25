@@ -21,9 +21,8 @@ import type {
 } from "./types";
 
 const NAME_LIMIT = 80;
-/** What couldn't be saved: a replaced page's picture, one image, several, or a PDF's pages. */
+/** What couldn't be saved: one image (new or replacing a page's), several, or a PDF's pages. */
 const SAVE_ERROR = {
-  picture: "This browser couldn't save the picture. Free up some space, then try again.",
   image: "This browser couldn't save the image. Free up some space, then try again.",
   images: "This browser couldn't save the images. Free up some space, then try again.",
   pdf: "This browser couldn't save the PDF pages. Free up some space, then try again.",
@@ -100,9 +99,13 @@ export interface ImageUpload {
 
 const TOO_MANY_PAGES = `A project holds up to ${MAX_PAGES} pages.`;
 const NO_IMAGES = "Choose at least one image.";
-/** A picture that can't be stored small enough to share alongside the project's other pages. */
+/**
+ * A picture that can't be stored small enough to share alongside the project's
+ * other pages. Said the same way when creating and replacing, where a page
+ * can't be removed.
+ */
 const tooDetailed = (name: string, pages: number) =>
-  `${name} is too detailed to store as one of ${pages} pages. Remove it or use a smaller image, then try again.`;
+  `${name} is too detailed to store${pages > 1 ? ` as one of ${pages} pages` : ""}. Use a smaller image, then try again.`;
 
 /** Stores each image as a new page, all or nothing: on a refused write, none stay. */
 async function storePages(images: readonly ImageUpload[]): Promise<Page[] | null> {
@@ -199,11 +202,11 @@ export async function replaceWithImage(
     const fitted = await fitPicture(image, pageByteBudget(source.pages.length));
     if (!fitted) return { ok: false, error: tooDetailed(image.fileName, source.pages.length) };
     const saved = await putBlob(page.blobKey, fitted.blob);
-    if (!saved) return { ok: false, error: SAVE_ERROR.picture };
+    if (!saved) return { ok: false, error: SAVE_ERROR.image };
     return replaceProjectSource(projectId, withPageImage(source, page, fitted));
   }
   const pages = await storePages([image]);
-  if (!pages) return { ok: false, error: SAVE_ERROR.picture };
+  if (!pages) return { ok: false, error: SAVE_ERROR.image };
   return replaceProjectSource(projectId, {
     kind: "pages",
     origin: "image",
