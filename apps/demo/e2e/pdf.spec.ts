@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 import { expect, test, type Page } from "@playwright/test";
 import { samplePdf } from "./pdf-fixture";
-import { openFolder, postComment } from "./squint-fixtures";
+import { openFolder, postComment, samplePngFiles } from "./squint-fixtures";
 
 /** The installed pdf.js version, which names the folder its data is served from. */
 const { version } = createRequire(import.meta.url)("pdfjs-dist/package.json") as {
@@ -126,6 +126,31 @@ test("a PDF over 50 pages offers its first 50, and Cancel stops rendering", asyn
   await expect(dialog.getByTestId("pdf-dropzone")).toContainText("Drop a PDF here");
   await dialog.getByTestId("create-project").click();
   await expect(dialog.getByRole("alert")).toHaveText("Choose a PDF.");
+});
+
+test("a rendered PDF stays in PDF mode: Image mode creates an image project", async ({ page }) => {
+  await openFolder(page);
+  const dialog = await pdfMode(page);
+  await dialog.getByTestId("pdf-input").setInputFiles({
+    name: "deck.pdf",
+    mimeType: "application/pdf",
+    buffer: samplePdf(["One", "Two"]),
+  });
+  await expect(dialog.getByTestId("pdf-ready")).toContainText("2 pages, ready");
+
+  await dialog.getByRole("radio", { name: "Image" }).click();
+  const [photo] = await samplePngFiles(page, ["Photo"]);
+  if (!photo) throw new Error("no image");
+  await dialog.locator('input[type="file"]').setInputFiles(photo);
+  await expect(dialog.locator('[data-testid="picked-image"][data-status="ready"]')).toHaveCount(1);
+  await expect(dialog.getByLabel("Project name (optional)")).toHaveAttribute(
+    "placeholder",
+    "photo",
+  );
+  await dialog.getByTestId("create-project").click();
+
+  await expect(page.getByRole("heading", { level: 1, name: "photo" })).toBeVisible();
+  await expect(page.getByTestId("page-strip")).toHaveCount(0);
 });
 
 test("pdf.js's data is served by the app, without its scripting sandbox", async ({ request }) => {

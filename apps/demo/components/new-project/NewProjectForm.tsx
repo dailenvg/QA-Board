@@ -1,13 +1,7 @@
 "use client";
 
 import { useId, useState, type FormEvent } from "react";
-import {
-  createFolder,
-  createPagesProject,
-  createProject,
-  type ImageUpload,
-} from "@/lib/store/actions";
-import type { Result } from "@/lib/store/store";
+import { createFolder } from "@/lib/store/actions";
 import type { Folder, Project } from "@/lib/store/types";
 import { baseName, displayHost, normalizeUrl } from "@/lib/url";
 import { Button } from "../ui/Button";
@@ -19,16 +13,12 @@ import { FolderPicker, NEW_FOLDER } from "./FolderPicker";
 import { ImagesField } from "./ImagesField";
 import { PdfPicker } from "./PdfPicker";
 import { UrlField } from "./UrlField";
-import { usePdfImport, type PdfImport } from "./use-pdf-import";
-import { usePickedImages, type PickedImage } from "./use-picked-images";
+import { imagesProblem, pdfProblem, readyImages, type SourceDraft } from "./source-draft";
+import { useCreateProjects } from "./use-create-projects";
+import { usePdfImport } from "./use-pdf-import";
+import { usePickedImages } from "./use-picked-images";
 
 type SourceKind = "url" | "image" | "pdf";
-
-/** What the form collected: an address, prepared images and how to group them, or a PDF's pages. */
-type SourceDraft =
-  | { kind: "url"; url: string }
-  | { kind: "image"; images: ImageUpload[]; grouping: ImageGrouping }
-  | { kind: "pdf"; fileName: string; pages: ImageUpload[] };
 
 const SOURCE_OPTIONS: ReadonlyArray<SegmentOption<SourceKind>> = [
   { value: "url", label: "Website", icon: "globe" },
@@ -42,23 +32,6 @@ const PLACEHOLDER: Record<SourceKind, string> = {
   pdf: "Pitch deck",
 };
 
-/** Why the PDF can't be used yet, or null once its pages are ready. */
-function pdfProblem(state: PdfImport): string | null {
-  switch (state.status) {
-    case "idle":
-      return "Choose a PDF.";
-    case "opening":
-    case "rendering":
-      return "Wait for the PDF to finish rendering.";
-    case "confirm":
-      return "Choose whether to use the first pages, or cancel.";
-    case "failed":
-      return state.error;
-    case "ready":
-      return null;
-  }
-}
-
 interface NewProjectFormProps {
   folders: readonly Folder[];
   defaultFolderId: string;
@@ -67,23 +40,8 @@ interface NewProjectFormProps {
   onCancel: () => void;
 }
 
-/** Why the chosen images can't be used yet, or null when they're all ready. */
-function imagesProblem(items: readonly PickedImage[]): string | null {
-  if (items.length === 0) return "Choose an image.";
-  if (items.some((item) => item.status === "preparing")) {
-    return "Wait for the images to finish preparing.";
-  }
-  if (items.some((item) => item.status === "failed")) {
-    return "Remove the images that couldn't be prepared, then try again.";
-  }
-  return null;
-}
-
-const readyImages = (items: readonly PickedImage[]): ImageUpload[] =>
-  items.flatMap((item) => (item.status === "ready" ? [item.image] : []));
-
 /**
- * Website or image source, an optional project name, and folder (optionally a new one).
+ * Website, image or PDF source, an optional project name, and folder (optionally a new one).
  * Several images become one project each, or one project with a page per image, in an
  * order that can be changed. The name suggested by the host or file name is a placeholder,
  * never typed into the field, so whatever someone types is exactly the name; an empty field
@@ -108,7 +66,7 @@ export function NewProjectForm({
   const [newFolderName, setNewFolderName] = useState("");
   const [newFolderError, setNewFolderError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const { progress, create } = useCreateProjects();
   const nameId = useId();
   const formErrorId = useId();
   const several = picked.items.length > 1;
@@ -167,62 +125,6 @@ export function NewProjectForm({
     return created.value.id;
   };
 
-  /** One image project: typed name (combined or single), else the first file's. */
-  const createImages = (images: ImageUpload[], folder: string, projectName: string) => {
-    const [first] = images;
-    return createPagesProject({
-      folderId: folder,
-      name: projectName,
-      origin: "image",
-      fileName: first?.fileName ?? "image",
-      images,
-    });
-  };
-
-  const createPdf = async (
-    draft: Extract<SourceDraft, { kind: "pdf" }>,
-    folder: string,
-  ): Promise<Result<Project[]>> => {
-    const result = await createPagesProject({
-      folderId: folder,
-      name: name.trim() || baseName(draft.fileName),
-      origin: "pdf",
-      fileName: draft.fileName,
-      images: draft.pages,
-    });
-    return result.ok ? { ok: true, value: [result.value] } : result;
-  };
-
-  /** One project per image, in order; stops at the first failure, keeping those already made. */
-  const createEach = async (images: ImageUpload[], folder: string): Promise<Result<Project[]>> => {
-    const created: Project[] = [];
-    for (const image of images) {
-      setProgress({ done: created.length, total: images.length });
-      const result = await createImages([image], folder, baseName(image.fileName));
-      if (!result.ok) {
-        const made = created.length ? ` ${created.length} of ${images.length} were added.` : "";
-        return { ok: false, error: `${result.error}${made}` };
-      }
-      created.push(result.value);
-    }
-    return { ok: true, value: created };
-  };
-
-  const create = async (draft: SourceDraft, folder: string): Promise<Result<Project[]>> => {
-    if (draft.kind === "url") {
-      const projectName = name.trim() || displayHost(draft.url);
-      const result = createProject({ folderId: folder, name: projectName, source: draft });
-      return result.ok ? { ok: true, value: [result.value] } : result;
-    }
-    if (draft.kind === "pdf") return createPdf(draft, folder);
-    if (draft.grouping === "separate" && draft.images.length > 1) {
-      return createEach(draft.images, folder);
-    }
-    const projectName = name.trim() || baseName(draft.images[0]?.fileName ?? "");
-    const result = await createImages(draft.images, folder, projectName);
-    return result.ok ? { ok: true, value: [result.value] } : result;
-  };
-
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (progress) return;
@@ -231,9 +133,7 @@ export function NewProjectForm({
     if (!draft) return;
     const targetFolder = resolveFolder();
     if (!targetFolder) return;
-    setProgress({ done: 0, total: draft.kind === "image" ? draft.images.length : 1 });
-    const created = await create(draft, targetFolder);
-    setProgress(null);
+    const created = await create(draft, targetFolder, name);
     if (!created.ok) {
       setFormError(created.error);
       return;
