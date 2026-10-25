@@ -30,6 +30,11 @@ export interface Page {
    */
   width?: number;
   height?: number;
+  /**
+   * How many times the picture was replaced in place (missing means never).
+   * A share keys the picture by it, so a replaced page is uploaded again.
+   */
+  rev?: number;
 }
 
 /** What a page-based project was made from. */

@@ -66,7 +66,10 @@ beforeEach(() => {
       ? new Response(null, { status: 503 })
       : null,
   );
+  const realFetch = globalThis.fetch;
   vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+    // Decoding a prepared image (`dataUrlToBlob`) never touches the network.
+    if (typeof input === "string" && input.startsWith("data:")) return realFetch(input);
     const body = typeof init?.body === "string" ? init.body.length : 0;
     sent.push({
       method: init?.method ?? "GET",
@@ -301,5 +304,22 @@ describe("sharing a page project", () => {
     const pulled = state.status === "ready" ? state.data.comments : [];
     expect(pulled.map(({ id, pageId }) => [id, pageId])).toEqual([["k-page", "pg2"]]);
     expect(pulled[0]?.crop?.blobKey).toBe("crop:k-page");
+
+    // Replacing page 2's picture in place sends it again, under its next revision.
+    const { replaceWithImage } = await import("../store/actions");
+    const png = `data:image/png;base64,${Buffer.from(PNG).toString("base64")}`;
+    const image = { dataUrl: png, fileName: "about-v2.png", width: 800, height: 600 };
+    expect(
+      (await replaceWithImage("p1", image, { referenceUrl: undefined, pageId: "pg2" })).ok,
+    ).toBe(true);
+    await sync.pushNow("p1");
+    expect(sync.syncStatus("p1").phase).toBe("idle");
+    const replaced = await fetch(client.blobUrl("page:pg2:1"));
+    expect(replaced.headers.get("content-type")).toBe("image/png");
+    expect((await fetch(client.blobUrl("page:pg2"))).status).toBe(404);
+    const view = await client.view();
+    expect(view.ok && view.value.project.source).toMatchObject({
+      pages: [{ id: "page-1" }, { id: "pg2", name: "about-v2.png", rev: 1 }],
+    });
   }, 30_000);
 });

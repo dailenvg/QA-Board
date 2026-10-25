@@ -1,4 +1,5 @@
 import { cropBlobKey, snapshotBlobKey } from "../blob-store/keys";
+import { parsePageBlobKey } from "../share/keys";
 import { SHARE_LIMITS } from "../share/limits";
 import type {
   SharedComment,
@@ -34,11 +35,12 @@ function sharedComment(comment: Comment): SharedComment {
   };
 }
 
-function sharedPage({ id, name, width, height }: Page, index: number): SharedPage {
+function sharedPage({ id, name, width, height, rev }: Page, index: number): SharedPage {
   return {
     id,
     name: cap(name, SHARE_LIMITS.fileName) || `Page ${index + 1}`,
     ...(width !== undefined && height !== undefined ? { width, height } : {}),
+    ...(rev ? { rev } : {}),
   };
 }
 
@@ -83,12 +85,13 @@ export function toShareState(
 
 /**
  * The local blob key for a share's blob key: a page's picture is wherever the
- * page says (`page:<pageId>` on the server); null for a page the project doesn't have.
+ * page says; null for a page (or a revision of it) the project doesn't have.
  */
 export function localBlobKey(serverKey: string, project: Project): string | null {
-  const pageId = /^page:(.+)$/.exec(serverKey)?.[1];
-  if (pageId === undefined) return serverKey;
-  return pagesOf(project).find((page) => page.id === pageId)?.blobKey ?? null;
+  const key = parsePageBlobKey(serverKey);
+  if (!key) return serverKey.startsWith("page:") ? null : serverKey;
+  const page = pagesOf(project).find((entry) => entry.id === key.pageId);
+  return page && (page.rev ?? 0) === key.rev ? page.blobKey : null;
 }
 
 export function fromSharedComment(comment: SharedComment, projectId: string): Comment {

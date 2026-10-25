@@ -110,4 +110,20 @@ describe("toShareState", () => {
     expect(localBlobKey("page:pg2", project)).toBe("page:pg2");
     expect(localBlobKey("page:unknown", project)).toBeNull();
   });
+
+  it("keys a replaced page by its revision, so only the current picture is sent", () => {
+    if (project.source.kind !== "pages") throw new Error("fixture");
+    const [first, second] = project.source.pages;
+    if (!first || !second) throw new Error("fixture");
+    const replaced: Project = {
+      ...project,
+      source: { ...project.source, pages: [first, { ...second, rev: 2 }] },
+    };
+    expect(toShareState(replaced, [], []).project.source).toMatchObject({
+      pages: [{ id: "page-1" }, { id: "pg2", rev: 2 }],
+    });
+    expect(localBlobKey("page:pg2:2", replaced)).toBe("page:pg2");
+    expect(localBlobKey("page:pg2:1", replaced)).toBeNull();
+    expect(localBlobKey("page:pg2", replaced)).toBeNull();
+  });
 });

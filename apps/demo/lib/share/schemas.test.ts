@@ -41,10 +41,18 @@ describe("share schemas", () => {
   });
 
   it("accept only known blob keys", () => {
-    for (const key of ["page:page-1", "snapshot:abc-1", "crop:c_1"]) {
+    for (const key of ["page:page-1", "page:page-1:3", "snapshot:abc-1", "crop:c_1"]) {
       expect(blobKeySchema.safeParse(key).success).toBe(true);
     }
-    for (const key of ["image", "page:", "crop:", "crop:../x", "snapshot:a/b", "other:1"]) {
+    for (const key of [
+      "image",
+      "page:",
+      "page:p:x",
+      "crop:",
+      "crop:../x",
+      "snapshot:a/b",
+      "other:1",
+    ]) {
       expect(blobKeySchema.safeParse(key).success).toBe(false);
     }
   });

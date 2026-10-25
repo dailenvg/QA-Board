@@ -97,7 +97,7 @@ function toSource(source: SharedSource): ProjectSource {
   if (source.kind === "url") return source;
   return {
     ...source,
-    pages: source.pages.map((page) => ({ ...page, blobKey: pageBlobKey(page.id) })),
+    pages: source.pages.map((page) => ({ ...page, blobKey: pageBlobKey(page.id, page.rev) })),
   };
 }
 

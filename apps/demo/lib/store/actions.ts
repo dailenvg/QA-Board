@@ -133,11 +133,15 @@ function findProject(id: string): Project | null {
     : null;
 }
 
-/** `source` with `page` showing `image` (whose picture is already stored under the page's key). */
+/**
+ * `source` with `page` showing `image` (already stored under the page's key),
+ * one revision on, so a share uploads it again.
+ */
 function withPageImage(source: PagesSource, page: Page, image: ImageUpload): PagesSource {
   const { fileName, width, height } = image;
+  const rev = (page.rev ?? 0) + 1;
   const pages = source.pages.map((entry) =>
-    entry.id === page.id ? { ...entry, name: fileName, width, height } : entry,
+    entry.id === page.id ? { ...entry, name: fileName, width, height, rev } : entry,
   );
   // A one-page project is named after its file; a page of many keeps the project's name.
   return { ...source, pages, ...(pages.length === 1 ? { fileName } : {}) };

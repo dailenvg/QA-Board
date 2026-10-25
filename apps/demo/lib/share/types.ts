@@ -1,6 +1,6 @@
 import type { CommentStatus, PageOrigin, Rect } from "../store/types";
 
-/** A page of a shared page project. Its picture is the blob `page:<id>`. */
+/** A page of a shared page project. Its picture is the blob `pageBlobKey(id, rev)`. */
 export interface SharedPage {
   /** Unique within the share. */
   id: string;
@@ -8,12 +8,14 @@ export interface SharedPage {
   /** Natural size in px, when the owner's browser knows it. */
   width?: number;
   height?: number;
+  /** Times the picture was replaced; missing means never. */
+  rev?: number;
 }
 
 /**
  * What a share holds, as it travels between browsers and the server. Times
  * are epoch ms, like the local store. Images are addressed by blob key:
- * `page:<pageId>`, `snapshot:<id>`, `crop:<commentId>`.
+ * `page:<pageId>` (`page:<pageId>:<rev>` once replaced), `snapshot:<id>`, `crop:<commentId>`.
  */
 export type SharedSource =
   | { kind: "url"; url: string }

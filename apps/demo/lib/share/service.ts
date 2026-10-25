@@ -69,14 +69,15 @@ export function referencedKeys(
 ): Set<string> {
   const { source } = project;
   return new Set([
-    ...(source.kind === "pages" ? source.pages.map((page) => pageBlobKey(page.id)) : []),
+    ...(source.kind === "pages" ? source.pages.map((page) => pageBlobKey(page.id, page.rev)) : []),
     ...snapshots.map((snapshot) => `snapshot:${snapshot.id}`),
     ...comments.flatMap((row) => cropKeyOfRow(row) ?? []),
   ]);
 }
 
 /** Keys the owner can upload (a client's per-claim crop keys aren't among them). */
-const OWNER_UPLOADABLE = /^(page|snapshot|crop):[A-Za-z0-9_-]{1,64}$/;
+const OWNER_UPLOADABLE =
+  /^(page:[A-Za-z0-9_-]{1,64}(:\d{1,9})?|(snapshot|crop):[A-Za-z0-9_-]{1,64})$/;
 
 const items = <T>(rows: readonly Sequenced<T>[]) => rows.map((row) => row.item);
 

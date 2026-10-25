@@ -34,6 +34,7 @@ const pageSchema = z
     name: text(SHARE_LIMITS.fileName),
     width: edge.optional(),
     height: edge.optional(),
+    rev: z.number().int().min(1).max(999_999_999).optional(),
   })
   .refine((page) => (page.width === undefined) === (page.height === undefined), {
     message: "Width and height come together",
@@ -116,8 +117,10 @@ export const clientCommentSchema = z.object(commentFields);
 
 export const captureSchema = z.object({ width: z.number().finite() });
 
-/** `page:<pageId>`, `snapshot:<id>` or `crop:<commentId>`. */
-export const blobKeySchema = z.string().regex(/^(page|snapshot|crop):[A-Za-z0-9_-]{1,64}$/);
+/** `page:<pageId>` (with `:<rev>` once replaced), `snapshot:<id>` or `crop:<commentId>`. */
+export const blobKeySchema = z
+  .string()
+  .regex(/^(page:[A-Za-z0-9_-]{1,64}(:\d{1,9})?|(snapshot|crop):[A-Za-z0-9_-]{1,64})$/);
 
 export type BlobKind = keyof typeof SHARE_LIMITS.blobBytes;
 

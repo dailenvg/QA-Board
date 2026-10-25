@@ -85,6 +85,9 @@ const isFolder: Guard<StoredFolder> = (value): value is StoredFolder =>
   isTime(value.createdAt) &&
   (value.parentId === undefined || value.parentId === null || isString(value.parentId));
 
+const isRevision = (value: unknown): boolean =>
+  value === undefined || (Number.isSafeInteger(value) && Number(value) > 0);
+
 /** Width and height come together, or not at all. */
 const isPage: Guard<Page> = (value): value is Page =>
   isRecord(value) &&
@@ -94,7 +97,8 @@ const isPage: Guard<Page> = (value): value is Page =>
   isString(value.name) &&
   (value.width === undefined
     ? value.height === undefined
-    : isSize(value.width) && isSize(value.height));
+    : isSize(value.width) && isSize(value.height)) &&
+  isRevision(value.rev);
 
 /** At least one page, each id once. */
 function isPageList(value: unknown): value is Page[] {

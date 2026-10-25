@@ -98,6 +98,9 @@ describe("parseData", () => {
     expect(withPages([]).ok).toBe(false);
     expect(withPages([page, page]).ok).toBe(false);
     expect(withPages([{ ...page, width: 10 }]).ok).toBe(false);
+    expect(withPages([{ ...page, rev: 0 }]).ok).toBe(false);
+    expect(withPages([{ ...page, rev: 1.5 }]).ok).toBe(false);
+    expect(withPages([{ ...page, rev: 3 }]).ok).toBe(true);
     expect(withPages([{ ...page, id: "other", width: 10, height: 20 }]).ok).toBe(true);
   });
 
