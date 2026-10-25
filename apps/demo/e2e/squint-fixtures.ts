@@ -77,7 +77,12 @@ export async function createImageProject(page: Page, fileName: string): Promise<
   await dialog
     .locator('input[type="file"]')
     .setInputFiles({ name: fileName, mimeType: "image/png", buffer });
-  await expect(dialog.getByText(fileName)).toBeVisible();
+  // The name shows as soon as the file is chosen; Create waits until it's prepared.
+  await expect(
+    dialog
+      .locator('[data-testid="picked-image"][data-status="ready"]')
+      .filter({ hasText: fileName }),
+  ).toHaveCount(1);
   await dialog.getByTestId("create-project").click();
   await expect(page.getByRole("img", { name: /the image under review/ })).toBeVisible();
 }
