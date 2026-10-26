@@ -12,20 +12,9 @@ const config: NextConfig = {
   poweredByHeader: false,
   // Always defined at build time, so production builds fold away the e2e-only hooks it gates.
   env: { NEXT_PUBLIC_SQUINT_E2E: process.env.NEXT_PUBLIC_SQUINT_E2E ?? "0" },
-  // @sparticuz/chromium finds its browser in bin/ next to its own files, so it can't be bundled.
-  serverExternalPackages: ["@sparticuz/chromium"],
-  // ...and file tracing can't see bin/. It sits in apps/demo/node_modules with pnpm's default
-  // layout, and in the root node_modules with the hoisted layout Vercel builds use.
-  outputFileTracingIncludes: {
-    "/api/capture": [
-      "./node_modules/@sparticuz/chromium/bin/**",
-      "../../node_modules/@sparticuz/chromium/bin/**",
-    ],
-    "/api/s/[token]/capture": [
-      "./node_modules/@sparticuz/chromium/bin/**",
-      "../../node_modules/@sparticuz/chromium/bin/**",
-    ],
-  },
+  // @sparticuz/chromium-min must stay unbundled (its docs require it). It downloads Chromium at
+  // runtime, so there are no binaries to add to the trace.
+  serverExternalPackages: ["@sparticuz/chromium-min"],
   // Shared review links: never indexed, never leak the token through Referer.
   async headers() {
     const privateLink = [

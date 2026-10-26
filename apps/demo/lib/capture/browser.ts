@@ -1,5 +1,6 @@
 import { chromium, type Browser, type LaunchOptions } from "playwright-core";
 import { CaptureError } from "./capture-error";
+import { CHROMIUM_VERSION, chromiumPackUrl } from "./chromium-pack";
 
 /**
  * Keeps every connection on the guard proxy: no background services, no QUIC
@@ -22,10 +23,13 @@ function onServerless(): boolean {
 
 async function launchOptions(): Promise<LaunchOptions> {
   if (!onServerless()) return { headless: true, args: ARGS };
-  const { default: serverless } = await import("@sparticuz/chromium");
+  // Downloads the pack for this function's architecture (Vercel runs arm64) once per instance;
+  // warm starts reuse the copy in /tmp.
+  const { default: serverless } = await import("@sparticuz/chromium-min");
+  const packUrl = chromiumPackUrl(CHROMIUM_VERSION, process.arch, process.env);
   return {
     headless: true,
-    executablePath: await serverless.executablePath(),
+    executablePath: await serverless.executablePath(packUrl),
     args: [...serverless.args, ...ARGS],
   };
 }
@@ -40,7 +44,7 @@ async function launch(): Promise<Browser> {
   } catch (error) {
     holder.squintBrowser = null;
     console.error(
-      "Squint capture: Chromium could not start. Locally, run `pnpm exec playwright install chromium` in apps/demo.",
+      "Squint capture: Chromium could not start. On Vercel, check that the Chromium pack downloads (SQUINT_CHROMIUM_PACK_URL overrides its URL). Locally, run `pnpm exec playwright install chromium` in apps/demo.",
       error,
     );
     throw new CaptureError("unavailable");
