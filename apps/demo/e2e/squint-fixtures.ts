@@ -157,7 +157,7 @@ export async function samplePng(page: Page, label = "Mockup", height = 900): Pro
       canvas.height = tall;
       const context = canvas.getContext("2d");
       if (!context) throw new Error("no canvas");
-      context.fillStyle = "#d8fc6c";
+      context.fillStyle = "#deff5b";
       context.fillRect(0, 0, 1200, tall);
       context.fillStyle = "#0c54cc";
       context.font = "bold 96px sans-serif";

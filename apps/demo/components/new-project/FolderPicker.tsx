@@ -7,6 +7,7 @@ import { flattenFolderTree } from "@/lib/store/folders";
 import type { Folder } from "@/lib/store/types";
 import { FieldError } from "../ui/FieldError";
 import { FIELD_CLASS } from "../ui/field-styles";
+import { Select } from "../ui/Select";
 
 export const NEW_FOLDER = "__new__";
 
@@ -21,7 +22,7 @@ interface FolderPickerProps {
   newNameError: string | null;
 }
 
-/** Folder select (the folder tree, indented) with an inline "New folder" option that reveals a name field. */
+/** Folder picker (the folder tree, indented) with an inline "New folder" option that reveals a name field. */
 export function FolderPicker({
   folders,
   value,
@@ -40,20 +41,21 @@ export function FolderPicker({
       <label htmlFor={selectId} className="mb-2 block text-body font-semibold">
         Folder
       </label>
-      <select
+      <Select
         id={selectId}
         value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className={FIELD_CLASS}
-      >
-        {flattenFolderTree(folders).map(({ folder, depth }) => (
-          <option key={folder.id} value={folder.id}>
-            {/* Nested folders are indented under their parents (non-breaking spaces show in a select). */}
-            {`${"\u00a0".repeat(depth * 3)}${folder.name}`}
-          </option>
-        ))}
-        <option value={NEW_FOLDER}>New folder…</option>
-      </select>
+        onChange={onChange}
+        testId="folder-picker"
+        options={[
+          // Nested folders are indented under their parents.
+          ...flattenFolderTree(folders).map(({ folder, depth }) => ({
+            value: folder.id,
+            label: folder.name,
+            depth,
+          })),
+          { value: NEW_FOLDER, label: "New folder…", icon: "folderPlus", separated: true },
+        ]}
+      />
       <AnimatePresence initial={false}>
         {value === NEW_FOLDER ? (
           <motion.div

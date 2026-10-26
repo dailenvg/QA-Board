@@ -54,7 +54,9 @@ test("a first visit shows the Overview welcome and an empty state", async ({ pag
 
   await page.getByTestId("overview-empty-action").click();
   const dialog = page.getByRole("dialog", { name: "New project" });
-  await expect(dialog.getByLabel("Folder", { exact: true })).toHaveValue(DEFAULT_FOLDER.id);
+  await expect(dialog.getByRole("combobox", { name: "Folder", exact: true })).toHaveText(
+    DEFAULT_FOLDER.name,
+  );
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(dialog).toHaveCount(0);
 });

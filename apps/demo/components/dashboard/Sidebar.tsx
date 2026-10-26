@@ -18,7 +18,6 @@ interface SidebarProps {
   actionsFor: (folder: Folder) => MenuItem[];
   activeId: string | null;
   overviewActive: boolean;
-  persistent: boolean;
   onNewProject: () => void;
   /** A new top-level folder (the "+" by the Folders heading). */
   onNewFolder: () => void;
@@ -43,7 +42,6 @@ export function Sidebar({
   actionsFor,
   activeId,
   overviewActive,
-  persistent,
   onNewProject,
   onNewFolder,
   onNewFolderHere,
@@ -110,21 +108,9 @@ export function Sidebar({
         onCreate={onNewFolder}
       />
 
-      <div className="mt-auto hidden flex-col gap-3 rounded-card bg-card p-4 lg:flex">
-        <div>
-          <p className="text-heading font-bold">
-            {persistent ? "Saved in this browser" : "Not saved"}
-          </p>
-          <p className="mt-1 text-meta text-muted">
-            {persistent
-              ? "Projects and comments stay in this browser. Clearing site data removes them."
-              : "This browser blocks storage, so changes last until you reload or close the tab."}
-          </p>
-        </div>
-        <div className="flex items-center justify-between gap-3 border-t border-line pt-3">
-          <span className="text-body font-medium">Appearance</span>
-          <ThemeToggle />
-        </div>
+      <div className="mt-auto hidden items-center justify-between gap-3 rounded-card bg-card p-4 lg:flex">
+        <span className="text-body font-medium">Appearance</span>
+        <ThemeToggle />
       </div>
     </aside>
   );

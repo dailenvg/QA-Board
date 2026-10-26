@@ -220,7 +220,6 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
             actionsFor={workspace.folderActions}
             activeId={routeFolderId ?? null}
             overviewActive={onOverview}
-            persistent={persistent}
             onNewProject={() => showNewProject({})}
             onNewFolder={() => showNewFolder({ parentId: null })}
             onNewFolderHere={newFolderHere}

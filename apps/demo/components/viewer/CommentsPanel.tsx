@@ -83,7 +83,7 @@ export function CommentsPanel({
           aria-controls={sheetOpen ? bodyId : undefined}
           onClick={() => onSheetOpen(!sheetOpen)}
           {...(reduce ? {} : press)}
-          className="grid size-11 shrink-0 place-items-center rounded-pill bg-card shadow-seg transition-colors hover:bg-hover active:bg-hover"
+          className="grid size-11 shrink-0 place-items-center rounded-pill bg-card shadow-seg transition-colors hover:bg-brand-soft hover:text-brand-text active:bg-brand-soft active:text-brand-text"
         >
           <Icon name={sheetOpen ? "chevronDown" : "chevronUp"} className="size-5" />
           <span className="sr-only">{sheetOpen ? "Hide comments" : "Show comments"}</span>

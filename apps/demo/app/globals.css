@@ -32,7 +32,8 @@
   --brand-text: #0c54cc;
   --brand-soft: rgb(12 84 204 / 0.1);
   --on-brand: #ffffff;
-  --highlight: #d8fc6c;
+  /* Native Pet lime: a fill under dark ink (marks, selection, swashes), never text on light. */
+  --highlight: #deff5b;
   --on-highlight: #18181b;
   --focus: #0c54cc;
 
@@ -223,7 +224,8 @@
   }
 
   ::selection {
-    background: var(--color-brand-soft);
+    background: var(--color-highlight);
+    color: var(--color-on-highlight);
   }
 
   :focus-visible {

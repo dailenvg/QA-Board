@@ -47,7 +47,7 @@ export function ImageDropzone({ hasImages, error, onFiles }: ImageDropzoneProps)
             ? "border-brand bg-brand-soft"
             : error
               ? "border-danger bg-card hover:bg-hover"
-              : "border-field-line bg-card hover:bg-hover active:bg-seg"
+              : "border-field-line bg-card hover:border-brand-text hover:bg-brand-soft active:border-brand-text active:bg-brand-soft"
         }`}
       >
         <Icon name="upload" className="size-6 text-muted" />

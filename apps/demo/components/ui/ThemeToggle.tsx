@@ -23,7 +23,7 @@ export function ThemeToggle({ className = "" }: ThemeToggleProps) {
       aria-label={label}
       title={label}
       onClick={() => applyTheme(next)}
-      className={`grid size-11 shrink-0 place-items-center overflow-hidden rounded-pill bg-card text-ink shadow-seg transition-colors hover:bg-hover ${className}`}
+      className={`grid size-11 shrink-0 place-items-center overflow-hidden rounded-pill bg-card text-ink shadow-seg transition-colors hover:bg-brand-soft hover:text-brand-text ${className}`}
       {...(reduce ? {} : press)}
     >
       <AnimatePresence mode="wait" initial={false}>

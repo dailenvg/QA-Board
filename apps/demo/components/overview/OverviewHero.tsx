@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { staggerGroup, useRevealVariants } from "@/lib/motion";
 import { useSquiggyMood } from "@/lib/squiggy/use-squiggy-mood";
 import { Squiggy } from "../brand/mascot/Squiggy";
+import { Highlight } from "../ui/Highlight";
 import { SquiggySpeechLine } from "./SquiggySpeechLine";
 import { StoryGlow } from "./welcome/StoryGlow";
 
@@ -13,11 +14,14 @@ const stagger = staggerGroup(0.07, 0.05);
 
 const COPY = {
   empty: {
-    title: "Welcome to Squint",
+    /** The headline reads `lead` then `marked`, the words under the highlighter. */
+    lead: "Welcome to",
+    marked: "Squint",
     body: "Point at the exact spot on a website or image, say what should change, and resolve it once it's fixed.",
   },
   filled: {
-    title: "Your projects at a glance",
+    lead: "Your projects",
+    marked: "at a glance",
     body: "Each folder shows its newest projects. Open one to see everything inside.",
   },
 } as const;
@@ -74,7 +78,7 @@ export function OverviewHero({ empty }: OverviewHeroProps) {
           Overview
         </motion.p>
         <motion.h1 variants={reveal} className="text-display font-bold text-balance">
-          {copy.title}
+          {copy.lead} <Highlight>{copy.marked}</Highlight>
         </motion.h1>
         <motion.div variants={reveal}>
           <SquiggySpeechLine speech={squiggy.speech} fallback={copy.body} />
