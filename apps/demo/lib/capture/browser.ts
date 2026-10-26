@@ -1,6 +1,7 @@
 import { chromium, type Browser, type LaunchOptions } from "playwright-core";
 import { CaptureError } from "./capture-error";
 import { CHROMIUM_VERSION, chromiumPackUrl } from "./chromium-pack";
+import { stepLog, type StepLog } from "./step-log";
 
 /**
  * Keeps every connection on the guard proxy: no background services, no QUIC
@@ -21,22 +22,22 @@ function onServerless(): boolean {
   return Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
 }
 
-async function launchOptions(): Promise<LaunchOptions> {
+async function launchOptions(log: StepLog): Promise<LaunchOptions> {
   if (!onServerless()) return { headless: true, args: ARGS };
   // Downloads the pack for this function's architecture (Vercel runs arm64) once per instance;
   // warm starts reuse the copy in /tmp.
   const { default: serverless } = await import("@sparticuz/chromium-min");
   const packUrl = chromiumPackUrl(CHROMIUM_VERSION, process.arch, process.env);
-  return {
-    headless: true,
-    executablePath: await serverless.executablePath(packUrl),
-    args: [...serverless.args, ...ARGS],
-  };
+  const executablePath = await serverless.executablePath(packUrl);
+  log(`pack ready (${process.arch})`);
+  return { headless: true, executablePath, args: [...serverless.args, ...ARGS] };
 }
 
 async function launch(): Promise<Browser> {
+  const log = stepLog("browser");
   try {
-    const browser = await chromium.launch(await launchOptions());
+    const browser = await chromium.launch(await launchOptions(log));
+    log("launched");
     browser.on("disconnected", () => {
       holder.squintBrowser = null;
     });

@@ -2,6 +2,7 @@ import type { CDPSession, Page } from "playwright-core";
 import { getBrowser } from "./browser";
 import { CaptureError } from "./capture-error";
 import { REFUSED_HEADER, startGuardProxy, type GuardProxy } from "./guard-proxy";
+import type { StepLog } from "./step-log";
 import { CAPTURE_LIMITS } from "./types";
 
 const VIEWPORT_HEIGHT = 900;
@@ -46,7 +47,7 @@ const HEIGHT_SCRIPT = `Math.max(
   document.body ? document.body.scrollHeight : 0
 )`;
 
-async function load(page: Page, url: URL, proxy: GuardProxy): Promise<void> {
+async function load(page: Page, url: URL, proxy: GuardProxy, log: StepLog): Promise<void> {
   let refused: boolean;
   try {
     const response = await page.goto(url.toString(), { waitUntil: "domcontentloaded" });
@@ -57,10 +58,18 @@ async function load(page: Page, url: URL, proxy: GuardProxy): Promise<void> {
   }
   // An http one ends on the proxy's refusal page.
   if (refused) throw new CaptureError("private-host");
+  log("goto");
   // Slow trackers shouldn't sink the snapshot: capture whatever has loaded by then.
-  await page.waitForLoadState("load", { timeout: LOAD_WAIT_MS }).catch(() => undefined);
+  await page.waitForLoadState("load", { timeout: LOAD_WAIT_MS }).then(
+    () => log("load"),
+    () => log("load cut off"),
+  );
   await page.evaluate(SETTLE_SCRIPT).catch(() => undefined);
-  await page.waitForLoadState("networkidle", { timeout: IDLE_WAIT_MS }).catch(() => undefined);
+  log("scroll");
+  await page.waitForLoadState("networkidle", { timeout: IDLE_WAIT_MS }).then(
+    () => log("networkidle"),
+    () => log("networkidle cut off"),
+  );
 }
 
 /** Freezes animations, transitions and the caret, so the picture is the page at rest. */
@@ -98,17 +107,20 @@ async function render(
  * quality 80 first; if that's too big, the render scale shrinks by the
  * measured overshoot (byte count grows with pixel count) until it fits.
  */
-async function shoot(page: Page, width: number): Promise<CapturedImage> {
+async function shoot(page: Page, width: number, log: StepLog): Promise<CapturedImage> {
   const pageHeight = Number(await page.evaluate(HEIGHT_SCRIPT));
   const height = Math.max(1, Math.min(CAPTURE_LIMITS.maxHeight, Math.round(pageHeight) || 1));
   await page.addStyleTag({ content: FREEZE_CSS }).catch(() => undefined);
+  log(`measured ${width}x${height}`);
   const cdp = await page.context().newCDPSession(page);
   let scale = 1;
   let shot = await render(cdp, width, height, scale, JPEG_QUALITY);
+  log(`screenshot x${scale} ${shot.length}B`);
   while (shot.length > CAPTURE_LIMITS.maxBytes && scale > MIN_SCALE) {
     const shrink = Math.sqrt(CAPTURE_LIMITS.maxBytes / shot.length) * 0.9;
     scale = Math.max(MIN_SCALE, Math.floor(scale * shrink * 100) / 100);
     shot = await render(cdp, width, height, scale, SCALED_QUALITY);
+    log(`screenshot x${scale} ${shot.length}B`);
   }
   if (shot.length > CAPTURE_LIMITS.maxBytes) throw new CaptureError("failed");
   return { body: new Uint8Array(shot), contentType: "image/jpeg", width, height, scale };
@@ -123,8 +135,10 @@ export async function capturePage(
   url: URL,
   width: number,
   signal: AbortSignal,
+  log: StepLog,
 ): Promise<CapturedImage> {
   const [browser, proxy] = await Promise.all([getBrowser(), startGuardProxy()]);
+  log("browser");
   const context = await browser
     .newContext({
       viewport: { width, height: VIEWPORT_HEIGHT },
@@ -147,8 +161,9 @@ export async function capturePage(
   try {
     const page = await context.newPage();
     page.setDefaultTimeout(STEP_TIMEOUT_MS);
-    await load(page, url, proxy);
-    return await shoot(page, width);
+    log("page");
+    await load(page, url, proxy, log);
+    return await shoot(page, width, log);
   } catch (error) {
     if (signal.aborted) throw new CaptureError("timeout");
     throw error instanceof CaptureError ? error : new CaptureError("failed");
