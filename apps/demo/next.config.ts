@@ -25,6 +25,11 @@ const config: NextConfig = {
       "./node_modules/@sparticuz/chromium/bin/**",
       "../../node_modules/@sparticuz/chromium/bin/**",
     ],
+    // Link preview cards read Figtree with fs at render time; tracing misses it on some builds.
+    "/opengraph-image": ["./assets/fonts/**"],
+    "/twitter-image": ["./assets/fonts/**"],
+    "/s/opengraph-image": ["./assets/fonts/**"],
+    "/s/twitter-image": ["./assets/fonts/**"],
   },
   // Shared review links: never indexed, never leak the token through Referer.
   async headers() {

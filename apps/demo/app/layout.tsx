@@ -3,6 +3,8 @@ import type { Metadata, Viewport } from "next";
 import { Figtree } from "next/font/google";
 import type { ReactNode } from "react";
 import { ToastProvider } from "@/components/ui/ToastProvider";
+import { MAIN_PREVIEW, previewMetadata, SITE_NAME } from "@/lib/link-preview";
+import { siteUrl } from "@/lib/site-url";
 import { THEME_COLOR, THEME_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
@@ -14,9 +16,13 @@ const sans = Figtree({
 });
 
 export const metadata: Metadata = {
+  metadataBase: siteUrl(),
+  applicationName: SITE_NAME,
   title: { default: "Squint", template: "%s · Squint" },
   description:
     "Visual review for websites and images. Drop a pin anywhere, leave a comment, and resolve it when it's done.",
+  // No og:url here: every page would inherit it and name / as its canonical URL.
+  ...previewMetadata(MAIN_PREVIEW),
 };
 
 export const viewport: Viewport = {
