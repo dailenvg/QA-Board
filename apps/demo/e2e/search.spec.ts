@@ -101,7 +101,9 @@ test("arrow keys move through folders, then projects; Enter opens a folder", asy
 test("no match shows an empty state; Escape clears, then leaves", async ({ page, isMobile }) => {
   const input = await openSearch(page, isMobile);
   await input.fill("zzz");
-  await expect(page.getByTestId("search-empty")).toContainText("Nothing is named “zzz”");
+  await expect(page.getByTestId("search-empty")).toContainText(
+    "No project or folder matches “zzz”",
+  );
   await expect(page.getByTestId("search-status")).toHaveText("No results");
   await expect(input).toHaveAttribute("aria-expanded", "false");
   await expect(page.getByRole("listbox")).toHaveCount(0);

@@ -16,7 +16,7 @@ const MOD_KEY =
 interface SearchPanelProps {
   query: string;
   groups: SearchEntryGroups;
-  /** "+3 more projects", when the caps left some out. */
+  /** "3 projects not shown", when the caps left some out. */
   more: string | null;
   listboxId: string;
   optionId: (entry: SearchEntry) => string;
@@ -46,7 +46,7 @@ export function SearchPanel({ query, groups, more, listboxId, ...listProps }: Se
           <Icon name="search" className="size-5" />
         </span>
         <p className="text-body font-semibold text-ink">
-          Nothing is named &ldquo;{query.trim()}&rdquo;
+          No project or folder matches &ldquo;{query.trim()}&rdquo;
         </p>
         <p className="text-meta text-muted">Check the spelling, or try fewer letters.</p>
       </div>
@@ -77,7 +77,7 @@ export function SearchPanel({ query, groups, more, listboxId, ...listProps }: Se
       </LayoutGroup>
       {more ? (
         <p data-testid="search-more" className="px-3 pt-2 text-meta text-muted">
-          {more}. Keep typing to narrow it down.
+          {more}. Keep typing to narrow the results.
         </p>
       ) : null}
       <p
@@ -96,7 +96,7 @@ export function SearchPanel({ query, groups, more, listboxId, ...listProps }: Se
         </span>
         <span className="inline-flex items-center gap-1">
           <Kbd>{MOD_KEY}</Kbd>
-          <Kbd>Enter</Kbd> in a new tab
+          <Kbd>Enter</Kbd> for a new tab
         </span>
       </p>
     </>

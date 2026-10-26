@@ -53,13 +53,16 @@ function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
-/** "+3 more projects and +1 more folder", or null when nothing was left out. */
+/**
+ * "1 folder and 3 projects not shown" (folders first, as the results list them), or null when
+ * nothing was left out.
+ */
 export function moreNote({ moreFolders, moreProjects }: SearchResults): string | null {
   const parts = [
-    ...(moreProjects ? [`+${plural(moreProjects, "more project")}`] : []),
-    ...(moreFolders ? [`+${plural(moreFolders, "more folder")}`] : []),
+    ...(moreFolders ? [plural(moreFolders, "folder")] : []),
+    ...(moreProjects ? [plural(moreProjects, "project")] : []),
   ];
-  return parts.length ? parts.join(" and ") : null;
+  return parts.length ? `${parts.join(" and ")} not shown` : null;
 }
 
 /** What the live region says once a query has run. */
