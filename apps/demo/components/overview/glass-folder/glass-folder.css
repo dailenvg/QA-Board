@@ -16,6 +16,12 @@
   --gf-spread: 0px;
   --gf-fan: 0deg;
   --gf-stack: 15px;
+  /*
+   * Fanned, each sheet must show at least a 24px CSS strip above the one in
+   * front of it (WCAG 2.5.8). In folder units that depends on the scale: a
+   * small folder needs a wider step, a large one keeps the 38 unit step.
+   */
+  --gf-stack-open: max(38px, calc(25px / var(--gf-k) + 12px));
   --gf-ink: #141416;
   /* 0.78, not 0.66: with the tint below, meta text holds 4.5:1 over the darkest art. */
   --gf-ink-soft: rgba(20, 20, 22, 0.78);
@@ -33,27 +39,22 @@
 }
 
 /*
- * The files fan out on hover, only where hover is real (so a tap just follows
- * the link), and whenever keyboard focus is anywhere inside. A fan reaches
- * about 30 units past each side and 70 above the folder's box.
+ * The files fan out on hover, or whenever keyboard focus is anywhere inside,
+ * and only where hover is real. On touch screens a folder is one link (a tap
+ * follows it) and gives up its headroom, so a fan there would cover whatever
+ * sits above it. A fan reaches about 30 units past each side and 70 above the
+ * folder's box.
  */
 @media (hover: hover) {
-  .gf-root:hover {
+  .gf-root:hover,
+  .gf-root:has(:focus-visible) {
     --gf-hinge: var(--gf-hinge-open);
     --gf-frost: var(--gf-frost-open);
     --gf-lift: -74px;
     --gf-spread: 34px;
     --gf-fan: 4.5deg;
-    --gf-stack: 38px;
+    --gf-stack: var(--gf-stack-open);
   }
-}
-.gf-root:has(:focus-visible) {
-  --gf-hinge: var(--gf-hinge-open);
-  --gf-frost: var(--gf-frost-open);
-  --gf-lift: -74px;
-  --gf-spread: 34px;
-  --gf-fan: 4.5deg;
-  --gf-stack: 38px;
 }
 
 /* Flat on purpose: a 3D transform above the frost breaks its blur in Chrome. */
@@ -165,7 +166,12 @@
   border-radius: 16px;
   overflow: hidden;
   cursor: pointer;
-  pointer-events: auto;
+  /*
+   * Stacked in the pocket, a sheet shows only a sliver of itself, too small to
+   * aim for (WCAG 2.5.8), so a click or tap there opens the folder instead.
+   * Sheets take the pointer once the fan is out, where each one is a full card.
+   */
+  pointer-events: none;
   background: linear-gradient(180deg, #ffffff 0%, #f2f2f0 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.9),
@@ -192,6 +198,12 @@
 }
 .gf-sheet--art {
   background: #1a1a1d;
+}
+@media (hover: hover) {
+  .gf-root:hover .gf-sheet,
+  .gf-root:has(:focus-visible) .gf-sheet {
+    pointer-events: auto;
+  }
 }
 /* A file under the pointer or keyboard rises out of the fan. */
 @media (hover: hover) {

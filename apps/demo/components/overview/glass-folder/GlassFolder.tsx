@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useRef, type CSSProperties, type ReactNode } from "react";
+import { useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { fanSlot, type ArtRecipe } from "./art";
 import { ArtCanvas } from "./ArtCanvas";
 import { FolderSheet, type FolderFile } from "./FolderSheet";
@@ -18,6 +18,7 @@ import {
   W,
   frostPath,
 } from "./geometry";
+import { useMediaQuery } from "@/lib/use-media-query";
 import { useEntrance, usePointerParallax } from "./hooks";
 import { useArrivals } from "./use-arrivals";
 import "./glass-folder.css";
@@ -97,6 +98,10 @@ export function GlassFolder({
   const entered = useEntrance(root, appear, appearDelay);
   const { dropping, bump, settle } = useArrivals(files.map((file) => file.id));
   usePointerParallax(root);
+  // Keyboard focus anywhere inside fans the files out; only then are they tab stops.
+  // Touch screens never fan (see glass-folder.css), so there the folder link is the way in.
+  const [focusInside, setFocusInside] = useState(false);
+  const canFan = useMediaQuery("(hover: hover)");
 
   const k = width / W;
   const ratio = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
@@ -121,6 +126,10 @@ export function GlassFolder({
       data-tone={tone}
       data-entered={entered || undefined}
       style={style}
+      onFocus={() => setFocusInside(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setFocusInside(false);
+      }}
     >
       <div className="gf-stage" style={{ transform: `translateY(${HEADROOM * k}px) scale(${k})` }}>
         <div className="gf-shadow" aria-hidden="true" />
@@ -197,6 +206,7 @@ export function GlassFolder({
               stackIndex={index}
               dropping={file.id === dropping}
               onDropEnd={settle}
+              reachable={canFan && focusInside}
             />
           ))}
         </div>

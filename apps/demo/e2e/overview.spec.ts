@@ -151,6 +151,7 @@ test("hovering a folder fans its projects out, and each one opens", async ({ pag
 
 test("Tab moves from the folder to its projects, then its menu, fanning them out", async ({
   page,
+  isMobile,
 }) => {
   await openOverview(page);
   await page.keyboard.press("n");
@@ -164,6 +165,13 @@ test("Tab moves from the folder to its projects, then its menu, fanning them out
   const folderLink = card.getByRole("link", { name: /^Open My projects/ });
   const sheet = card.getByRole("link", { name: /^Keyboard check/ });
   await folderLink.focus();
+  if (isMobile) {
+    // Touch screens never fan: the folder is one link, and its page lists every project.
+    await page.keyboard.press("Tab");
+    await expect(card.getByTestId("folder-card-menu")).toBeFocused();
+    await expect(sheet).toHaveAttribute("tabindex", "-1");
+    return;
+  }
   await page.keyboard.press("Tab");
   await expect(sheet).toBeFocused();
   await expect.poll(() => sheetLift(sheet)).toBeLessThan(-40);
@@ -232,4 +240,66 @@ test("old ?folder= links redirect and unknown folders offer a way back", async (
   await page.getByRole("link", { name: "Back to Overview" }).click();
   await expect(page).toHaveURL(/\/$/);
   await expect(overviewLink(page)).toHaveAttribute("aria-current", "page");
+});
+
+test("stacked folder sheets are not tiny targets, at rest or fanned", async ({
+  page,
+  isMobile,
+}) => {
+  // Four picture projects in one folder and two in a subfolder: the stacks axe used to flag.
+  const now = Date.now();
+  const pages = (id: string) => ({
+    kind: "pages",
+    origin: "image",
+    fileName: `${id}.png`,
+    pages: [
+      { id: `${id}-p`, blobKey: `page:${id}-p`, name: `${id}.png`, width: 1600, height: 1000 },
+    ],
+  });
+  const project = (id: string, folderId: string, index: number) => ({
+    id,
+    folderId,
+    name: `Project ${id}`,
+    source: pages(id),
+    createdAt: now + index,
+    updatedAt: now + index,
+  });
+  const data = {
+    version: 3,
+    folders: [
+      { id: DEFAULT_FOLDER.id, name: DEFAULT_FOLDER.name, createdAt: now - 10, parentId: null },
+      { id: "fa", name: "Alpha", createdAt: now, parentId: null },
+      { id: "fb", name: "Beta", createdAt: now + 1, parentId: "fa" },
+    ],
+    projects: [
+      ...["p1", "p2", "p3", "p4"].map((id, index) => project(id, DEFAULT_FOLDER.id, index)),
+      ...["p5", "p6"].map((id, index) => project(id, "fb", index + 4)),
+    ],
+    comments: [],
+    snapshots: [],
+    revocations: [],
+    authorName: null,
+  };
+  await page.goto("/sandbox");
+  await page.evaluate((seed) => localStorage.setItem("squint:v3", JSON.stringify(seed)), data);
+
+  for (const path of ["/", "/f/fa"]) {
+    await page.goto(path);
+    const sheets = page.getByTestId("folder-sheet");
+    await expect(sheets.first()).toBeAttached();
+    // Stacked, the sheets aren't tab stops: the folder's link stands for them.
+    await expect(sheets.first()).toHaveAttribute("tabindex", "-1");
+    const atRest = await new AxeBuilder({ page }).withRules(["target-size"]).analyze();
+    expect(atRest.violations).toEqual([]);
+    // Touch screens never fan, so the stack is all there is to check.
+    if (isMobile) continue;
+
+    // Keyboard focus on the folder fans the files out and makes them reachable.
+    await page.getByTestId("folder-link").first().focus();
+    await page.keyboard.press("Tab");
+    await expect(sheets.first()).toBeFocused();
+    await expect.poll(() => sheetLift(sheets.first())).toBeLessThan(-40);
+    const fanned = await new AxeBuilder({ page }).withRules(["target-size"]).analyze();
+    expect(fanned.violations).toEqual([]);
+  }
 });

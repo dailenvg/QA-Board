@@ -28,6 +28,11 @@ interface FolderSheetProps {
   stackIndex: number;
   dropping: boolean;
   onDropEnd: () => void;
+  /**
+   * A tab stop only while the files are fanned out by keyboard focus. Stacked,
+   * the sheet is reached through the folder's own link.
+   */
+  reachable: boolean;
 }
 
 /** Ruled lines on a paper sheet, as widths. */
@@ -41,6 +46,7 @@ export function FolderSheet({
   stackIndex,
   dropping,
   onDropEnd,
+  reachable,
 }: FolderSheetProps) {
   // Jitter follows the id, so a sheet keeps its tilt through renames and reloads.
   const jitter = rng(hashString(file.id));
@@ -59,6 +65,7 @@ export function FolderSheet({
     <div role="listitem" className="gf-sheet-slot">
       <Link
         href={file.href}
+        tabIndex={reachable ? undefined : -1}
         data-testid="folder-sheet"
         className={`gf-sheet${picture ? " gf-sheet--art" : ""}${dropping ? " gf-sheet--drop" : ""}`}
         style={style}
