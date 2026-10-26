@@ -1,11 +1,11 @@
-import { statfsSync } from "node:fs";
-import { freemem, tmpdir } from "node:os";
+import { freemem } from "node:os";
 import { setTimeout as sleep } from "node:timers/promises";
-import type { CDPSession, Page } from "playwright-core";
+import type { Browser, CDPSession, Page } from "playwright-core";
 import { launchBrowser } from "./browser";
 import { CaptureError } from "./capture-error";
 import { REFUSED_HEADER, startGuardProxy, type GuardProxy } from "./guard-proxy";
 import type { StepLog } from "./step-log";
+import { tmpFreeMb } from "./tmp-space";
 import { CAPTURE_LIMITS } from "./types";
 
 const VIEWPORT_HEIGHT = 900;
@@ -132,14 +132,41 @@ async function shoot(page: Page, width: number, log: StepLog): Promise<CapturedI
   return { body: new Uint8Array(shot), contentType: "image/jpeg", width, height, scale };
 }
 
-/** Chromium keeps its profile and shared memory in /tmp, next to the unpacked serverless binary. */
-function tmpFreeMb(): number {
-  const { bavail, bsize } = statfsSync(tmpdir());
-  return Math.round((bavail * bsize) / 1_048_576);
-}
-
 function memFreeMb(): number {
   return Math.round(freemem() / 1_048_576);
+}
+
+/** Rejects if Chromium exits mid-capture: its pending protocol calls would otherwise never settle. */
+function whenGone(browser: Browser): Promise<never> {
+  const gone = new Promise<never>((_, reject) => {
+    browser.once("disconnected", () => reject(new Error("Chromium exited")));
+  });
+  gone.catch(() => undefined);
+  return gone;
+}
+
+async function snapshot(
+  browser: Browser,
+  proxy: GuardProxy,
+  url: URL,
+  width: number,
+  log: StepLog,
+): Promise<CapturedImage> {
+  const context = await browser.newContext({
+    viewport: { width, height: VIEWPORT_HEIGHT },
+    deviceScaleFactor: 1,
+    serviceWorkers: "block",
+    reducedMotion: "reduce",
+    acceptDownloads: false,
+    // `<-loopback>` drops Chromium's built-in exception, so even localhost goes through the proxy.
+    proxy: { server: proxy.server, bypass: "<-loopback>" },
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(STEP_TIMEOUT_MS);
+  page.on("crash", () => log("page crashed"));
+  log("page");
+  await load(page, url, proxy, log);
+  return shoot(page, width, log);
 }
 
 /**
@@ -171,22 +198,7 @@ export async function capturePage(
   signal.addEventListener("abort", onAbort);
   try {
     signal.throwIfAborted();
-    const context = await browser.newContext({
-      viewport: { width, height: VIEWPORT_HEIGHT },
-      deviceScaleFactor: 1,
-      serviceWorkers: "block",
-      reducedMotion: "reduce",
-      acceptDownloads: false,
-      // `<-loopback>` drops Chromium's built-in exception, so even localhost goes through the proxy.
-      proxy: { server: proxy.server, bypass: "<-loopback>" },
-    });
-    const page = await context.newPage();
-    page.setDefaultTimeout(STEP_TIMEOUT_MS);
-    page.on("crash", () => log("page crashed"));
-    browser.on("disconnected", () => log("browser gone"));
-    log("page");
-    await load(page, url, proxy, log);
-    return await shoot(page, width, log);
+    return await Promise.race([snapshot(browser, proxy, url, width, log), whenGone(browser)]);
   } catch (error) {
     if (signal.aborted) throw new CaptureError("timeout");
     if (error instanceof CaptureError) throw error;

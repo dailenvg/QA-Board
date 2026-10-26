@@ -1,7 +1,11 @@
+import { rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { chromium, type Browser, type LaunchOptions } from "playwright-core";
 import { CaptureError } from "./capture-error";
 import { CHROMIUM_VERSION, chromiumPackUrl } from "./chromium-pack";
 import type { StepLog } from "./step-log";
+import { tmpFreeMb } from "./tmp-space";
 
 /**
  * Keeps every connection on the guard proxy: no background services, no QUIC
@@ -32,12 +36,19 @@ async function launchOptions(log: StepLog): Promise<LaunchOptions> {
   // Without it Chromium falls back to its software compositor (and pages get no WebGL).
   serverless.setGraphicsMode = false;
   const packUrl = chromiumPackUrl(CHROMIUM_VERSION, process.arch, process.env);
-  serverlessPath ??= serverless.executablePath(packUrl).catch((error: unknown) => {
-    serverlessPath = null;
-    throw error;
-  });
+  serverlessPath ??= serverless
+    .executablePath(packUrl)
+    .then(async (path) => {
+      // /tmp is small and Chromium needs room there; launches only use the unpacked files.
+      await rm(join(tmpdir(), "chromium-pack"), { recursive: true, force: true });
+      return path;
+    })
+    .catch((error: unknown) => {
+      serverlessPath = null;
+      throw error;
+    });
   const executablePath = await serverlessPath;
-  log(`pack ready (${process.arch})`);
+  log(`pack ready (${process.arch}, ${tmpFreeMb()} MB free in /tmp)`);
   return { headless: true, executablePath, args: [...serverless.args, ...ARGS] };
 }
 

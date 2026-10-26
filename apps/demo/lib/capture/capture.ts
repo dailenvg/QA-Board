@@ -3,6 +3,7 @@ import { CaptureError } from "./capture-error";
 import { capturePage, type CapturedImage } from "./capture-page";
 import { captureRemote } from "./remote";
 import { stepLog, type StepLog } from "./step-log";
+import { tmpFreeMb } from "./tmp-space";
 
 /** The whole capture, from address check to encoded image. */
 export const CAPTURE_TIMEOUT_MS = 25_000;
@@ -45,7 +46,7 @@ export async function capture(url: URL, width: number): Promise<CapturedImage> {
   const log = stepLog(`${crypto.randomUUID().slice(0, 4)} w${width}`);
   const controller = new AbortController();
   const timer = setTimeout(() => {
-    log("timed out");
+    log(`timed out (${tmpFreeMb()} MB free in /tmp)`);
     controller.abort();
   }, CAPTURE_TIMEOUT_MS);
   try {
