@@ -10,11 +10,21 @@ function isTyping(target: EventTarget | null): boolean {
   );
 }
 
+interface ShortcutOptions {
+  /** Pressed with ⌘ or Ctrl held, as in ⌘K / Ctrl+K. Without it, any of them held skips it. */
+  mod?: boolean;
+}
+
 /**
- * Single-key shortcut (no modifiers). Ignored while typing or while a modal
- * dialog is open, so it never steals keystrokes.
+ * Keyboard shortcut: a single key, or ⌘/Ctrl plus a key with `mod`. Ignored
+ * while typing or while a modal dialog is open, so it never steals keystrokes.
  */
-export function useShortcut(key: string, onPress: () => void, enabled = true): void {
+export function useShortcut(
+  key: string,
+  onPress: () => void,
+  enabled = true,
+  { mod = false }: ShortcutOptions = {},
+): void {
   const handler = useRef(onPress);
   useEffect(() => {
     handler.current = onPress;
@@ -23,7 +33,8 @@ export function useShortcut(key: string, onPress: () => void, enabled = true): v
   useEffect(() => {
     if (!enabled) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) return;
+      const held = event.metaKey || event.ctrlKey;
+      if (held !== mod || event.altKey || event.repeat) return;
       // composedPath sees through shadow roots (the review widget types inside one).
       if (event.key.toLowerCase() !== key || isTyping(event.composedPath()[0] ?? null)) return;
       if (document.querySelector('[aria-modal="true"]')) return;
@@ -32,5 +43,5 @@ export function useShortcut(key: string, onPress: () => void, enabled = true): v
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [key, enabled]);
+  }, [key, enabled, mod]);
 }

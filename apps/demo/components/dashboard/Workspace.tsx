@@ -19,6 +19,8 @@ import { useDialogState } from "@/lib/use-dialog-state";
 import { useShortcut } from "@/lib/use-shortcut";
 import { DataRecovery } from "../app-state/DataRecovery";
 import { NewProjectDialog } from "../new-project/NewProjectDialog";
+import { WorkspaceSearch } from "../search/WorkspaceSearch";
+import { Skeleton } from "../ui/Skeleton";
 import { useToast } from "../ui/ToastProvider";
 import { FolderDialogs } from "./FolderDialogs";
 import { MoveFolderDialog } from "./MoveFolderDialog";
@@ -35,7 +37,7 @@ interface ReadyStore {
 /**
  * Persistent shell for the Overview and folder pages: the sidebar stays
  * mounted across them (so its active indicator glides between items), and
- * New project plus the folder dialogs live here so every page shares them.
+ * search, New project and the folder dialogs live here so every page shares them.
  * Pages read the data through `useWorkspace()`, which is null while loading.
  */
 export function Workspace({ children }: { children: ReactNode }) {
@@ -203,6 +205,14 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
           <SidebarSkeleton />
         )}
         <main id="main" className="flex min-w-0 flex-1 flex-col gap-4 self-stretch">
+          {/* z-30: the open search results lie over the page below. */}
+          <div className="relative z-30 flex justify-end">
+            {workspace ? (
+              <WorkspaceSearch data={workspace.data} />
+            ) : (
+              <Skeleton className="h-11 w-11 sm:w-72 lg:w-80" />
+            )}
+          </div>
           {children}
         </main>
       </div>
