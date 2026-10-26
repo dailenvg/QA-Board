@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import type { CDPSession, Page } from "playwright-core";
 import { launchBrowser } from "./browser";
 import { CaptureError } from "./capture-error";
@@ -15,6 +16,8 @@ const LOAD_WAIT_MS = 10_000;
 const IDLE_WAIT_MS = 2_500;
 /** Upper bound for any single page step; the caller's signal ends the whole capture sooner. */
 const STEP_TIMEOUT_MS = 25_000;
+/** How long an answer waits for the browser to close. */
+const CLOSE_WAIT_MS = 2_000;
 
 export interface CapturedImage {
   body: Uint8Array<ArrayBuffer>;
@@ -52,7 +55,8 @@ async function load(page: Page, url: URL, proxy: GuardProxy, log: StepLog): Prom
   try {
     const response = await page.goto(url.toString(), { waitUntil: "domcontentloaded" });
     refused = response?.headers()[REFUSED_HEADER] === "1";
-  } catch {
+  } catch (error) {
+    log(`goto failed: ${String(error).split("\n")[0]}`);
     // An https redirect into a private network fails the navigation at the proxy.
     throw new CaptureError(proxy.refused() ? "private-host" : "unreachable");
   }
@@ -144,13 +148,15 @@ export async function capturePage(
   });
   let closing: Promise<void> | null = null;
   const close = () => {
+    proxy.close();
     closing ??= browser.close().then(
       () => log("closed"),
       () => undefined,
     );
-    proxy.close();
+    return closing;
   };
-  signal.addEventListener("abort", close);
+  const onAbort = () => void close();
+  signal.addEventListener("abort", onAbort);
   try {
     signal.throwIfAborted();
     const context = await browser.newContext({
@@ -171,7 +177,9 @@ export async function capturePage(
     if (signal.aborted) throw new CaptureError("timeout");
     throw error instanceof CaptureError ? error : new CaptureError("failed");
   } finally {
-    signal.removeEventListener("abort", close);
-    close();
+    signal.removeEventListener("abort", onAbort);
+    // Close before answering: a function is frozen after its response, which would leave
+    // this Chromium running into the next request.
+    await Promise.race([close(), sleep(CLOSE_WAIT_MS, undefined, { ref: false })]);
   }
 }

@@ -28,6 +28,9 @@ async function launchOptions(log: StepLog): Promise<LaunchOptions> {
   // Downloads the pack for this function's architecture once per instance; later launches
   // reuse the copy in /tmp.
   const { default: serverless } = await import("@sparticuz/chromium-min");
+  // No SwiftShader GL: it made full-page screenshots of long pages take over 10 s.
+  // Without it Chromium falls back to its software compositor (and pages get no WebGL).
+  serverless.setGraphicsMode = false;
   const packUrl = chromiumPackUrl(CHROMIUM_VERSION, process.arch, process.env);
   serverlessPath ??= serverless.executablePath(packUrl).catch((error: unknown) => {
     serverlessPath = null;
