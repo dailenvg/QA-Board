@@ -1,7 +1,11 @@
-import type { CDPSession, Page } from "playwright-core";
-import { getBrowser } from "./browser";
+import { freemem } from "node:os";
+import { setTimeout as sleep } from "node:timers/promises";
+import type { Browser, CDPSession, Page } from "playwright-core";
+import { browserTurn, launchBrowser } from "./browser";
 import { CaptureError } from "./capture-error";
 import { REFUSED_HEADER, startGuardProxy, type GuardProxy } from "./guard-proxy";
+import type { StepLog } from "./step-log";
+import { tmpFreeMb } from "./tmp-space";
 import { CAPTURE_LIMITS } from "./types";
 
 const VIEWPORT_HEIGHT = 900;
@@ -14,6 +18,8 @@ const LOAD_WAIT_MS = 10_000;
 const IDLE_WAIT_MS = 2_500;
 /** Upper bound for any single page step; the caller's signal ends the whole capture sooner. */
 const STEP_TIMEOUT_MS = 25_000;
+/** How long an answer waits for the browser to close. */
+const CLOSE_WAIT_MS = 2_000;
 
 export interface CapturedImage {
   body: Uint8Array<ArrayBuffer>;
@@ -46,21 +52,30 @@ const HEIGHT_SCRIPT = `Math.max(
   document.body ? document.body.scrollHeight : 0
 )`;
 
-async function load(page: Page, url: URL, proxy: GuardProxy): Promise<void> {
+async function load(page: Page, url: URL, proxy: GuardProxy, log: StepLog): Promise<void> {
   let refused: boolean;
   try {
     const response = await page.goto(url.toString(), { waitUntil: "domcontentloaded" });
     refused = response?.headers()[REFUSED_HEADER] === "1";
-  } catch {
+  } catch (error) {
+    log(`goto failed: ${String(error).split("\n")[0]}`);
     // An https redirect into a private network fails the navigation at the proxy.
     throw new CaptureError(proxy.refused() ? "private-host" : "unreachable");
   }
   // An http one ends on the proxy's refusal page.
   if (refused) throw new CaptureError("private-host");
+  log("goto");
   // Slow trackers shouldn't sink the snapshot: capture whatever has loaded by then.
-  await page.waitForLoadState("load", { timeout: LOAD_WAIT_MS }).catch(() => undefined);
+  await page.waitForLoadState("load", { timeout: LOAD_WAIT_MS }).then(
+    () => log("load"),
+    () => log("load cut off"),
+  );
   await page.evaluate(SETTLE_SCRIPT).catch(() => undefined);
-  await page.waitForLoadState("networkidle", { timeout: IDLE_WAIT_MS }).catch(() => undefined);
+  log("scroll");
+  await page.waitForLoadState("networkidle", { timeout: IDLE_WAIT_MS }).then(
+    () => log("networkidle"),
+    () => log("networkidle cut off"),
+  );
 }
 
 /** Freezes animations, transitions and the caret, so the picture is the page at rest. */
@@ -98,62 +113,118 @@ async function render(
  * quality 80 first; if that's too big, the render scale shrinks by the
  * measured overshoot (byte count grows with pixel count) until it fits.
  */
-async function shoot(page: Page, width: number): Promise<CapturedImage> {
+async function shoot(page: Page, width: number, log: StepLog): Promise<CapturedImage> {
   const pageHeight = Number(await page.evaluate(HEIGHT_SCRIPT));
   const height = Math.max(1, Math.min(CAPTURE_LIMITS.maxHeight, Math.round(pageHeight) || 1));
   await page.addStyleTag({ content: FREEZE_CSS }).catch(() => undefined);
+  log(`measured ${width}x${height}, ${tmpFreeMb()} MB free in /tmp, ${memFreeMb()} MB RAM`);
   const cdp = await page.context().newCDPSession(page);
   let scale = 1;
   let shot = await render(cdp, width, height, scale, JPEG_QUALITY);
+  log(`screenshot x${scale} ${shot.length}B`);
   while (shot.length > CAPTURE_LIMITS.maxBytes && scale > MIN_SCALE) {
     const shrink = Math.sqrt(CAPTURE_LIMITS.maxBytes / shot.length) * 0.9;
     scale = Math.max(MIN_SCALE, Math.floor(scale * shrink * 100) / 100);
     shot = await render(cdp, width, height, scale, SCALED_QUALITY);
+    log(`screenshot x${scale} ${shot.length}B`);
   }
   if (shot.length > CAPTURE_LIMITS.maxBytes) throw new CaptureError("failed");
   return { body: new Uint8Array(shot), contentType: "image/jpeg", width, height, scale };
 }
 
+function memFreeMb(): number {
+  return Math.round(freemem() / 1_048_576);
+}
+
+/** Rejects if Chromium exits mid-capture: its pending protocol calls would otherwise never settle. */
+function whenGone(browser: Browser): Promise<never> {
+  const gone = new Promise<never>((_, reject) => {
+    browser.once("disconnected", () => reject(new Error("Chromium exited")));
+  });
+  gone.catch(() => undefined);
+  return gone;
+}
+
+async function snapshot(
+  browser: Browser,
+  proxy: GuardProxy,
+  url: URL,
+  width: number,
+  log: StepLog,
+): Promise<CapturedImage> {
+  const context = await browser.newContext({
+    viewport: { width, height: VIEWPORT_HEIGHT },
+    deviceScaleFactor: 1,
+    serviceWorkers: "block",
+    reducedMotion: "reduce",
+    acceptDownloads: false,
+    // `<-loopback>` drops Chromium's built-in exception, so even localhost goes through the proxy.
+    proxy: { server: proxy.server, bypass: "<-loopback>" },
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(STEP_TIMEOUT_MS);
+  page.on("crash", () => log("page crashed"));
+  log("page");
+  await load(page, url, proxy, log);
+  return shoot(page, width, log);
+}
+
+/** One capture in its own browser; aborting `signal` closes it, ending any step still waiting. */
+async function captureInBrowser(
+  url: URL,
+  width: number,
+  signal: AbortSignal,
+  log: StepLog,
+): Promise<CapturedImage> {
+  const proxy = await startGuardProxy();
+  const browser = await launchBrowser(log).catch((error: unknown) => {
+    proxy.close();
+    throw error;
+  });
+  let closing: Promise<void> | null = null;
+  const close = () => {
+    proxy.close();
+    closing ??= browser.close().then(
+      () => log("closed"),
+      () => undefined,
+    );
+    return closing;
+  };
+  const onAbort = () => void close();
+  signal.addEventListener("abort", onAbort);
+  try {
+    signal.throwIfAborted();
+    return await Promise.race([snapshot(browser, proxy, url, width, log), whenGone(browser)]);
+  } catch (error) {
+    if (signal.aborted) throw new CaptureError("timeout");
+    if (error instanceof CaptureError) throw error;
+    log(`error: ${String(error).split("\n")[0]} (${tmpFreeMb()} MB free in /tmp)`);
+    throw new CaptureError("failed");
+  } finally {
+    signal.removeEventListener("abort", onAbort);
+    // Close before answering: a function is frozen after its response, which would leave
+    // this Chromium running into the next request.
+    await Promise.race([close(), sleep(CLOSE_WAIT_MS, undefined, { ref: false })]);
+  }
+}
+
 /**
  * Captures a full-page JPEG at `width` CSS px (device scale factor 1) in a
  * headless Chromium whose every connection goes through an address-checking
- * proxy. Aborting `signal` closes the page and ends the capture.
+ * proxy. Waiting for a turn counts toward the caller's `signal`.
  */
 export async function capturePage(
   url: URL,
   width: number,
   signal: AbortSignal,
+  log: StepLog,
 ): Promise<CapturedImage> {
-  const [browser, proxy] = await Promise.all([getBrowser(), startGuardProxy()]);
-  const context = await browser
-    .newContext({
-      viewport: { width, height: VIEWPORT_HEIGHT },
-      deviceScaleFactor: 1,
-      serviceWorkers: "block",
-      reducedMotion: "reduce",
-      acceptDownloads: false,
-      // `<-loopback>` drops Chromium's built-in exception, so even localhost goes through the proxy.
-      proxy: { server: proxy.server, bypass: "<-loopback>" },
-    })
-    .catch((error: unknown) => {
-      proxy.close();
-      throw error;
-    });
-  const close = () => {
-    void context.close().catch(() => undefined);
-    proxy.close();
-  };
-  signal.addEventListener("abort", close);
+  const endTurn = await browserTurn();
   try {
-    const page = await context.newPage();
-    page.setDefaultTimeout(STEP_TIMEOUT_MS);
-    await load(page, url, proxy);
-    return await shoot(page, width);
-  } catch (error) {
     if (signal.aborted) throw new CaptureError("timeout");
-    throw error instanceof CaptureError ? error : new CaptureError("failed");
+    log("turn");
+    return await captureInBrowser(url, width, signal, log);
   } finally {
-    signal.removeEventListener("abort", close);
-    close();
+    endTurn();
   }
 }
