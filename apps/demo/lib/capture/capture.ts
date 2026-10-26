@@ -27,6 +27,13 @@ async function captureWithin(
     : capturePage(url, width, signal, log);
 }
 
+/** Rejects once `signal` aborts, so a step that misses the abort can't hold the response. */
+function whenAborted(signal: AbortSignal): Promise<never> {
+  return new Promise((_, reject) => {
+    signal.addEventListener("abort", () => reject(new CaptureError("timeout")), { once: true });
+  });
+}
+
 /**
  * Captures `url` at `width` CSS px. The top-level address is checked here; the
  * local browser also checks every request the page makes. Runs at most
@@ -42,7 +49,8 @@ export async function capture(url: URL, width: number): Promise<CapturedImage> {
     controller.abort();
   }, CAPTURE_TIMEOUT_MS);
   try {
-    const image = await captureWithin(url, width, controller.signal, log);
+    const work = captureWithin(url, width, controller.signal, log);
+    const image = await Promise.race([work, whenAborted(controller.signal)]);
     log("done");
     return image;
   } catch (error) {

@@ -1,5 +1,5 @@
 import type { CDPSession, Page } from "playwright-core";
-import { getBrowser } from "./browser";
+import { launchBrowser } from "./browser";
 import { CaptureError } from "./capture-error";
 import { REFUSED_HEADER, startGuardProxy, type GuardProxy } from "./guard-proxy";
 import type { StepLog } from "./step-log";
@@ -129,7 +129,7 @@ async function shoot(page: Page, width: number, log: StepLog): Promise<CapturedI
 /**
  * Captures a full-page JPEG at `width` CSS px (device scale factor 1) in a
  * headless Chromium whose every connection goes through an address-checking
- * proxy. Aborting `signal` closes the page and ends the capture.
+ * proxy. Aborting `signal` closes the browser, which ends any step still waiting on it.
  */
 export async function capturePage(
   url: URL,
@@ -137,10 +137,23 @@ export async function capturePage(
   signal: AbortSignal,
   log: StepLog,
 ): Promise<CapturedImage> {
-  const [browser, proxy] = await Promise.all([getBrowser(), startGuardProxy()]);
-  log("browser");
-  const context = await browser
-    .newContext({
+  const proxy = await startGuardProxy();
+  const browser = await launchBrowser(log).catch((error: unknown) => {
+    proxy.close();
+    throw error;
+  });
+  let closing: Promise<void> | null = null;
+  const close = () => {
+    closing ??= browser.close().then(
+      () => log("closed"),
+      () => undefined,
+    );
+    proxy.close();
+  };
+  signal.addEventListener("abort", close);
+  try {
+    signal.throwIfAborted();
+    const context = await browser.newContext({
       viewport: { width, height: VIEWPORT_HEIGHT },
       deviceScaleFactor: 1,
       serviceWorkers: "block",
@@ -148,17 +161,7 @@ export async function capturePage(
       acceptDownloads: false,
       // `<-loopback>` drops Chromium's built-in exception, so even localhost goes through the proxy.
       proxy: { server: proxy.server, bypass: "<-loopback>" },
-    })
-    .catch((error: unknown) => {
-      proxy.close();
-      throw error;
     });
-  const close = () => {
-    void context.close().catch(() => undefined);
-    proxy.close();
-  };
-  signal.addEventListener("abort", close);
-  try {
     const page = await context.newPage();
     page.setDefaultTimeout(STEP_TIMEOUT_MS);
     log("page");

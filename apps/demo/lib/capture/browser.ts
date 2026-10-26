@@ -1,7 +1,7 @@
 import { chromium, type Browser, type LaunchOptions } from "playwright-core";
 import { CaptureError } from "./capture-error";
 import { CHROMIUM_VERSION, chromiumPackUrl } from "./chromium-pack";
-import { stepLog, type StepLog } from "./step-log";
+import type { StepLog } from "./step-log";
 
 /**
  * Keeps every connection on the guard proxy: no background services, no QUIC
@@ -15,7 +15,8 @@ const ARGS = [
   "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
 ];
 
-const holder = globalThis as typeof globalThis & { squintBrowser?: Promise<Browser> | null };
+/** The unpacked serverless Chromium, shared so captures starting together download it once. */
+let serverlessPath: Promise<string> | null = null;
 
 /** Vercel functions run on AWS Lambda, where the bundled Playwright browsers don't exist. */
 function onServerless(): boolean {
@@ -24,39 +25,34 @@ function onServerless(): boolean {
 
 async function launchOptions(log: StepLog): Promise<LaunchOptions> {
   if (!onServerless()) return { headless: true, args: ARGS };
-  // Downloads the pack for this function's architecture (Vercel runs arm64) once per instance;
-  // warm starts reuse the copy in /tmp.
+  // Downloads the pack for this function's architecture once per instance; later launches
+  // reuse the copy in /tmp.
   const { default: serverless } = await import("@sparticuz/chromium-min");
   const packUrl = chromiumPackUrl(CHROMIUM_VERSION, process.arch, process.env);
-  const executablePath = await serverless.executablePath(packUrl);
+  serverlessPath ??= serverless.executablePath(packUrl).catch((error: unknown) => {
+    serverlessPath = null;
+    throw error;
+  });
+  const executablePath = await serverlessPath;
   log(`pack ready (${process.arch})`);
   return { headless: true, executablePath, args: [...serverless.args, ...ARGS] };
 }
 
-async function launch(): Promise<Browser> {
-  const log = stepLog("browser");
+/**
+ * A fresh browser for one capture; the caller closes it. Serverless Chromium
+ * runs as a single process, which can't open a page once an earlier context
+ * has closed, so browsers are never shared between captures.
+ */
+export async function launchBrowser(log: StepLog): Promise<Browser> {
   try {
     const browser = await chromium.launch(await launchOptions(log));
-    log("launched");
-    browser.on("disconnected", () => {
-      holder.squintBrowser = null;
-    });
+    log("launch");
     return browser;
   } catch (error) {
-    holder.squintBrowser = null;
     console.error(
       "Squint capture: Chromium could not start. On Vercel, check that the Chromium pack downloads (SQUINT_CHROMIUM_PACK_URL overrides its URL). Locally, run `pnpm exec playwright install chromium` in apps/demo.",
       error,
     );
     throw new CaptureError("unavailable");
   }
-}
-
-/**
- * One shared browser per server instance (kept on `globalThis` so dev
- * reloads don't leak processes); each capture gets its own context.
- */
-export function getBrowser(): Promise<Browser> {
-  holder.squintBrowser ??= launch();
-  return holder.squintBrowser;
 }
