@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { COMMENT, STATE } from "@/test/share-fixture";
+import { COMMENT, STATE, VIEW } from "@/test/share-fixture";
 import { createClientStore, SHARED_PROJECT_ID, toViewerData } from "./client-store";
 
 describe("client store", () => {
   it("shows the shared project in the viewer's shape", () => {
-    const store = createClientStore(STATE);
+    const store = createClientStore(VIEW);
     const { data, project } = toViewerData(store.getServerSnapshot());
     expect(project).toMatchObject({
       id: SHARED_PROJECT_ID,
@@ -36,6 +36,7 @@ describe("client store", () => {
       },
       snapshots: [],
       comments: [{ ...COMMENT, id: "k", snapshotId: undefined, pageId: "p2" }],
+      reviewEndsAt: VIEW.reviewEndsAt,
     };
     const { data, project } = toViewerData(createClientStore(view).getServerSnapshot());
     expect(project.source).toEqual({
@@ -50,7 +51,7 @@ describe("client store", () => {
   });
 
   it("adds an accepted comment once, even if a refresh brought it first", () => {
-    const store = createClientStore({ ...STATE, comments: [] });
+    const store = createClientStore({ ...VIEW, comments: [] });
     const accepted = {
       id: "k",
       x: 1,
@@ -61,7 +62,7 @@ describe("client store", () => {
       createdAt: 1,
       updatedAt: 1,
     };
-    store.setView({ ...STATE, comments: [accepted] });
+    store.setView({ ...VIEW, comments: [accepted] });
     store.addComment(accepted);
     expect(toViewerData(store.getSnapshot()).data.comments.map((c) => c.id)).toEqual(["k"]);
   });

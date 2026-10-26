@@ -23,6 +23,8 @@ interface ViewerTopBarProps {
   actions: ReactNode;
   /** The breakpoint switcher, on website projects. */
   breakpoints?: ReactNode;
+  /** Why Comment mode is off right now, such as a closed review window; it stays visible. */
+  commentLocked?: string;
 }
 
 /**
@@ -38,6 +40,7 @@ export function ViewerTopBar({
   originalUrl,
   actions,
   breakpoints,
+  commentLocked,
 }: ViewerTopBarProps) {
   return (
     // Its own layer, so the Export menu opens over the snapshot bar and pins below it.
@@ -65,7 +68,8 @@ export function ViewerTopBar({
               value: "browse",
               label: "Browse",
               icon: "pointer",
-              title: "Browse (C)",
+              // C is off while commenting is locked, so the tooltip doesn't offer it.
+              title: commentLocked ? undefined : "Browse (C)",
               testId: "mode-browse",
             },
             {
@@ -74,12 +78,15 @@ export function ViewerTopBar({
               icon: "messagePlus",
               title: "Comment (C)",
               testId: "mode-comment",
+              disabled: Boolean(commentLocked),
+              disabledReason: commentLocked,
             },
           ]}
         />
-        <Kbd className="hidden lg:inline">C</Kbd>
+        {commentLocked ? null : <Kbd className="hidden lg:inline">C</Kbd>}
         {breakpoints}
-        <div className="flex items-center gap-2">
+        {/* Wraps too, so large text or a long countdown can't push the bar off-screen. */}
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {actions}
           {originalUrl ? (
             <ButtonLink

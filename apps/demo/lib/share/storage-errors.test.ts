@@ -51,7 +51,8 @@ function postComment(token: string, withCrop: boolean) {
 describe("share routes when storage fails", () => {
   it("answer a JSON 500 instead of an empty error, and leave nothing half-written", async () => {
     const store = createMemoryStore();
-    const created = await createShare({ store, blobs: inlineBackend }, STATE, 1);
+    // Created now: the comment route checks the review window against the real clock.
+    const created = await createShare({ store, blobs: inlineBackend }, STATE, Date.now());
     use({ store, blobs: failingBlobs });
 
     const failed = await postComment(created.token, true);

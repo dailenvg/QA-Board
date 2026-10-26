@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef } from "react";
 import { relativeTime } from "@/lib/relative-time";
+import { reviewDeadline, spokenTimeLeft, timeLeft } from "@/lib/share/review-window";
 import type { SyncStatus } from "@/lib/share-client/owner-sync";
 import type { ShareFit } from "@/lib/share-client/use-share-fit";
 import type { ProjectShare } from "@/lib/store/types";
@@ -38,7 +39,18 @@ function syncLine(status: SyncStatus, share: ProjectShare, now: number): string 
   return at ? `Synced ${relativeTime(at, now)}` : "Not synced yet";
 }
 
-/** Owner's share settings: create the link, copy it, see sync status, revoke it. */
+/** How long clients can still comment through the link (the window starts when it's created). */
+function reviewLine(share: ProjectShare, now: number): string {
+  const left = timeLeft(reviewDeadline(share.createdAt), now);
+  return left
+    ? `Clients can comment for ${spokenTimeLeft(left)} more.`
+    : "Review window closed. Clients can still open the link, but can't add comments. To collect more feedback, revoke this link and create a new one.";
+}
+
+/**
+ * Owner's share settings: create the link, copy it, see sync status and the
+ * review window, revoke it.
+ */
 export function ShareDialog({
   open,
   onClose,
@@ -119,6 +131,13 @@ export function ShareDialog({
               </Button>
             ) : null}
           </div>
+          <p
+            data-testid="review-window"
+            className="-mt-2 flex items-start gap-2 text-meta text-muted"
+          >
+            <Icon name="clock" className="mt-0.5 size-4 shrink-0" />
+            {reviewLine(share, now)}
+          </p>
           <div className="flex justify-end border-t border-line pt-4">
             <Button
               variant="danger"

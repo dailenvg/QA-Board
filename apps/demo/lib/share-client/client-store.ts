@@ -11,6 +11,8 @@ export interface ClientState {
   authorName: string | null;
   /** The link stopped working while open (revoked). */
   gone: boolean;
+  /** The server refused an addition because the review window is over (whatever this clock says). */
+  reviewClosed: boolean;
 }
 
 export interface ClientStore {
@@ -24,6 +26,7 @@ export interface ClientStore {
   addSnapshot: (snapshot: SharedSnapshot) => void;
   setAuthorName: (name: string) => void;
   markGone: () => void;
+  markReviewClosed: () => void;
 }
 
 /** A reviewer's name, remembered in this browser apart from any Squint workspace. */
@@ -38,7 +41,12 @@ function readName(): string | null {
 }
 
 export function createClientStore(initial: ClientView): ClientStore {
-  const rendered: ClientState = { view: initial, authorName: null, gone: false };
+  const rendered: ClientState = {
+    view: initial,
+    authorName: null,
+    gone: false,
+    reviewClosed: false,
+  };
   let state = rendered;
   let nameRead = false;
   const listeners = new Set<() => void>();
@@ -76,6 +84,7 @@ export function createClientStore(initial: ClientView): ClientStore {
       set({ authorName: name });
     },
     markGone: () => set({ gone: true }),
+    markReviewClosed: () => set({ reviewClosed: true }),
   };
 }
 

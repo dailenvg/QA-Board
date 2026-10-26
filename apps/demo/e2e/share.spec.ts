@@ -9,6 +9,7 @@ import {
   openFolder,
   postComment,
   showComments,
+  skipReviewGuide,
 } from "./squint-fixtures";
 
 function card(page: Page, text: string): Locator {
@@ -58,11 +59,16 @@ test("an owner shares a project, a client comments, and the owner resolves and r
   await expect(dialog.getByRole("status").filter({ hasText: "Link created." })).toHaveCount(1);
   const link = await urlField.inputValue();
   await expect(dialog.getByTestId("sync-status")).toContainText("Synced");
+  // The review window starts with the link: 72 hours, give or take the seconds since.
+  await expect(dialog.getByTestId("review-window")).toContainText(
+    /Clients can comment for (3 days|2 days, 23 hours)/,
+  );
   await page.keyboard.press("Escape");
 
   // Client: a separate browser (its own storage) opens the link.
   const clientContext = await browser.newContext();
   const client = await clientContext.newPage();
+  await skipReviewGuide(client);
   await mockFrameCheck(client, frame);
   await client.route("**/api/s/*/capture", (route) =>
     route.fulfill({ status: 503, json: { error: "unavailable" } }),
@@ -74,6 +80,8 @@ test("an owner shares a project, a client comments, and the owner resolves and r
   await expect(client.getByRole("heading", { level: 1, name: "Launch review" })).toBeVisible();
   await expectNoWorkspaceLinks(client);
   await expect(client.getByTestId("share-button")).toHaveCount(0);
+  await expect(client.getByTestId("review-countdown")).toHaveAttribute("data-state", "open");
+  await expect(client.getByTestId("review-countdown")).toContainText(/(3d 0h 0m|2d 23h \d+m) left/);
   // What clients can do: in the sheet's header on phones (seen collapsed), above the list elsewhere.
   if (isMobile) await expect(client.getByTestId("panel-note")).toBeVisible();
   else await expect(client.getByTestId("client-notice")).toBeVisible();
@@ -234,6 +242,7 @@ test("a client comment that fails to send keeps its text until Retry gets it thr
   const link = await sharedProject(page, baseURL, "Flaky network");
   const clientContext = await browser.newContext();
   const client = await clientContext.newPage();
+  await skipReviewGuide(client);
   await mockFrameCheck(client, {
     verdict: "embeddable",
     finalUrl: `${baseURL}/sandbox`,
@@ -301,6 +310,7 @@ test("an unsent client comment survives a reload, with a warning before leaving"
   const link = await sharedProject(page, baseURL, "Draft keeper");
   const clientContext = await browser.newContext();
   const client = await clientContext.newPage();
+  await skipReviewGuide(client);
   await mockFrameCheck(client, {
     verdict: "embeddable",
     finalUrl: `${baseURL}/sandbox`,
@@ -352,6 +362,7 @@ test("an image project is shared as its page, and a client's comment comes back 
 
   const clientContext = await browser.newContext();
   const client = await clientContext.newPage();
+  await skipReviewGuide(client);
   await client.goto(link);
   await expect(client.getByRole("img", { name: /the image under review/ })).toBeVisible();
   await expect(client.getByRole("button", { name: "Comment 1 by Ana", exact: true })).toBeVisible();
@@ -367,5 +378,77 @@ test("an image project is shared as its page, and a client's comment comes back 
   await showComments(page);
   await pullUntil(page, card(page, "Client note"));
   await expect(page.getByRole("button", { name: "Comment 2 by Cleo", exact: true })).toBeVisible();
+  await clientContext.close();
+});
+
+test("a client's first visit opens How it works once, and its button opens it again", async ({
+  page,
+  browser,
+  baseURL,
+}) => {
+  const link = await sharedProject(page, baseURL, "Guided review");
+  const clientContext = await browser.newContext();
+  const client = await clientContext.newPage();
+  await mockFrameCheck(client, {
+    verdict: "embeddable",
+    finalUrl: `${baseURL}/sandbox`,
+    status: 200,
+  });
+  await client.goto(link);
+  const guide = client.getByRole("dialog", { name: "How it works" });
+  await expect(guide).toBeVisible();
+  await expect(guide.getByRole("heading", { level: 3 })).toHaveText([
+    "Look around",
+    "Pin a comment",
+    "Send feedback within 72 hours",
+  ]);
+  await client.keyboard.press("Escape");
+  await expect(guide).toHaveCount(0);
+  // Opened by itself, it hands focus to its button: the way back to it.
+  const button = client.getByTestId("review-guide-button");
+  await expect(button).toBeFocused();
+
+  // Remembered in this browser: it doesn't open by itself again.
+  await client.reload();
+  await expect(client.getByRole("heading", { level: 1, name: "Guided review" })).toBeVisible();
+  await expect(guide).toHaveCount(0);
+  await button.click();
+  await expect(guide).toBeVisible();
+  await guide.getByTestId("review-guide-start").click();
+  await expect(guide).toHaveCount(0);
+  await expect(button).toBeFocused();
+  await clientContext.close();
+});
+
+test("once the review window has closed, the link is read-only", async ({
+  page,
+  browser,
+  baseURL,
+  isMobile,
+}) => {
+  const link = await sharedProject(page, baseURL, "Closed review");
+  const clientContext = await browser.newContext();
+  const client = await clientContext.newPage();
+  await skipReviewGuide(client);
+  await mockFrameCheck(client, {
+    verdict: "embeddable",
+    finalUrl: `${baseURL}/sandbox`,
+    status: 200,
+  });
+  // This browser's clock, past the 72 hours the server says the window lasts.
+  await client.clock.setFixedTime(Date.now() + 73 * 60 * 60 * 1000);
+  await client.goto(link);
+  await expect(client.getByRole("heading", { level: 1, name: "Closed review" })).toBeVisible();
+  await expect(client.getByTestId("review-countdown")).toHaveText("Review closed");
+  await expect(client.getByTestId("mode-comment")).toHaveAttribute("aria-disabled", "true");
+  if (isMobile) await expect(client.getByTestId("panel-note")).toContainText("has closed");
+  else {
+    await expect(client.getByTestId("client-notice")).toHaveAttribute("data-review", "closed");
+  }
+
+  // Neither the toggle nor its shortcut starts Comment mode. Forced: it's aria-disabled.
+  await client.getByTestId("mode-comment").click({ force: true });
+  await client.keyboard.press("c");
+  await expect(client.getByTestId("canvas-area")).toHaveAttribute("data-mode", "browse");
   await clientContext.close();
 });

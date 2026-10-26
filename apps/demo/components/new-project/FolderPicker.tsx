@@ -22,7 +22,10 @@ interface FolderPickerProps {
   newNameError: string | null;
 }
 
-/** Folder picker (the folder tree, indented) with an inline "New folder" option that reveals a name field. */
+/**
+ * Folder picker (the folder tree, indented) with an inline "New folder" option that reveals a
+ * name field. With no folders yet, that's the only option, and the field asks for the first one.
+ */
 export function FolderPicker({
   folders,
   value,
@@ -35,7 +38,9 @@ export function FolderPicker({
   const selectId = useId();
   const nameId = useId();
   const errorId = useId();
+  const hintId = useId();
   const reduce = useReducedMotion();
+  const first = folders.length === 0;
   return (
     <div>
       <label htmlFor={selectId} className="mb-2 block text-body font-semibold">
@@ -53,7 +58,8 @@ export function FolderPicker({
             label: folder.name,
             depth,
           })),
-          { value: NEW_FOLDER, label: "New folder…", icon: "folderPlus", separated: true },
+          // With no folders it's the only option, so there's nothing to separate it from.
+          { value: NEW_FOLDER, label: "New folder…", icon: "folderPlus", separated: !first },
         ]}
       />
       <AnimatePresence initial={false}>
@@ -68,8 +74,13 @@ export function FolderPicker({
           >
             <div className="pt-3">
               <label htmlFor={nameId} className="mb-2 block text-body font-semibold">
-                New folder name
+                {first ? "Name your first folder" : "New folder name"}
               </label>
+              {first ? (
+                <p id={hintId} className="-mt-1 mb-2 text-meta text-muted">
+                  Projects live in folders. You can add more later.
+                </p>
+              ) : null}
               <input
                 id={nameId}
                 autoFocus
@@ -79,7 +90,7 @@ export function FolderPicker({
                 maxLength={80}
                 autoComplete="off"
                 aria-invalid={newNameError ? true : undefined}
-                aria-describedby={errorId}
+                aria-describedby={first ? `${hintId} ${errorId}` : errorId}
                 onChange={(event) => onNewName(event.target.value)}
                 className={FIELD_CLASS}
               />

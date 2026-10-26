@@ -105,6 +105,8 @@ export interface ClientView {
   project: SharedProject;
   snapshots: SharedSnapshot[];
   comments: SharedComment[];
+  /** When the review window closes (epoch ms): after it, clients can only read. */
+  reviewEndsAt: number;
 }
 
 /** The owner's pull: client additions after `since`, and the new cursor. */

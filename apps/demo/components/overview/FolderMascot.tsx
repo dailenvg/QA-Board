@@ -16,7 +16,11 @@ interface FolderMascotProps {
   active: boolean;
 }
 
-/** Squiggy holding a magnifying glass: "look inside this folder". Decorative. */
+/**
+ * Squiggy holding a magnifying glass: "look inside this folder". Decorative.
+ * At rest it holds fully still (no idle loop, no blinks), so a grid of folders
+ * stays calm; it only comes alive on the folder being hovered or focused.
+ */
 export function FolderMascot({ swatch, active }: FolderMascotProps) {
   return (
     <Squiggy
@@ -24,6 +28,8 @@ export function FolderMascot({ swatch, active }: FolderMascotProps) {
       accessory="magnifier"
       perked={active}
       followCursor={false}
+      still={!active}
+      blinks={active}
       size={SIZE}
       color={swatch.hex}
       eyeColor={swatch.ink}

@@ -2,7 +2,8 @@
  * The welcome stories' script: choreography and words, in one place. Every story loops in
  * STORY_LOOP_MS, so once started they stay in step; STORY_DELAYS offsets them
  * so attention travels left to right, each starting just after the previous
- * one's key beat (snapshot taken, pin dropped, comment resolved).
+ * one's key beat (snapshot taken, pin dropped, comment resolved). A shared
+ * link's reviewers get their own first story (open the link) in the same rhythm.
  */
 
 import { commenterColor, type CommenterColor } from "@/lib/brand-palette";
@@ -33,6 +34,15 @@ export const ADD_PROJECT_BEATS = defineBeats({
   press: 400,
   flash: 500,
   snapshot: 2800,
+});
+
+/** Open the link (reviewers): a cursor clicks the link, the shared page opens, Squiggy looks around. */
+export const OPEN_LINK_BEATS = defineBeats({
+  rest: 800,
+  glide: 1000,
+  click: 300,
+  open: 600,
+  look: 2900,
 });
 
 /** Pin comments: a cursor glides to the button, clicks, a pin drops, a comment types. */
@@ -85,6 +95,11 @@ export const STORY_TEXT = {
   resolve: "Resolve",
   resolved: "Resolved",
   toast: "Comment resolved",
+  /** The message a reviewer gets with the link. */
+  shareMessage: "Can you take a look?",
+  shareLink: "Open review",
+  /** The review window's chip, part way through. */
+  timeLeft: "2d 23h 12m left",
 } as const;
 
 /** The commenter's color in both Pin and Resolve (pin, dot and the Pin card's tint). */

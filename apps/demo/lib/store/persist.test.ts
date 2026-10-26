@@ -120,6 +120,39 @@ describe("parseData", () => {
     expect(result.data.comments).toEqual([onSite, onPage, onSnapshot]);
   });
 
+  it("reads a workspace without folders yet", () => {
+    const empty = { ...LEGACY_V1, version: 3, folders: [], projects: [], comments: [] };
+    const result = parse(empty);
+    expect(result.repaired).toBe(false);
+    expect(result.data.folders).toEqual([]);
+  });
+
+  it("makes a folder for projects left without one when there are no folders", () => {
+    const data = parse(LEGACY_V2).data;
+    const result = parse({ ...data, folders: [] });
+    expect(result.repaired).toBe(true);
+    expect(result.data.folders).toEqual([
+      {
+        id: "default",
+        name: "My projects",
+        createdAt: Math.min(...data.projects.map((project) => project.createdAt)),
+        parentId: null,
+      },
+    ]);
+    expect(result.data.projects).toEqual(data.projects);
+    expect(result.data.comments).toEqual(data.comments);
+  });
+
+  it("moves projects without a folder to the first folder", () => {
+    const data = parse(LEGACY_V2).data;
+    const [site, mock] = data.projects;
+    if (!site || !mock) throw new Error("fixture");
+    const result = parse({ ...data, projects: [{ ...site, folderId: "gone" }, mock] });
+    expect(result.repaired).toBe(true);
+    expect(result.data.folders.map((folder) => folder.id)).toEqual(["default"]);
+    expect(result.data.projects.map((project) => project.folderId)).toEqual(["default", "default"]);
+  });
+
   it("moves folders with an unknown parent to the top level and breaks cycles", () => {
     const folder = (id: string, parentId: string | null) => ({
       id,

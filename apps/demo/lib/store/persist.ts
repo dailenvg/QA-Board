@@ -23,7 +23,9 @@ export const STORAGE_KEY = "squint:v3";
  * builds can't read version 3 data). A failed migration leaves them as they are.
  */
 export const LEGACY_STORAGE_KEYS = ["squint:v2", "squint:v1"] as const;
+/** The folder load repair makes for projects left without one when no folder exists. */
 export const DEFAULT_FOLDER_NAME = "My projects";
+const RECOVERED_FOLDER_ID = "default";
 
 /** An image that was inline in version 1 data and still has to reach the blob store. */
 export interface PendingImage {
@@ -189,10 +191,11 @@ function listOf<T>(value: unknown, guard: Guard<T>): T[] | null {
   return Array.isArray(value) && value.every(guard) ? value : null;
 }
 
-export function createInitialData(folderId: string, now: number): SquintData {
+/** A fresh workspace: no folders yet, so the person names their first one. */
+export function createInitialData(): SquintData {
   return {
     version: 3,
-    folders: [{ id: folderId, name: DEFAULT_FOLDER_NAME, createdAt: now, parentId: null }],
+    folders: [],
     projects: [],
     comments: [],
     snapshots: [],
@@ -330,32 +333,43 @@ function repairComments(
   return { comments: kept, repaired };
 }
 
+/** A folder for projects left without one when there are no folders at all, dated like the oldest. */
+function recoveredFolder(projects: readonly Project[]): Folder {
+  const createdAt = Math.min(...projects.map((project) => project.createdAt));
+  return { id: RECOVERED_FOLDER_ID, name: DEFAULT_FOLDER_NAME, createdAt, parentId: null };
+}
+
 /**
  * Repairs instead of failing: folders with an unknown parent move to the top
  * level and folder cycles are broken, projects without a folder move to the
- * first folder, website projects whose address isn't http(s) are dropped (a
- * page project's bad reference link is removed instead), comments and
- * snapshots without a project are dropped, comments are kept on a surface
- * their project has (see `placeComment`), and unreadable crops are removed
- * from their comments.
+ * first folder (or, when there are no folders, to one made for them), website
+ * projects whose address isn't http(s) are dropped (a page project's bad
+ * reference link is removed instead), comments and snapshots without a project
+ * are dropped, comments are kept on a surface their project has (see
+ * `placeComment`), and unreadable crops are removed from their comments.
  */
 function repair(data: SquintData): { data: SquintData; repaired: boolean } {
-  const folders = repairFolderTree(data.folders);
-  let repaired = folders.some((folder, index) => folder !== data.folders[index]);
-  const folderIds = new Set(folders.map((folder) => folder.id));
-  const fallback = folders[0]?.id;
-  const projects = data.projects.flatMap((project) => {
+  const tree = repairFolderTree(data.folders);
+  let repaired = tree.some((folder, index) => folder !== data.folders[index]);
+  const safe = data.projects.flatMap((project) => {
     const source = safeSource(project.source);
     if (!source) {
       repaired = true;
       return [];
     }
     if (source !== project.source) repaired = true;
-    const folderId = folderIds.has(project.folderId) || !fallback ? project.folderId : fallback;
-    if (folderId !== project.folderId) repaired = true;
-    return source === project.source && folderId === project.folderId
-      ? [project]
-      : [{ ...project, source, folderId }];
+    return [source === project.source ? project : { ...project, source }];
+  });
+  const treeIds = new Set(tree.map((folder) => folder.id));
+  const orphans = safe.filter((project) => !treeIds.has(project.folderId));
+  const folders = tree.length === 0 && orphans.length > 0 ? [recoveredFolder(orphans)] : tree;
+  if (folders !== tree) repaired = true;
+  const folderIds = new Set(folders.map((folder) => folder.id));
+  const fallback = folders[0]?.id;
+  const projects = safe.map((project) => {
+    if (folderIds.has(project.folderId) || !fallback) return project;
+    repaired = true;
+    return { ...project, folderId: fallback };
   });
   const placed = repairComments(data.comments, projects);
   if (placed.repaired) repaired = true;
@@ -391,7 +405,7 @@ export function parseData(raw: string): ParseResult {
   const folders = listOf(value.folders, isFolder);
   const stored = listOf(value.projects, isProject);
   const comments = listOf(value.comments, isComment);
-  if (!folders || folders.length === 0 || !stored || !comments) {
+  if (!folders || !stored || !comments) {
     return { ok: false, reason: "The saved data is incomplete or damaged." };
   }
   const pendingImages: PendingImage[] = [];

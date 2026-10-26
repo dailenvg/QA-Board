@@ -6,11 +6,13 @@ import { pushNow, resetSync, syncNow } from "@/lib/share-client/owner-sync";
 import { toShareState } from "@/lib/share-client/share-state";
 import { useShareFit } from "@/lib/share-client/use-share-fit";
 import { useShareSync } from "@/lib/share-client/use-share-sync";
+import { reviewClosed } from "@/lib/share/review-window";
 import { shareProject, unshareProject } from "@/lib/store/actions";
 import { commentsFor } from "@/lib/store/selectors";
 import { snapshotsFor } from "@/lib/store/snapshots";
 import type { Project, ProjectShare, SquintData } from "@/lib/store/types";
 import { useIsClient } from "@/lib/use-is-client";
+import { useNow } from "@/lib/use-now";
 import { Button } from "../ui/Button";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { Icon } from "../ui/Icon";
@@ -57,6 +59,7 @@ const CREATE_FAILED = "The link couldn't be created. Check your connection and t
 export function ShareControl({ data, project }: ShareControlProps) {
   const toast = useToast();
   const isClient = useIsClient();
+  const now = useNow();
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -108,6 +111,9 @@ export function ShareControl({ data, project }: ShareControlProps) {
   };
 
   const failing = share && (status.phase === "error" || status.pullHeld);
+  // The dialog says how long is left; the button only whether clients can still comment.
+  const closed = Boolean(share && now && reviewClosed(share.createdAt, now));
+  const shareLabel = share ? `Share (link is on${closed ? ", but the review window has closed" : ""})` : "Share";
   return (
     <>
       {failing ? (
@@ -129,15 +135,20 @@ export function ShareControl({ data, project }: ShareControlProps) {
         size="sm"
         onClick={() => setOpen(true)}
         className="max-sm:size-11 max-sm:px-0"
-        aria-label={share ? "Share (link is on)" : "Share"}
+        aria-label={shareLabel}
+        title={closed ? "Review window closed" : undefined}
         data-testid="share-button"
       >
         <span className="relative">
           <Icon name="link" className="size-5" />
           {share ? (
+            // Closed: a hollow muted ring, not a pale fill, so it differs by shape as well as
+            // colour and keeps 3:1 against the button (WCAG 1.4.1, 1.4.11).
             <span
               aria-hidden="true"
-              className="absolute -top-0.5 -right-0.5 size-2 rounded-pill bg-resolved ring-2 ring-card"
+              className={`absolute -top-0.5 -right-0.5 size-2 rounded-pill ring-2 ${
+                closed ? "bg-card ring-muted" : "bg-resolved ring-card"
+              }`}
             />
           ) : null}
         </span>

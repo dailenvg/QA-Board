@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as viewRoute from "@/app/api/s/[token]/route";
 import * as clientBlobRoute from "@/app/api/s/[token]/blobs/[key]/route";
 import * as captureRoute from "@/app/api/s/[token]/capture/route";
@@ -9,6 +9,7 @@ import * as changesRoute from "@/app/api/shares/[shareId]/changes/route";
 import * as createRoute from "@/app/api/shares/route";
 import { PNG, STATE } from "@/test/share-fixture";
 import { OWNER_KEY_HEADER } from "./http";
+import { REVIEW_WINDOW_MS } from "./review-window";
 import type { CreatedShare } from "./service";
 
 let ip = 0;
@@ -151,6 +152,27 @@ describe("share routes: permissions", () => {
       comment: 404,
       capture: 404,
     });
+  });
+
+  it("after the review window, client writes answer 403 and the view still opens", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const share = await create();
+      const opened = (await (await clientCalls(share.token).view()).json()) as {
+        reviewEndsAt: number;
+      };
+      expect(opened.reviewEndsAt).toBe(Date.now() + REVIEW_WINDOW_MS);
+      vi.setSystemTime(opened.reviewEndsAt);
+      const { view, comment, capture } = clientCalls(share.token);
+      expect(await statuses({ view, comment, capture })).toEqual({
+        view: 200,
+        comment: 403,
+        capture: 403,
+      });
+      expect(await (await comment()).json()).toEqual({ error: "review-closed" });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("clients can't change status or timestamps, and can't overwrite a comment", async () => {

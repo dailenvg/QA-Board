@@ -8,6 +8,7 @@ import {
   postComment,
   samplePngFiles,
   showComments,
+  skipReviewGuide,
 } from "./squint-fixtures";
 
 test("several images become one project each, named after their files", async ({ page }) => {
@@ -176,6 +177,7 @@ test("a shared link opens the page it names, and a client's comment comes back o
 
   const clientContext = await browser.newContext();
   const client = await clientContext.newPage();
+  await skipReviewGuide(client);
   await client.goto(`${link}?page=2`);
   await expect(client.getByTestId("page-position")).toHaveText("Page 2 of 2");
   await expect(
