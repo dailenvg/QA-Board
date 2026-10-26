@@ -70,7 +70,11 @@ function SiteCard({ url }: { url: string }) {
   const showIcon = Boolean(icon) && !iconFailed;
   return (
     <div className="flex h-full flex-col">
-      <div aria-hidden="true" className="flex items-center gap-2 border-b border-line px-3 py-2">
+      {/* pl-12: the card's type tag sits in the top-left corner, where a browser's tab would. */}
+      <div
+        aria-hidden="true"
+        className="flex items-center gap-2 border-b border-line py-2 pr-3 pl-12"
+      >
         <span className="size-2 rounded-pill bg-line-strong" />
         <span className="size-2 rounded-pill bg-line-strong" />
         <span className="size-2 rounded-pill bg-line-strong" />

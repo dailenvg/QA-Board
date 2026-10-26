@@ -7,11 +7,12 @@ import { relativeTime } from "@/lib/relative-time";
 import { projectHref } from "@/lib/routes";
 import type { ProjectSummary } from "@/lib/store/selectors";
 import type { Project } from "@/lib/store/types";
-import { displayHost } from "@/lib/url";
 import { Icon } from "../ui/Icon";
 import { Menu } from "../ui/Menu";
 import { StatusChip } from "../ui/StatusChip";
+import { sourceLabel } from "./project-source";
 import { ProjectThumbnail } from "./ProjectThumbnail";
+import { ProjectTypeTag } from "./ProjectTypeTag";
 
 export interface ProjectCardActions {
   onRename: (project: Project) => void;
@@ -25,13 +26,10 @@ interface ProjectCardProps extends ProjectCardActions {
   now: number;
 }
 
-function sourceLabel(project: Project): string {
-  const { source } = project;
-  if (source.kind === "url") return displayHost(source.url);
-  return source.referenceUrl ? `${displayHost(source.referenceUrl)} · screenshot` : source.fileName;
-}
-
-/** Project tile. The whole card opens the viewer; the overflow menu sits above the link. */
+/**
+ * Project tile. The whole card opens the viewer, its type tag included; the overflow menu sits
+ * above the link.
+ */
 export function ProjectCard({
   summary,
   canMove,
@@ -63,6 +61,7 @@ export function ProjectCard({
               className="after:absolute after:inset-0 after:rounded-panel focus-visible:outline-none"
             >
               {project.name}
+              <ProjectTypeTag source={project.source} />
             </Link>
           </h2>
           <p className="truncate text-meta text-muted">{sourceLabel(project)}</p>

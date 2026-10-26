@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import type { CaptureErrorCode } from "../lib/capture/types";
 import type { FrameCheckResult } from "../lib/frame-check/types";
+import type { SquintData } from "../lib/store/types";
 import { snapshotPng } from "./sample-snapshot";
 
 /** Answers /api/frame-check locally so tests never depend on the network. */
@@ -198,4 +199,27 @@ export function folderCard(page: Page, name: string): Locator {
  */
 export async function sheetLift(sheet: Locator): Promise<number> {
   return sheet.evaluate((node) => new DOMMatrixReadOnly(getComputedStyle(node).transform).m42);
+}
+
+/** Replaces this browser's workspace with `data`, then opens `path`. Pictures aren't stored. */
+export async function seedWorkspace(page: Page, data: SquintData, path = "/"): Promise<void> {
+  await page.goto("/sandbox");
+  await page.evaluate((seed) => localStorage.setItem("squint:v3", JSON.stringify(seed)), data);
+  await page.goto(path);
+}
+
+/** Waits until `locator` and everything above it are fully faded in, so axe sees real colors. */
+export async function settled(locator: Locator): Promise<void> {
+  await expect
+    .poll(() =>
+      locator.evaluateAll((elements) =>
+        elements.every((element) => {
+          for (let node: Element | null = element; node; node = node.parentElement) {
+            if (getComputedStyle(node).opacity !== "1") return false;
+          }
+          return true;
+        }),
+      ),
+    )
+    .toBe(true);
 }
