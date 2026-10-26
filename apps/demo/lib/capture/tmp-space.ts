@@ -1,21 +1,25 @@
-import { statfsSync } from "node:fs";
+import { lstatSync, readdirSync, statfsSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-function freeMb(dir: string): number | null {
-  try {
-    const { bavail, bsize } = statfsSync(dir);
-    return Math.round((bavail * bsize) / 1_048_576);
-  } catch {
-    return null;
-  }
+const MB = 1_048_576;
+
+/**
+ * Free space in the temp folder. Serverless Chromium keeps its binary, profile
+ * and shared memory there (Lambda has no /dev/shm), so a long page can run it out.
+ */
+export function tmpFreeMb(): number {
+  const { bavail, bsize } = statfsSync(tmpdir());
+  return Math.round((bavail * bsize) / MB);
 }
 
-/** Free space in the temp folder, where serverless Chromium keeps its binary and profile. */
-export function tmpFreeMb(): number | null {
-  return freeMb(tmpdir());
-}
-
-/** Free space for Chromium's shared memory, which falls back to the temp folder without it. */
-export function shmFreeMb(): number | null {
-  return freeMb("/dev/shm");
+/** The temp folder's top-level entries, for logs: `chromium 160MB, fonts/, ...`. Not recursive. */
+export function tmpListing(): string {
+  return readdirSync(tmpdir())
+    .map((name) => {
+      const stat = lstatSync(join(tmpdir(), name), { throwIfNoEntry: false });
+      if (!stat) return name;
+      return stat.isDirectory() ? `${name}/` : `${name} ${Math.round(stat.size / MB)}MB`;
+    })
+    .join(", ");
 }
