@@ -1,3 +1,5 @@
+import { statfsSync } from "node:fs";
+import { freemem, tmpdir } from "node:os";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { CDPSession, Page } from "playwright-core";
 import { launchBrowser } from "./browser";
@@ -115,7 +117,7 @@ async function shoot(page: Page, width: number, log: StepLog): Promise<CapturedI
   const pageHeight = Number(await page.evaluate(HEIGHT_SCRIPT));
   const height = Math.max(1, Math.min(CAPTURE_LIMITS.maxHeight, Math.round(pageHeight) || 1));
   await page.addStyleTag({ content: FREEZE_CSS }).catch(() => undefined);
-  log(`measured ${width}x${height}`);
+  log(`measured ${width}x${height}, ${tmpFreeMb()} MB free in /tmp, ${memFreeMb()} MB RAM`);
   const cdp = await page.context().newCDPSession(page);
   let scale = 1;
   let shot = await render(cdp, width, height, scale, JPEG_QUALITY);
@@ -128,6 +130,16 @@ async function shoot(page: Page, width: number, log: StepLog): Promise<CapturedI
   }
   if (shot.length > CAPTURE_LIMITS.maxBytes) throw new CaptureError("failed");
   return { body: new Uint8Array(shot), contentType: "image/jpeg", width, height, scale };
+}
+
+/** Chromium keeps its profile and shared memory in /tmp, next to the unpacked serverless binary. */
+function tmpFreeMb(): number {
+  const { bavail, bsize } = statfsSync(tmpdir());
+  return Math.round((bavail * bsize) / 1_048_576);
+}
+
+function memFreeMb(): number {
+  return Math.round(freemem() / 1_048_576);
 }
 
 /**
@@ -170,12 +182,16 @@ export async function capturePage(
     });
     const page = await context.newPage();
     page.setDefaultTimeout(STEP_TIMEOUT_MS);
+    page.on("crash", () => log("page crashed"));
+    browser.on("disconnected", () => log("browser gone"));
     log("page");
     await load(page, url, proxy, log);
     return await shoot(page, width, log);
   } catch (error) {
     if (signal.aborted) throw new CaptureError("timeout");
-    throw error instanceof CaptureError ? error : new CaptureError("failed");
+    if (error instanceof CaptureError) throw error;
+    log(`error: ${String(error).split("\n")[0]} (${tmpFreeMb()} MB free in /tmp)`);
+    throw new CaptureError("failed");
   } finally {
     signal.removeEventListener("abort", onAbort);
     // Close before answering: a function is frozen after its response, which would leave
