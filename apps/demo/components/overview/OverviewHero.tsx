@@ -2,12 +2,8 @@
 
 import { motion } from "motion/react";
 import { staggerGroup, useRevealVariants } from "@/lib/motion";
-import { useAttentionReporter } from "@/lib/squiggy/attention";
 import { useSquiggyMood } from "@/lib/squiggy/use-squiggy-mood";
 import { Squiggy } from "../brand/mascot/Squiggy";
-import { Button } from "../ui/Button";
-import { Icon } from "../ui/Icon";
-import { Kbd } from "../ui/Kbd";
 import { SquiggySpeechLine } from "./SquiggySpeechLine";
 
 const MASCOT_SIZE = "clamp(6.5rem, 5rem + 5vw, 9rem)";
@@ -28,18 +24,17 @@ const COPY = {
 interface OverviewHeroProps {
   /** No projects anywhere yet: a welcome instead of a summary. */
   empty: boolean;
-  onNewProject: () => void;
 }
 
 /**
- * Squiggy, headline and the primary action. Squiggy's mood follows the
+ * Squiggy and the headline (New project lives in the toolbar or, on narrow
+ * screens, the sidebar, both above this). Squiggy's mood follows the
  * workspace (`useSquiggyMood`), and its line about it replaces the subline
  * when it has something specific to say.
  */
-export function OverviewHero({ empty, onNewProject }: OverviewHeroProps) {
+export function OverviewHero({ empty }: OverviewHeroProps) {
   const reveal = useRevealVariants();
   const squiggy = useSquiggyMood();
-  const attention = useAttentionReporter("hero-button");
   const copy = empty ? COPY.empty : COPY.filled;
 
   return (
@@ -67,18 +62,6 @@ export function OverviewHero({ empty, onNewProject }: OverviewHeroProps) {
         </motion.h1>
         <motion.div variants={reveal}>
           <SquiggySpeechLine speech={squiggy.speech} fallback={copy.body} />
-        </motion.div>
-        <motion.div variants={reveal} className="pt-2">
-          <Button
-            onClick={onNewProject}
-            title="New project (N)"
-            data-testid="overview-new-project"
-            {...attention}
-          >
-            <Icon name="plus" className="size-5" />
-            New project
-            <Kbd className="border-on-brand/40 text-on-brand/80 max-md:hidden">N</Kbd>
-          </Button>
         </motion.div>
       </div>
     </motion.section>

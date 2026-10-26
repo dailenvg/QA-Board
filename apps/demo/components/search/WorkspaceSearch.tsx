@@ -161,7 +161,8 @@ export function WorkspaceSearch({ data }: WorkspaceSearchProps) {
       role="search"
       aria-label="Projects and folders"
       data-search-open={compact && expanded ? "" : undefined}
-      className="flex shrink-0 justify-end"
+      // lg: fills its slot at the start of the page's toolbar.
+      className="flex shrink-0 justify-end lg:shrink lg:grow"
     >
       {compact && !expanded ? (
         // Same face as the theme toggle it sits beside.
@@ -194,7 +195,7 @@ export function WorkspaceSearch({ data }: WorkspaceSearchProps) {
               : {})}
             // z-30: the open results lie over the content below.
             className={
-              compact ? "absolute inset-0 z-30 flex items-center" : "relative z-30 w-72 lg:w-80"
+              compact ? "absolute inset-0 z-30 flex items-center" : "relative z-30 w-72 lg:w-full"
             }
           >
             <div
@@ -271,11 +272,10 @@ export function WorkspaceSearch({ data }: WorkspaceSearchProps) {
                     initial="hidden"
                     animate="visible"
                     exit="exit"
-                    style={{ transformOrigin: "top right" }}
                     data-testid="search-popup"
                     // Choosing with the pointer must not blur the field first (that closes the results).
                     onMouseDown={(event) => event.preventDefault()}
-                    className="absolute top-full right-0 mt-2 max-h-[min(70dvh,32rem)] w-full overflow-y-auto overscroll-contain rounded-tile bg-card p-2 shadow-pop ring-1 ring-line sm:w-[26rem] sm:max-w-[calc(100vw-2rem)]"
+                    className="absolute top-full right-0 mt-2 origin-top-right max-h-[min(70dvh,32rem)] w-full overflow-y-auto overscroll-contain rounded-tile bg-card p-2 shadow-pop ring-1 ring-line sm:w-[26rem] sm:max-w-[calc(100vw-2rem)] lg:right-auto lg:left-0 lg:w-full lg:min-w-[26rem] lg:origin-top-left"
                   >
                     <SearchPanel
                       query={query}

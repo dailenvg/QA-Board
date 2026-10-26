@@ -82,3 +82,69 @@ test("hover draws a brand line around a card; keyboard focus outranks it", async
   await expect.poll(shadow).toContain(focusRing);
   await expect.poll(shadow).toContain("rgb(231, 231, 234) 0px 0px 0px 2px");
 });
+
+test("sorting a folder's projects reorders the cards and is remembered after a reload", async ({
+  page,
+}) => {
+  await seedWorkspace(page, WORKSPACE_SEED, `/f/${DEFAULT_FOLDER.id}`);
+  const titles = page.getByTestId("project-card").getByRole("heading", { level: 2 });
+  const trigger = page.getByTestId("sort-menu");
+  const reverse = page.getByTestId("sort-direction");
+
+  // Newest first by default, as before sorting existed.
+  await expect(trigger).toHaveAccessibleName("Sort: Date");
+  await expect(reverse).toHaveAccessibleName("Order: Newest first");
+  await expect(titles).toHaveText([/^Pitch deck/, /^Mockups/, /^Hero shot/, /^Homepage/]);
+
+  await trigger.click();
+  const menu = page.getByRole("menu", { name: "Sort: Date" });
+  // Opens on the current option.
+  await expect(menu.getByRole("menuitemradio", { name: "Date" })).toBeFocused();
+  await expect(menu.getByRole("menuitemradio", { name: "Date" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await menu.getByRole("menuitemradio", { name: "Name" }).click();
+  await expect(menu).toHaveCount(0);
+  await expect(trigger).toHaveAccessibleName("Sort: Name");
+  await expect(reverse).toHaveAccessibleName("Order: A to Z");
+  await expect(titles).toHaveText([/^Hero shot/, /^Homepage/, /^Mockups/, /^Pitch deck/]);
+
+  await reverse.click();
+  await expect(reverse).toHaveAccessibleName("Order: Z to A");
+  await expect(titles).toHaveText([/^Pitch deck/, /^Mockups/, /^Homepage/, /^Hero shot/]);
+  // The order shows in words beside the arrow (from sm up) and is announced once changed.
+  if ((page.viewportSize()?.width ?? 0) >= 640) await expect(reverse).toHaveText("Z to A");
+  await expect(page.getByTestId("sort-status")).toHaveText("Sorted by name. Z to A");
+
+  await page.reload();
+  await expect(trigger).toHaveAccessibleName("Sort: Name");
+  await expect(reverse).toHaveAccessibleName("Order: Z to A");
+  await expect(titles).toHaveText([/^Pitch deck/, /^Mockups/, /^Homepage/, /^Hero shot/]);
+
+  // A new key starts in its own natural order: websites, images (by name), then PDFs.
+  await trigger.click();
+  await page.getByRole("menuitemradio", { name: "File type" }).click();
+  await expect(reverse).toHaveAccessibleName("Order: Websites first");
+  await expect(titles).toHaveText([/^Homepage/, /^Hero shot/, /^Mockups/, /^Pitch deck/]);
+
+  // Fits a phone's width without scrolling the page sideways; the open menu passes axe there.
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await page.setViewportSize({ width: 375, height: 812 });
+  await expect(reverse).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    ),
+  ).toBe(0);
+  await trigger.click();
+  const options = page.getByRole("menu", { name: "Sort: File type" });
+  await settled(options);
+  const menuBox = await options.boundingBox();
+  expect(menuBox && menuBox.x >= 0 && menuBox.x + menuBox.width <= 375).toBe(true);
+  const axe = await new AxeBuilder({ page }).include("main header").analyze();
+  expect(axe.violations.map(({ id, nodes }) => ({ id, nodes: nodes.length }))).toEqual([]);
+  await page.keyboard.press("Escape");
+  await expect(options).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});

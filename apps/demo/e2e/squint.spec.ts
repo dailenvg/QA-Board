@@ -5,6 +5,7 @@ import {
   dropPin,
   mockCapture,
   mockFrameCheck,
+  newProjectButton,
   onlyCommentCard,
   OVERVIEW_HEADLINE,
   openFolder,
@@ -113,7 +114,7 @@ test("an image project accepts a keyboard-placed pin and shows Comments in on th
   await openFolder(page);
   const png = await samplePng(page);
 
-  await page.getByTestId("new-project").click();
+  await newProjectButton(page).click();
   const dialog = page.getByRole("dialog", { name: "New project" });
   await dialog.getByRole("radio", { name: "Image" }).click();
   await dialog.locator('input[type="file"]').setInputFiles({
@@ -212,7 +213,7 @@ test("a name typed after the address is kept exactly as typed", async ({ page })
     finalUrl: "https://acme.example/",
   });
   await openFolder(page);
-  await page.getByTestId("new-project").click();
+  await newProjectButton(page).click();
   const dialog = page.getByRole("dialog", { name: "New project" });
   await dialog.getByLabel("Website address").fill("acme.example");
   // A mouse user clicks straight into the name field and types.

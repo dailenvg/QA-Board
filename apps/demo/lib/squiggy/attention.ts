@@ -1,7 +1,7 @@
 import { useEffect, useSyncExternalStore, type FocusEvent } from "react";
 
 /** The New project controls Squiggy listens to. */
-export type AttentionSource = "hero-button" | "sidebar-button" | "new-project-dialog";
+export type AttentionSource = "toolbar-button" | "sidebar-button" | "new-project-dialog";
 
 /**
  * How a source holds attention. Tracked separately, so moving the mouse off

@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import {
+  newProjectButton,
   openFolder,
   pickImages,
   postComment,
@@ -32,7 +33,7 @@ test("an image that can't be prepared says why, and must be removed before creat
   await openFolder(page);
   const [good] = await samplePngFiles(page, ["Good"]);
   if (!good) throw new Error("no image");
-  await page.getByTestId("new-project").click();
+  await newProjectButton(page).click();
   const dialog = page.getByRole("dialog", { name: "New project" });
   await dialog.getByRole("radio", { name: "Image" }).click();
   await dialog

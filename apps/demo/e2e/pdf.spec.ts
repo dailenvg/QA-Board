@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 import { expect, test, type Page } from "@playwright/test";
 import { samplePdf } from "./pdf-fixture";
-import { openFolder, postComment, samplePngFiles } from "./squint-fixtures";
+import { newProjectButton, openFolder, postComment, samplePngFiles } from "./squint-fixtures";
 
 /** The installed pdf.js version, which names the folder its data is served from. */
 const { version } = createRequire(import.meta.url)("pdfjs-dist/package.json") as {
@@ -10,7 +10,7 @@ const { version } = createRequire(import.meta.url)("pdfjs-dist/package.json") as
 
 /** Opens the New project dialog in PDF mode. */
 async function pdfMode(page: Page) {
-  await page.getByTestId("new-project").click();
+  await newProjectButton(page).click();
   const dialog = page.getByRole("dialog", { name: "New project" });
   await dialog.getByRole("radio", { name: "PDF" }).click();
   return dialog;

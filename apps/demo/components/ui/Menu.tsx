@@ -15,8 +15,11 @@ import { Icon, type IconName } from "./Icon";
 
 export interface MenuItem {
   label: string;
-  icon: IconName;
+  /** Leading icon. Radio items (`checked` set) show their check there instead. */
+  icon?: IconName;
   onSelect: () => void;
+  /** Makes this one of a set of options (menuitemradio): true for the current one. */
+  checked?: boolean;
   danger?: boolean;
   /** Stays focusable (aria-disabled), so a label that explains why is still read out. */
   disabled?: boolean;
@@ -27,7 +30,9 @@ export interface MenuHandle {
   open: () => void;
 }
 
-const ENABLED_ITEM = '[role="menuitem"]:not([aria-disabled="true"])';
+/** Plain and radio items alike. */
+const ITEM = '[role^="menuitem"]';
+const ENABLED_ITEM = `${ITEM}:not([aria-disabled="true"])`;
 
 interface MenuProps {
   /** Accessible name of the trigger, such as "Project actions". */
@@ -39,6 +44,8 @@ interface MenuProps {
   icon?: IconName;
   /** Visible trigger text, hidden on phones. Without it the trigger is icon-only. */
   text?: string;
+  /** Replaces the trigger text's default classes (`max-sm:sr-only`), e.g. to keep it on phones. */
+  textClassName?: string;
   /** Replaces the default (ghost) trigger styling. */
   triggerClassName?: string;
   /** Unavailable right now: the trigger stays focusable and explains why. */
@@ -65,6 +72,7 @@ export function Menu({
   testId,
   icon = "more",
   text,
+  textClassName = "max-sm:sr-only",
   triggerClassName = TRIGGER_CLASS,
   disabledReason = null,
   triggerTabIndex,
@@ -94,9 +102,11 @@ export function Menu({
       if (!root.current?.contains(event.target as Node)) setOpen(false);
     };
     document.addEventListener("pointerdown", onPointerDown);
+    // Options open on the current one; actions on the first available.
     const first =
+      root.current?.querySelector<HTMLElement>('[aria-checked="true"]') ??
       root.current?.querySelector<HTMLElement>(ENABLED_ITEM) ??
-      root.current?.querySelector<HTMLElement>('[role="menuitem"]');
+      root.current?.querySelector<HTMLElement>(ITEM);
     first?.focus();
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [open]);
@@ -119,9 +129,7 @@ export function Menu({
 
   // Disabled items stay in the arrow-key order (WAI-ARIA menu pattern), so their reason is heard.
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const entries = Array.from(
-      root.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
-    );
+    const entries = Array.from(root.current?.querySelectorAll<HTMLElement>(ITEM) ?? []);
     const index = entries.indexOf(document.activeElement as HTMLElement);
     const focusAt = (next: number) => entries[(next + entries.length) % entries.length]?.focus();
     if (event.key === "Escape") {
@@ -183,7 +191,7 @@ export function Menu({
         className={triggerClassName}
       >
         <Icon name={icon} />
-        {text ? <span className="max-sm:sr-only">{text}</span> : null}
+        {text ? <span className={textClassName}>{text}</span> : null}
         {disabledReason ? (
           <span id={reasonId} className="sr-only">
             {disabledReason}
@@ -225,7 +233,8 @@ export function Menu({
               <button
                 key={item.label}
                 type="button"
-                role="menuitem"
+                role={item.checked === undefined ? "menuitem" : "menuitemradio"}
+                aria-checked={item.checked}
                 aria-disabled={item.disabled || undefined}
                 onClick={() => {
                   if (item.disabled) return;
@@ -239,7 +248,7 @@ export function Menu({
                   item.disabled ? "cursor-not-allowed opacity-50" : "hover:bg-hover active:bg-seg"
                 } ${item.danger ? "text-danger" : "text-ink"}`}
               >
-                <Icon name={item.icon} className="size-4 shrink-0" />
+                <ItemIcon item={item} />
                 {item.label}
               </button>
             ))}
@@ -248,4 +257,17 @@ export function Menu({
       </AnimatePresence>
     </div>
   );
+}
+
+/** An item's icon, or for a radio item the check that marks the current option. */
+function ItemIcon({ item }: { item: MenuItem }) {
+  if (item.checked !== undefined) {
+    return (
+      <Icon
+        name="check"
+        className={`size-4 shrink-0 text-brand-text ${item.checked ? "" : "invisible"}`}
+      />
+    );
+  }
+  return item.icon ? <Icon name={item.icon} className="size-4 shrink-0" /> : null;
 }

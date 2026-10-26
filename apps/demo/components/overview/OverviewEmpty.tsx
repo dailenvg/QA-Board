@@ -57,7 +57,7 @@ export function OverviewEmpty({ onAction }: { onAction: () => void }) {
           </motion.li>
         ))}
       </ol>
-      {/* Secondary: the hero's New project is the screen's one primary action. */}
+      {/* Secondary: the toolbar's (or sidebar's) New project is the screen's one primary action. */}
       <motion.div variants={reveal}>
         <Button variant="secondary" onClick={onAction} data-testid="overview-empty-action">
           <Icon name="plus" className="size-5" />

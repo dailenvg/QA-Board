@@ -3,6 +3,7 @@ import type { Comment, CommentStatus, SquintData } from "../lib/store/types";
 import {
   DEFAULT_FOLDER,
   mockFrameCheck,
+  newProjectButton,
   openOverview,
   seedWorkspace,
   showComments,
@@ -152,7 +153,7 @@ test("creating a project on the Overview: Squiggy listens, hops, then settles", 
     status: 200,
   });
   await openOverview(page);
-  await page.getByTestId("overview-new-project").click();
+  await newProjectButton(page).click();
   const dialog = page.getByRole("dialog", { name: "New project" });
   await expect(squiggy(page)).toHaveAttribute("data-mood", "listening");
 
@@ -184,13 +185,18 @@ test("New project's shortcut opens the dialog, and Squiggy listens while it's op
   await expect(squiggy(page)).toHaveAttribute("data-mood", "idle");
 });
 
-test("hovering either New project button makes Squiggy listen", async ({ page, isMobile }) => {
+test("hovering New project, in the toolbar or the sidebar, makes Squiggy listen", async ({
+  page,
+  isMobile,
+}) => {
   test.skip(isMobile, "Touch has no hover.");
   await seedWorkspace(page, WORKSPACE_SEED);
   await expect(squiggy(page)).toHaveAttribute("data-mood", "idle");
 
-  for (const testId of ["overview-new-project", "new-project"]) {
-    await page.getByTestId(testId).hover();
+  // Wide: the toolbar's. Narrower: the sidebar's, once it stacks above the page.
+  for (const width of [1280, 800]) {
+    await page.setViewportSize({ width, height: 900 });
+    await newProjectButton(page).hover();
     await expect(squiggy(page)).toHaveAttribute("data-mood", "listening");
     await expect(squiggyButton(page, "listening")).toBeVisible();
     await page.mouse.move(1, 1);

@@ -1,6 +1,12 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { createImageProject, folderCard, openFolder, postComment } from "./squint-fixtures";
+import {
+  createImageProject,
+  folderCard,
+  openFolder,
+  openOverview,
+  postComment,
+} from "./squint-fixtures";
 
 /** Fills the New folder dialog (whatever opened it) and waits for the new folder's page. */
 async function nameNewFolder(page: Page, title: string | RegExp, name: string) {
@@ -272,4 +278,26 @@ test("Move folder fits a phone with a long folder name, its reasons in full, and
     .toBe(true);
   const axe = await new AxeBuilder({ page }).include('[role="dialog"]').analyze();
   expect(axe.violations.map(({ id, nodes }) => ({ id, nodes: nodes.length }))).toEqual([]);
+});
+
+test("New folder beside New project makes one where you are: top level, then inside the open folder", async ({
+  page,
+  isMobile,
+}) => {
+  await openOverview(page);
+  // The toolbar's on wide screens, the sidebar's (icon-only on phones) where it stacks above.
+  const newFolder = page
+    .getByTestId("toolbar-new-folder")
+    .or(page.getByTestId("sidebar-new-folder"))
+    .filter({ visible: true });
+  await expect(newFolder).toHaveAccessibleName("New folder");
+  const box = await newFolder.boundingBox();
+  expect(box && box.width >= 44 && box.height >= 44).toBe(true);
+  if (!isMobile) await expect(page.getByTestId("new-project")).toBeHidden();
+
+  await newFolder.click();
+  await nameNewFolder(page, "New folder", "Alpha");
+  await newFolder.click();
+  await nameNewFolder(page, "New folder in Alpha", "Beta");
+  await expect(breadcrumb(page).getByRole("listitem")).toHaveText(["Overview", "Alpha", "Beta"]);
 });

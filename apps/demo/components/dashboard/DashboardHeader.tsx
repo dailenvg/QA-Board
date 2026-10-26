@@ -5,6 +5,8 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import type { Folder } from "@/lib/store/types";
 import { Menu, type MenuItem } from "../ui/Menu";
 import { SegmentedControl } from "../ui/SegmentedControl";
+import type { ProjectSort, SortKey } from "./project-sort";
+import { SortControls } from "./SortControls";
 import { STATUS_FILTER_OPTIONS, type StatusFilterValue } from "./status-filter";
 
 interface DashboardHeaderProps {
@@ -12,18 +14,24 @@ interface DashboardHeaderProps {
   chips: readonly string[];
   filter: StatusFilterValue;
   onFilter: (value: StatusFilterValue) => void;
+  sort: ProjectSort;
+  onSortKey: (key: SortKey) => void;
+  onReverseSort: () => void;
   /** The folder's actions (new folder inside, rename, move, delete). */
   actions: MenuItem[];
   /** Where the folder sits, above its name. */
   breadcrumb: ReactNode;
 }
 
-/** Folder title with summary chips, folder actions and the status filter. */
+/** Folder title with summary chips, folder actions, the status filter and the sort controls. */
 export function DashboardHeader({
   folder,
   chips,
   filter,
   onFilter,
+  sort,
+  onSortKey,
+  onReverseSort,
   actions,
   breadcrumb,
 }: DashboardHeaderProps) {
@@ -47,16 +55,25 @@ export function DashboardHeader({
           ))}
         </ul>
       </div>
-      <EdgeFadeScroller>
-        <SegmentedControl
-          label="Filter by status"
-          layoutId="status-filter-thumb"
-          options={STATUS_FILTER_OPTIONS}
-          value={filter}
-          onChange={onFilter}
-          surface="panel"
-        />
-      </EdgeFadeScroller>
+      {/*
+        Wraps on narrow screens: the filter scrolls across the full width, sort drops below it on
+        the right (its menu opens leftward from there, staying on screen).
+      */}
+      <div className="flex max-w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+        <EdgeFadeScroller>
+          <SegmentedControl
+            label="Filter by status"
+            layoutId="status-filter-thumb"
+            options={STATUS_FILTER_OPTIONS}
+            value={filter}
+            onChange={onFilter}
+            surface="panel"
+          />
+        </EdgeFadeScroller>
+        <div className="ml-auto">
+          <SortControls sort={sort} onKey={onSortKey} onReverse={onReverseSort} />
+        </div>
+      </div>
     </header>
   );
 }

@@ -16,12 +16,11 @@ export function Overview() {
   const workspace = useWorkspace();
   if (!workspace) return <OverviewSkeleton />;
   const empty = workspace.data.projects.length === 0;
-  const openNewProject = () => workspace.openNewProject();
   return (
     <>
-      <OverviewHero empty={empty} onNewProject={openNewProject} />
+      <OverviewHero empty={empty} />
       {empty ? (
-        <OverviewEmpty onAction={openNewProject} />
+        <OverviewEmpty onAction={() => workspace.openNewProject()} />
       ) : (
         <section aria-labelledby="folders-overview-heading" className="flex flex-col">
           <h2 id="folders-overview-heading" className="sr-only">

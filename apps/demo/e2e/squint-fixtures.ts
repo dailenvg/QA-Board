@@ -59,12 +59,20 @@ export const OVERVIEW_HEADLINE = {
   filled: "Your projects at a glance",
 };
 
+/** New project: the toolbar's on wide screens, the sidebar's where the sidebar stacks above. */
+export function newProjectButton(page: Page): Locator {
+  return page
+    .getByTestId("toolbar-new-project")
+    .or(page.getByTestId("new-project"))
+    .filter({ visible: true });
+}
+
 function newProjectDialog(page: Page): Locator {
   return page.getByRole("dialog", { name: "New project" });
 }
 
 export async function createUrlProject(page: Page, url: string, name: string): Promise<void> {
-  await page.getByTestId("new-project").click();
+  await newProjectButton(page).click();
   const dialog = newProjectDialog(page);
   await dialog.getByLabel("Website address").fill(url);
   await dialog.getByLabel("Project name").fill(name);
@@ -75,7 +83,7 @@ export async function createUrlProject(page: Page, url: string, name: string): P
 /** Creates an image project through the dialog, leaving the name to its file-name fallback. */
 export async function createImageProject(page: Page, fileName: string): Promise<void> {
   const buffer = await samplePng(page);
-  await page.getByTestId("new-project").click();
+  await newProjectButton(page).click();
   const dialog = newProjectDialog(page);
   await dialog.getByRole("radio", { name: "Image" }).click();
   await dialog
@@ -113,7 +121,7 @@ export async function pickImages(
   page: Page,
   files: ReadonlyArray<{ name: string; mimeType: string; buffer: Buffer }>,
 ): Promise<Locator> {
-  await page.getByTestId("new-project").click();
+  await newProjectButton(page).click();
   const dialog = newProjectDialog(page);
   await dialog.getByRole("radio", { name: "Image" }).click();
   await dialog.locator('input[type="file"]').setInputFiles([...files]);

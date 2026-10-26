@@ -23,12 +23,12 @@ import { DataRecovery } from "../app-state/DataRecovery";
 import { NewProjectDialog } from "../new-project/NewProjectDialog";
 import { SearchQueryProvider } from "../search/SearchQueryProvider";
 import { WorkspaceSearch } from "../search/WorkspaceSearch";
-import { Skeleton } from "../ui/Skeleton";
 import { useToast } from "../ui/ToastProvider";
 import { FolderDialogs } from "./FolderDialogs";
 import { MoveFolderDialog } from "./MoveFolderDialog";
 import { Sidebar } from "./Sidebar";
 import { SidebarSkeleton } from "./SidebarSkeleton";
+import { WorkspaceToolbar } from "./WorkspaceToolbar";
 import { WorkspaceContext, type Workspace as WorkspaceValue } from "./workspace-context";
 import { Revocations } from "../app-state/Revocations";
 
@@ -92,6 +92,14 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
   const { show: showRename } = folderRename;
   const { show: showMove } = folderMove;
   const { show: showDelete } = folderDelete;
+
+  /**
+   * The New folder buttons beside New project: like it, they work where the person is, inside
+   * the open folder (the dialog says so), else at the top level. The "+" by the sidebar's
+   * Folders heading always makes a top-level one.
+   */
+  const hereFolder = folders.find((folder) => folder.id === routeFolderId) ?? null;
+  const newFolderHere = () => showNewFolder({ parentId: hereFolder?.id ?? null });
 
   useShortcut("n", () => showNewProject({}), store !== null);
   useAttentionWhile("new-project-dialog", newProject.open);
@@ -195,7 +203,7 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
   };
 
   /**
-   * One search, mounted in one place: top right of the page on wide screens; in the sidebar's
+   * One search, mounted in one place: the page's toolbar on wide screens; in the sidebar's
    * header when the sidebar stacks above the page (else it would sit below the whole sidebar).
    * Crossing `lg` remounts it; the query lives in `SearchQueryProvider`, so it carries over.
    */
@@ -215,20 +223,20 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
             persistent={persistent}
             onNewProject={() => showNewProject({})}
             onNewFolder={() => showNewFolder({ parentId: null })}
+            onNewFolderHere={newFolderHere}
+            newFolderIn={hereFolder?.name ?? null}
             search={wide ? null : search}
           />
         ) : (
           <SidebarSkeleton />
         )}
         <main id="main" className="flex min-w-0 flex-1 flex-col gap-4 self-stretch">
-          {/*
-            Wide screens only (CSS, so the row never pops in after hydration); the skeleton holds
-            its place until the store and the media query are both known. z-30: the open search
-            results lie over the page below.
-          */}
-          <div className="relative z-30 flex justify-end max-lg:hidden">
-            {wide && search ? search : <Skeleton className="h-11 w-80" />}
-          </div>
+          <WorkspaceToolbar
+            search={wide ? search : null}
+            onNewProject={() => showNewProject({})}
+            onNewFolder={newFolderHere}
+            newFolderIn={hereFolder?.name ?? null}
+          />
           {children}
         </main>
       </div>

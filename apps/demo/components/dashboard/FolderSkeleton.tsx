@@ -12,7 +12,11 @@ export function FolderSkeleton() {
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-6 w-32 rounded-pill" />
         </div>
-        <Skeleton className="h-13 w-full max-w-md rounded-pill" />
+        {/* Status filter, then sort (dropping below it, on the right, on narrow screens). */}
+        <div className="flex max-w-full flex-wrap items-center gap-x-3 gap-y-2">
+          <Skeleton className="h-13 w-84 max-w-full rounded-pill" />
+          <Skeleton className="ml-auto h-11 w-48 rounded-pill sm:w-72" />
+        </div>
       </div>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,17rem),1fr))] gap-4">
         {Array.from({ length: CARDS }, (_, index) => (

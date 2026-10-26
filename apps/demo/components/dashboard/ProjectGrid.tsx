@@ -13,7 +13,10 @@ interface ProjectGridProps extends ProjectCardActions {
 
 const stagger = staggerGroup();
 
-/** Responsive card grid; cards stagger in on mount and animate out when removed or filtered. */
+/**
+ * Responsive card grid; cards stagger in on mount, glide to their new places when re-sorted
+ * (`layout` on each card, off with reduced motion) and animate out when removed or filtered.
+ */
 export function ProjectGrid({ summaries, canMove, now, ...actions }: ProjectGridProps) {
   return (
     <motion.ul

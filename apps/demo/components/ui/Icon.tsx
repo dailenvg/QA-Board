@@ -13,6 +13,16 @@ const ICONS = {
     ["circle", { cx: 12, cy: 12, r: 10 }],
     ["path", { d: "M12 8v4M12 16h.01" }],
   ],
+  arrowDown: [
+    ["path", { d: "M12 5v14" }],
+    ["path", { d: "m19 12-7 7-7-7" }],
+  ],
+  arrowUpDown: [
+    ["path", { d: "m21 16-4 4-4-4" }],
+    ["path", { d: "M17 20V4" }],
+    ["path", { d: "m3 8 4-4 4 4" }],
+    ["path", { d: "M7 4v16" }],
+  ],
   camera: [
     [
       "path",

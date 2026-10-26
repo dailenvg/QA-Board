@@ -5,6 +5,7 @@ import {
   OVERVIEW_HEADLINE,
   folderCard,
   mockFrameCheck,
+  newProjectButton,
   openOverview,
   sheetLift,
 } from "./squint-fixtures";
@@ -18,7 +19,7 @@ function overviewLink(page: Page): Locator {
 
 /** Creates a website project through the New project dialog, which stays on the Overview. */
 async function addUrlProject(page: Page, url: string, name: string): Promise<void> {
-  await page.getByTestId("new-project").click();
+  await newProjectButton(page).click();
   const dialog = page.getByRole("dialog", { name: "New project" });
   await dialog.getByLabel("Website address").fill(url);
   await dialog.getByLabel("Project name").fill(name);
@@ -225,7 +226,8 @@ test("with two folders the corner menu deletes one", async ({ page }) => {
   await page.getByRole("menuitem", { name: "Delete folder" }).click();
   const confirm = page.getByRole("dialog", { name: "Delete Client work?" });
   await confirm.getByRole("button", { name: "Delete folder" }).click();
-  await expect(page.getByTestId("toast")).toContainText("Deleted Client work");
+  // Filtered: the "Added Homepage" toast may still be on its way out.
+  await expect(page.getByTestId("toast").filter({ hasText: "Deleted Client work" })).toBeVisible();
   await expect(folderCard(page, "Client work")).toHaveCount(0);
   await expect(page.getByTestId("folder-card")).toHaveCount(1);
 });

@@ -24,7 +24,9 @@ import { FolderNotFound } from "./FolderNotFound";
 import { FolderSkeleton } from "./FolderSkeleton";
 import { ProjectDialogs } from "./ProjectDialogs";
 import { ProjectGrid } from "./ProjectGrid";
+import { sortProjects } from "./project-sort";
 import type { StatusFilterValue } from "./status-filter";
+import { useProjectSort } from "./use-project-sort";
 import { useWorkspace, type Workspace } from "./workspace-context";
 
 function plural(count: number, noun: string): string {
@@ -42,19 +44,27 @@ export function FolderView({ folderId }: { folderId: string }) {
 
 /**
  * Breadcrumb and folder header with summary chips, then its subfolders as
- * folder cards, then the status filter's projects, and the project dialogs.
+ * folder cards, then the status filter's projects in the chosen order, and the project dialogs.
  */
 function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Folder }) {
   const { data, persistent, folders, report } = workspace;
   const toast = useToast();
   const now = useNow();
   const [filter, setFilter] = useState<StatusFilterValue>("all");
+  const { sort, setKey, reverse } = useProjectSort();
 
   const summaries = useMemo(() => folderSummaries(data, folder.id), [data, folder.id]);
   const subfolders = useMemo(() => childFolders(folders, folder.id), [folders, folder.id]);
   const ancestors = useMemo(() => ancestorsOf(folders, folder.id), [folders, folder.id]);
-  const visible =
-    filter === "all" ? summaries : summaries.filter((entry) => entry.status === filter);
+  const visible = useMemo(
+    () =>
+      sortProjects(
+        filter === "all" ? summaries : summaries.filter((entry) => entry.status === filter),
+        sort.key,
+        sort.direction,
+      ),
+    [summaries, filter, sort],
+  );
 
   const projectRename = useDialogState<Project>();
   const projectMove = useDialogState<Project>();
@@ -75,6 +85,9 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
         chips={chips}
         filter={filter}
         onFilter={setFilter}
+        sort={sort}
+        onSortKey={setKey}
+        onReverseSort={reverse}
         actions={workspace.folderActions(folder)}
         breadcrumb={<Breadcrumb ancestors={ancestors} current={folder} />}
       />
