@@ -5,7 +5,7 @@ import { launchBrowser } from "./browser";
 import { CaptureError } from "./capture-error";
 import { REFUSED_HEADER, startGuardProxy, type GuardProxy } from "./guard-proxy";
 import type { StepLog } from "./step-log";
-import { tmpFreeMb } from "./tmp-space";
+import { shmFreeMb, tmpFreeMb } from "./tmp-space";
 import { CAPTURE_LIMITS } from "./types";
 
 const VIEWPORT_HEIGHT = 900;
@@ -117,7 +117,9 @@ async function shoot(page: Page, width: number, log: StepLog): Promise<CapturedI
   const pageHeight = Number(await page.evaluate(HEIGHT_SCRIPT));
   const height = Math.max(1, Math.min(CAPTURE_LIMITS.maxHeight, Math.round(pageHeight) || 1));
   await page.addStyleTag({ content: FREEZE_CSS }).catch(() => undefined);
-  log(`measured ${width}x${height}, ${tmpFreeMb()} MB free in /tmp, ${memFreeMb()} MB RAM`);
+  log(
+    `measured ${width}x${height}, free MB: /tmp ${tmpFreeMb()}, /dev/shm ${shmFreeMb()}, RAM ${memFreeMb()}`,
+  );
   const cdp = await page.context().newCDPSession(page);
   let scale = 1;
   let shot = await render(cdp, width, height, scale, JPEG_QUALITY);

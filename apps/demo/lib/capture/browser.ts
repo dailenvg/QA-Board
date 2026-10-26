@@ -5,7 +5,7 @@ import { chromium, type Browser, type LaunchOptions } from "playwright-core";
 import { CaptureError } from "./capture-error";
 import { CHROMIUM_VERSION, chromiumPackUrl } from "./chromium-pack";
 import type { StepLog } from "./step-log";
-import { tmpFreeMb } from "./tmp-space";
+import { shmFreeMb, tmpFreeMb } from "./tmp-space";
 
 /**
  * Keeps every connection on the guard proxy: no background services, no QUIC
@@ -18,6 +18,9 @@ const ARGS = [
   "--disable-quic",
   "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
 ];
+
+/** Each capture gets a new profile, so a disk cache only takes room in /tmp. */
+const SERVERLESS_ARGS = ["--disk-cache-size=1"];
 
 /** The unpacked serverless Chromium, shared so captures starting together download it once. */
 let serverlessPath: Promise<string> | null = null;
@@ -48,8 +51,15 @@ async function launchOptions(log: StepLog): Promise<LaunchOptions> {
       throw error;
     });
   const executablePath = await serverlessPath;
-  log(`pack ready (${process.arch}, ${tmpFreeMb()} MB free in /tmp)`);
-  return { headless: true, executablePath, args: [...serverless.args, ...ARGS] };
+  log(`pack ready (${process.arch}, free MB: /tmp ${tmpFreeMb()}, /dev/shm ${shmFreeMb()})`);
+  return {
+    headless: true,
+    executablePath,
+    args: [...serverless.args, ...ARGS, ...SERVERLESS_ARGS],
+    // Shared memory (a full-page screenshot needs well over 100 MB) goes to /dev/shm when it's
+    // usable, and back to /tmp when not. /tmp alone is too small next to the unpacked browser.
+    ignoreDefaultArgs: ["--disable-dev-shm-usage"],
+  };
 }
 
 /**
