@@ -3,20 +3,13 @@
 import { motion, useReducedMotion } from "motion/react";
 import { useId } from "react";
 import { instant, spring } from "@/lib/motion";
+import { Icon, type IconName } from "../ui/Icon";
 
 export type ImageGrouping = "separate" | "combine";
 
-const OPTIONS: ReadonlyArray<{ value: ImageGrouping; title: string; hint: string }> = [
-  {
-    value: "separate",
-    title: "One project per file",
-    hint: "Each image becomes its own project, named after its file.",
-  },
-  {
-    value: "combine",
-    title: "Combine into one project",
-    hint: "Each image becomes a page, in the order below.",
-  },
+const OPTIONS: ReadonlyArray<{ value: ImageGrouping; title: string; icon: IconName }> = [
+  { value: "separate", title: "One project per file", icon: "layoutGrid" },
+  { value: "combine", title: "Combine into one project", icon: "layers" },
 ];
 
 interface CombineChoiceProps {
@@ -38,7 +31,7 @@ export function CombineChoice({ value, onChange }: CombineChoiceProps) {
             <label
               key={option.value}
               data-testid={`grouping-${option.value}`}
-              className={`relative flex min-h-11 cursor-pointer flex-col gap-1 rounded-tile p-4 pr-12 transition-colors has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-focus ${
+              className={`relative flex min-h-11 cursor-pointer items-center gap-3 rounded-tile p-4 pr-12 transition-colors has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-focus ${
                 selected ? "bg-brand-soft" : "bg-card ring-1 ring-line ring-inset hover:bg-hover"
               }`}
             >
@@ -63,14 +56,19 @@ export function CombineChoice({ value, onChange }: CombineChoiceProps) {
                */}
               <span
                 aria-hidden="true"
-                className={`absolute top-4 right-4 grid size-5 place-items-center rounded-pill ring-2 ring-inset ${
+                className={`absolute top-1/2 right-4 grid size-5 -translate-y-1/2 place-items-center rounded-pill ring-2 ring-inset ${
                   selected ? "ring-brand-text" : "ring-field-line"
                 }`}
               >
                 {selected ? <span className="size-2 rounded-pill bg-brand-text" /> : null}
               </span>
+              <span
+                aria-hidden="true"
+                className={`relative flex shrink-0 ${selected ? "text-brand-text" : "text-muted"}`}
+              >
+                <Icon name={option.icon} className="size-6" />
+              </span>
               <span className="relative text-body font-semibold">{option.title}</span>
-              <span className="relative text-meta text-muted">{option.hint}</span>
             </label>
           );
         })}
