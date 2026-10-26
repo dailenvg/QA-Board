@@ -7,7 +7,12 @@ export function SidebarSkeleton() {
       aria-hidden="true"
       className="flex flex-col gap-5 rounded-panel bg-panel p-4 lg:sticky lg:top-4 lg:h-[calc(100dvh-2rem)] lg:w-sidebar lg:shrink-0"
     >
-      <Skeleton className="h-11 w-40" />
+      {/* The header as it loads in: logo, then below lg the search and the theme toggle. */}
+      <div className="flex min-h-11 items-center gap-2 px-2">
+        <Skeleton className="mr-auto h-11 w-40" />
+        <Skeleton className="size-11 rounded-pill sm:w-72 sm:rounded-field lg:hidden" />
+        <Skeleton className="size-11 rounded-pill lg:hidden" />
+      </div>
       <Skeleton className="h-11 rounded-pill" />
       <Skeleton className="h-11 w-32 lg:w-full" />
       <div className="flex gap-2 lg:flex-col">

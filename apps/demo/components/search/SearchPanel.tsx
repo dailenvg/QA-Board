@@ -6,6 +6,13 @@ import { Kbd } from "../ui/Kbd";
 import { SearchOption } from "./SearchOption";
 import type { SearchEntry, SearchEntryGroups } from "./search-entries";
 
+/** Shown before typing, and the field's description for assistive tech. */
+export const SEARCH_HINT = "Type part of a project or folder name. Search covers every folder.";
+
+/** The new-tab modifier as this platform's keyboards label it. */
+const MOD_KEY =
+  typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘" : "Ctrl";
+
 interface SearchPanelProps {
   query: string;
   groups: SearchEntryGroups;
@@ -25,7 +32,7 @@ export function SearchPanel({ query, groups, more, listboxId, ...listProps }: Se
     return (
       <p className="flex items-center gap-3 px-3 py-2 text-meta text-muted">
         <Icon name="search" className="size-4 shrink-0" />
-        Type part of a project or folder name. Search covers every folder.
+        {SEARCH_HINT}
       </p>
     );
   }
@@ -75,7 +82,7 @@ export function SearchPanel({ query, groups, more, listboxId, ...listProps }: Se
       ) : null}
       <p
         aria-hidden="true"
-        className="mt-2 flex items-center gap-3 border-t border-line px-3 pt-2 text-label text-muted max-sm:hidden"
+        className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line px-3 pt-2 text-label text-muted max-sm:hidden"
       >
         <span className="inline-flex items-center gap-1">
           <Kbd>↑</Kbd>
@@ -86,6 +93,10 @@ export function SearchPanel({ query, groups, more, listboxId, ...listProps }: Se
         </span>
         <span className="inline-flex items-center gap-1">
           <Kbd>Esc</Kbd> to clear
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <Kbd>{MOD_KEY}</Kbd>
+          <Kbd>Enter</Kbd> in a new tab
         </span>
       </p>
     </>

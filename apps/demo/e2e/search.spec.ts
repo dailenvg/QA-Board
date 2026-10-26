@@ -32,7 +32,12 @@ test("finds a nested project by part of its name, in any case, and Enter opens i
   isMobile,
 }) => {
   const input = await openSearch(page, isMobile);
+  // Before typing, the field is described by the hint the results area shows.
+  await expect(input).toHaveAccessibleDescription(
+    "Type part of a project or folder name. Search covers every folder.",
+  );
   await input.fill("cAMPAIGN ban");
+  await expect(input).toHaveAccessibleDescription("");
 
   // Its name is what it shows (name, then where it sits), then its type.
   const option = page.getByRole("option", {
@@ -200,4 +205,66 @@ test("a query in progress survives the search moving between the page and the si
   await page.setViewportSize({ width: 1280, height: 900 });
   await expect(page.locator("main").getByRole("search")).toHaveCount(1);
   await expect(input).toHaveValue("campaign");
+});
+
+test("the result count is announced once typing pauses, not on every keystroke", async ({
+  page,
+  isMobile,
+}) => {
+  const input = await openSearch(page, isMobile);
+  const status = page.getByTestId("search-status");
+  // Every change the live region makes, in order.
+  await status.evaluate((node) => {
+    const said: string[] = [];
+    Reflect.set(window, "searchSaid", said);
+    new MutationObserver(() => said.push(node.textContent ?? "")).observe(node, {
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+  });
+  // "c" and "ca" match more than "cam" does, so announcing each would say three counts.
+  await input.pressSequentially("cam", { delay: 50 });
+  await expect(page.getByRole("option", { name: /^Spring Campaign Banner/ })).toBeVisible();
+  await expect(status).toHaveText("1 result found");
+  expect(await page.evaluate(() => Reflect.get(window, "searchSaid") as string[])).toEqual([
+    "1 result found",
+  ]);
+});
+
+test("Cmd/Ctrl+Enter opens the active result in a new tab and keeps the search", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "A keyboard shortcut.");
+  const input = await openSearch(page, isMobile);
+  await input.fill("campaign ban");
+  await expect(page.getByRole("option", { selected: true })).toHaveText(/^Spring Campaign Banner/);
+  const [opened] = await Promise.all([
+    page.context().waitForEvent("page"),
+    input.press("ControlOrMeta+Enter"),
+  ]);
+  await expect(opened).toHaveURL(/\/p\/nested$/);
+  await opened.close();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(input).toBeFocused();
+  await expect(input).toHaveValue("campaign ban");
+});
+
+test("on a short phone screen, the results end above the bottom edge", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(!isMobile, "Phones only.");
+  // Like a phone with its keyboard up: CSS's 70dvh alone would run past the bottom here.
+  await page.setViewportSize({ width: 412, height: 220 });
+  const input = await openSearch(page, isMobile);
+  await input.fill("e");
+  const popup = page.getByTestId("search-popup");
+  await settled(popup);
+  const box = await popup.boundingBox();
+  expect(box && box.y + box.height <= 220).toBe(true);
+  // It scrolls instead: the last result is still reachable.
+  await input.press("ArrowUp");
+  await expect(page.getByRole("option", { selected: true })).toBeInViewport();
 });

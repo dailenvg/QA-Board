@@ -7,13 +7,15 @@ import { flushSync } from "react-dom";
 import { usePopVariants } from "@/lib/motion";
 import { searchWorkspace } from "@/lib/store/search";
 import type { SquintData } from "@/lib/store/types";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
+import { useFitAboveKeyboard } from "@/lib/use-fit-above-keyboard";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { useShortcut } from "@/lib/use-shortcut";
 import { Button } from "../ui/Button";
 import { FIELD_CLASS } from "../ui/field-styles";
 import { Icon } from "../ui/Icon";
 import { Kbd } from "../ui/Kbd";
-import { SearchPanel } from "./SearchPanel";
+import { SEARCH_HINT, SearchPanel } from "./SearchPanel";
 import { useSearchQuery } from "./SearchQueryProvider";
 import { moreNote, resultsAnnouncement, searchEntries, type SearchEntry } from "./search-entries";
 
@@ -26,10 +28,17 @@ const LABEL = "Search projects and folders";
 /** Tailwind's `sm` breakpoint, in rem like the CSS, so both agree at any browser font size. */
 const ROOMY = "(min-width: 40rem)";
 
+/** The results' height cap (also in their class); phones lower it above the keyboard. */
+const POPUP_MAX = "min(70dvh, 32rem)";
+
+/** The count is read out once typing pauses this long, not on every keystroke. */
+const ANNOUNCE_DELAY_MS = 400;
+
 /**
  * Finds any project or folder by name, at any depth (WAI-ARIA combobox with a listbox popup).
  * Focus stays in the field: the arrow keys move the active result, Enter opens it, Escape
  * clears and then leaves, handing focus back to where `/` or ⌘K / Ctrl+K summoned it from.
+ * Cmd/Ctrl+Enter opens the active result in a new tab and keeps the search open.
  *
  * On phones it starts as an icon button. The field then opens over the button's row: it fills
  * the nearest positioned ancestor (the sidebar header), which hides what it covers through
@@ -53,6 +62,7 @@ export function WorkspaceSearch({ data }: WorkspaceSearchProps) {
   const returnTo = useRef<HTMLElement | null>(null);
   const baseId = useId();
   const inputId = `${baseId}-input`;
+  const hintId = `${baseId}-hint`;
   const listboxId = `${baseId}-results`;
 
   const results = useMemo(() => searchWorkspace(data, query), [data, query]);
@@ -63,7 +73,11 @@ export function WorkspaceSearch({ data }: WorkspaceSearchProps) {
   const listed = open && entries.length > 0;
   const optionId = (entry: SearchEntry) => `${baseId}-${entry.key}`;
   const activeId = listed && active ? optionId(active) : undefined;
-  const announcement = query.trim() ? resultsAnnouncement(results) : "";
+  const announcement = useDebouncedValue(
+    query.trim() ? resultsAnnouncement(results) : "",
+    ANNOUNCE_DELAY_MS,
+  );
+  const popup = useFitAboveKeyboard<HTMLDivElement>(open, POPUP_MAX);
 
   useEffect(() => {
     if (activeId) document.getElementById(activeId)?.scrollIntoView({ block: "nearest" });
@@ -128,7 +142,9 @@ export function WorkspaceSearch({ data }: WorkspaceSearchProps) {
       move(event.key === "ArrowDown" ? 1 : -1);
     } else if (event.key === "Enter" && listed && active) {
       event.preventDefault();
-      choose(active);
+      // As Cmd/Ctrl-click does on the result's link: a new tab, and the search stays put.
+      if (event.metaKey || event.ctrlKey) window.open(active.href, "_blank", "noopener");
+      else choose(active);
     } else if (event.key === "Escape") {
       event.preventDefault();
       if (query) {
@@ -206,6 +222,7 @@ export function WorkspaceSearch({ data }: WorkspaceSearchProps) {
                 aria-controls={listed ? listboxId : undefined}
                 aria-autocomplete="list"
                 aria-activedescendant={activeId}
+                aria-describedby={query.trim() ? undefined : hintId}
                 // The "/" hint is decorative (aria-hidden); this tells assistive tech instead.
                 aria-keyshortcuts="/ Control+K Meta+K"
                 autoComplete="off"
@@ -248,6 +265,7 @@ export function WorkspaceSearch({ data }: WorkspaceSearchProps) {
               <AnimatePresence>
                 {open ? (
                   <motion.div
+                    ref={popup}
                     key="results"
                     variants={variants}
                     initial="hidden"
@@ -276,6 +294,10 @@ export function WorkspaceSearch({ data }: WorkspaceSearchProps) {
           </motion.div>
         ) : null}
       </AnimatePresence>
+      {/* The field's description before typing; `hidden` still counts for aria-describedby. */}
+      <p id={hintId} hidden>
+        {SEARCH_HINT}
+      </p>
       <p className="sr-only" aria-live="polite" data-testid="search-status">
         {announcement}
       </p>
