@@ -86,12 +86,12 @@ Every other Squiggy (the comment panel's tabs, folder keys, empty states and err
 
 Squint reads four optional variables. Copy `.env.example` to `.env.local` to set them locally.
 
-| Variable                   | When set                                                                                             | When unset                                                                         |
-| -------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `DATABASE_URL`             | Shares are stored in Postgres (tables `squint_*`, migrated on first use).                            | Shares live in the server's memory, per instance, lost on restart. Local use only. |
-| `BLOB_READ_WRITE_TOKEN`    | Shared images go to Vercel Blob as private blobs.                                                    | Shared images are stored with the share's data.                                    |
-| `SQUINT_CAPTURE_URL`       | Captures go to this external service (same contract as `POST /api/capture`).                         | Captures run on this server in headless Chromium.                                  |
-| `SQUINT_CHROMIUM_PACK_URL` | On Vercel, Chromium's pack tar is downloaded from this address, such as a mirror near the functions. | The pack comes from the matching `@sparticuz/chromium` GitHub release.             |
+| Variable                   | When set                                                                                               | When unset                                                                         |
+| -------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| `DATABASE_URL`             | Shares are stored in Postgres (tables `squint_*`, migrated on first use).                              | Shares live in the server's memory, per instance, lost on restart. Local use only. |
+| `BLOB_READ_WRITE_TOKEN`    | Shared images go to Vercel Blob as private blobs.                                                      | Shared images are stored with the share's data.                                    |
+| `SQUINT_CAPTURE_URL`       | Captures go to this external service (same contract as `POST /api/capture`).                           | Captures run on this server in headless Chromium.                                  |
+| `SQUINT_CHROMIUM_PACK_URL` | On Vercel, Chromium's pack tar is downloaded from this https URL, such as a mirror near the functions. | The pack comes from the matching Sparticuz/chromium GitHub release.                |
 
 Blob URLs never reach a browser: images are served through token-gated routes either way. `DATABASE_URL` is shared with the pinpoint server, which uses it for its own storage when the GitHub variables aren't set. With `SQUINT_CAPTURE_URL`, Squint still checks the top-level address, but the external service has to refuse private addresses for redirects and subresources itself.
 
