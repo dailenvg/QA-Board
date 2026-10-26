@@ -1,7 +1,9 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
+import { mix } from "@/lib/color";
 import { duration, ease, spring } from "@/lib/motion";
+import { useTheme } from "@/lib/use-theme";
 import { RESOLVED_APEX, RESOLVED_HOP, type Mood } from "./moods";
 import { BRAND, CONFETTI_COLORS } from "./paths";
 
@@ -56,7 +58,12 @@ const SNORES = [
   { x: 446, y: 336, size: 1.25 },
 ];
 
-function Snores({ color, reduce }: Omit<Props, "mood">) {
+/** Snores are thin strokes in the body color; on a dark theme that's about 3.4:1, so they lighten to 7.8:1. */
+const DARK_SNORE_LIFT = 0.45;
+
+function Snores({ color: body, reduce }: Omit<Props, "mood">) {
+  const dark = useTheme() === "dark";
+  const color = dark ? mix(body, "#FFFFFF", DARK_SNORE_LIFT) : body;
   if (reduce) {
     return (
       <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>

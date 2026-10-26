@@ -2,6 +2,7 @@ import { deleteBlobs, putBlob } from "../blob-store/blob-store";
 import { cropBlobKey, snapshotBlobKey } from "../blob-store/keys";
 import { CAPTURE_MESSAGES } from "../capture/messages";
 import { requestCapture } from "../capture/request-capture";
+import { emitSquiggy } from "../squiggy/events";
 import {
   addComment,
   addSnapshot,
@@ -36,8 +37,10 @@ async function captureSnapshot(
   if (!result.ok) return { ok: false, message: CAPTURE_MESSAGES[result.failure] };
   const id = newId();
   const blobKey = snapshotBlobKey(id);
-  if (!(await putBlob(blobKey, result.blob)))
+  if (!(await putBlob(blobKey, result.blob))) {
+    emitSquiggy({ type: "save-failed" });
     return { ok: false, message: CAPTURE_MESSAGES.storage };
+  }
   const { width: pageWidth, height, scale } = result;
   const saved = addSnapshot({
     id,

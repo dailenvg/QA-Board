@@ -1,7 +1,7 @@
 "use client";
 
 import type { PaletteEntry } from "@/lib/brand-palette";
-import { SquintMascot } from "../brand/mascot/SquintMascot";
+import { Squiggy } from "../brand/mascot/Squiggy";
 
 /**
  * In the folder's own units: the mascot is the key itself, standing on the
@@ -16,10 +16,10 @@ interface FolderMascotProps {
   active: boolean;
 }
 
-/** Squint holding a magnifying glass: "look inside this folder". Decorative. */
+/** Squiggy holding a magnifying glass: "look inside this folder". Decorative. */
 export function FolderMascot({ swatch, active }: FolderMascotProps) {
   return (
-    <SquintMascot
+    <Squiggy
       mood={active ? "searching" : "idle"}
       accessory="magnifier"
       perked={active}

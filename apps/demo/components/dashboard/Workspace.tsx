@@ -3,6 +3,7 @@
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { OVERVIEW_HREF, folderHref, projectHref } from "@/lib/routes";
+import { useAttentionWhile } from "@/lib/squiggy/attention";
 import { createFolder, deleteFolder, moveFolder, renameFolder } from "@/lib/store/actions";
 import {
   canDeleteFolder,
@@ -93,6 +94,7 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
   const { show: showDelete } = folderDelete;
 
   useShortcut("n", () => showNewProject({}), store !== null);
+  useAttentionWhile("new-project-dialog", newProject.open);
 
   const report = useCallback(
     (result: { ok: boolean; error?: string }, success?: string) => {

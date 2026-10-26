@@ -3,7 +3,7 @@
 import { motion } from "motion/react";
 import { useRevealVariants } from "@/lib/motion";
 import { Logo } from "../brand/Logo";
-import { SquintMascot } from "../brand/mascot/SquintMascot";
+import { Squiggy } from "../brand/mascot/Squiggy";
 
 /** A shared link that doesn't open (unknown or revoked). No way into anyone's workspace. */
 export function ShareUnavailable() {
@@ -17,7 +17,7 @@ export function ShareUnavailable() {
         data-testid="share-unavailable"
         className="flex w-full max-w-md flex-col items-center gap-4 rounded-panel bg-panel px-6 py-12 text-center"
       >
-        <SquintMascot mood="thinking" size={120} />
+        <Squiggy mood="thinking" size={120} />
         <div>
           <h1 className="text-title font-bold">This link isn&apos;t available</h1>
           <p className="mt-2 text-body text-muted">

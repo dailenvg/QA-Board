@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useAttentionReporter } from "@/lib/squiggy/attention";
 import { Logo } from "../brand/Logo";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
@@ -39,6 +40,7 @@ export function Sidebar({
   onNewFolder,
   search = null,
 }: SidebarProps) {
+  const attention = useAttentionReporter("sidebar-button");
   return (
     <aside
       aria-label="Workspace"
@@ -66,6 +68,7 @@ export function Sidebar({
         className="w-full"
         title="New project (N)"
         data-testid="new-project"
+        {...attention}
       >
         <Icon name="plus" className="size-5" />
         New project

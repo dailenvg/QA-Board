@@ -4,7 +4,7 @@ import { motion, useReducedMotion } from "motion/react";
 import type { ReactNode } from "react";
 import { RESOLVED_GREEN } from "@/lib/brand-palette";
 import { instant, spring } from "@/lib/motion";
-import { SquintMascot } from "../brand/mascot/SquintMascot";
+import { Squiggy } from "../brand/mascot/Squiggy";
 import type { Mood } from "../brand/mascot/moods";
 import { useRadioGroup } from "../ui/use-radio-group";
 import type { CommentTab } from "./types";
@@ -61,7 +61,7 @@ export function PanelHeading({
       count: active,
       testId: "tab-active",
       mascot: (selected) => (
-        <SquintMascot
+        <Squiggy
           mood={activeMood(selected, active, celebrating)}
           size={MASCOT_SIZE}
           followCursor={false}
@@ -76,7 +76,7 @@ export function PanelHeading({
       count: resolved,
       testId: "tab-resolved",
       mascot: (selected) => (
-        <SquintMascot
+        <Squiggy
           mood={selected ? "happy" : "idle"}
           color={RESOLVED_GREEN.hex}
           size={MASCOT_SIZE}

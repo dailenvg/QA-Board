@@ -54,7 +54,10 @@ export async function openOverview(page: Page): Promise<void> {
   await expect(page.getByTestId("overview-hero")).toBeVisible();
 }
 
-export const OVERVIEW_HEADLINE = { empty: "Welcome to Squint", filled: "Everything up for review" };
+export const OVERVIEW_HEADLINE = {
+  empty: "Welcome to Squint",
+  filled: "Your projects at a glance",
+};
 
 function newProjectDialog(page: Page): Locator {
   return page.getByRole("dialog", { name: "New project" });

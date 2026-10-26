@@ -26,9 +26,9 @@ import {
   GROUND_Y,
   STAGE_VIEWBOX,
 } from "./paths";
-import "./SquintMascot.css";
+import "./Squiggy.css";
 
-export type SquintMascotProps = {
+export type SquiggyProps = {
   /** Emotional state. Changes blend smoothly into each other. */
   mood?: Mood;
   /** Rendered width and height (number = px). */
@@ -59,7 +59,7 @@ export type SquintMascotProps = {
    * contexts, such as inside a button. Looks the same either way.
    */
   as?: "div" | "span";
-  /** Accessible name. */
+  /** Accessible name, followed by the mood ("Squiggy, thinking"). */
   label?: string;
   className?: string;
 };
@@ -75,7 +75,7 @@ const FLIP_AT = 5;
 type Facing = 1 | -1;
 const ground = { originX: 0.5, originY: 1 } as const;
 
-export function SquintMascot({
+export function Squiggy({
   mood = "idle",
   size = 240,
   followCursor = true,
@@ -88,9 +88,9 @@ export function SquintMascot({
   perked: perkedByParent = false,
   still = false,
   as = "div",
-  label = "Squint",
+  label = "Squiggy",
   className,
-}: SquintMascotProps) {
+}: SquiggyProps) {
   const reduce = useReducedMotion() ?? false;
   const spec = MOOD_SPECS[mood];
   const rootRef = useRef<HTMLElement>(null);
