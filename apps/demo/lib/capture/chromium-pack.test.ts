@@ -19,6 +19,14 @@ describe("chromiumPackUrl", () => {
     expect(chromiumPackUrl("153.0.0", "arm64", env)).toBe("https://cdn.example.com/pack.tar");
   });
 
+  it.each(["http://cdn.example.com/pack.tar", "/opt/chromium", "cdn.example.com/pack.tar"])(
+    "refuses a non-https override %s",
+    (override) => {
+      const env = { SQUINT_CHROMIUM_PACK_URL: override };
+      expect(() => chromiumPackUrl("153.0.0", "x64", env)).toThrow(/https/);
+    },
+  );
+
   it("ignores a blank override", () => {
     const env = { SQUINT_CHROMIUM_PACK_URL: "  " };
     expect(chromiumPackUrl("153.0.0", "x64", env)).toBe(

@@ -1,14 +1,20 @@
 import { checkHost } from "../frame-check/probe";
+import { CLOSE_LIMIT_MS } from "./browser";
 import { CaptureError } from "./capture-error";
 import { capturePage, type CapturedImage } from "./capture-page";
+import { delay } from "./delay";
 import { captureRemote } from "./remote";
+import { safeError } from "./safe-error";
 import { stepLog, type StepLog } from "./step-log";
 import { tmpFreeMb } from "./tmp-space";
+import { whenAborted } from "./when-aborted";
 
 /** The whole capture, from address check to encoded image. */
 export const CAPTURE_TIMEOUT_MS = 25_000;
 /** Chromium is memory-hungry: captures beyond this per instance are turned away. */
 const MAX_CONCURRENT = 2;
+/** After a timeout, how long the answer waits for the capture to close its browser. */
+export const SETTLE_MS = CLOSE_LIMIT_MS + 500;
 
 let running = 0;
 
@@ -28,11 +34,20 @@ async function captureWithin(
     : capturePage(url, width, signal, log);
 }
 
-/** Rejects once `signal` aborts, so a step that misses the abort can't hold the response. */
-function whenAborted(signal: AbortSignal): Promise<never> {
-  return new Promise((_, reject) => {
-    signal.addEventListener("abort", () => reject(new CaptureError("timeout")), { once: true });
-  });
+/**
+ * Rejects with a `timeout` once `signal` has aborted and `work` has settled
+ * (its browser closed), or `SETTLE_MS` later at most, so a step that misses
+ * the abort can't hold the response, and a function frozen after answering
+ * doesn't keep Chromium open.
+ */
+async function timeoutAfterAbort(signal: AbortSignal, work: Promise<unknown>): Promise<never> {
+  await whenAborted(signal).catch(() => undefined);
+  const settled = work.then(
+    () => undefined,
+    () => undefined,
+  );
+  await Promise.race([settled, delay(SETTLE_MS, undefined)]);
+  throw new CaptureError("timeout");
 }
 
 /**
@@ -51,11 +66,11 @@ export async function capture(url: URL, width: number): Promise<CapturedImage> {
   }, CAPTURE_TIMEOUT_MS);
   try {
     const work = captureWithin(url, width, controller.signal, log);
-    const image = await Promise.race([work, whenAborted(controller.signal)]);
+    const image = await Promise.race([work, timeoutAfterAbort(controller.signal, work)]);
     log("done");
     return image;
   } catch (error) {
-    log(`failed: ${error instanceof CaptureError ? error.code : String(error)}`);
+    log(`failed: ${error instanceof CaptureError ? error.code : safeError(error)}`);
     throw error;
   } finally {
     clearTimeout(timer);

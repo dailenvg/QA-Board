@@ -2,11 +2,14 @@ import { rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type ServerlessChromium from "@sparticuz/chromium-min";
-import { chromium, type Browser, type LaunchOptions } from "playwright-core";
+import { chromium, type Browser, type BrowserServer, type LaunchOptions } from "playwright-core";
 import { CaptureError } from "./capture-error";
 import { CHROMIUM_VERSION, chromiumPackUrl } from "./chromium-pack";
+import { delay } from "./delay";
+import { safeError } from "./safe-error";
 import type { StepLog } from "./step-log";
 import { tmpFreeMb } from "./tmp-space";
+import { whenAborted } from "./when-aborted";
 
 /**
  * Keeps every connection on the guard proxy: no background services, no QUIC
@@ -19,6 +22,19 @@ const ARGS = [
   "--disable-quic",
   "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
 ];
+
+const LAUNCH_TIMEOUT_MS = 15_000;
+/** How long a graceful close gets before Chromium is killed. */
+const GRACEFUL_CLOSE_MS = 2_000;
+/** The longest closing a browser takes, kill included. */
+export const CLOSE_LIMIT_MS = 3_000;
+
+/** A launched capture browser and the one way to close it. */
+export interface CaptureBrowser {
+  browser: Browser;
+  /** Closes Chromium (killing it if needed) within `CLOSE_LIMIT_MS`; safe to call twice. */
+  close: () => Promise<void>;
+}
 
 /** Each capture gets a new profile, so a disk cache only takes room in /tmp. */
 const SERVERLESS_ARGS = ["--disk-cache-size=1"];
@@ -88,19 +104,63 @@ async function launchOptions(log: StepLog): Promise<LaunchOptions> {
 }
 
 /**
+ * Closes Chromium, and kills it if a graceful close hasn't finished within
+ * `GRACEFUL_CLOSE_MS` (a hung single-process browser can stall it). Settles
+ * within `CLOSE_LIMIT_MS` either way.
+ */
+export async function closeOrKill(server: BrowserServer, log: StepLog): Promise<void> {
+  const graceful = server.close().then(
+    () => true,
+    () => false,
+  );
+  if (await Promise.race([graceful, delay(GRACEFUL_CLOSE_MS, false)])) {
+    log("closed");
+    return;
+  }
+  // The serverless launcher execs Chromium, so this pid is the browser itself there too.
+  server.process().kill("SIGKILL");
+  log("killed");
+  await Promise.race([graceful, delay(CLOSE_LIMIT_MS - GRACEFUL_CLOSE_MS, false)]);
+}
+
+async function start(log: StepLog): Promise<CaptureBrowser> {
+  const server = await chromium.launchServer({
+    ...(await launchOptions(log)),
+    timeout: LAUNCH_TIMEOUT_MS,
+  });
+  try {
+    const browser = await chromium.connect(server.wsEndpoint(), { timeout: LAUNCH_TIMEOUT_MS });
+    log("launch");
+    let closing: Promise<void> | null = null;
+    return { browser, close: () => (closing ??= closeOrKill(server, log)) };
+  } catch (error) {
+    server.process().kill("SIGKILL");
+    throw error;
+  }
+}
+
+/**
  * A fresh browser for one capture; the caller closes it. Serverless Chromium
  * runs as a single process, which can't open a page once an earlier context
- * has closed, so browsers are never shared between captures.
+ * has closed, so browsers are never shared between captures. Aborting
+ * `signal` gives up on the launch (and the pack download) at once.
  */
-export async function launchBrowser(log: StepLog): Promise<Browser> {
+export async function launchBrowser(log: StepLog, signal: AbortSignal): Promise<CaptureBrowser> {
+  const starting = start(log);
   try {
-    const browser = await chromium.launch(await launchOptions(log));
-    log("launch");
-    return browser;
+    return await Promise.race([starting, whenAborted(signal)]);
   } catch (error) {
+    if (signal.aborted) {
+      // The launch may still land; close that browser when it does.
+      void starting.then(
+        (launched) => launched.close(),
+        () => undefined,
+      );
+      throw new CaptureError("timeout");
+    }
     console.error(
       "Squint capture: Chromium could not start. On Vercel, check that the Chromium pack downloads (SQUINT_CHROMIUM_PACK_URL overrides its URL). Locally, run `pnpm exec playwright install chromium` in apps/demo.",
-      error,
+      safeError(error),
     );
     throw new CaptureError("unavailable");
   }

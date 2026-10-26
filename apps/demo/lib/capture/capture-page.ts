@@ -1,9 +1,9 @@
 import { freemem } from "node:os";
-import { setTimeout as sleep } from "node:timers/promises";
 import type { Browser, CDPSession, Page } from "playwright-core";
-import { browserTurn, launchBrowser } from "./browser";
+import { browserTurn, CLOSE_LIMIT_MS, launchBrowser } from "./browser";
 import { CaptureError } from "./capture-error";
 import { REFUSED_HEADER, startGuardProxy, type GuardProxy } from "./guard-proxy";
+import { safeError } from "./safe-error";
 import type { StepLog } from "./step-log";
 import { tmpFreeMb } from "./tmp-space";
 import { CAPTURE_LIMITS } from "./types";
@@ -18,8 +18,6 @@ const LOAD_WAIT_MS = 10_000;
 const IDLE_WAIT_MS = 2_500;
 /** Upper bound for any single page step; the caller's signal ends the whole capture sooner. */
 const STEP_TIMEOUT_MS = 25_000;
-/** How long an answer waits for the browser to close. */
-const CLOSE_WAIT_MS = 2_000;
 
 export interface CapturedImage {
   body: Uint8Array<ArrayBuffer>;
@@ -58,7 +56,7 @@ async function load(page: Page, url: URL, proxy: GuardProxy, log: StepLog): Prom
     const response = await page.goto(url.toString(), { waitUntil: "domcontentloaded" });
     refused = response?.headers()[REFUSED_HEADER] === "1";
   } catch (error) {
-    log(`goto failed: ${String(error).split("\n")[0]}`);
+    log(`goto failed: ${safeError(error)} (${url.hostname})`);
     // An https redirect into a private network fails the navigation at the proxy.
     throw new CaptureError(proxy.refused() ? "private-host" : "unreachable");
   }
@@ -177,18 +175,14 @@ async function captureInBrowser(
   log: StepLog,
 ): Promise<CapturedImage> {
   const proxy = await startGuardProxy();
-  const browser = await launchBrowser(log).catch((error: unknown) => {
+  const launched = await launchBrowser(log, signal).catch((error: unknown) => {
     proxy.close();
     throw error;
   });
-  let closing: Promise<void> | null = null;
+  const { browser } = launched;
   const close = () => {
     proxy.close();
-    closing ??= browser.close().then(
-      () => log("closed"),
-      () => undefined,
-    );
-    return closing;
+    return launched.close();
   };
   const onAbort = () => void close();
   signal.addEventListener("abort", onAbort);
@@ -198,13 +192,13 @@ async function captureInBrowser(
   } catch (error) {
     if (signal.aborted) throw new CaptureError("timeout");
     if (error instanceof CaptureError) throw error;
-    log(`error: ${String(error).split("\n")[0]} (${tmpFreeMb()} MB free in /tmp)`);
+    log(`error: ${safeError(error)} (${tmpFreeMb()} MB free in /tmp)`);
     throw new CaptureError("failed");
   } finally {
     signal.removeEventListener("abort", onAbort);
     // Close before answering: a function is frozen after its response, which would leave
-    // this Chromium running into the next request.
-    await Promise.race([close(), sleep(CLOSE_WAIT_MS, undefined, { ref: false })]);
+    // this Chromium running into the next request. Takes at most CLOSE_LIMIT_MS.
+    await close();
   }
 }
 
@@ -220,11 +214,16 @@ export async function capturePage(
   log: StepLog,
 ): Promise<CapturedImage> {
   const endTurn = await browserTurn();
+  // Whatever a hung browser does, the turn ends CLOSE_LIMIT_MS after an abort:
+  // by then the browser has closed or been killed.
+  const onAbort = () => setTimeout(endTurn, CLOSE_LIMIT_MS).unref();
+  signal.addEventListener("abort", onAbort, { once: true });
   try {
     if (signal.aborted) throw new CaptureError("timeout");
     log("turn");
     return await captureInBrowser(url, width, signal, log);
   } finally {
+    signal.removeEventListener("abort", onAbort);
     endTurn();
   }
 }
