@@ -58,3 +58,27 @@ test("each card names its type, keeps single files' names, and passes axe", asyn
   await tag.click();
   await expect(page).toHaveURL(/\/p\/deck$/);
 });
+
+test("hover draws a brand line around a card; keyboard focus outranks it", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "Touch has no hover.");
+  await seedWorkspace(page, WORKSPACE_SEED, `/f/${DEFAULT_FOLDER.id}`);
+  const card = page.getByTestId("project-card").filter({ hasText: "Homepage" });
+  await settled(card);
+  const shadow = () => card.evaluate((element) => getComputedStyle(element).boxShadow);
+  // Brand and focus share a color in light mode; the 2px gap tells focus apart.
+  const line = "rgb(12, 84, 204) 0px 0px 0px 2px";
+  const focusRing = "rgb(12, 84, 204) 0px 0px 0px 4px";
+
+  await expect.poll(shadow).not.toContain(line);
+  await card.hover();
+  await expect.poll(shadow).toContain(line);
+
+  // Still hovered: a key press first, so the focus that follows is keyboard focus.
+  await page.keyboard.press("Tab");
+  await card.getByRole("link").focus();
+  await expect.poll(shadow).toContain(focusRing);
+  await expect.poll(shadow).toContain("rgb(231, 231, 234) 0px 0px 0px 2px");
+});
