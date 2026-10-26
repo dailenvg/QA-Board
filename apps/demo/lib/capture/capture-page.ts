@@ -1,7 +1,7 @@
 import { freemem } from "node:os";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { Browser, CDPSession, Page } from "playwright-core";
-import { launchBrowser } from "./browser";
+import { browserTurn, launchBrowser } from "./browser";
 import { CaptureError } from "./capture-error";
 import { REFUSED_HEADER, startGuardProxy, type GuardProxy } from "./guard-proxy";
 import type { StepLog } from "./step-log";
@@ -169,12 +169,8 @@ async function snapshot(
   return shoot(page, width, log);
 }
 
-/**
- * Captures a full-page JPEG at `width` CSS px (device scale factor 1) in a
- * headless Chromium whose every connection goes through an address-checking
- * proxy. Aborting `signal` closes the browser, which ends any step still waiting on it.
- */
-export async function capturePage(
+/** One capture in its own browser; aborting `signal` closes it, ending any step still waiting. */
+async function captureInBrowser(
   url: URL,
   width: number,
   signal: AbortSignal,
@@ -209,5 +205,26 @@ export async function capturePage(
     // Close before answering: a function is frozen after its response, which would leave
     // this Chromium running into the next request.
     await Promise.race([close(), sleep(CLOSE_WAIT_MS, undefined, { ref: false })]);
+  }
+}
+
+/**
+ * Captures a full-page JPEG at `width` CSS px (device scale factor 1) in a
+ * headless Chromium whose every connection goes through an address-checking
+ * proxy. Waiting for a turn counts toward the caller's `signal`.
+ */
+export async function capturePage(
+  url: URL,
+  width: number,
+  signal: AbortSignal,
+  log: StepLog,
+): Promise<CapturedImage> {
+  const endTurn = await browserTurn();
+  try {
+    if (signal.aborted) throw new CaptureError("timeout");
+    log("turn");
+    return await captureInBrowser(url, width, signal, log);
+  } finally {
+    endTurn();
   }
 }

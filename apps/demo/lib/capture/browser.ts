@@ -6,7 +6,7 @@ import { chromium, type Browser, type LaunchOptions } from "playwright-core";
 import { CaptureError } from "./capture-error";
 import { CHROMIUM_VERSION, chromiumPackUrl } from "./chromium-pack";
 import type { StepLog } from "./step-log";
-import { tmpFreeMb, tmpListing } from "./tmp-space";
+import { tmpFreeMb } from "./tmp-space";
 
 /**
  * Keeps every connection on the guard proxy: no background services, no QUIC
@@ -26,9 +26,28 @@ const SERVERLESS_ARGS = ["--disk-cache-size=1"];
 /** The serverless Chromium launcher, shared so captures starting together download it once. */
 let serverlessPath: Promise<string> | null = null;
 
+/** The serverless browser that runs last; the next one starts once it settles. */
+let lastTurn: Promise<void> = Promise.resolve();
+
 /** Vercel functions run on AWS Lambda, where the bundled Playwright browsers don't exist. */
 function onServerless(): boolean {
   return Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+}
+
+/**
+ * Waits until this capture may run a browser and returns the call that ends its
+ * turn. Serverless browsers take turns: /tmp has room for one full-page
+ * screenshot at a time. Locally captures run side by side.
+ */
+export async function browserTurn(): Promise<() => void> {
+  if (!onServerless()) return () => {};
+  const previous = lastTurn;
+  let end = () => {};
+  lastTurn = new Promise((resolve) => {
+    end = resolve;
+  });
+  await previous;
+  return end;
 }
 
 /**
@@ -60,7 +79,7 @@ async function launchOptions(log: StepLog): Promise<LaunchOptions> {
     throw error;
   });
   const executablePath = await serverlessPath;
-  log(`pack ready (${process.arch}, ${tmpFreeMb()} MB free in /tmp: ${tmpListing()})`);
+  log(`pack ready (${process.arch}, ${tmpFreeMb()} MB free in /tmp)`);
   return {
     headless: true,
     executablePath,
