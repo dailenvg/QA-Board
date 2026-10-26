@@ -5,6 +5,7 @@ import { staggerGroup, useRevealVariants } from "@/lib/motion";
 import { useSquiggyMood } from "@/lib/squiggy/use-squiggy-mood";
 import { Squiggy } from "../brand/mascot/Squiggy";
 import { SquiggySpeechLine } from "./SquiggySpeechLine";
+import { StoryGlow } from "./welcome/StoryGlow";
 
 const MASCOT_SIZE = "clamp(6.5rem, 5rem + 5vw, 9rem)";
 
@@ -43,8 +44,23 @@ export function OverviewHero({ empty }: OverviewHeroProps) {
       initial="hidden"
       animate="visible"
       data-testid="overview-hero"
-      className="flex flex-col items-center gap-5 rounded-panel bg-panel px-6 py-8 text-center sm:flex-row sm:gap-8 sm:px-10 sm:text-left"
+      className={`relative isolate flex flex-col items-center gap-5 overflow-hidden rounded-panel bg-panel px-6 py-8 text-center sm:flex-row sm:gap-8 sm:px-10 sm:text-left ${
+        empty ? "sm:py-10" : ""
+      }`}
     >
+      {empty && (
+        <>
+          {/* The welcome's glows echo the story cards' below. */}
+          <StoryGlow
+            color="var(--color-brand)"
+            className="top-4 left-1/2 -z-10 size-48 -translate-x-1/2 opacity-20 sm:top-1/2 sm:left-8 sm:translate-x-0 sm:-translate-y-1/2 dark:opacity-30"
+          />
+          <StoryGlow
+            color="var(--color-highlight)"
+            className="-top-16 -right-10 -z-10 size-64 opacity-20 dark:opacity-5"
+          />
+        </>
+      )}
       <motion.div
         variants={reveal}
         className="shrink-0"

@@ -55,6 +55,11 @@ export type SquiggyProps = {
    */
   still?: boolean;
   /**
+   * Blinks on the mood's own schedule. Off keeps the eyes open: for a frame
+   * that must hold fully still, such as a paused or reduced-motion scene.
+   */
+  blinks?: boolean;
+  /**
    * The root element when the mascot isn't a button: `span` for phrasing
    * contexts, such as inside a button. Looks the same either way.
    */
@@ -87,6 +92,7 @@ export function Squiggy({
   accessory,
   perked: perkedByParent = false,
   still = false,
+  blinks = true,
   as = "div",
   label = "Squiggy",
   className,
@@ -115,7 +121,7 @@ export function Squiggy({
     // `held` re-binds the squash and shadow layers to controls when a drag ends.
   }, [mood, reduce, still, held, controls, spec.loop]);
 
-  const blinking = useBlink(spec.blinks && !held);
+  const blinking = useBlink(blinks && spec.blinks && !held);
   const gaze = useGaze(rootRef, {
     follow: followCursor && !reduce,
     override: held ? { x: 0, y: -6 } : spec.gaze,

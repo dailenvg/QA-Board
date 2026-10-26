@@ -52,7 +52,8 @@ export const NATIVE_PET_PALETTE: readonly PaletteEntry[] = PRODUCTS.map((product
   return { ...product, light, ink: light ? NAVY : PAPER };
 });
 
-function paletteEntry(id: string): PaletteEntry {
+/** A palette color by its product id. */
+export function paletteEntry(id: string): PaletteEntry {
   const entry = NATIVE_PET_PALETTE.find((product) => product.id === id);
   if (!entry) throw new Error(`No palette entry "${id}".`);
   return entry;

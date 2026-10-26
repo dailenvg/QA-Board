@@ -3,23 +3,22 @@
 import { motion } from "motion/react";
 import { staggerGroup, useRevealVariants } from "@/lib/motion";
 import { Button } from "../ui/Button";
-import { Icon, type IconName } from "../ui/Icon";
-
-const STEPS: ReadonlyArray<{ icon: IconName; title: string; body: string }> = [
-  { icon: "globe", title: "Add a project", body: "Paste a website address or upload an image." },
-  {
-    icon: "messagePlus",
-    title: "Pin comments",
-    body: "Click or tap anywhere on it to leave feedback.",
-  },
-  { icon: "check", title: "Resolve them", body: "Mark each comment resolved once it's fixed." },
-];
+import { Icon } from "../ui/Icon";
+import { PauseToggle } from "./welcome/PauseToggle";
+import { useStoryPlayback } from "./welcome/use-story-playback";
+import { WelcomeStories } from "./welcome/WelcomeStories";
 
 const stagger = staggerGroup(0.07, 0.2);
 
-/** No projects anywhere yet: how Squint works, and the first step. */
+/**
+ * No projects anywhere yet: the welcome's second half. How Squint works, told
+ * in three short stories, then the first step. Headed "How it works" so it
+ * reads as part of the welcome above it; the line under the heading still
+ * says there are no projects yet (where they'll appear once there are).
+ */
 export function OverviewEmpty({ onAction }: { onAction: () => void }) {
   const reveal = useRevealVariants();
+  const playback = useStoryPlayback();
   return (
     <motion.section
       variants={stagger}
@@ -27,38 +26,31 @@ export function OverviewEmpty({ onAction }: { onAction: () => void }) {
       animate="visible"
       aria-labelledby="overview-empty-title"
       data-testid="overview-empty"
-      className="flex flex-1 flex-col items-center justify-center gap-6 rounded-panel bg-tile px-6 py-12 text-center"
+      className="flex flex-1 flex-col gap-6 rounded-panel bg-tile p-4 sm:p-6"
     >
-      <motion.div variants={reveal} className="max-w-md">
-        <h2 id="overview-empty-title" className="text-title font-bold">
-          No projects yet
-        </h2>
-        <p className="mt-2 text-body text-muted">
-          Once you add a project, your folders show up here with their newest projects inside.
-        </p>
-      </motion.div>
-      <ol className="grid w-full max-w-3xl gap-3 sm:grid-cols-3">
-        {STEPS.map((step, index) => (
-          <motion.li
-            key={step.title}
-            variants={reveal}
-            className="flex items-start gap-3 rounded-card bg-card p-4 text-left shadow-seg sm:flex-col"
-          >
-            <span className="grid size-10 shrink-0 place-items-center rounded-pill bg-brand-soft text-brand-text">
-              <Icon name={step.icon} className="size-5" />
-            </span>
-            <span>
-              <span className="block text-heading font-semibold">
-                <span className="sr-only">Step {index + 1}: </span>
-                {step.title}
-              </span>
-              <span className="mt-1 block text-meta text-muted">{step.body}</span>
-            </span>
-          </motion.li>
-        ))}
-      </ol>
-      {/* Secondary: the toolbar's (or sidebar's) New project is the screen's one primary action. */}
-      <motion.div variants={reveal}>
+      <div className="flex flex-col gap-2 px-1 pt-1 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+        <motion.div variants={reveal} className="max-w-md">
+          <h2 id="overview-empty-title" className="text-title font-bold">
+            How it works
+          </h2>
+          <p className="mt-1 text-body text-muted">
+            No projects yet. Once you add one, your folders show up here with their newest projects
+            inside.
+          </p>
+        </motion.div>
+        {!playback.reduced && (
+          // Ghost: nudged outward so its label, not its hover fill, lines up with the edge.
+          <motion.div variants={reveal} className="-ml-3 sm:-mr-3 sm:ml-0">
+            <PauseToggle paused={playback.paused} onChange={playback.setPaused} />
+          </motion.div>
+        )}
+      </div>
+      <WelcomeStories playback={playback} />
+      {/*
+       * The panel's one action: the stories above explain, this starts. Secondary, as the
+       * toolbar's (or sidebar's) New project is the screen's one primary action.
+       */}
+      <motion.div variants={reveal} className="flex justify-center">
         <Button variant="secondary" onClick={onAction} data-testid="overview-empty-action">
           <Icon name="plus" className="size-5" />
           Add your first project
