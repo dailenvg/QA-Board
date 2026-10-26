@@ -17,6 +17,9 @@ const USAGE = `import { SquintMascot } from "./mascot";
   onPoke={() => {}}    // makes it a button (click, Enter, Space)
 />`;
 
+/** Public files follow Vite's base, so the mark still loads when the kit is served under a path. */
+const MARK_SRC = `${import.meta.env.BASE_URL}squint-mark.svg`;
+
 type Theme = "light" | "dark";
 
 function useTheme() {
@@ -52,7 +55,7 @@ export function App() {
       <motion.div key="home" variants={page} initial="initial" animate="animate" exit="exit">
         <header className="shell topbar">
           <motion.div className="brand" variants={item(reduce)}>
-            <img src="/squint-mark.svg" alt="" />
+            <img src={MARK_SRC} alt="" />
             Squint
             <small>Mascot kit</small>
           </motion.div>
@@ -170,11 +173,11 @@ export function App() {
                 <code>{USAGE}</code>
               </pre>
               <div className="download">
-                <img src="/squint-mark.svg" alt="Squint mark, isolated" />
+                <img src={MARK_SRC} alt="Squint mark, isolated" />
                 <p>The icon mark isolated from the logo as a clean vector, with body and eyes on separate layers.</p>
                 <motion.a
                   className="link-btn"
-                  href="/squint-mark.svg"
+                  href={MARK_SRC}
                   download
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
