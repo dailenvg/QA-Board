@@ -127,7 +127,8 @@ export function FolderTreeRow({
           aria-hidden="true"
           onClick={onToggle}
           data-testid="folder-toggle"
-          className="relative grid size-11 shrink-0 cursor-pointer place-items-center rounded-pill text-muted transition-colors hover:bg-hover hover:text-ink active:bg-seg"
+          // Above the link, which reaches 12px under it.
+          className="relative z-10 grid size-11 shrink-0 cursor-pointer place-items-center rounded-pill text-muted transition-colors hover:bg-hover hover:text-ink active:bg-seg"
         >
           <Icon
             name="chevronRight"
@@ -143,7 +144,8 @@ export function FolderTreeRow({
         href={folderHref(folder.id)}
         scroll={false}
         tabIndex={-1}
-        className={`relative flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-row pr-2 text-nav ${
+        // -ml-3/pl-3: the hover fill gets the same inset as the right side without moving the icon.
+        className={`relative -ml-3 flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-row pl-3 pr-2 text-nav ${
           active
             ? "font-semibold"
             : onPath
