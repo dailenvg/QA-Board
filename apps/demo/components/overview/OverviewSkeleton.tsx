@@ -15,7 +15,6 @@ export function OverviewSkeleton() {
           <Skeleton className="h-4 w-20" />
           <Skeleton className="h-10 w-full max-w-sm" />
           <Skeleton className="h-5 w-full max-w-md" />
-          <Skeleton className="mt-2 h-11 w-40 rounded-pill" />
         </div>
       </div>
       <div className={FOLDER_GRID}>

@@ -9,9 +9,13 @@ export const SHARE_LIMITS = {
   url: 2048,
   snapshots: 200,
   comments: 1000,
+  /** Pages of one project (the browser's `MAX_PAGES`). */
+  pages: 50,
+  /** Longest page edge in px the server accepts (pages are stored at 2400 px at most). */
+  pageEdge: 10_000,
   /** JSON bodies (state pushes, comment metadata). */
   jsonBytes: 1 * MB,
-  blobBytes: { crop: 2 * MB, snapshot: 8 * MB, image: 15 * MB },
+  blobBytes: { crop: 2 * MB, snapshot: 8 * MB, page: 15 * MB },
   totalBytes: 40 * MB,
   /**
    * Largest image body in one request or response. Vercel Functions refuse

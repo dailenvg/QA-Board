@@ -4,7 +4,7 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import { useRevealVariants } from "@/lib/motion";
 import { resetData } from "@/lib/store/store";
-import { SquintMascot } from "../brand/mascot/SquintMascot";
+import { Squiggy } from "../brand/mascot/Squiggy";
 import { Button } from "../ui/Button";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { Icon } from "../ui/Icon";
@@ -45,7 +45,7 @@ export function DataRecovery({ reason, raw }: DataRecoveryProps) {
         role="alert"
         className="flex w-full max-w-md flex-col items-center gap-5 rounded-panel bg-panel px-6 py-10 text-center"
       >
-        <SquintMascot mood="surprised" size={120} followCursor={false} />
+        <Squiggy mood="surprised" size={120} followCursor={false} />
         <div>
           <h1 className="text-title font-bold">We couldn&apos;t read your saved projects</h1>
           <p className="mt-2 text-body text-muted">

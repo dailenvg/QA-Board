@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { LEGACY_V1 } from "@/test/legacy-v1";
+import { LEGACY_V1, LEGACY_V2 } from "@/test/legacy-v1";
 import type { StoreState } from "./store";
+
+/** Keys whose writes the fake storage refuses, as a full browser storage would. */
+const full = new Set<string>();
 
 /** A Storage stand-in, so the store's localStorage reads and writes can be inspected. */
 function fakeStorage(): Storage {
@@ -13,7 +16,10 @@ function fakeStorage(): Storage {
     getItem: (key) => items.get(key) ?? null,
     key: (index) => [...items.keys()][index] ?? null,
     removeItem: (key) => void items.delete(key),
-    setItem: (key, value) => void items.set(key, String(value)),
+    setItem: (key, value) => {
+      if (full.has(key)) throw new DOMException("Full", "QuotaExceededError");
+      items.set(key, String(value));
+    },
   };
 }
 
@@ -44,8 +50,18 @@ async function freshStore() {
 }
 
 const V1 = JSON.stringify(LEGACY_V1);
+const V2 = JSON.stringify(LEGACY_V2);
+
+function savedV3() {
+  return JSON.parse(localStorage.getItem("squint:v3") ?? "{}") as {
+    version: number;
+    projects: Array<{ source: object }>;
+    comments: Array<{ id: string; pageId?: string }>;
+  };
+}
 
 beforeEach(() => {
+  full.clear();
   vi.stubGlobal("localStorage", fakeStorage());
   vi.stubGlobal("window", { addEventListener: () => {}, removeEventListener: () => {} });
   held.clear();
@@ -57,7 +73,7 @@ afterEach(() => {
 });
 
 describe("loading version 1 data", () => {
-  it("moves inline images to the blob store, saves version 2 and drops version 1", async () => {
+  it("moves inline images to the blob store, saves version 3 and drops version 1", async () => {
     blobs.put.mockResolvedValue(true);
     localStorage.setItem("squint:v1", V1);
     const { store, ready } = await freshStore();
@@ -66,14 +82,12 @@ describe("loading version 1 data", () => {
     expect(state).toMatchObject({ status: "ready", persistent: true });
     expect(blobs.put).toHaveBeenCalledWith("image:mock", expect.any(Blob));
     expect(localStorage.getItem("squint:v1")).toBeNull();
-    const saved = JSON.parse(localStorage.getItem("squint:v2") ?? "{}") as {
-      version: number;
-      projects: Array<{ source: object }>;
-    };
-    expect(saved.version).toBe(2);
+    const saved = savedV3();
+    expect(saved.version).toBe(3);
     expect(saved.projects[1]?.source).toEqual({
-      kind: "image",
-      blobKey: "image:mock",
+      kind: "pages",
+      origin: "image",
+      pages: [{ id: "page-1", blobKey: "image:mock", name: "checkout.png" }],
       fileName: "checkout.png",
     });
   });
@@ -85,12 +99,12 @@ describe("loading version 1 data", () => {
     const state = await ready;
     expect(state).toMatchObject({ status: "ready", persistent: false });
     expect(localStorage.getItem("squint:v1")).toBe(V1);
-    expect(localStorage.getItem("squint:v2")).toBeNull();
+    expect(localStorage.getItem("squint:v3")).toBeNull();
     // The image still shows for this visit.
     expect(held.has("image:mock")).toBe(true);
   });
 
-  it("is idempotent: once version 2 exists it's read directly", async () => {
+  it("is idempotent: once version 3 exists it's read directly", async () => {
     blobs.put.mockResolvedValue(true);
     localStorage.setItem("squint:v1", V1);
     await (
@@ -121,6 +135,70 @@ describe("loading version 1 data", () => {
     expect(store.getSnapshot().status).toBe("corrupt");
     expect(store.resetData().ok).toBe(true);
     expect(localStorage.getItem("squint:v1")).toBeNull();
-    expect(localStorage.getItem("squint:v2")).not.toBeNull();
+    expect(localStorage.getItem("squint:v3")).not.toBeNull();
+  });
+});
+
+describe("loading version 2 data", () => {
+  it("saves it as version 3, images where they were, and drops version 2", async () => {
+    localStorage.setItem("squint:v2", V2);
+    const { store, ready } = await freshStore();
+    expect(store.getSnapshot().status).toBe("loading");
+    expect(await ready).toMatchObject({ status: "ready", persistent: true });
+    // No image is copied: the page points at the version 2 blob.
+    expect(blobs.put).not.toHaveBeenCalled();
+    expect(localStorage.getItem("squint:v2")).toBeNull();
+    const saved = savedV3();
+    expect(saved.version).toBe(3);
+    expect(saved.projects[1]?.source).toMatchObject({
+      kind: "pages",
+      pages: [{ id: "page-1", blobKey: "image:mock" }],
+    });
+    expect(saved.comments.find((comment) => comment.id === "c2")?.pageId).toBe("page-1");
+  });
+
+  it("is all or nothing: when version 3 can't be saved, version 2 stays byte-identical", async () => {
+    full.add("squint:v3");
+    localStorage.setItem("squint:v2", V2);
+    const { store, ready } = await freshStore();
+    expect(await ready).toMatchObject({ status: "ready", persistent: false });
+    expect(localStorage.getItem("squint:v2")).toBe(V2);
+    expect(localStorage.getItem("squint:v3")).toBeNull();
+    // The visit still runs on the migrated data, unsaved; the next load tries again.
+    const { renameFolder } = await import("./actions");
+    expect(renameFolder("default", "Renamed").ok).toBe(true);
+    const state = store.getSnapshot();
+    expect(state.status === "ready" && state.data.version).toBe(3);
+    expect(localStorage.getItem("squint:v2")).toBe(V2);
+    full.clear();
+    await (
+      await freshStore()
+    ).ready;
+    expect(localStorage.getItem("squint:v2")).toBeNull();
+    expect(savedV3().version).toBe(3);
+  });
+
+  it("is idempotent: version 2 written again by an old tab is ignored once version 3 exists", async () => {
+    localStorage.setItem("squint:v2", V2);
+    await (
+      await freshStore()
+    ).ready;
+    const v3 = localStorage.getItem("squint:v3");
+    localStorage.setItem("squint:v2", JSON.stringify({ ...LEGACY_V2, authorName: "Old tab" }));
+    const { store } = await freshStore();
+    const state = store.getSnapshot();
+    expect(state).toMatchObject({ status: "ready", persistent: true });
+    expect(state.status === "ready" && state.data.authorName).toBe("Ana");
+    expect(localStorage.getItem("squint:v3")).toBe(v3);
+  });
+
+  it("prefers version 2 over a version 1 copy left behind, and drops both", async () => {
+    localStorage.setItem("squint:v1", V1);
+    localStorage.setItem("squint:v2", V2);
+    expect(await (await freshStore()).ready).toMatchObject({ status: "ready", persistent: true });
+    expect(blobs.put).not.toHaveBeenCalled();
+    expect(localStorage.getItem("squint:v1")).toBeNull();
+    expect(localStorage.getItem("squint:v2")).toBeNull();
+    expect(savedV3().comments.map((comment) => comment.id)).toEqual(["c1", "c2", "c3"]);
   });
 });

@@ -383,3 +383,108 @@ describe("owner changes", () => {
     });
   });
 });
+
+describe("page projects", () => {
+  const PAGES: ShareState = {
+    project: {
+      name: "Mockups",
+      source: {
+        kind: "pages",
+        origin: "image",
+        fileName: "home.png",
+        pages: [
+          { id: "p1", name: "home.png", width: 1200, height: 900 },
+          { id: "p2", name: "about.png" },
+        ],
+      },
+    },
+    snapshots: [SNAPSHOT],
+    comments: [{ ...COMMENT, id: "o-1", snapshotId: undefined, crop: undefined, pageId: "p2" }],
+  };
+
+  async function pagesShared() {
+    const services: ShareServices = { store: createMemoryStore(), blobs: inlineBackend };
+    const created = await createShare(services, PAGES, 100);
+    const share = await ownerShare(services.store, created.shareId, created.ownerKey);
+    if (!share) throw new Error("no share");
+    return { services, created, share };
+  }
+
+  it("asks for every page's image, up to 15 MB each, and drops a removed page's", async () => {
+    const { services, created, share } = await pagesShared();
+    expect(created.missingBlobs).toEqual(["page:p1", "page:p2", "snapshot:snap-1"]);
+    const tooBig = new Uint8Array(SHARE_LIMITS.blobBytes.page + 1);
+    tooBig.set(PNG);
+    const half = Math.ceil(tooBig.length / 4);
+    let last = null;
+    for (let part = 0; part < 4; part += 1) {
+      last = await putOwnerBlob(
+        services,
+        share,
+        "page:p1",
+        tooBig.slice(part * half, (part + 1) * half),
+        {
+          part,
+          parts: 4,
+        },
+      );
+    }
+    expect(last).toMatchObject({ ok: false, status: 413 });
+    expect(await putOwnerBlob(services, share, "page:p2", PNG)).toMatchObject({ ok: true });
+    expect(await readBlob(services, share, "page:p2")).toMatchObject({ contentType: "image/png" });
+
+    const source = PAGES.project.source;
+    if (source.kind !== "pages") throw new Error("not pages");
+    const onePage = { ...source, pages: source.pages.slice(0, 1) };
+    await pushState(
+      services,
+      share,
+      { ...PAGES, project: { ...PAGES.project, source: onePage }, comments: [] },
+      0,
+      200,
+    );
+    const updated = await ownerShare(services.store, created.shareId, created.ownerKey);
+    if (!updated) throw new Error("no share");
+    expect(await readBlob(services, updated, "page:p2")).toBeNull();
+  });
+
+  it("accepts a client comment only on one of the project's pages", async () => {
+    const { services, share } = await pagesShared();
+    const rect = { rect: { x: 0, y: 0, width: 10, height: 10 } };
+    const refused = [
+      { ...clientComment("k-1") },
+      { ...clientComment("k-2"), pageId: "nope" },
+      { ...clientComment("k-3"), pageId: "p1", snapshotId: "snap-1" },
+    ];
+    for (const input of refused) {
+      expect(await addClientComment(services, share, input, null, 200)).toMatchObject({
+        ok: false,
+        status: 422,
+        error: "unknown-page",
+      });
+    }
+    // Nothing of a refused comment stays: its id can still be posted on a real page.
+    const fixed = { ...clientComment("k-2"), pageId: "p2", crop: rect };
+    expect(await addClientComment(services, share, fixed, PNG, 300)).toMatchObject({
+      ok: true,
+      value: { id: "k-2", pageId: "p2", status: "active" },
+    });
+    expect(await readBlob(services, share, "crop:k-2")).not.toBeNull();
+    const onSnapshot = { ...clientComment("k-4"), snapshotId: "snap-1" };
+    expect(await addClientComment(services, share, onSnapshot, null, 300)).toMatchObject({
+      ok: true,
+    });
+    const pulled = await pullChanges(services.store, share, 0);
+    expect(pulled.comments.map((comment) => [comment.id, comment.pageId])).toEqual([
+      ["k-2", "p2"],
+      ["k-4", undefined],
+    ]);
+  });
+
+  it("refuses a page on a website's comments", async () => {
+    const { services, share } = await shared();
+    expect(
+      await addClientComment(services, share, { ...clientComment("k-1"), pageId: "p1" }, null, 200),
+    ).toMatchObject({ ok: false, status: 422, error: "unknown-page" });
+  });
+});

@@ -10,18 +10,23 @@ import {
   renameProject,
   restoreProject,
 } from "@/lib/store/actions";
+import { ancestorsOf, childFolders } from "@/lib/store/folders";
 import { folderSummaries } from "@/lib/store/selectors";
 import type { Folder, Project } from "@/lib/store/types";
 import { useDialogState } from "@/lib/use-dialog-state";
 import { useNow } from "@/lib/use-now";
+import { FolderGrid } from "../overview/FolderGrid";
 import { useToast } from "../ui/ToastProvider";
+import { Breadcrumb } from "./Breadcrumb";
 import { DashboardEmpty } from "./DashboardEmpty";
 import { DashboardHeader } from "./DashboardHeader";
 import { FolderNotFound } from "./FolderNotFound";
 import { FolderSkeleton } from "./FolderSkeleton";
 import { ProjectDialogs } from "./ProjectDialogs";
 import { ProjectGrid } from "./ProjectGrid";
+import { sortProjects } from "./project-sort";
 import type { StatusFilterValue } from "./status-filter";
+import { useProjectSort } from "./use-project-sort";
 import { useWorkspace, type Workspace } from "./workspace-context";
 
 function plural(count: number, noun: string): string {
@@ -37,16 +42,29 @@ export function FolderView({ folderId }: { folderId: string }) {
   return workspace.leavingFolderId === folderId ? null : <FolderNotFound />;
 }
 
-/** Folder header with summary chips, the status filter, the project grid and project dialogs. */
+/**
+ * Breadcrumb and folder header with summary chips, then its subfolders as
+ * folder cards, then the status filter's projects in the chosen order, and the project dialogs.
+ */
 function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Folder }) {
   const { data, persistent, folders, report } = workspace;
   const toast = useToast();
   const now = useNow();
   const [filter, setFilter] = useState<StatusFilterValue>("all");
+  const { sort, setKey, reverse } = useProjectSort();
 
   const summaries = useMemo(() => folderSummaries(data, folder.id), [data, folder.id]);
-  const visible =
-    filter === "all" ? summaries : summaries.filter((entry) => entry.status === filter);
+  const subfolders = useMemo(() => childFolders(folders, folder.id), [folders, folder.id]);
+  const ancestors = useMemo(() => ancestorsOf(folders, folder.id), [folders, folder.id]);
+  const visible = useMemo(
+    () =>
+      sortProjects(
+        filter === "all" ? summaries : summaries.filter((entry) => entry.status === filter),
+        sort.key,
+        sort.direction,
+      ),
+    [summaries, filter, sort],
+  );
 
   const projectRename = useDialogState<Project>();
   const projectMove = useDialogState<Project>();
@@ -55,6 +73,7 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
   const withComments = summaries.filter((entry) => entry.status === "comments").length;
   const chips = [
     plural(summaries.length, "project"),
+    ...(subfolders.length ? [plural(subfolders.length, "subfolder")] : []),
     ...(withComments > 0 ? [`${withComments} with active comments`] : []),
     ...(persistent ? [] : ["Not saved: storage is blocked"]),
   ];
@@ -66,10 +85,31 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
         chips={chips}
         filter={filter}
         onFilter={setFilter}
-        canDeleteFolder={folders.length > 1}
-        onRenameFolder={() => workspace.renameFolder(folder)}
-        onDeleteFolder={() => workspace.deleteFolder(folder)}
+        sort={sort}
+        onSortKey={setKey}
+        onReverseSort={reverse}
+        actions={workspace.folderActions(folder)}
+        breadcrumb={<Breadcrumb ancestors={ancestors} current={folder} />}
       />
+      {subfolders.length ? (
+        <section aria-labelledby="subfolders-heading" className="flex flex-col gap-2">
+          <h2 id="subfolders-heading" className="text-heading font-bold">
+            Subfolders
+          </h2>
+          {/*
+           * On touch, folder cards pull their headroom up (FolderCard); on the Overview the
+           * hero's padding takes it, here this padding does, so the first row clears the heading.
+           */}
+          <div className="[@media(hover:none)]:pt-8">
+            <FolderGrid
+              workspace={workspace}
+              folders={subfolders}
+              labelledBy="subfolders-heading"
+            />
+          </div>
+        </section>
+      ) : null}
+      {subfolders.length ? <h2 className="text-heading font-bold">Projects</h2> : null}
       <p className="sr-only" aria-live="polite">
         {filter === "all" ? "" : `${plural(visible.length, "project")} shown`}
       </p>

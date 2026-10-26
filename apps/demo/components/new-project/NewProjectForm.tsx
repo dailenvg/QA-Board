@@ -1,39 +1,51 @@
 "use client";
 
 import { useId, useState, type FormEvent } from "react";
-import { prepareImage } from "@/lib/image";
-import { createFolder, createImageProject, createProject } from "@/lib/store/actions";
+import { createFolder } from "@/lib/store/actions";
 import type { Folder, Project } from "@/lib/store/types";
 import { baseName, displayHost, normalizeUrl } from "@/lib/url";
 import { Button } from "../ui/Button";
 import { FieldError } from "../ui/FieldError";
 import { FIELD_CLASS } from "../ui/field-styles";
 import { SegmentedControl, type SegmentOption } from "../ui/SegmentedControl";
+import type { ImageGrouping } from "./CombineChoice";
 import { FolderPicker, NEW_FOLDER } from "./FolderPicker";
-import { ImageDropzone, type PickedImage } from "./ImageDropzone";
+import { ImagesField } from "./ImagesField";
+import { PdfPicker } from "./PdfPicker";
 import { UrlField } from "./UrlField";
+import { imagesProblem, pdfProblem, readyImages, type SourceDraft } from "./source-draft";
+import { useCreateProjects } from "./use-create-projects";
+import { usePdfImport } from "./use-pdf-import";
+import { usePickedImages } from "./use-picked-images";
 
-type SourceKind = "url" | "image";
-
-/** What the form collected: an address, or a prepared image to store. */
-type SourceDraft = { kind: "url"; url: string } | { kind: "image"; image: PickedImage };
+type SourceKind = "url" | "image" | "pdf";
 
 const SOURCE_OPTIONS: ReadonlyArray<SegmentOption<SourceKind>> = [
   { value: "url", label: "Website", icon: "globe" },
   { value: "image", label: "Image", icon: "image" },
+  { value: "pdf", label: "PDF", icon: "fileText", testId: "source-pdf" },
 ];
+
+const PLACEHOLDER: Record<SourceKind, string> = {
+  url: "Homepage redesign",
+  image: "Checkout mockup",
+  pdf: "Pitch deck",
+};
 
 interface NewProjectFormProps {
   folders: readonly Folder[];
   defaultFolderId: string;
-  onCreated: (project: Project) => void;
+  /** Every project created, in order (several when images are added one project per file). */
+  onCreated: (projects: Project[]) => void;
   onCancel: () => void;
 }
 
 /**
- * Website or image source, an optional project name, and folder (optionally a new one).
- * The name suggested by the host or file name is a placeholder, never typed into the field,
- * so whatever someone types is exactly the name; an empty field falls back to the suggestion.
+ * Website, image or PDF source, an optional project name, and folder (optionally a new one).
+ * Several images become one project each, or one project with a page per image, in an
+ * order that can be changed. The name suggested by the host or file name is a placeholder,
+ * never typed into the field, so whatever someone types is exactly the name; an empty field
+ * falls back to the suggestion.
  */
 export function NewProjectForm({
   folders,
@@ -44,18 +56,22 @@ export function NewProjectForm({
   const [kind, setKind] = useState<SourceKind>("url");
   const [url, setUrl] = useState("");
   const [urlError, setUrlError] = useState<string | null>(null);
-  const [image, setImage] = useState<PickedImage | null>(null);
-  const [imageError, setImageError] = useState<string | null>(null);
-  const [processing, setProcessing] = useState(false);
+  const picked = usePickedImages();
+  const [grouping, setGrouping] = useState<ImageGrouping>("separate");
+  const pdf = usePdfImport();
+  const [sourceError, setSourceError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [urlSuggestion, setUrlSuggestion] = useState<string | null>(null);
   const [folderId, setFolderId] = useState(defaultFolderId);
   const [newFolderName, setNewFolderName] = useState("");
   const [newFolderError, setNewFolderError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const { progress, create } = useCreateProjects();
   const nameId = useId();
   const formErrorId = useId();
+  const several = picked.items.length > 1;
+  const combining = several && grouping === "combine";
+  const named = kind !== "image" || !several || combining;
 
   const checkUrl = (): SourceDraft | null => {
     const result = normalizeUrl(url);
@@ -69,29 +85,29 @@ export function NewProjectForm({
     return { kind: "url", url: result.url };
   };
 
-  const onFile = async (file: File) => {
-    setProcessing(true);
-    setImageError(null);
-    const result = await prepareImage(file);
-    setProcessing(false);
-    if (!result.ok) {
-      setImageError(result.error);
-      return;
-    }
-    setImage({ dataUrl: result.dataUrl, fileName: file.name });
-  };
-
   const resolveSource = (): SourceDraft | null => {
     if (kind === "url") {
       if (url.trim()) return checkUrl();
       setUrlError("Enter a website address.");
       return null;
     }
-    if (!image) {
-      setImageError(processing ? "Wait for the image to finish preparing." : "Choose an image.");
-      return null;
+    if (kind === "pdf") {
+      const problem = pdfProblem(pdf.state);
+      // A failed PDF already shows its error in the picker.
+      setSourceError(pdf.state.status === "failed" ? null : problem);
+      return pdf.state.status === "ready"
+        ? { kind: "pdf", fileName: pdf.state.fileName, pages: pdf.state.pages }
+        : null;
     }
-    return { kind: "image", image };
+    const problem = imagesProblem(picked.items);
+    setSourceError(problem);
+    return problem
+      ? null
+      : {
+          kind: "image",
+          images: readyImages(picked.items),
+          grouping: combining ? "combine" : "separate",
+        };
   };
 
   const resolveFolder = (): string | null => {
@@ -109,26 +125,15 @@ export function NewProjectForm({
     return created.value.id;
   };
 
-  const create = (draft: SourceDraft, folder: string) => {
-    if (draft.kind === "url") {
-      const projectName = name.trim() || displayHost(draft.url);
-      return Promise.resolve(createProject({ folderId: folder, name: projectName, source: draft }));
-    }
-    const projectName = name.trim() || baseName(draft.image.fileName);
-    return createImageProject({ folderId: folder, name: projectName, image: draft.image });
-  };
-
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (saving) return;
+    if (progress) return;
     setFormError(null);
     const draft = resolveSource();
     if (!draft) return;
     const targetFolder = resolveFolder();
     if (!targetFolder) return;
-    setSaving(true);
-    const created = await create(draft, targetFolder);
-    setSaving(false);
+    const created = await create(draft, targetFolder, name);
     if (!created.ok) {
       setFormError(created.error);
       return;
@@ -136,8 +141,23 @@ export function NewProjectForm({
     onCreated(created.value);
   };
 
-  const suggestion = kind === "url" ? urlSuggestion : image ? baseName(image.fileName) : null;
-  const placeholder = suggestion ?? (kind === "url" ? "Homepage redesign" : "Checkout mockup");
+  const pdfName = pdf.state.status === "idle" ? null : pdf.state.fileName;
+  const fileName = kind === "pdf" ? pdfName : picked.items[0]?.fileName;
+  const suggestion = kind === "url" ? urlSuggestion : fileName ? baseName(fileName) : null;
+  const placeholder = suggestion ?? PLACEHOLDER[kind];
+  const creating = progress
+    ? progress.total > 1 && !combining
+      ? `Creating ${progress.done + 1} of ${progress.total}…`
+      : "Creating…"
+    : null;
+  const pdfPages = pdf.state.status === "ready" ? pdf.state.pages.length : 0;
+  const pages = kind === "pdf" ? pdfPages : combining ? picked.items.length : 0;
+  const submitLabel =
+    pages > 1
+      ? `Create project with ${pages} pages`
+      : kind === "image" && several
+        ? `Create ${picked.items.length} projects`
+        : "Create project";
 
   return (
     <form
@@ -149,9 +169,14 @@ export function NewProjectForm({
       <SegmentedControl
         label="Project source"
         layoutId="new-project-source"
+        icons="sm"
         options={SOURCE_OPTIONS}
         value={kind}
-        onChange={setKind}
+        onChange={(next) => {
+          setKind(next);
+          // "Choose a PDF." doesn't belong under the image dropzone, and so on.
+          setSourceError(null);
+        }}
         stretch
       />
 
@@ -167,29 +192,45 @@ export function NewProjectForm({
             if (url.trim()) checkUrl();
           }}
         />
+      ) : kind === "image" ? (
+        <ImagesField
+          picked={picked}
+          grouping={grouping}
+          onGrouping={setGrouping}
+          error={sourceError}
+          onChange={() => setSourceError(null)}
+        />
       ) : (
-        <ImageDropzone
-          image={image}
-          processing={processing}
-          error={imageError}
-          onFile={(file) => void onFile(file)}
+        <PdfPicker
+          state={pdf.state}
+          error={sourceError}
+          onFile={(file) => {
+            setSourceError(null);
+            void pdf.choose(file);
+          }}
+          onTakeFirstPages={pdf.takeFirstPages}
+          onCancel={pdf.cancel}
         />
       )}
 
-      <div>
-        <label htmlFor={nameId} className="mb-2 block text-body font-semibold">
-          Project name (optional)
-        </label>
-        <input
-          id={nameId}
-          value={name}
-          maxLength={80}
-          autoComplete="off"
-          placeholder={placeholder}
-          onChange={(event) => setName(event.target.value)}
-          className={FIELD_CLASS}
-        />
-      </div>
+      {named ? (
+        <div>
+          <label htmlFor={nameId} className="mb-2 block text-body font-semibold">
+            Project name (optional)
+          </label>
+          <input
+            id={nameId}
+            value={name}
+            maxLength={80}
+            autoComplete="off"
+            placeholder={placeholder}
+            onChange={(event) => setName(event.target.value)}
+            className={FIELD_CLASS}
+          />
+        </div>
+      ) : (
+        <p className="text-meta text-muted">Each project is named after its file.</p>
+      )}
 
       <FolderPicker
         folders={folders}
@@ -210,13 +251,21 @@ export function NewProjectForm({
       />
 
       <FieldError id={formErrorId} message={formError} />
+      {/* The submit button's text changes while focused, which screen readers don't read out. */}
+      <p aria-live="polite" className="sr-only">
+        {creating ?? ""}
+      </p>
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button variant="secondary" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" disabled={processing || saving} data-testid="create-project">
-          {saving ? "Creating…" : "Create project"}
+        <Button
+          type="submit"
+          aria-disabled={progress ? true : undefined}
+          data-testid="create-project"
+        >
+          {creating ?? submitLabel}
         </Button>
       </div>
     </form>

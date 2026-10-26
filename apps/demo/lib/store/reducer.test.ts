@@ -108,7 +108,7 @@ describe("snapshots in the reducer", () => {
   it("removes snapshots of projects in a deleted folder", () => {
     let data = reduce(withSnapshots(snap("a", 1)), {
       type: "folder/create",
-      folder: { id: "second", name: "Second", createdAt: 5 },
+      folder: { id: "second", name: "Second", createdAt: 5, parentId: null },
     });
     data = reduce(data, { type: "folder/delete", id: "default", at: 0 });
     expect(data.snapshots).toEqual([]);
@@ -239,7 +239,7 @@ describe("revoking shares of deleted projects", () => {
   it("queues every shared project of a deleted folder, due at once", () => {
     let data = reduce(shared(), {
       type: "folder/create",
-      folder: { id: "second", name: "Second", createdAt: 5 },
+      folder: { id: "second", name: "Second", createdAt: 5, parentId: null },
     });
     data = reduce(data, { type: "folder/delete", id: "default", at: 3_000 });
     expect(data.revocations).toEqual([

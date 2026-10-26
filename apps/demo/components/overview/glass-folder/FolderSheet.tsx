@@ -28,6 +28,11 @@ interface FolderSheetProps {
   stackIndex: number;
   dropping: boolean;
   onDropEnd: () => void;
+  /**
+   * A tab stop only while the files are fanned out by keyboard focus. Stacked,
+   * the sheet is reached through the folder's own link.
+   */
+  reachable: boolean;
 }
 
 /** Ruled lines on a paper sheet, as widths. */
@@ -41,6 +46,7 @@ export function FolderSheet({
   stackIndex,
   dropping,
   onDropEnd,
+  reachable,
 }: FolderSheetProps) {
   // Jitter follows the id, so a sheet keeps its tilt through renames and reloads.
   const jitter = rng(hashString(file.id));
@@ -52,16 +58,14 @@ export function FolderSheet({
     zIndex: stackIndex + 1,
   } as CSSProperties;
   const picture = Boolean(file.imageKey);
-  // Spelled out: flex layout would otherwise pad the parts unevenly ("Name , host").
-  const name = [file.name, file.meta, file.status ? STATUS_LABEL[file.status] : null]
-    .filter(Boolean)
-    .join(", ");
 
+  // The link's name comes from its text, so it always contains what's visible
+  // (WCAG 2.5.3): the name, the host or kind, then the status for screen readers.
   return (
     <div role="listitem" className="gf-sheet-slot">
       <Link
         href={file.href}
-        aria-label={name}
+        tabIndex={reachable ? undefined : -1}
         data-testid="folder-sheet"
         className={`gf-sheet${picture ? " gf-sheet--art" : ""}${dropping ? " gf-sheet--drop" : ""}`}
         style={style}
@@ -88,7 +92,13 @@ export function FolderSheet({
             <span aria-hidden="true" className={`gf-sheet-status ${STATUS_DOT[file.status]}`} />
           ) : null}
           <span className="gf-sheet-name">{file.name}</span>
-          {file.meta ? <span className="gf-sheet-meta">{file.meta}</span> : null}
+          {file.meta ? (
+            <>
+              <span className="sr-only">, </span>
+              <span className="gf-sheet-meta">{file.meta}</span>
+            </>
+          ) : null}
+          {file.status ? <span className="sr-only">, {STATUS_LABEL[file.status]}</span> : null}
         </span>
       </Link>
     </div>

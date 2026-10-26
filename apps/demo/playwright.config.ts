@@ -27,7 +27,7 @@ export default defineConfig({
     { name: "mobile", use: { ...devices["Pixel 7"] } },
   ],
   webServer: {
-    command: `pnpm exec next build && pnpm exec next start --port ${PORT} --hostname 127.0.0.1`,
+    command: `pnpm run pdfjs-assets && pnpm exec next build && pnpm exec next start --port ${PORT} --hostname 127.0.0.1`,
     url: BASE_URL,
     reuseExistingServer: !CI,
     timeout: 240_000,

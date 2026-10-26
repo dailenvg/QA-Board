@@ -28,4 +28,6 @@ test-results/
 # next.js (demo)
 .next-e2e/
 .next-dev/
+# pdf.js fonts, CMaps and decoders, copied from pdfjs-dist before dev and build
+apps/demo/public/pdfjs/
 next-env.d.ts

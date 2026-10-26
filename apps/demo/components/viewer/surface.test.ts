@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Comment, Snapshot } from "@/lib/store/types";
+import type { Comment, Page, Snapshot } from "@/lib/store/types";
 import {
   commentSurfaceKey,
   placementOf,
@@ -25,7 +25,11 @@ const snapshots = new Map([
   [latest.id, latest],
 ]);
 
-const comment = (snapshotId?: string): Comment => ({
+const page: Page = { id: "p2", blobKey: "page:p2", name: "pricing.png" };
+const URL_STAGE = { kind: "url" } as const;
+const PAGE_STAGE = { kind: "pages", page } as const;
+
+const comment = (snapshotId?: string, pageId?: string): Comment => ({
   id: "c",
   projectId: "p",
   x: 1,
@@ -36,25 +40,27 @@ const comment = (snapshotId?: string): Comment => ({
   createdAt: 1,
   updatedAt: 1,
   ...(snapshotId ? { snapshotId } : {}),
+  ...(pageId ? { pageId } : {}),
 });
 
 describe("stageSurface", () => {
   it("shows the live frame in Browse and a snapshot in Comment mode for websites", () => {
-    expect(stageSurface("url", "browse", null, latest)).toEqual({ kind: "frame" });
-    expect(stageSurface("url", "comment", null, latest)).toEqual({
+    expect(stageSurface(URL_STAGE, "browse", null, latest)).toEqual({ kind: "frame" });
+    expect(stageSurface(URL_STAGE, "comment", null, latest)).toEqual({
       kind: "snapshot",
       snapshot: latest,
     });
-    expect(stageSurface("url", "comment", older, latest)).toEqual({
+    expect(stageSurface(URL_STAGE, "comment", older, latest)).toEqual({
       kind: "snapshot",
       snapshot: older,
     });
-    expect(surfaceKey(stageSurface("url", "comment", null, null))).toBe("snapshot:none");
+    expect(surfaceKey(stageSurface(URL_STAGE, "comment", null, null))).toBe("snapshot:none");
   });
 
-  it("shows the image for image projects unless an older snapshot is viewed", () => {
-    expect(stageSurface("image", "comment", null, latest)).toEqual({ kind: "image" });
-    expect(stageSurface("image", "browse", older, latest)).toEqual({
+  it("shows the page for page projects unless an older snapshot is viewed", () => {
+    expect(stageSurface(PAGE_STAGE, "comment", null, latest)).toEqual({ kind: "page", page });
+    expect(surfaceKey(stageSurface(PAGE_STAGE, "comment", null, latest))).toBe("page:p2");
+    expect(stageSurface(PAGE_STAGE, "browse", older, latest)).toEqual({
       kind: "snapshot",
       snapshot: older,
     });
@@ -62,21 +68,21 @@ describe("stageSurface", () => {
 });
 
 describe("comment placement", () => {
-  it("draws legacy website pins on the frame and image pins on the image", () => {
-    expect(commentSurfaceKey(comment(), "url")).toBe("frame");
-    expect(commentSurfaceKey(comment(), "image")).toBe("image");
-    expect(commentSurfaceKey(comment("new"), "url")).toBe("snapshot:new");
+  it("draws legacy website pins on the frame and page pins on their page", () => {
+    expect(commentSurfaceKey(comment())).toBe("frame");
+    expect(commentSurfaceKey(comment(undefined, "p2"))).toBe("page:p2");
+    expect(commentSurfaceKey(comment("new"))).toBe("snapshot:new");
   });
 
   it("labels legacy, earlier and missing snapshots, but not the latest", () => {
     expect(placementOf(comment(), "url", snapshots, "new")).toEqual({ kind: "live" });
-    expect(placementOf(comment(), "image", snapshots, "new")).toBeNull();
+    expect(placementOf(comment(undefined, "p2"), "pages", snapshots, "new")).toBeNull();
     expect(placementOf(comment("new"), "url", snapshots, "new")).toBeNull();
     expect(placementOf(comment("old"), "url", snapshots, "new")).toEqual({
       kind: "earlier",
       at: 1,
     });
-    expect(placementOf(comment("new"), "image", snapshots, "new")).toEqual({
+    expect(placementOf(comment("new"), "pages", snapshots, "new")).toEqual({
       kind: "earlier",
       at: 2,
     });
@@ -87,18 +93,27 @@ describe("comment placement", () => {
     expect(surfaceTargetOf(comment(), "url", snapshots, "new")).toEqual({
       mode: "browse",
       viewedSnapshotId: null,
+      pageId: null,
     });
     expect(surfaceTargetOf(comment("new"), "url", snapshots, "new")).toEqual({
       mode: "comment",
       viewedSnapshotId: null,
+      pageId: null,
     });
     expect(surfaceTargetOf(comment("old"), "url", snapshots, "new")).toEqual({
       mode: "comment",
       viewedSnapshotId: "old",
+      pageId: null,
     });
-    expect(surfaceTargetOf(comment("old"), "image", snapshots, "new")).toEqual({
+    expect(surfaceTargetOf(comment("old"), "pages", snapshots, "new")).toEqual({
       mode: null,
       viewedSnapshotId: "old",
+      pageId: null,
+    });
+    expect(surfaceTargetOf(comment(undefined, "p2"), "pages", snapshots, "new")).toEqual({
+      mode: null,
+      viewedSnapshotId: null,
+      pageId: "p2",
     });
     expect(surfaceTargetOf(comment("gone"), "url", snapshots, "new")).toBeNull();
   });

@@ -14,6 +14,8 @@ export interface NewComment {
   body: string;
   author: string;
   snapshotId?: string;
+  /** The page the pin is on (page projects, when not on a snapshot). */
+  pageId?: string;
 }
 
 /** A crop being encoded: the picture arrives a moment after the comment is posted. */
@@ -41,10 +43,11 @@ export interface ViewerBackend {
   editComment(id: string, body: string): Result;
   deleteComment(id: string): Result;
   restoreComment(comment: Comment): Result;
+  /** See `replaceWithImage` in `lib/store/actions`. */
   replaceWithImage(
     projectId: string,
     image: ImageUpload,
-    referenceUrl: string | undefined,
+    target: { referenceUrl: string | undefined; pageId: string | null },
   ): Promise<Result>;
   /** Snapshots the project's site at `width`; null when aborted. */
   captureSnapshot(

@@ -10,7 +10,8 @@ interface NewProjectDialogProps {
   folders: readonly Folder[];
   /** Folder preselected when the dialog opens. */
   defaultFolderId: string;
-  onCreated: (project: Project) => void;
+  /** Every project created (several when images are added one project per file). */
+  onCreated: (projects: Project[]) => void;
 }
 
 export function NewProjectDialog({ open, onClose, ...formProps }: NewProjectDialogProps) {
@@ -19,7 +20,7 @@ export function NewProjectDialog({ open, onClose, ...formProps }: NewProjectDial
       open={open}
       onClose={onClose}
       title="New project"
-      description="Review a live website or a static image."
+      description="Review a live website, images or a PDF."
       testId="new-project-dialog"
     >
       <NewProjectForm onCancel={onClose} {...formProps} />

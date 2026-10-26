@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import type { CaptureErrorCode } from "../lib/capture/types";
 import type { FrameCheckResult } from "../lib/frame-check/types";
+import type { SquintData } from "../lib/store/types";
 import { snapshotPng } from "./sample-snapshot";
 
 /** Answers /api/frame-check locally so tests never depend on the network. */
@@ -53,14 +54,25 @@ export async function openOverview(page: Page): Promise<void> {
   await expect(page.getByTestId("overview-hero")).toBeVisible();
 }
 
-export const OVERVIEW_HEADLINE = { empty: "Welcome to Squint", filled: "Everything up for review" };
+export const OVERVIEW_HEADLINE = {
+  empty: "Welcome to Squint",
+  filled: "Your projects at a glance",
+};
+
+/** New project: the toolbar's on wide screens, the sidebar's where the sidebar stacks above. */
+export function newProjectButton(page: Page): Locator {
+  return page
+    .getByTestId("toolbar-new-project")
+    .or(page.getByTestId("new-project"))
+    .filter({ visible: true });
+}
 
 function newProjectDialog(page: Page): Locator {
   return page.getByRole("dialog", { name: "New project" });
 }
 
 export async function createUrlProject(page: Page, url: string, name: string): Promise<void> {
-  await page.getByTestId("new-project").click();
+  await newProjectButton(page).click();
   const dialog = newProjectDialog(page);
   await dialog.getByLabel("Website address").fill(url);
   await dialog.getByLabel("Project name").fill(name);
@@ -71,15 +83,52 @@ export async function createUrlProject(page: Page, url: string, name: string): P
 /** Creates an image project through the dialog, leaving the name to its file-name fallback. */
 export async function createImageProject(page: Page, fileName: string): Promise<void> {
   const buffer = await samplePng(page);
-  await page.getByTestId("new-project").click();
+  await newProjectButton(page).click();
   const dialog = newProjectDialog(page);
   await dialog.getByRole("radio", { name: "Image" }).click();
   await dialog
     .locator('input[type="file"]')
     .setInputFiles({ name: fileName, mimeType: "image/png", buffer });
-  await expect(dialog.getByText(fileName)).toBeVisible();
+  // The name shows as soon as the file is chosen; Create waits until it's prepared.
+  await expect(
+    dialog
+      .locator('[data-testid="picked-image"][data-status="ready"]')
+      .filter({ hasText: fileName }),
+  ).toHaveCount(1);
   await dialog.getByTestId("create-project").click();
   await expect(page.getByRole("img", { name: /the image under review/ })).toBeVisible();
+}
+
+/** Browser-drawn PNGs named `<label>.png` (lowercase), each showing its label; `heights` by label. */
+export async function samplePngFiles(
+  page: Page,
+  labels: readonly string[],
+  heights: Readonly<Record<string, number>> = {},
+): Promise<Array<{ name: string; mimeType: string; buffer: Buffer }>> {
+  const files = [];
+  for (const label of labels) {
+    files.push({
+      name: `${label.toLowerCase()}.png`,
+      mimeType: "image/png",
+      buffer: await samplePng(page, label, heights[label]),
+    });
+  }
+  return files;
+}
+
+/** Chooses images in the New project dialog and waits until each is prepared. */
+export async function pickImages(
+  page: Page,
+  files: ReadonlyArray<{ name: string; mimeType: string; buffer: Buffer }>,
+): Promise<Locator> {
+  await newProjectButton(page).click();
+  const dialog = newProjectDialog(page);
+  await dialog.getByRole("radio", { name: "Image" }).click();
+  await dialog.locator('input[type="file"]').setInputFiles([...files]);
+  await expect(dialog.locator('[data-testid="picked-image"][data-status="ready"]')).toHaveCount(
+    files.length,
+  );
+  return dialog;
 }
 
 /** Drops a pin and posts a comment; `author` is only asked for on the first comment. */
@@ -96,21 +145,27 @@ export async function postComment(
   await expect(composer).toHaveCount(0);
 }
 
-/** A real PNG, drawn by the browser, so the upload goes through decoding and downscaling. */
-export async function samplePng(page: Page, label = "Mockup"): Promise<Buffer> {
-  const dataUrl = await page.evaluate((text) => {
-    const canvas = document.createElement("canvas");
-    canvas.width = 1200;
-    canvas.height = 900;
-    const context = canvas.getContext("2d");
-    if (!context) throw new Error("no canvas");
-    context.fillStyle = "#d8fc6c";
-    context.fillRect(0, 0, 1200, 900);
-    context.fillStyle = "#0c54cc";
-    context.font = "bold 96px sans-serif";
-    context.fillText(text, 80, 200);
-    return canvas.toDataURL("image/png");
-  }, label);
+/**
+ * A real PNG, drawn by the browser, so the upload goes through decoding and
+ * downscaling. 1200 px wide, `height` tall.
+ */
+export async function samplePng(page: Page, label = "Mockup", height = 900): Promise<Buffer> {
+  const dataUrl = await page.evaluate(
+    ({ text, tall }) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1200;
+      canvas.height = tall;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("no canvas");
+      context.fillStyle = "#d8fc6c";
+      context.fillRect(0, 0, 1200, tall);
+      context.fillStyle = "#0c54cc";
+      context.font = "bold 96px sans-serif";
+      context.fillText(text, 80, 200);
+      return canvas.toDataURL("image/png");
+    },
+    { text: label, tall: height },
+  );
   return Buffer.from(dataUrl.split(",")[1] ?? "", "base64");
 }
 
@@ -155,4 +210,27 @@ export function folderCard(page: Page, name: string): Locator {
  */
 export async function sheetLift(sheet: Locator): Promise<number> {
   return sheet.evaluate((node) => new DOMMatrixReadOnly(getComputedStyle(node).transform).m42);
+}
+
+/** Replaces this browser's workspace with `data`, then opens `path`. Pictures aren't stored. */
+export async function seedWorkspace(page: Page, data: SquintData, path = "/"): Promise<void> {
+  await page.goto("/sandbox");
+  await page.evaluate((seed) => localStorage.setItem("squint:v3", JSON.stringify(seed)), data);
+  await page.goto(path);
+}
+
+/** Waits until `locator` and everything above it are fully faded in, so axe sees real colors. */
+export async function settled(locator: Locator): Promise<void> {
+  await expect
+    .poll(() =>
+      locator.evaluateAll((elements) =>
+        elements.every((element) => {
+          for (let node: Element | null = element; node; node = node.parentElement) {
+            if (getComputedStyle(node).opacity !== "1") return false;
+          }
+          return true;
+        }),
+      ),
+    )
+    .toBe(true);
 }

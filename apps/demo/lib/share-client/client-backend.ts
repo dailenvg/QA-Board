@@ -29,6 +29,9 @@ const SNAPSHOTS_FULL =
 /** 409 pending: the same comment is still being saved by an earlier try. */
 const STILL_SENDING =
   "Your comment isn't posted yet: an earlier try is still being saved. Wait two minutes, then retry. It won't post twice.";
+/** 422 unknown-page: the owner removed the page while the comment was being written. */
+const PAGE_GONE =
+  "Your comment wasn't sent: its page was removed from this review. Copy your text, then reload the page.";
 const NOT_SENT_DEFAULT = "Your comment wasn't sent. Retry in a moment.";
 
 interface ClientBackendOptions {
@@ -40,7 +43,7 @@ interface ClientBackendOptions {
 const ownerOnly = () => ({ ok: false as const, error: OWNER_ONLY });
 
 function commentForm(comment: Comment, blob: Blob | null, crop: PendingCrop | null): FormData {
-  const { id, x, y, body, author, snapshotId } = comment;
+  const { id, x, y, body, author, snapshotId, pageId } = comment;
   const form = new FormData();
   form.set(
     "comment",
@@ -51,6 +54,7 @@ function commentForm(comment: Comment, blob: Blob | null, crop: PendingCrop | nu
       body,
       author,
       ...(snapshotId ? { snapshotId } : {}),
+      ...(pageId ? { pageId } : {}),
       ...(blob && crop ? { crop: { rect: crop.rect } } : {}),
     }),
   );
@@ -81,6 +85,7 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
         createdAt: now,
         updatedAt: now,
         ...(input.snapshotId ? { snapshotId: input.snapshotId } : {}),
+        ...(input.pageId ? { pageId: input.pageId } : {}),
       };
       const blob = crop ? await crop.blob : null;
       const result = await api.addComment(commentForm(comment, blob, crop));
@@ -111,6 +116,7 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
         return { ok: false, error: GONE };
       }
       if (result.error === "share-full") return { ok: false, error: SHARE_FULL };
+      if (result.error === "unknown-page") return { ok: false, error: PAGE_GONE };
       return { ok: false, error: NOT_SENT[result.status] ?? NOT_SENT_DEFAULT };
     },
     setAuthorName: (name) => store.setAuthorName(cleanName(name)),

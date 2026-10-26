@@ -27,7 +27,20 @@ function focusables(root: HTMLElement): HTMLElement[] {
   );
 }
 
-/** Traps Tab inside the panel and closes on Escape. */
+/**
+ * Where focus goes when a dialog closes and the element that opened it is
+ * gone (such as the menu of a folder just deleted): the page's heading, else
+ * its main region, made focusable for this.
+ */
+function fallbackFocus(): void {
+  const target =
+    document.querySelector<HTMLElement>("main h1") ?? document.querySelector<HTMLElement>("main");
+  if (!target) return;
+  if (!target.hasAttribute("tabindex")) target.setAttribute("tabindex", "-1");
+  target.focus({ preventScroll: true });
+}
+
+/** Traps Tab inside the panel and closes on Escape; on close, focus goes back. */
 function useFocusTrap(open: boolean, panel: RefObject<HTMLDivElement | null>, onClose: () => void) {
   const onCloseRef = useRef(onClose);
   useEffect(() => {
@@ -53,6 +66,13 @@ function useFocusTrap(open: boolean, panel: RefObject<HTMLDivElement | null>, on
       const first = items[0];
       const last = items[items.length - 1];
       if (!first || !last) return;
+      // Focus fell out of the panel (its element was removed or disabled): bring it back
+      // instead of letting Tab reach the page behind the modal.
+      if (!node.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+        return;
+      }
       if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
         last.focus();
@@ -67,7 +87,9 @@ function useFocusTrap(open: boolean, panel: RefObject<HTMLDivElement | null>, on
     return () => {
       document.removeEventListener("keydown", onKeyDown, true);
       document.body.style.overflow = overflow;
-      previous?.focus();
+      if (previous?.isConnected) previous.focus();
+      // A frame later, so a page that replaces the removed one can render its heading first.
+      else requestAnimationFrame(fallbackFocus);
     };
   }, [open, panel]);
 }

@@ -1,4 +1,5 @@
 import { breakpointOf } from "./breakpoints";
+import { pagesOf } from "./pages";
 import type { Snapshot, SquintData } from "./types";
 
 /** A project's snapshots, oldest first. */
@@ -54,12 +55,10 @@ export function prunableSnapshotIds(
   );
 }
 
-/** Every blob the saved data still points at: project images, snapshots and comment crops. */
+/** Every blob the saved data still points at: page images, snapshots and comment crops. */
 export function referencedBlobKeys(data: SquintData): Set<string> {
   return new Set([
-    ...data.projects.flatMap((project) =>
-      project.source.kind === "image" ? [project.source.blobKey] : [],
-    ),
+    ...data.projects.flatMap((project) => pagesOf(project).map((page) => page.blobKey)),
     ...data.snapshots.map((snapshot) => snapshot.blobKey),
     ...data.comments.flatMap((comment) => comment.crop?.blobKey ?? []),
   ]);

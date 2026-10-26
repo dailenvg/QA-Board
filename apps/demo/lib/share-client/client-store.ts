@@ -1,6 +1,7 @@
 import { cropBlobKey, snapshotBlobKey } from "../blob-store/keys";
-import type { ClientView, SharedComment, SharedSnapshot } from "../share/types";
-import type { Comment, Project, Snapshot, SquintData } from "../store/types";
+import { pageBlobKey } from "../share/keys";
+import type { ClientView, SharedComment, SharedSnapshot, SharedSource } from "../share/types";
+import type { Comment, Project, ProjectSource, Snapshot, SquintData } from "../store/types";
 
 /** The single project a shared link shows, under a fixed local id. */
 export const SHARED_PROJECT_ID = "shared";
@@ -91,30 +92,30 @@ function toSnapshot(snapshot: SharedSnapshot): Snapshot {
   return { ...snapshot, projectId: SHARED_PROJECT_ID, blobKey: snapshotBlobKey(snapshot.id) };
 }
 
+/** A shared source as the viewer reads it: each page's picture is read through its share key. */
+function toSource(source: SharedSource): ProjectSource {
+  if (source.kind === "url") return source;
+  return {
+    ...source,
+    pages: source.pages.map((page) => ({ ...page, blobKey: pageBlobKey(page.id, page.rev) })),
+  };
+}
+
 /** The shared project in the viewer's shape: one project, its snapshots and comments. */
 export function toViewerData(state: ClientState): { data: SquintData; project: Project } {
   const { view } = state;
-  const { source } = view.project;
   const project: Project = {
     id: SHARED_PROJECT_ID,
     folderId: SHARED_PROJECT_ID,
     name: view.project.name,
-    source:
-      source.kind === "url"
-        ? source
-        : {
-            kind: "image",
-            blobKey: "image",
-            fileName: source.fileName,
-            ...(source.referenceUrl ? { referenceUrl: source.referenceUrl } : {}),
-          },
+    source: toSource(view.project.source),
     createdAt: 0,
     updatedAt: 0,
   };
   return {
     project,
     data: {
-      version: 2,
+      version: 3,
       folders: [],
       projects: [project],
       comments: view.comments.map(toComment),

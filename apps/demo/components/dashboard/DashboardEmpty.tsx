@@ -2,7 +2,7 @@
 
 import { motion } from "motion/react";
 import { useRevealVariants } from "@/lib/motion";
-import { SquintMascot } from "../brand/mascot/SquintMascot";
+import { Squiggy } from "../brand/mascot/Squiggy";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 
@@ -15,7 +15,7 @@ interface DashboardEmptyProps {
 const COPY = {
   folder: {
     title: "Nothing to review yet",
-    body: "Add a website or an image, then drop pins on it to leave feedback.",
+    body: "Add a website, images or a PDF, then drop pins to leave feedback.",
     action: "New project",
   },
   filter: {
@@ -38,7 +38,7 @@ export function DashboardEmpty({ kind, onAction }: DashboardEmptyProps) {
       className="grid flex-1 place-items-center rounded-panel bg-tile px-6 py-14 text-center"
     >
       <div className="flex max-w-sm flex-col items-center gap-4">
-        <SquintMascot mood={kind === "folder" ? "idle" : "sleeping"} size={132} />
+        <Squiggy mood={kind === "folder" ? "idle" : "sleeping"} size={132} />
         <div>
           <h2 className="text-title font-bold">{copy.title}</h2>
           <p className="mt-2 text-body text-muted">{copy.body}</p>

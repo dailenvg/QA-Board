@@ -1,17 +1,38 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useId,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type Ref,
+} from "react";
 import { usePopVariants } from "@/lib/motion";
 import { Icon, type IconName } from "./Icon";
 
 export interface MenuItem {
   label: string;
-  icon: IconName;
+  /** Leading icon. Radio items (`checked` set) show their check there instead. */
+  icon?: IconName;
   onSelect: () => void;
+  /** Makes this one of a set of options (menuitemradio): true for the current one. */
+  checked?: boolean;
   danger?: boolean;
+  /** Stays focusable (aria-disabled), so a label that explains why is still read out. */
   disabled?: boolean;
 }
+
+/** Opens a menu from elsewhere, such as a context-menu key on a tree row. */
+export interface MenuHandle {
+  open: () => void;
+}
+
+/** Plain and radio items alike. */
+const ITEM = '[role^="menuitem"]';
+const ENABLED_ITEM = `${ITEM}:not([aria-disabled="true"])`;
 
 interface MenuProps {
   /** Accessible name of the trigger, such as "Project actions". */
@@ -23,10 +44,21 @@ interface MenuProps {
   icon?: IconName;
   /** Visible trigger text, hidden on phones. Without it the trigger is icon-only. */
   text?: string;
+  /** Replaces the trigger text's default classes (`max-sm:sr-only`), e.g. to keep it on phones. */
+  textClassName?: string;
   /** Replaces the default (ghost) trigger styling. */
   triggerClassName?: string;
   /** Unavailable right now: the trigger stays focusable and explains why. */
   disabledReason?: string | null;
+  /**
+   * -1 keeps the trigger out of the Tab order, for menus inside a widget with
+   * its own keyboard model (a tree row); its actions must be reachable elsewhere.
+   */
+  triggerTabIndex?: number;
+  /** Opens the menu without its trigger (`MenuHandle.open`). */
+  handle?: Ref<MenuHandle>;
+  /** Where focus goes when the menu closes or an item is chosen; the trigger by default. */
+  returnFocus?: () => HTMLElement | null;
 }
 
 const TRIGGER_CLASS =
@@ -40,8 +72,12 @@ export function Menu({
   testId,
   icon = "more",
   text,
+  textClassName = "max-sm:sr-only",
   triggerClassName = TRIGGER_CLASS,
   disabledReason = null,
+  triggerTabIndex,
+  handle,
+  returnFocus,
 }: MenuProps) {
   const [open, setOpen] = useState(false);
   /** A disabled trigger was clicked or tapped: show its reason, since touch has no tooltip. */
@@ -53,13 +89,25 @@ export function Menu({
   const variants = usePopVariants();
   const showReason = explaining && Boolean(disabledReason);
 
+  const openMenu = () => {
+    if (disabledReason) return;
+    setExplaining(false);
+    setOpen(true);
+  };
+  useImperativeHandle(handle, () => ({ open: openMenu }));
+
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: PointerEvent) => {
       if (!root.current?.contains(event.target as Node)) setOpen(false);
     };
     document.addEventListener("pointerdown", onPointerDown);
-    root.current?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')?.focus();
+    // Options open on the current one; actions on the first available.
+    const first =
+      root.current?.querySelector<HTMLElement>('[aria-checked="true"]') ??
+      root.current?.querySelector<HTMLElement>(ENABLED_ITEM) ??
+      root.current?.querySelector<HTMLElement>(ITEM);
+    first?.focus();
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [open]);
 
@@ -72,15 +120,16 @@ export function Menu({
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [showReason]);
 
+  const focusBack = () => (returnFocus?.() ?? trigger.current)?.focus();
+
   const close = () => {
     setOpen(false);
-    trigger.current?.focus();
+    focusBack();
   };
 
+  // Disabled items stay in the arrow-key order (WAI-ARIA menu pattern), so their reason is heard.
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const entries = Array.from(
-      root.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') ?? [],
-    );
+    const entries = Array.from(root.current?.querySelectorAll<HTMLElement>(ITEM) ?? []);
     const index = entries.indexOf(document.activeElement as HTMLElement);
     const focusAt = (next: number) => entries[(next + entries.length) % entries.length]?.focus();
     if (event.key === "Escape") {
@@ -108,6 +157,7 @@ export function Menu({
       <button
         ref={trigger}
         type="button"
+        tabIndex={triggerTabIndex}
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -141,7 +191,7 @@ export function Menu({
         className={triggerClassName}
       >
         <Icon name={icon} />
-        {text ? <span className="max-sm:sr-only">{text}</span> : null}
+        {text ? <span className={textClassName}>{text}</span> : null}
         {disabledReason ? (
           <span id={reasonId} className="sr-only">
             {disabledReason}
@@ -183,19 +233,22 @@ export function Menu({
               <button
                 key={item.label}
                 type="button"
-                role="menuitem"
-                disabled={item.disabled}
+                role={item.checked === undefined ? "menuitem" : "menuitemradio"}
+                aria-checked={item.checked}
+                aria-disabled={item.disabled || undefined}
                 onClick={() => {
+                  if (item.disabled) return;
                   setOpen(false);
-                  // Back on the trigger first, so a dialog opened by this item returns focus there.
-                  trigger.current?.focus();
+                  // Back on the trigger (or `returnFocus`) first, so a dialog opened by this item
+                  // returns focus there.
+                  focusBack();
                   item.onSelect();
                 }}
-                className={`flex min-h-11 items-center gap-3 rounded-row px-3 text-left text-body font-medium transition-colors hover:bg-hover focus-visible:bg-hover active:bg-seg disabled:cursor-not-allowed disabled:opacity-50 ${
-                  item.danger ? "text-danger" : "text-ink"
-                }`}
+                className={`flex min-h-11 items-center gap-3 rounded-row px-3 text-left text-body font-medium transition-colors focus-visible:bg-hover ${
+                  item.disabled ? "cursor-not-allowed opacity-50" : "hover:bg-hover active:bg-seg"
+                } ${item.danger ? "text-danger" : "text-ink"}`}
               >
-                <Icon name={item.icon} className="size-4 shrink-0" />
+                <ItemIcon item={item} />
                 {item.label}
               </button>
             ))}
@@ -204,4 +257,17 @@ export function Menu({
       </AnimatePresence>
     </div>
   );
+}
+
+/** An item's icon, or for a radio item the check that marks the current option. */
+function ItemIcon({ item }: { item: MenuItem }) {
+  if (item.checked !== undefined) {
+    return (
+      <Icon
+        name="check"
+        className={`size-4 shrink-0 text-brand-text ${item.checked ? "" : "invisible"}`}
+      />
+    );
+  }
+  return item.icon ? <Icon name={item.icon} className="size-4 shrink-0" /> : null;
 }

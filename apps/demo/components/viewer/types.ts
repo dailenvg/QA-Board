@@ -14,6 +14,8 @@ export interface Draft extends PinPoint {
   /** The surface the draft pin was placed on (see `surfaceKey`); it only shows there. */
   surfaceKey: string;
   snapshotId: string | null;
+  /** The page the draft pin was placed on (page projects, when not on a snapshot). */
+  pageId: string | null;
   /** The comment's id, fixed when the pin is placed, so a retry can't post it twice. */
   commentId: string;
   /** Posting is under way. */

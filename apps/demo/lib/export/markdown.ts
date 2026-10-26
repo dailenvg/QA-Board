@@ -1,5 +1,14 @@
+import { distinctPageName } from "../store/pages";
 import { fencedText, inlineCode, inlineText } from "./escape";
-import type { ExportComment, ExportDocument, ExportLocation, ExportSnapshot } from "./types";
+import type {
+  ExportComment,
+  ExportDocument,
+  ExportLocation,
+  ExportPage,
+  ExportSnapshot,
+  ExportSource,
+  OmittedReason,
+} from "./types";
 
 export interface MarkdownOptions {
   /** True inside the ZIP, where screenshots sit next to the file; false for the bare download. */
@@ -15,24 +24,61 @@ const INTRO = [
   "**Resolved comments** are listed last, for context only. Don't act on them.",
 ];
 
+type PagesSource = Extract<ExportSource, { kind: "pages" }>;
+
+/** ", `about.png`"; nothing for a PDF page named after its number. */
+function nameText(page: ExportPage): string {
+  const name = distinctPageName(page.name, page.number);
+  return name ? `, ${inlineCode(name)}` : "";
+}
+
+const sizeText = (page: ExportPage) =>
+  page.width && page.height ? ` (${page.width} × ${page.height} px)` : "";
+
+/** What a page project's pages are, in a few words. */
+function pagesSummary(source: PagesSource): string {
+  const [first] = source.pages;
+  const name = inlineCode(source.fileName);
+  const count = source.pages.length;
+  if (source.origin === "pdf") return `PDF ${name}, ${count === 1 ? "1 page" : `${count} pages`}`;
+  if (source.pages.length === 1 && first) return `image ${name}${sizeText(first)}`;
+  return `${source.pages.length} images, starting with ${name}`;
+}
+
 function sourceLine(document: ExportDocument): string {
   const { source } = document.project;
   if (source.kind === "url") return `- **Source:** website ${inlineCode(source.url)}`;
-  const size = source.width && source.height ? ` (${source.width} × ${source.height} px)` : "";
   const reference = source.referenceUrl
     ? `, a screenshot of ${inlineCode(source.referenceUrl)}`
     : "";
-  return `- **Source:** image ${inlineCode(source.fileName)}${size}${reference}`;
+  return `- **Source:** ${pagesSummary(source)}${reference}`;
 }
 
-/** An image project's original image, as shipped in the ZIP. */
-function originalImageLine(document: ExportDocument, options: MarkdownOptions): string[] {
+function omittedText(reason: OmittedReason | null): string {
+  return reason === "too-large"
+    ? "left out to keep the export small"
+    : "not saved in the exporting browser";
+}
+
+/** Where a page's image is: linked in the ZIP copy, named in the bare one, or why it's missing. */
+function pageFile(page: ExportPage, options: MarkdownOptions): string {
+  if (!page.file) return `not included (${omittedText(page.omitted)})`;
+  return options.withFiles
+    ? `[${page.file}](${page.file})`
+    : `${inlineCode(page.file)} in the ZIP export`;
+}
+
+/** A page project's pages, in reading order, with their images. */
+function pagesList(document: ExportDocument, options: MarkdownOptions): string[] {
   const { source } = document.project;
-  if (source.kind !== "image" || !source.file) return [];
-  const where = options.withFiles
-    ? `[${source.file}](${source.file}), next to this file`
-    : `${inlineCode(source.file)} in the ZIP export`;
-  return [`- **Original image:** ${where}`];
+  if (source.kind !== "pages") return [];
+  return [
+    "- **Pages:**",
+    ...source.pages.map(
+      (page) =>
+        `  - Page ${page.number}${nameText(page)}${sizeText(page)}: ${pageFile(page, options)}`,
+    ),
+  ];
 }
 
 function captureWidth(document: ExportDocument): string | null {
@@ -44,8 +90,11 @@ function captureWidth(document: ExportDocument): string | null {
 function header(document: ExportDocument, options: MarkdownOptions): string[] {
   const active = document.comments.filter((comment) => comment.status === "active").length;
   const resolved = document.comments.length - active;
+  const pages = document.project.source.kind === "pages";
   const files = options.withFiles
-    ? "- **Screenshots:** in `screenshots/`, next to this file. Full-page snapshots, when included, are in `snapshots/`."
+    ? pages
+      ? "- **Screenshots:** in `screenshots/`, next to this file. Page images, when included, are in `pages/`."
+      : "- **Screenshots:** in `screenshots/`, next to this file. Full-page snapshots, when included, are in `snapshots/`."
     : "- **Screenshots:** not included in this file. Download the ZIP export from Squint to get them.";
   return [
     `# Squint review: ${inlineText(document.project.name)}`,
@@ -53,7 +102,7 @@ function header(document: ExportDocument, options: MarkdownOptions): string[] {
     ...INTRO.flatMap((line) => [line, ""]),
     `- **Project:** ${inlineText(document.project.name)}`,
     sourceLine(document),
-    ...originalImageLine(document, options),
+    ...pagesList(document, options),
     ...(captureWidth(document) ? [captureWidth(document) ?? ""] : []),
     `- **Exported:** ${iso(document.exportedAt)}`,
     `- **Comments:** ${active} active, ${resolved} resolved`,
@@ -61,7 +110,17 @@ function header(document: ExportDocument, options: MarkdownOptions): string[] {
   ];
 }
 
-function locationLine(location: ExportLocation, snapshot: ExportSnapshot | undefined): string {
+/** What the pin's surface is called: a snapshot's page, a PDF page, or an image. */
+function surfaceNoun(location: ExportLocation, source: ExportSource): string {
+  if (location.surface === "snapshot") return "page";
+  return source.kind === "pages" && source.origin === "pdf" ? "page" : "image";
+}
+
+function locationLine(
+  location: ExportLocation,
+  snapshot: ExportSnapshot | undefined,
+  source: ExportSource,
+): string {
   const at = `${percent(location.xPercent)} from the left, ${percent(location.yPercent)} from the top`;
   if (location.surface === "frame") {
     return `${at} of the visible browser window (placed before snapshots; may not match the page if it was scrolled)`;
@@ -70,12 +129,35 @@ function locationLine(location: ExportLocation, snapshot: ExportSnapshot | undef
     location.x !== null && location.y !== null ? ` = x ${location.x} px, y ${location.y} px` : "";
   const size =
     location.surfaceWidth && location.surfaceHeight
-      ? ` on a ${location.surfaceWidth} × ${location.surfaceHeight} px ${location.surface === "snapshot" ? "page" : "image"}`
+      ? ` on a ${location.surfaceWidth} × ${location.surfaceHeight} px ${surfaceNoun(location, source)}`
       : "";
   const taken = snapshot
     ? `, snapshot taken ${iso(snapshot.createdAt)} at ${snapshot.width} px wide`
     : "";
-  return `${at} of the ${location.surface}${px}${size}${taken}`;
+  const surface = location.page ? `page ${location.page.number}` : `the ${location.surface}`;
+  return `${at} of ${surface}${px}${size}${taken}`;
+}
+
+/**
+ * Where the pinned thing is: the page of a page project (and the site it
+ * shows, if any), else the web page's address.
+ */
+function pageLines(
+  comment: ExportComment,
+  source: ExportSource,
+  options: MarkdownOptions,
+): string[] {
+  const { page } = comment.location;
+  const found =
+    page && source.kind === "pages" ? source.pages.find((entry) => entry.id === page.id) : null;
+  if (!page || !found || source.kind !== "pages") {
+    return [`- **Page:** ${comment.pageUrl ? inlineCode(comment.pageUrl) : "none (image)"}`];
+  }
+  const site = comment.pageUrl ? [`- **Site:** ${inlineCode(comment.pageUrl)}`] : [];
+  return [
+    `- **Page:** ${page.number} of ${source.pages.length}${nameText(found)}; image ${pageFile(found, options)}`,
+    ...site,
+  ];
 }
 
 function screenshotLine(comment: ExportComment, options: MarkdownOptions): string {
@@ -93,16 +175,13 @@ function snapshotLine(snapshot: ExportSnapshot | undefined, options: MarkdownOpt
       : `${inlineCode(snapshot.file)} in the ZIP export`;
     return [`- **Full page:** ${where}`];
   }
-  const why =
-    snapshot.omitted === "too-large"
-      ? "left out to keep the export small"
-      : "not saved in the exporting browser";
-  return [`- **Full page:** not included (${why})`];
+  return [`- **Full page:** not included (${omittedText(snapshot.omitted)})`];
 }
 
 function commentSection(
   comment: ExportComment,
   snapshots: ReadonlyMap<string, ExportSnapshot>,
+  source: ExportSource,
   options: MarkdownOptions,
 ): string[] {
   const snapshot = comment.location.snapshotId
@@ -119,8 +198,8 @@ function commentSection(
     `- **Status:** ${status}`,
     `- **Author:** ${inlineText(comment.author)}`,
     `- **Created:** ${iso(comment.createdAt)}${edited}`,
-    `- **Location:** ${locationLine(comment.location, snapshot)}`,
-    `- **Page:** ${comment.pageUrl ? inlineCode(comment.pageUrl) : "none (image)"}`,
+    `- **Location:** ${locationLine(comment.location, snapshot, source)}`,
+    ...pageLines(comment, source, options),
     screenshotLine(comment, options),
     ...snapshotLine(snapshot, options),
     "",
@@ -135,11 +214,12 @@ function group(
   empty: string,
   comments: readonly ExportComment[],
   snapshots: ReadonlyMap<string, ExportSnapshot>,
+  source: ExportSource,
   options: MarkdownOptions,
 ): string[] {
   const sections = comments.flatMap((comment) => [
     "",
-    ...commentSection(comment, snapshots, options),
+    ...commentSection(comment, snapshots, source, options),
   ]);
   return ["", `## ${heading}`, ...(sections.length ? sections : ["", empty])];
 }
@@ -149,6 +229,7 @@ export function toMarkdown(document: ExportDocument, options: MarkdownOptions): 
   const snapshots = new Map(document.snapshots.map((snapshot) => [snapshot.id, snapshot]));
   const active = document.comments.filter((comment) => comment.status === "active");
   const resolved = document.comments.filter((comment) => comment.status === "resolved");
+  const { source } = document.project;
   return [
     ...header(document, options),
     ...group(
@@ -156,6 +237,7 @@ export function toMarkdown(document: ExportDocument, options: MarkdownOptions): 
       "None. Everything has been resolved.",
       active,
       snapshots,
+      source,
       options,
     ),
     ...group(
@@ -163,6 +245,7 @@ export function toMarkdown(document: ExportDocument, options: MarkdownOptions): 
       "None yet.",
       resolved,
       snapshots,
+      source,
       options,
     ),
     "",

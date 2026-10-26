@@ -1,3 +1,5 @@
+import { folderMoveProblem, subtreeIds } from "./folders";
+import { placeComment } from "./pages";
 import { prunableSnapshotIds } from "./snapshots";
 import type {
   Comment,
@@ -14,6 +16,9 @@ import type {
 export type Action =
   | { type: "folder/create"; folder: Folder }
   | { type: "folder/rename"; id: string; name: string }
+  /** Moves a folder into another (`parentId`), or to the top level (null). Never into itself. */
+  | { type: "folder/move"; id: string; parentId: string | null }
+  /** Deletes the folder and everything inside it, at any depth. */
   | { type: "folder/delete"; id: string; at: number }
   | { type: "project/create"; project: Project }
   | { type: "project/rename"; id: string; name: string; at: number }
@@ -76,7 +81,10 @@ function mergeShared(data: SquintData, action: Extract<Action, { type: "share/me
   if (!project?.share) return data;
   const commentIds = new Set(data.comments.map((comment) => comment.id));
   const snapshotIds = new Set(data.snapshots.map((snapshot) => snapshot.id));
-  const comments = action.comments.filter((comment) => !commentIds.has(comment.id));
+  // The server checked each page when the comment was posted; the owner may have removed it since.
+  const comments = action.comments
+    .filter((comment) => !commentIds.has(comment.id))
+    .map((comment) => placeComment(comment, project));
   const snapshots = action.snapshots.filter((snapshot) => !snapshotIds.has(snapshot.id));
   const merged = updateShare(data, action.id, (share) => ({
     ...share,
@@ -112,6 +120,29 @@ function revoke(data: SquintData, projects: readonly Project[], dueAt: number): 
   return queued.length ? { ...data, revocations: [...data.revocations, ...queued] } : data;
 }
 
+/** Adds a comment where its project can show it (see `placeComment`); unknown projects are a no-op. */
+function addComment(data: SquintData, comment: Comment): SquintData | null {
+  const project = data.projects.find((entry) => entry.id === comment.projectId);
+  return project ? { ...data, comments: [...data.comments, placeComment(comment, project)] } : null;
+}
+
+/** A new source: the project's comments move onto surfaces it has (frame pins onto its first page). */
+function replaceSource(
+  data: SquintData,
+  action: Extract<Action, { type: "project/replace-source" }>,
+) {
+  const target = data.projects.find((project) => project.id === action.id);
+  if (!target) return data;
+  const project: Project = { ...target, source: action.source, updatedAt: action.at };
+  return {
+    ...data,
+    projects: data.projects.map((entry) => (entry.id === action.id ? project : entry)),
+    comments: data.comments.map((comment) =>
+      comment.projectId === action.id ? placeComment(comment, project) : comment,
+    ),
+  };
+}
+
 function touchProject(projects: Project[], id: string, at: number): Project[] {
   return projects.map((project) => (project.id === id ? { ...project, updatedAt: at } : project));
 }
@@ -134,8 +165,11 @@ function updateComment(
 /** Pure state transitions. Unknown ids are no-ops, so stale UI can never corrupt data. */
 export function reduce(data: SquintData, action: Action): SquintData {
   switch (action.type) {
-    case "folder/create":
+    case "folder/create": {
+      const { parentId } = action.folder;
+      if (parentId !== null && !data.folders.some((folder) => folder.id === parentId)) return data;
       return { ...data, folders: [...data.folders, action.folder] };
+    }
     case "folder/rename":
       return {
         ...data,
@@ -143,15 +177,25 @@ export function reduce(data: SquintData, action: Action): SquintData {
           folder.id === action.id ? { ...folder, name: action.name } : folder,
         ),
       };
+    case "folder/move":
+      if (folderMoveProblem(data.folders, action.id, action.parentId)) return data;
+      return {
+        ...data,
+        folders: data.folders.map((folder) =>
+          folder.id === action.id ? { ...folder, parentId: action.parentId } : folder,
+        ),
+      };
     case "folder/delete": {
-      // Every project needs a folder, so the last folder stays.
-      if (data.folders.length <= 1) return data;
-      const removedProjects = data.projects.filter((project) => project.folderId === action.id);
+      if (!data.folders.some((folder) => folder.id === action.id)) return data;
+      const folderIds = subtreeIds(data.folders, action.id);
+      // Every project needs a folder, so the last folders stay.
+      if (folderIds.size >= data.folders.length) return data;
+      const removedProjects = data.projects.filter((project) => folderIds.has(project.folderId));
       const removed = new Set(removedProjects.map((p) => p.id));
       // Folder deletes can't be undone, so their links are revoked right away.
       return {
         ...revoke(data, removedProjects, action.at),
-        folders: data.folders.filter((folder) => folder.id !== action.id),
+        folders: data.folders.filter((folder) => !folderIds.has(folder.id)),
         projects: data.projects.filter((project) => !removed.has(project.id)),
         comments: data.comments.filter((comment) => !removed.has(comment.projectId)),
         snapshots: data.snapshots.filter((snapshot) => !removed.has(snapshot.projectId)),
@@ -159,6 +203,9 @@ export function reduce(data: SquintData, action: Action): SquintData {
     }
     case "project/create":
       if (!data.folders.some((folder) => folder.id === action.project.folderId)) return data;
+      if (action.project.source.kind === "pages" && action.project.source.pages.length === 0) {
+        return data;
+      }
       return { ...data, projects: [...data.projects, action.project] };
     case "project/rename":
       return {
@@ -180,14 +227,7 @@ export function reduce(data: SquintData, action: Action): SquintData {
         ),
       };
     case "project/replace-source":
-      return {
-        ...data,
-        projects: data.projects.map((project) =>
-          project.id === action.id
-            ? { ...project, source: action.source, updatedAt: action.at }
-            : project,
-        ),
-      };
+      return replaceSource(data, action);
     case "project/delete":
       return {
         ...revoke(
@@ -212,15 +252,15 @@ export function reduce(data: SquintData, action: Action): SquintData {
       };
     case "comment/restore":
       if (data.comments.some((comment) => comment.id === action.comment.id)) return data;
-      if (!data.projects.some((project) => project.id === action.comment.projectId)) return data;
-      return { ...data, comments: [...data.comments, action.comment] };
-    case "comment/add":
-      if (!data.projects.some((project) => project.id === action.comment.projectId)) return data;
+      return addComment(data, action.comment) ?? data;
+    case "comment/add": {
+      const added = addComment(data, action.comment);
+      if (!added) return data;
       return {
-        ...data,
-        comments: [...data.comments, action.comment],
+        ...added,
         projects: touchProject(data.projects, action.comment.projectId, action.comment.createdAt),
       };
+    }
     case "comment/edit":
       return updateComment(data, action.id, action.at, (comment) => ({
         ...comment,

@@ -55,7 +55,7 @@ const open: EyeShape = { scaleY: 1 };
 
 export const MOOD_SPECS: Record<Mood, MoodSpec> = {
   idle: {
-    label: "Idle",
+    label: "Relaxed",
     float: { y: [0, -10, 0], rotate: 0 },
     squash: { scaleX: [1, 0.994, 1], scaleY: [1, 1.012, 1] },
     eyes: { y: 0, scale: 1 },
@@ -146,7 +146,7 @@ export const MOOD_SPECS: Record<Mood, MoodSpec> = {
     loop: { duration: 4.2, ease: ease.breathe },
   },
   resolved: {
-    label: "Resolved",
+    label: "Celebrating",
     // Celebration hop: crouch, leap with a wiggle, land, small rebound, then a beat of rest.
     float: { y: [0, 4, -54, 0, -6, 0], rotate: [0, 0, -7, 5, 0, 0] },
     squash: { scaleX: [1, 1.14, 0.9, 1.12, 0.98, 1], scaleY: [1, 0.86, 1.1, 0.88, 1.02, 1] },

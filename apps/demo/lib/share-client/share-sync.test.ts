@@ -40,12 +40,12 @@ function fullSizeSnapshot(): Blob {
   return new Blob([bytes]);
 }
 
-function commentForm(id: string, withCrop: boolean): FormData {
+function commentForm(id: string, withCrop: boolean, extra: { pageId?: string } = {}): FormData {
   const form = new FormData();
   const crop = withCrop ? { crop: { rect: { x: 0, y: 0, width: 10, height: 10 } } } : {};
   form.set(
     "comment",
-    JSON.stringify({ id, x: 5, y: 5, body: "From the client", author: "Cleo", ...crop }),
+    JSON.stringify({ id, x: 5, y: 5, body: "From the client", author: "Cleo", ...crop, ...extra }),
   );
   if (withCrop) form.set("crop", new Blob([PNG], { type: "image/png" }), "crop.png");
   return form;
@@ -80,8 +80,8 @@ beforeEach(() => {
 /** The owner's browser, with project p1 shared as `share`. */
 function ownerData(share: ProjectShare): SquintData {
   return {
-    version: 2,
-    folders: [{ id: "default", name: "My projects", createdAt: 0 }],
+    version: 3,
+    folders: [{ id: "default", name: "My projects", createdAt: 0, parentId: null }],
     projects: [
       {
         id: "p1",
@@ -147,8 +147,8 @@ describe("Qanto's scenario: a full share and a client crop", () => {
 
     // The owner's browser, with the project shared.
     const data: SquintData = {
-      version: 2,
-      folders: [{ id: "default", name: "My projects", createdAt: 0 }],
+      version: 3,
+      folders: [{ id: "default", name: "My projects", createdAt: 0, parentId: null }],
       projects: [
         {
           id: "p1",
@@ -165,7 +165,7 @@ describe("Qanto's scenario: a full share and a client crop", () => {
       revocations: [],
       authorName: null,
     };
-    localStorage.setItem("squint:v2", JSON.stringify(data));
+    localStorage.setItem("squint:v3", JSON.stringify(data));
     const sync = await import("./owner-sync");
     const { getSnapshot } = await import("../store/store");
     const local = () => {
@@ -215,7 +215,7 @@ describe("Qanto's scenario: many long client comments", () => {
       expect((await client.addComment(form)).ok).toBe(true);
     }
 
-    localStorage.setItem("squint:v2", JSON.stringify(ownerData(share)));
+    localStorage.setItem("squint:v3", JSON.stringify(ownerData(share)));
     const sync = await import("./owner-sync");
     const { dispatch, getSnapshot } = await import("../store/store");
     await sync.pullNow("p1");
@@ -241,5 +241,82 @@ describe("Qanto's scenario: many long client comments", () => {
     const { shareServices } = await import("../share/server");
     const rows = await (await shareServices()).store.comments(shareId);
     expect(rows.find((row) => row.item.id === "long-7")?.item.status).toBe("resolved");
+  }, 30_000);
+});
+
+describe("sharing a page project", () => {
+  it("uploads each page from wherever it's kept, and a client's page comment comes back on it", async () => {
+    const { ownerApi, clientApi } = await import("./api");
+    const { putBlob } = await import("../blob-store/blob-store");
+    const { toShareState } = await import("./share-state");
+    const project: SquintData["projects"][number] = {
+      id: "p1",
+      folderId: "default",
+      name: "Mockups",
+      source: {
+        kind: "pages",
+        origin: "image",
+        // Page 1 was migrated from version 2 and still uses its old key.
+        pages: [
+          { id: "page-1", blobKey: "image:p1", name: "home.png" },
+          { id: "pg2", blobKey: "page:pg2", name: "about.png", width: 800, height: 600 },
+        ],
+        fileName: "home.png",
+      },
+      createdAt: 0,
+      updatedAt: 0,
+    };
+    const created = await ownerApi.create({ ...toShareState(project, [], []), comments: [] });
+    if (!created.ok) throw new Error("create failed");
+    const { shareId, token, ownerKey } = created.value;
+    const share: ProjectShare = { id: shareId, token, ownerKey, createdAt: 0, cursor: 0 };
+    expect(created.value.missingBlobs).toEqual(["page:page-1", "page:pg2"]);
+    await putBlob("image:p1", new Blob([PNG], { type: "image/png" }));
+    await putBlob("page:pg2", new Blob([JPEG], { type: "image/jpeg" }));
+    localStorage.setItem(
+      "squint:v3",
+      JSON.stringify({ ...ownerData(share), projects: [{ ...project, share }] }),
+    );
+
+    const sync = await import("./owner-sync");
+    await sync.pushNow("p1");
+    expect(sync.syncStatus("p1").phase).toBe("idle");
+    const client = clientApi(token);
+    const page1 = await fetch(client.blobUrl("page:page-1"));
+    expect(page1.headers.get("content-type")).toBe("image/png");
+    const page2 = await fetch(client.blobUrl("page:pg2"));
+    expect(page2.headers.get("content-type")).toBe("image/jpeg");
+
+    const onPage = (id: string, pageId: string) => commentForm(id, true, { pageId });
+    expect(await client.addComment(onPage("k-gone", "nope"))).toMatchObject({
+      ok: false,
+      status: 422,
+      error: "unknown-page",
+    });
+    expect((await client.addComment(onPage("k-page", "pg2"))).ok).toBe(true);
+
+    await sync.pullNow("p1");
+    const { getSnapshot } = await import("../store/store");
+    const state = getSnapshot();
+    const pulled = state.status === "ready" ? state.data.comments : [];
+    expect(pulled.map(({ id, pageId }) => [id, pageId])).toEqual([["k-page", "pg2"]]);
+    expect(pulled[0]?.crop?.blobKey).toBe("crop:k-page");
+
+    // Replacing page 2's picture in place sends it again, under its next revision.
+    const { replaceWithImage } = await import("../store/actions");
+    const blob = new Blob([PNG], { type: "image/png" });
+    const image = { blob, fileName: "about-v2.png", width: 800, height: 600 };
+    expect(
+      (await replaceWithImage("p1", image, { referenceUrl: undefined, pageId: "pg2" })).ok,
+    ).toBe(true);
+    await sync.pushNow("p1");
+    expect(sync.syncStatus("p1").phase).toBe("idle");
+    const replaced = await fetch(client.blobUrl("page:pg2:1"));
+    expect(replaced.headers.get("content-type")).toBe("image/png");
+    expect((await fetch(client.blobUrl("page:pg2"))).status).toBe(404);
+    const view = await client.view();
+    expect(view.ok && view.value.project.source).toMatchObject({
+      pages: [{ id: "page-1" }, { id: "pg2", name: "about-v2.png", rev: 1 }],
+    });
   }, 30_000);
 });

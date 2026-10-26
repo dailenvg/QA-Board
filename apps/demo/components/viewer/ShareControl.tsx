@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { ownerApi, shareUrl } from "@/lib/share-client/api";
 import { pushNow, resetSync, syncNow } from "@/lib/share-client/owner-sync";
 import { toShareState } from "@/lib/share-client/share-state";
+import { useShareFit } from "@/lib/share-client/use-share-fit";
 import { useShareSync } from "@/lib/share-client/use-share-sync";
 import { shareProject, unshareProject } from "@/lib/store/actions";
 import { commentsFor } from "@/lib/store/selectors";
@@ -68,8 +69,11 @@ export function ShareControl({ data, project }: ShareControlProps) {
   );
   const status = useShareSync(project, share ? JSON.stringify(state) : null);
   const url = share && isClient ? shareUrl(share.token) : null;
+  // Checked while the dialog offers to create a link, so a project too big to share says so first.
+  const fit = useShareFit(data, project, open && (!share || status.phase === "gone"));
 
   const create = async () => {
+    if (fit.status !== "fits") return;
     setCreating(true);
     setError(null);
     if (status.phase === "gone") {
@@ -145,6 +149,7 @@ export function ShareControl({ data, project }: ShareControlProps) {
         share={share}
         url={url}
         status={status}
+        fit={fit}
         creating={creating}
         revoking={revoking}
         error={error}

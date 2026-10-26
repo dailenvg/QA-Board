@@ -13,7 +13,8 @@ import {
   type Breakpoint,
 } from "@/lib/store/breakpoints";
 import { newId } from "@/lib/store/id";
-import { commentsFor, pinNumbers } from "@/lib/store/selectors";
+import { pagesOf } from "@/lib/store/pages";
+import { commentsFor, pageCounts, pinNumbers } from "@/lib/store/selectors";
 import { countComments, deriveStatus } from "@/lib/store/status";
 import type { Comment, Project, SquintData } from "@/lib/store/types";
 import { useDialogState } from "@/lib/use-dialog-state";
@@ -29,14 +30,18 @@ import { CanvasLayer } from "./CanvasLayer";
 import { CommentsBody } from "./CommentsBody";
 import { CommentsPanel } from "./CommentsPanel";
 import { ExportMenu } from "./ExportMenu";
+import { PageFilter, type PageScope } from "./PageFilter";
+import { PageStrip } from "./PageStrip";
 import { PinPopover } from "./PinPopover";
 import { commentSurfaceKey, placementOf, surfaceKey } from "./surface";
 import { useCommentActions } from "./use-comment-actions";
+import { useViewerDraft } from "./use-viewer-draft";
+import { useViewerPage } from "./use-viewer-page";
 import { useViewerSurface } from "./use-viewer-surface";
 import { ViewerStage } from "./ViewerStage";
 import { ViewerTopBar } from "./ViewerTopBar";
 import type { DraftStorage } from "@/lib/share-client/draft-storage";
-import type { CommentTab, Draft, PinPoint, ScreenshotHandler, ViewerMode } from "./types";
+import type { CommentTab, PinPoint, ScreenshotHandler, ViewerMode } from "./types";
 
 /** One celebration: the mascot's hop plus its rest beat. */
 const CELEBRATION_MS = RESOLVED_HOP * 2 * 1000;
@@ -54,14 +59,6 @@ interface ViewerViewProps {
   panelNote?: string;
   /** Keeps an unsent draft across reloads (shared links), and warns before leaving it. */
   draftStorage?: DraftStorage;
-}
-
-const RESTORED = "This comment wasn't sent before the page closed. Retry to post it, or cancel it.";
-
-/** A draft kept from before a reload, shown as unsent until it's posted. */
-function restoreDraft(storage: DraftStorage | undefined): Draft | null {
-  const stored = storage?.load();
-  return stored ? { ...stored, sending: false, error: RESTORED, crop: null } : null;
 }
 
 type ScrollRequest = { id: string; target: "pin" | "card"; nonce: number } | null;
@@ -88,8 +85,11 @@ export function ViewerView({
   const now = useNow();
   const reduce = useReducedMotion();
   const docked = !useMediaQuery("(min-width: 1024px)");
-  const [draft, setDraft] = useState<Draft | null>(() => restoreDraft(draftStorage));
-  const view = useViewerSurface(project, data, {
+  const [draft, setDraft] = useViewerDraft(draftStorage);
+  const canvasAreaRef = useRef<HTMLElement>(null);
+  const pages = useViewerPage(project, draft?.pageId ?? null, () => canvasAreaRef.current);
+  const [pageScope, setPageScope] = useState<PageScope>("all");
+  const view = useViewerSurface(project, data, pages, {
     mode: draft ? "comment" : "browse",
     snapshotId: draft?.snapshotId ?? null,
   });
@@ -97,6 +97,12 @@ export function ViewerView({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   /** The pin whose comment popover is open. */
   const [openId, setOpenId] = useState<string | null>(null);
+  // Another page swaps the stage, so it closes an open popover, as mode and breakpoint do.
+  const [shownPageId, setShownPageId] = useState(pages.page?.id);
+  if (shownPageId !== pages.page?.id) {
+    setShownPageId(pages.page?.id);
+    setOpenId(null);
+  }
   const popoverId = useId();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [scrollRequest, setScrollRequest] = useState<ScrollRequest>(null);
@@ -107,7 +113,6 @@ export function ViewerView({
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
-  const canvasAreaRef = useRef<HTMLElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const handledScroll = useRef(0);
   const focusCanvasPending = useRef(false);
@@ -118,15 +123,29 @@ export function ViewerView({
   const stageKey = surfaceKey(surface);
   const comments = useMemo(() => commentsFor(data, project.id), [data, project.id]);
   const numbers = useMemo(() => pinNumbers(comments), [comments]);
-  /** The comments at the current breakpoint (all of them on image projects). */
-  const listed = useMemo(
+  const severalPages = pages.total > 1;
+  const pageId = pages.page?.id;
+  /**
+   * The comments at the current breakpoint on websites; on page projects all of them, or
+   * those on the page shown ("This page").
+   */
+  const listed = useMemo(() => {
+    if (website) {
+      return comments.filter((comment) => breakpointOfComment(comment, snapshots) === breakpoint);
+    }
+    return severalPages && pageScope === "page"
+      ? comments.filter((comment) => comment.pageId === pageId)
+      : comments;
+  }, [website, comments, snapshots, breakpoint, severalPages, pageScope, pageId]);
+  const perPage = useMemo(() => pageCounts(data, project), [data, project]);
+  const pageNumbers = useMemo(
     () =>
-      website
-        ? comments.filter((comment) => breakpointOfComment(comment, snapshots) === breakpoint)
-        : comments,
-    [website, comments, snapshots, breakpoint],
+      severalPages
+        ? new Map(pagesOf(project).map((page, index) => [page.id, index + 1]))
+        : undefined,
+    [severalPages, project],
   );
-  const onStage = listed.filter((comment) => commentSurfaceKey(comment, source.kind) === stageKey);
+  const onStage = listed.filter((comment) => commentSurfaceKey(comment) === stageKey);
   // Resolved pins only show on the Resolved tab.
   const pins =
     tab === "active" ? onStage.filter((comment) => comment.status === "active") : onStage;
@@ -169,37 +188,6 @@ export function ViewerView({
   // The open popover takes Escape first.
   useShortcut("escape", () => setMode("browse"), mode === "comment" && !stageDraft && !openComment);
 
-  const unsent = Boolean(draftStorage && draft?.body.trim());
-
-  // Keep the draft with text across a reload; drop it once posted or cancelled.
-  useEffect(() => {
-    if (!draftStorage) return;
-    if (!draft?.body.trim()) {
-      draftStorage.save(null);
-      return;
-    }
-    const { x, y, body, surfaceKey, snapshotId, commentId, author } = draft;
-    draftStorage.save({
-      x,
-      y,
-      body,
-      surfaceKey,
-      snapshotId,
-      commentId,
-      ...(author ? { author } : {}),
-    });
-  }, [draft, draftStorage]);
-
-  // Leaving with an unsent comment asks first.
-  useEffect(() => {
-    if (!unsent) return;
-    const warn = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-    };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [unsent]);
-
   /** After the composer closes, keyboard users carry on from the canvas instead of the page top. */
   const returnFocusToCanvas = () => overlayRef.current?.focus({ preventScroll: true });
 
@@ -213,6 +201,12 @@ export function ViewerView({
     focusCanvasPending.current = false;
     overlayRef.current.focus({ preventScroll: true });
   }, [mode, stageVersion]);
+
+  // Another page starts at its top, not wherever the last one was scrolled to. Declared
+  // before the effect below, so a card that switches pages still scrolls to its pin.
+  useEffect(() => {
+    canvasAreaRef.current?.scrollTo({ top: 0, left: 0 });
+  }, [pageId]);
 
   // Bring the other half of a selection into view once React has rendered it (and, for a
   // pin on another snapshot, once that snapshot has loaded).
@@ -234,7 +228,7 @@ export function ViewerView({
     const comment = comments.find((entry) => entry.id === id);
     if (!comment) return;
     // A second click on a card deselects it, unless its pin is on another surface: then it shows it.
-    const shown = commentSurfaceKey(comment, source.kind) === stageKey;
+    const shown = commentSurfaceKey(comment) === stageKey;
     const next = selectedId === id && from === "card" && shown ? null : id;
     setSelectedId(next);
     // A pin toggles its popover. On phones and tablets it's the pin's detail view, so the
@@ -261,6 +255,7 @@ export function ViewerView({
       body: draft?.body ?? "",
       surfaceKey: stageKey,
       snapshotId: surface.kind === "snapshot" ? (surface.snapshot?.id ?? null) : null,
+      pageId: surface.kind === "page" ? surface.page.id : null,
       commentId: newId(),
       sending: false,
       error: null,
@@ -299,7 +294,11 @@ export function ViewerView({
       author,
     };
     const result = await backend.addComment(
-      draft.snapshotId ? { ...input, snapshotId: draft.snapshotId } : input,
+      {
+        ...input,
+        ...(draft.snapshotId ? { snapshotId: draft.snapshotId } : {}),
+        ...(draft.pageId ? { pageId: draft.pageId } : {}),
+      },
       crop,
     );
     if (!result.ok) {
@@ -355,7 +354,8 @@ export function ViewerView({
 
   const saveScreenshot: ScreenshotHandler = async (image) => {
     const referenceUrl = source.kind === "url" ? source.url : source.referenceUrl;
-    const result = await backend.replaceWithImage(project.id, image, referenceUrl);
+    const pageId = surface.kind === "page" ? surface.page.id : null;
+    const result = await backend.replaceWithImage(project.id, image, { referenceUrl, pageId });
     if (result.ok) view.showLatest();
     return result.ok ? null : result.error;
   };
@@ -426,8 +426,15 @@ export function ViewerView({
       selectedId={selectedId}
       now={now}
       listRef={listRef}
-      // With comments at another breakpoint, an empty list names this one.
-      scope={website && comments.length > listed.length ? BREAKPOINT_LABEL[breakpoint] : undefined}
+      // With comments at another breakpoint (or page), an empty list names this one.
+      scope={
+        comments.length > listed.length
+          ? website
+            ? BREAKPOINT_LABEL[breakpoint]
+            : `page ${pages.number}`
+          : undefined
+      }
+      pageNumbers={pageNumbers}
       canModerate={owner}
       onSelect={(id) => select(id, "card")}
       onEdit={commentActions.edit}
@@ -463,29 +470,40 @@ export function ViewerView({
         }
       />
       <div className="flex min-h-0 flex-1 gap-4">
-        <main
-          id="main"
-          ref={canvasAreaRef}
-          data-testid="canvas-area"
-          data-mode={mode}
-          data-surface={surface.kind}
-          className={`relative min-h-0 min-w-0 flex-1 overflow-auto rounded-panel bg-tile ${scrollInset}`}
-        >
-          <ViewerStage
-            project={project}
-            surface={surface}
-            latest={view.latest}
-            overlay={overlay}
-            imageRef={imageRef}
-            onReady={() => setStageVersion((value) => value + 1)}
-            capture={view.capture.state}
-            onCapture={view.capture.capture}
-            frameWidth={website && breakpoint !== "desktop" ? BREAKPOINT_WIDTH[breakpoint] : null}
-            onShowLatest={view.showLatest}
-            onBrowse={() => setMode("browse")}
-            onScreenshot={owner ? saveScreenshot : null}
-          />
-        </main>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+          {severalPages ? (
+            <PageStrip
+              pages={pagesOf(project)}
+              number={pages.number}
+              counts={perPage}
+              onSelect={pages.selectPage}
+              onStep={pages.step}
+            />
+          ) : null}
+          <main
+            id="main"
+            ref={canvasAreaRef}
+            data-testid="canvas-area"
+            data-mode={mode}
+            data-surface={surface.kind}
+            className={`relative min-h-0 min-w-0 flex-1 overflow-auto rounded-panel bg-tile ${scrollInset}`}
+          >
+            <ViewerStage
+              project={project}
+              surface={surface}
+              latest={view.latest}
+              overlay={overlay}
+              imageRef={imageRef}
+              onReady={() => setStageVersion((value) => value + 1)}
+              capture={view.capture.state}
+              onCapture={view.capture.capture}
+              frameWidth={website && breakpoint !== "desktop" ? BREAKPOINT_WIDTH[breakpoint] : null}
+              onShowLatest={view.showLatest}
+              onBrowse={() => setMode("browse")}
+              onScreenshot={owner ? saveScreenshot : null}
+            />
+          </main>
+        </div>
         <CommentsPanel
           docked={docked}
           sheetOpen={sheetOpen}
@@ -497,14 +515,19 @@ export function ViewerView({
           celebrating={celebrating}
           note={sheetNote}
         >
-          {panelNotice && !docked ? (
-            <div className="flex min-h-0 flex-1 flex-col gap-3">
-              {panelNotice}
-              {commentsBody}
-            </div>
-          ) : (
-            commentsBody
-          )}
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
+            {panelNotice && !docked ? panelNotice : null}
+            {severalPages ? (
+              <PageFilter value={pageScope} onChange={setPageScope} number={pages.number} />
+            ) : null}
+            {/* Like "n projects shown" on folder pages: what "This page" leaves in the list. */}
+            <p aria-live="polite" className="sr-only">
+              {severalPages && pageScope === "page"
+                ? `${listed.length === 1 ? "1 comment" : `${listed.length} comments`} on page ${pages.number}`
+                : ""}
+            </p>
+            {commentsBody}
+          </div>
         </CommentsPanel>
       </div>
       <ConfirmDialog

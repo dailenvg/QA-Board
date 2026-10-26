@@ -26,9 +26,9 @@ import {
   GROUND_Y,
   STAGE_VIEWBOX,
 } from "./paths";
-import "./SquintMascot.css";
+import "./Squiggy.css";
 
-export type SquintMascotProps = {
+export type SquiggyProps = {
   /** Emotional state. Changes blend smoothly into each other. */
   mood?: Mood;
   /** Rendered width and height (number = px). */
@@ -55,11 +55,16 @@ export type SquintMascotProps = {
    */
   still?: boolean;
   /**
+   * Blinks on the mood's own schedule. Off keeps the eyes open: for a frame
+   * that must hold fully still, such as a paused or reduced-motion scene.
+   */
+  blinks?: boolean;
+  /**
    * The root element when the mascot isn't a button: `span` for phrasing
    * contexts, such as inside a button. Looks the same either way.
    */
   as?: "div" | "span";
-  /** Accessible name. */
+  /** Accessible name, followed by the mood ("Squiggy, thinking"). */
   label?: string;
   className?: string;
 };
@@ -75,7 +80,7 @@ const FLIP_AT = 5;
 type Facing = 1 | -1;
 const ground = { originX: 0.5, originY: 1 } as const;
 
-export function SquintMascot({
+export function Squiggy({
   mood = "idle",
   size = 240,
   followCursor = true,
@@ -87,10 +92,11 @@ export function SquintMascot({
   accessory,
   perked: perkedByParent = false,
   still = false,
+  blinks = true,
   as = "div",
-  label = "Squint",
+  label = "Squiggy",
   className,
-}: SquintMascotProps) {
+}: SquiggyProps) {
   const reduce = useReducedMotion() ?? false;
   const spec = MOOD_SPECS[mood];
   const rootRef = useRef<HTMLElement>(null);
@@ -115,7 +121,7 @@ export function SquintMascot({
     // `held` re-binds the squash and shadow layers to controls when a drag ends.
   }, [mood, reduce, still, held, controls, spec.loop]);
 
-  const blinking = useBlink(spec.blinks && !held);
+  const blinking = useBlink(blinks && spec.blinks && !held);
   const gaze = useGaze(rootRef, {
     follow: followCursor && !reduce,
     override: held ? { x: 0, y: -6 } : spec.gaze,

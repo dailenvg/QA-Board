@@ -2,14 +2,11 @@
 
 import { motion } from "motion/react";
 import { staggerGroup, useRevealVariants } from "@/lib/motion";
-import { useTimedFlag } from "@/lib/use-timed-flag";
-import { SquintMascot } from "../brand/mascot/SquintMascot";
-import { Button } from "../ui/Button";
-import { Icon } from "../ui/Icon";
-import { Kbd } from "../ui/Kbd";
+import { useSquiggyMood } from "@/lib/squiggy/use-squiggy-mood";
+import { Squiggy } from "../brand/mascot/Squiggy";
+import { SquiggySpeechLine } from "./SquiggySpeechLine";
+import { StoryGlow } from "./welcome/StoryGlow";
 
-/** How long the mascot stays happy after saying hello (on arrival, or when poked). */
-const GREETING_MS = 1600;
 const MASCOT_SIZE = "clamp(6.5rem, 5rem + 5vw, 9rem)";
 
 const stagger = staggerGroup(0.07, 0.05);
@@ -20,7 +17,7 @@ const COPY = {
     body: "Point at the exact spot on a website or image, say what should change, and resolve it once it's fixed.",
   },
   filled: {
-    title: "Everything up for review",
+    title: "Your projects at a glance",
     body: "Each folder shows its newest projects. Open one to see everything inside.",
   },
 } as const;
@@ -28,13 +25,17 @@ const COPY = {
 interface OverviewHeroProps {
   /** No projects anywhere yet: a welcome instead of a summary. */
   empty: boolean;
-  onNewProject: () => void;
 }
 
-/** Mascot, headline and the primary action. The mascot greets on arrival and follows the cursor. */
-export function OverviewHero({ empty, onNewProject }: OverviewHeroProps) {
+/**
+ * Squiggy and the headline (New project lives in the toolbar or, on narrow
+ * screens, the sidebar, both above this). Squiggy's mood follows the
+ * workspace (`useSquiggyMood`), and its line about it replaces the subline
+ * when it has something specific to say.
+ */
+export function OverviewHero({ empty }: OverviewHeroProps) {
   const reveal = useRevealVariants();
-  const [greeting, greet] = useTimedFlag(GREETING_MS, true);
+  const squiggy = useSquiggyMood();
   const copy = empty ? COPY.empty : COPY.filled;
 
   return (
@@ -43,10 +44,30 @@ export function OverviewHero({ empty, onNewProject }: OverviewHeroProps) {
       initial="hidden"
       animate="visible"
       data-testid="overview-hero"
-      className="flex flex-col items-center gap-5 rounded-panel bg-panel px-6 py-8 text-center sm:flex-row sm:gap-8 sm:px-10 sm:text-left"
+      className={`relative isolate flex flex-col items-center gap-5 overflow-hidden rounded-panel bg-panel px-6 py-8 text-center sm:flex-row sm:gap-8 sm:px-10 sm:text-left ${
+        empty ? "sm:py-10" : ""
+      }`}
     >
-      <motion.div variants={reveal} className="shrink-0">
-        <SquintMascot mood={greeting ? "happy" : "idle"} size={MASCOT_SIZE} onPoke={greet} />
+      {empty && (
+        <>
+          {/* The welcome's glows echo the story cards' below. */}
+          <StoryGlow
+            color="var(--color-brand)"
+            className="top-4 left-1/2 -z-10 size-48 -translate-x-1/2 opacity-20 sm:top-1/2 sm:left-8 sm:translate-x-0 sm:-translate-y-1/2 dark:opacity-30"
+          />
+          <StoryGlow
+            color="var(--color-highlight)"
+            className="-top-16 -right-10 -z-10 size-64 opacity-20 dark:opacity-5"
+          />
+        </>
+      )}
+      <motion.div
+        variants={reveal}
+        className="shrink-0"
+        data-testid="squiggy"
+        data-mood={squiggy.mood}
+      >
+        <Squiggy mood={squiggy.mood} size={MASCOT_SIZE} onPoke={squiggy.poke} />
       </motion.div>
       <div className="flex min-w-0 flex-col items-center gap-3 sm:items-start">
         <motion.p variants={reveal} className="label-caps text-brand-text">
@@ -55,15 +76,8 @@ export function OverviewHero({ empty, onNewProject }: OverviewHeroProps) {
         <motion.h1 variants={reveal} className="text-display font-bold text-balance">
           {copy.title}
         </motion.h1>
-        <motion.p variants={reveal} className="max-w-xl text-nav text-muted">
-          {copy.body}
-        </motion.p>
-        <motion.div variants={reveal} className="pt-2">
-          <Button onClick={onNewProject} title="New project (N)" data-testid="overview-new-project">
-            <Icon name="plus" className="size-5" />
-            New project
-            <Kbd className="border-on-brand/40 text-on-brand/80 max-md:hidden">N</Kbd>
-          </Button>
+        <motion.div variants={reveal}>
+          <SquiggySpeechLine speech={squiggy.speech} fallback={copy.body} />
         </motion.div>
       </div>
     </motion.section>

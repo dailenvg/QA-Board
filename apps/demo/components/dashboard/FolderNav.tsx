@@ -1,25 +1,33 @@
 "use client";
 
-import { OVERVIEW_HREF, folderHref } from "@/lib/routes";
+import { OVERVIEW_HREF } from "@/lib/routes";
 import type { Folder } from "@/lib/store/types";
 import { Icon } from "../ui/Icon";
+import type { MenuItem } from "../ui/Menu";
+import { FolderTree } from "./FolderTree";
 import { NavRow } from "./NavRow";
 
-export interface FolderEntry {
-  folder: Folder;
-  count: number;
-}
-
 interface FolderNavProps {
-  entries: readonly FolderEntry[];
+  folders: readonly Folder[];
+  /** Projects in each folder, its subfolders' included. */
+  counts: ReadonlyMap<string, number>;
   /** The folder whose page is open, if any. */
   activeId: string | null;
   overviewActive: boolean;
+  /** A new top-level folder. */
   onCreate: () => void;
+  actionsFor: (folder: Folder) => MenuItem[];
 }
 
-/** Overview link, then the folder list. One active indicator glides between them. */
-export function FolderNav({ entries, activeId, overviewActive, onCreate }: FolderNavProps) {
+/** Overview link, then the folder tree. One active indicator glides between them. */
+export function FolderNav({
+  folders,
+  counts,
+  activeId,
+  overviewActive,
+  onCreate,
+  actionsFor,
+}: FolderNavProps) {
   return (
     <nav aria-label="Workspace navigation" className="flex min-w-0 flex-col gap-3">
       <NavRow href={OVERVIEW_HREF} icon="layoutGrid" label="Overview" active={overviewActive} />
@@ -39,27 +47,13 @@ export function FolderNav({ entries, activeId, overviewActive, onCreate }: Folde
             <Icon name="folderPlus" className="size-5" />
           </button>
         </div>
-        <ul
-          aria-labelledby="folders-heading"
-          className="-m-1 flex gap-1 overflow-x-auto p-1 lg:flex-col lg:overflow-visible"
-        >
-          {entries.map(({ folder, count }) => (
-            <li key={folder.id} className="shrink-0 lg:shrink">
-              <NavRow
-                href={folderHref(folder.id)}
-                icon="folder"
-                label={folder.name}
-                active={folder.id === activeId}
-              >
-                <span className="relative text-label font-semibold text-muted tabular-nums">
-                  <span className="sr-only">, </span>
-                  {count}
-                  <span className="sr-only"> {count === 1 ? "project" : "projects"}</span>
-                </span>
-              </NavRow>
-            </li>
-          ))}
-        </ul>
+        <FolderTree
+          folders={folders}
+          counts={counts}
+          activeId={activeId}
+          labelledBy="folders-heading"
+          actionsFor={actionsFor}
+        />
       </div>
     </nav>
   );

@@ -1,8 +1,12 @@
 import { PGlite } from "@electric-sql/pglite";
 import { describe, expect, it } from "vitest";
-import { COMMENT, JPEG, PNG, RECORD, SNAPSHOT } from "@/test/share-fixture";
+import { COMMENT, JPEG, PNG, RECORD, SNAPSHOT, STATE } from "@/test/share-fixture";
+import { toShareState } from "../share-client/share-state";
+import { parseData } from "../store/persist";
+import { digest } from "./digest";
+import { projectSchema } from "./schemas";
 import { createMemoryStore } from "./memory-store";
-import { migrate, type Queryable } from "./migrate";
+import { MIGRATIONS, migrate, type Queryable } from "./migrate";
 import { createPostgresStore } from "./postgres-store";
 import { inlineBackend, type BlobBackend } from "./blob-backend";
 import type { ShareServices } from "./server";
@@ -209,8 +213,102 @@ describe("migrate", () => {
       "003_squint_share_pending_comments",
       "004_squint_share_comment_claims",
       "005_squint_share_pending_snapshots",
+      "006_squint_share_pages",
     ]);
     expect(await migrate(db)).toEqual([]);
+  });
+
+  it("006 turns shared image projects into one-page projects the owner's browser agrees with", async () => {
+    const db = adapt(new PGlite());
+    await db.query(`CREATE TABLE squint_migrations (
+      id text PRIMARY KEY,
+      applied_at timestamptz NOT NULL DEFAULT now()
+    )`);
+    for (const migration of MIGRATIONS.slice(0, 5)) {
+      await db.query(migration.sql);
+      await db.query("INSERT INTO squint_migrations (id) VALUES ($1)", [migration.id]);
+    }
+    // Two shares saved before pages: an image project and a website.
+    const legacy = {
+      name: "Checkout",
+      source: { kind: "image", fileName: "checkout.png", referenceUrl: "https://acme.example/" },
+    };
+    const onImage = { ...COMMENT, id: "on-image", snapshotId: undefined, crop: undefined };
+    const onSnapshot = { ...COMMENT, id: "on-snapshot", crop: undefined };
+    const insertShare = "INSERT INTO squint_shares VALUES ($1, $2, $3, $4, 1, 1)";
+    await db.query(insertShare, ["old", "a".repeat(64), "b".repeat(64), JSON.stringify(legacy)]);
+    await db.query(insertShare, [
+      "site",
+      "c".repeat(64),
+      "d".repeat(64),
+      JSON.stringify(STATE.project),
+    ]);
+    const insertComment =
+      "INSERT INTO squint_share_comments (share_id, id, data, origin) VALUES ($1, $2, $3, 'owner')";
+    await db.query(insertComment, ["old", "on-image", JSON.stringify(onImage)]);
+    await db.query(insertComment, ["old", "on-snapshot", JSON.stringify(onSnapshot)]);
+    await db.query(insertComment, ["site", "frame", JSON.stringify(onImage)]);
+    await db.query(
+      "INSERT INTO squint_share_blobs (share_id, key, content_type, size, bytes) VALUES ('old', 'image', 'image/png', $1, $2)",
+      [PNG.length, PNG],
+    );
+    await db.query(
+      "INSERT INTO squint_share_blob_parts (share_id, key, part, bytes) VALUES ('old', 'image', 0, $1)",
+      [PNG],
+    );
+
+    expect(await migrate(db)).toEqual(["006_squint_share_pages"]);
+    const store = createPostgresStore(db);
+    const project = (await store.byId("old"))?.project;
+    expect(project).toEqual({
+      name: "Checkout",
+      source: {
+        kind: "pages",
+        origin: "image",
+        fileName: "checkout.png",
+        referenceUrl: "https://acme.example/",
+        pages: [{ id: "page-1", name: "checkout.png" }],
+      },
+    });
+    expect(projectSchema.safeParse(project).success).toBe(true);
+    const comments = (await store.comments("old")).map((row) => row.item);
+    expect(comments).toEqual([{ ...onImage, pageId: "page-1" }, onSnapshot]);
+    expect(await store.blobSizes("old")).toEqual([{ key: "page:page-1", size: PNG.length }]);
+    expect(await store.blobParts("old", "image")).toEqual([]);
+    // A website share is untouched.
+    expect((await store.byId("site"))?.project).toEqual(STATE.project);
+    expect((await store.comments("site")).map((row) => row.item)).toEqual([onImage]);
+
+    // The owner's browser migrates the same project to the same shape: nothing is sent again.
+    const parsed = parseData(
+      JSON.stringify({
+        version: 2,
+        folders: [{ id: "f", name: "F", createdAt: 1 }],
+        projects: [
+          {
+            id: "local",
+            folderId: "f",
+            name: "Checkout",
+            source: { ...legacy.source, blobKey: "image:local" },
+            createdAt: 1,
+            updatedAt: 1,
+          },
+        ],
+        comments: [onImage, onSnapshot].map((comment) => ({ ...comment, projectId: "local" })),
+      }),
+    );
+    if (!parsed.ok) throw new Error(parsed.reason);
+    const [local] = parsed.data.projects;
+    if (!local) throw new Error("no project");
+    const pushed = toShareState(local, parsed.data.comments, []);
+    expect(digest(pushed.project)).toBe(digest(project));
+    expect(pushed.comments.map(digest)).toEqual(comments.map(digest));
+
+    // Running it again changes nothing.
+    const sql = MIGRATIONS.find((migration) => migration.id === "006_squint_share_pages")?.sql;
+    await db.query(sql ?? "");
+    expect((await store.byId("old"))?.project).toEqual(project);
+    expect((await store.comments("old")).map((row) => row.item)).toEqual(comments);
   });
 });
 

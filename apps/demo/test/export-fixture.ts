@@ -85,17 +85,23 @@ export const URL_EXPORT: ExportInput = {
       ["snap-new", { file: "snapshots/snap-new.jpg" }],
       ["snap-old", { omitted: "too-large" as const }],
     ]),
-    image: null,
+    pages: new Map(),
   },
   exportedAt: EXPORTED_AT,
 };
 
+/** An image project migrated from version 2: one page, its size read from the image. */
 export const IMAGE_EXPORT: ExportInput = {
   project: {
     id: "proj-2",
     folderId: "default",
     name: "Checkout mockup",
-    source: { kind: "image", blobKey: "image:proj-2", fileName: "checkout.png" },
+    source: {
+      kind: "pages",
+      origin: "image",
+      pages: [{ id: "page-1", blobKey: "image:proj-2", name: "checkout.png" }],
+      fileName: "checkout.png",
+    },
     createdAt: T0,
     updatedAt: T0,
   },
@@ -110,13 +116,61 @@ export const IMAGE_EXPORT: ExportInput = {
       status: "active",
       createdAt: T0 + 100,
       updatedAt: T0 + 100,
+      pageId: "page-1",
     },
   ],
   snapshots: [],
   assets: {
     crops: new Set(),
     snapshots: new Map(),
-    image: { width: 1200, height: 900, file: "source-image.png" },
+    pages: new Map([["page-1", { width: 1200, height: 900, file: "pages/01.png", omitted: null }]]),
+  },
+  exportedAt: EXPORTED_AT,
+};
+
+const pageComment = (id: string, pageId: string, createdAt: number): Comment => ({
+  id,
+  projectId: "proj-3",
+  x: 50,
+  y: 10,
+  body: `On ${pageId}.`,
+  author: "Ana",
+  status: "active",
+  createdAt,
+  updatedAt: createdAt,
+  pageId,
+  crop: { blobKey: `crop:${id}`, rect: { x: 0, y: 0, width: 600, height: 400 } },
+});
+
+/** A three-page PDF: comments on pages 3 and 2, page 1's image left out of the ZIP. */
+export const PAGES_EXPORT: ExportInput = {
+  project: {
+    id: "proj-3",
+    folderId: "default",
+    name: "Pitch deck",
+    source: {
+      kind: "pages",
+      origin: "pdf",
+      pages: [
+        { id: "a1", blobKey: "page:a1", name: "Page 1", width: 1600, height: 900 },
+        { id: "b2", blobKey: "page:b2", name: "Page 2", width: 1600, height: 900 },
+        { id: "c3", blobKey: "page:c3", name: "Page 3", width: 1600, height: 900 },
+      ],
+      fileName: "deck.pdf",
+    },
+    createdAt: T0,
+    updatedAt: T0,
+  },
+  comments: [pageComment("eeee5555", "c3", T0 + 100), pageComment("ffff6666", "b2", T0 + 200)],
+  snapshots: [],
+  assets: {
+    crops: new Set(["eeee5555", "ffff6666"]),
+    snapshots: new Map(),
+    pages: new Map([
+      ["a1", { width: null, height: null, file: null, omitted: "too-large" as const }],
+      ["b2", { width: null, height: null, file: "pages/02.webp", omitted: null }],
+      ["c3", { width: null, height: null, file: "pages/03.webp", omitted: null }],
+    ]),
   },
   exportedAt: EXPORTED_AT,
 };

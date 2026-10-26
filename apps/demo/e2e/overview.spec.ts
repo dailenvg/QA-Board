@@ -1,20 +1,25 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
   DEFAULT_FOLDER,
   OVERVIEW_HEADLINE,
   folderCard,
   mockFrameCheck,
+  newProjectButton,
   openOverview,
   sheetLift,
 } from "./squint-fixtures";
 
 function overviewLink(page: Page): Locator {
-  return page.getByRole("link", { name: "Overview", exact: true });
+  // The sidebar's: folder pages also have one in their breadcrumb.
+  return page
+    .getByRole("complementary", { name: "Workspace" })
+    .getByRole("link", { name: "Overview", exact: true });
 }
 
 /** Creates a website project through the New project dialog, which stays on the Overview. */
 async function addUrlProject(page: Page, url: string, name: string): Promise<void> {
-  await page.getByTestId("new-project").click();
+  await newProjectButton(page).click();
   const dialog = page.getByRole("dialog", { name: "New project" });
   await dialog.getByLabel("Website address").fill(url);
   await dialog.getByLabel("Project name").fill(name);
@@ -66,8 +71,15 @@ test("creating a project on the Overview stays there and drops it into its folde
   const card = folderCard(page, DEFAULT_FOLDER.name);
   await expect(card.locator(".gf-meta")).toHaveText("1 project");
   await expect(
-    card.getByRole("link", { name: "Homepage, example.com, Ready to review" }),
+    // The name is built from the sheet's spans, so Chrome may space the commas.
+    card.getByRole("link", { name: /^Homepage\s*,\s*example\.com\s*,\s*Ready to review$/ }),
   ).toHaveCount(1);
+  // Each sheet's name must contain its visible text (WCAG 2.5.3).
+  const axe = await new AxeBuilder({ page })
+    .include('[data-testid="folder-sheet"]')
+    .withRules(["label-content-name-mismatch"])
+    .analyze();
+  expect(axe.violations).toEqual([]);
   await expect(card.locator(".gf-front.gf-bump")).toHaveCount(0);
 
   // A project added while its folder is on screen drops in, and the pocket gives under it.
@@ -108,7 +120,7 @@ test("a folder is one link to its page, with a decorative mascot key and no extr
   await expect(page).toHaveURL(new RegExp(`/f/${DEFAULT_FOLDER.id}$`));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(DEFAULT_FOLDER.name);
   await expect(page.getByTestId("project-card")).toHaveCount(1);
-  await expect(page.getByRole("link", { name: /^My projects/ })).toHaveAttribute(
+  await expect(page.getByRole("treeitem", { name: /^My projects/ })).toHaveAttribute(
     "aria-current",
     "page",
   );
@@ -126,7 +138,7 @@ test("hovering a folder fans its projects out, and each one opens", async ({ pag
   await openOverview(page);
   await addUrlProject(page, "example.com", "Homepage");
   const card = folderCard(page, DEFAULT_FOLDER.name);
-  const sheet = card.getByRole("link", { name: /^Homepage, example\.com/ });
+  const sheet = card.getByRole("link", { name: /^Homepage\s*,\s*example\.com/ });
 
   await page.mouse.move(0, 0);
   await expect.poll(() => sheetLift(sheet)).toBeGreaterThan(0);
@@ -140,6 +152,7 @@ test("hovering a folder fans its projects out, and each one opens", async ({ pag
 
 test("Tab moves from the folder to its projects, then its menu, fanning them out", async ({
   page,
+  isMobile,
 }) => {
   await openOverview(page);
   await page.keyboard.press("n");
@@ -153,6 +166,13 @@ test("Tab moves from the folder to its projects, then its menu, fanning them out
   const folderLink = card.getByRole("link", { name: /^Open My projects/ });
   const sheet = card.getByRole("link", { name: /^Keyboard check/ });
   await folderLink.focus();
+  if (isMobile) {
+    // Touch screens never fan: the folder is one link, and its page lists every project.
+    await page.keyboard.press("Tab");
+    await expect(card.getByTestId("folder-card-menu")).toBeFocused();
+    await expect(sheet).toHaveAttribute("tabindex", "-1");
+    return;
+  }
   await page.keyboard.press("Tab");
   await expect(sheet).toBeFocused();
   await expect.poll(() => sheetLift(sheet)).toBeLessThan(-40);
@@ -206,7 +226,8 @@ test("with two folders the corner menu deletes one", async ({ page }) => {
   await page.getByRole("menuitem", { name: "Delete folder" }).click();
   const confirm = page.getByRole("dialog", { name: "Delete Client work?" });
   await confirm.getByRole("button", { name: "Delete folder" }).click();
-  await expect(page.getByTestId("toast")).toContainText("Deleted Client work");
+  // Filtered: the "Added Homepage" toast may still be on its way out.
+  await expect(page.getByTestId("toast").filter({ hasText: "Deleted Client work" })).toBeVisible();
   await expect(folderCard(page, "Client work")).toHaveCount(0);
   await expect(page.getByTestId("folder-card")).toHaveCount(1);
 });
@@ -221,4 +242,66 @@ test("old ?folder= links redirect and unknown folders offer a way back", async (
   await page.getByRole("link", { name: "Back to Overview" }).click();
   await expect(page).toHaveURL(/\/$/);
   await expect(overviewLink(page)).toHaveAttribute("aria-current", "page");
+});
+
+test("stacked folder sheets are not tiny targets, at rest or fanned", async ({
+  page,
+  isMobile,
+}) => {
+  // Four picture projects in one folder and two in a subfolder: the stacks axe used to flag.
+  const now = Date.now();
+  const pages = (id: string) => ({
+    kind: "pages",
+    origin: "image",
+    fileName: `${id}.png`,
+    pages: [
+      { id: `${id}-p`, blobKey: `page:${id}-p`, name: `${id}.png`, width: 1600, height: 1000 },
+    ],
+  });
+  const project = (id: string, folderId: string, index: number) => ({
+    id,
+    folderId,
+    name: `Project ${id}`,
+    source: pages(id),
+    createdAt: now + index,
+    updatedAt: now + index,
+  });
+  const data = {
+    version: 3,
+    folders: [
+      { id: DEFAULT_FOLDER.id, name: DEFAULT_FOLDER.name, createdAt: now - 10, parentId: null },
+      { id: "fa", name: "Alpha", createdAt: now, parentId: null },
+      { id: "fb", name: "Beta", createdAt: now + 1, parentId: "fa" },
+    ],
+    projects: [
+      ...["p1", "p2", "p3", "p4"].map((id, index) => project(id, DEFAULT_FOLDER.id, index)),
+      ...["p5", "p6"].map((id, index) => project(id, "fb", index + 4)),
+    ],
+    comments: [],
+    snapshots: [],
+    revocations: [],
+    authorName: null,
+  };
+  await page.goto("/sandbox");
+  await page.evaluate((seed) => localStorage.setItem("squint:v3", JSON.stringify(seed)), data);
+
+  for (const path of ["/", "/f/fa"]) {
+    await page.goto(path);
+    const sheets = page.getByTestId("folder-sheet");
+    await expect(sheets.first()).toBeAttached();
+    // Stacked, the sheets aren't tab stops: the folder's link stands for them.
+    await expect(sheets.first()).toHaveAttribute("tabindex", "-1");
+    const atRest = await new AxeBuilder({ page }).withRules(["target-size"]).analyze();
+    expect(atRest.violations).toEqual([]);
+    // Touch screens never fan, so the stack is all there is to check.
+    if (isMobile) continue;
+
+    // Keyboard focus on the folder fans the files out and makes them reachable.
+    await page.getByTestId("folder-link").first().focus();
+    await page.keyboard.press("Tab");
+    await expect(sheets.first()).toBeFocused();
+    await expect.poll(() => sheetLift(sheets.first())).toBeLessThan(-40);
+    const fanned = await new AxeBuilder({ page }).withRules(["target-size"]).analyze();
+    expect(fanned.violations).toEqual([]);
+  }
 });

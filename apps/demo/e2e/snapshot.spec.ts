@@ -297,18 +297,23 @@ test("projects saved before snapshots still load, with website pins labelled Liv
     page.getByRole("button", { name: "Comment 1 by Leo, resolved", exact: true }),
   ).toBeVisible();
 
-  // Version 1 was migrated: its image moved to IndexedDB, comments carried over as they were.
+  // Version 1 was migrated to version 3: its image moved to IndexedDB as the project's one
+  // page, and comments carried over as they were, the image's now on that page.
   const stored = await page.evaluate(() => ({
     v1: localStorage.getItem("squint:v1"),
-    v2: JSON.parse(localStorage.getItem("squint:v2") ?? "{}") as {
+    v3: JSON.parse(localStorage.getItem("squint:v3") ?? "{}") as {
       comments: unknown[];
       projects: Array<{ source: Record<string, unknown> }>;
     },
   }));
   expect(stored.v1).toBeNull();
-  expect(stored.v2.comments).toEqual(LEGACY_V1.comments);
-  expect(stored.v2.projects[1]?.source).toMatchObject({ kind: "image", blobKey: "image:mock" });
-  expect(stored.v2.projects[1]?.source).not.toHaveProperty("dataUrl");
+  const [onSite, onImage] = LEGACY_V1.comments;
+  expect(stored.v3.comments).toEqual([onSite, { ...onImage, pageId: "page-1" }]);
+  expect(stored.v3.projects[1]?.source).toMatchObject({
+    kind: "pages",
+    pages: [{ id: "page-1", blobKey: "image:mock", name: "checkout.png" }],
+  });
+  expect(stored.v3.projects[1]?.source).not.toHaveProperty("dataUrl");
 });
 
 test("undoing a delete keeps the earlier snapshot it was on, however long Undo waits", async ({

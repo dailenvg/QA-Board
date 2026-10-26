@@ -191,7 +191,18 @@ describe("share routes: permissions", () => {
       request("/api/shares", { method: "POST", body: "x".repeat(1024 * 1024 + 1) }),
     );
     expect(huge.status).toBe(413);
-    const image = await ownerBlobRoute.PUT(
+    // A website share has no pages, so a page image isn't referenced.
+    const page = await ownerBlobRoute.PUT(
+      request(`/api/shares/${share.shareId}/blobs/page%3Apage-1`, {
+        method: "PUT",
+        body: PNG,
+        ownerKey: share.ownerKey,
+      }),
+      params({ shareId: share.shareId, key: "page%3Apage-1" }),
+    );
+    expect(page.status).toBe(422);
+    // The key from before pages is no longer a blob key at all.
+    const legacy = await ownerBlobRoute.PUT(
       request(`/api/shares/${share.shareId}/blobs/image`, {
         method: "PUT",
         body: PNG,
@@ -199,7 +210,7 @@ describe("share routes: permissions", () => {
       }),
       params({ shareId: share.shareId, key: "image" }),
     );
-    expect(image.status).toBe(422);
+    expect(legacy.status).toBe(400);
   });
 
   it("serves images privately, unsniffed and uncached", async () => {

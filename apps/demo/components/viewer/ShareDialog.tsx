@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef } from "react";
 import { relativeTime } from "@/lib/relative-time";
 import type { SyncStatus } from "@/lib/share-client/owner-sync";
+import type { ShareFit } from "@/lib/share-client/use-share-fit";
 import type { ProjectShare } from "@/lib/store/types";
 import { useNow } from "@/lib/use-now";
 import { CopyLinkField } from "../review-link/CopyLinkField";
@@ -17,6 +18,8 @@ interface ShareDialogProps {
   share: ProjectShare | undefined;
   url: string | null;
   status: SyncStatus;
+  /** Whether the project fits in a share; a link is only offered once it does. */
+  fit: ShareFit;
   creating: boolean;
   revoking: boolean;
   error: string | null;
@@ -42,6 +45,7 @@ export function ShareDialog({
   share,
   url,
   status,
+  fit,
   creating,
   revoking,
   error,
@@ -60,6 +64,16 @@ export function ShareDialog({
   const syncIcon: IconName = failing ? "alert" : busy || !synced ? "refresh" : "check";
   const syncTone = failing ? "text-danger" : "text-muted";
   const linked = Boolean(share && url && !gone);
+  // Disabled while checking or too big; aria-disabled keeps it focusable, so the reason is read.
+  const blocked = creating || fit.status !== "fits";
+  const createLabel =
+    fit.status === "checking"
+      ? "Checking size…"
+      : creating
+        ? "Creating link…"
+        : gone
+          ? "Create a new link"
+          : "Create link";
   const linkedView = useRef<HTMLDivElement>(null);
   const wasLinked = useRef(linked);
 
@@ -131,15 +145,15 @@ export function ShareDialog({
           )}
           {/* aria-disabled while busy, so keyboard focus stays here if creating fails. */}
           <Button
-            onClick={creating ? undefined : onCreate}
-            aria-disabled={creating || undefined}
+            onClick={blocked ? undefined : onCreate}
+            aria-disabled={blocked || undefined}
             aria-describedby={errorId}
             data-testid="create-share-link"
           >
             <Icon name="link" className="size-4" />
-            {creating ? "Creating link…" : gone ? "Create a new link" : "Create link"}
+            {createLabel}
           </Button>
-          <FieldError id={errorId} message={error} />
+          <FieldError id={errorId} message={fit.status === "too-big" ? fit.message : error} />
         </div>
       )}
     </Dialog>

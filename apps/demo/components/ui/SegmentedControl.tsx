@@ -40,6 +40,8 @@ interface SegmentedControlProps<T extends string> {
   labels?: "always" | "wide";
   /** `sm`: count chips show from the `sm` breakpoint up; below it they're only read out. */
   counts?: "always" | "sm";
+  /** `sm`: icons show from the `sm` breakpoint up, so several labels fit on a phone. */
+  icons?: "always" | "sm";
 }
 
 const THUMB = {
@@ -81,6 +83,7 @@ export function SegmentedControl<T extends string>({
   tone = "neutral",
   labels = "always",
   counts = "always",
+  icons = "always",
 }: SegmentedControlProps<T>) {
   const reduce = useReducedMotion();
   const baseId = useId();
@@ -133,7 +136,12 @@ export function SegmentedControl<T extends string>({
                 className={`absolute inset-0 rounded-pill ${THUMB[tone]}`}
               />
             ) : null}
-            {option.icon ? <Icon name={option.icon} className="relative size-4" /> : null}
+            {option.icon ? (
+              <Icon
+                name={option.icon}
+                className={`relative size-4 ${icons === "sm" ? "max-sm:hidden" : ""}`}
+              />
+            ) : null}
             <span className={labelClass}>{option.label}</span>
             {option.count ? (
               <span

@@ -3,6 +3,7 @@ import blobParts from "../../migrations/002_squint_share_blob_parts.sql";
 import pendingComments from "../../migrations/003_squint_share_pending_comments.sql";
 import commentClaims from "../../migrations/004_squint_share_comment_claims.sql";
 import pendingSnapshots from "../../migrations/005_squint_share_pending_snapshots.sql";
+import pages from "../../migrations/006_squint_share_pages.sql";
 
 /** The slice of `pg.Pool` the share store uses (PGlite matches it in tests). */
 export interface Queryable {
@@ -16,12 +17,14 @@ export const MIGRATIONS: ReadonlyArray<{ id: string; sql: string }> = [
   { id: "003_squint_share_pending_comments", sql: pendingComments },
   { id: "004_squint_share_comment_claims", sql: commentClaims },
   { id: "005_squint_share_pending_snapshots", sql: pendingSnapshots },
+  { id: "006_squint_share_pages", sql: pages },
 ];
 
 /**
  * Applies pending migrations and returns the ids it ran. Safe on every cold
  * start: applied ids are recorded in `squint_migrations`, and the SQL itself
- * only uses `IF NOT EXISTS`, so concurrent runs are harmless.
+ * only uses `IF NOT EXISTS` or touches rows still in an old shape, so
+ * concurrent runs are harmless.
  */
 export async function migrate(db: Queryable): Promise<string[]> {
   await db.query(`CREATE TABLE IF NOT EXISTS squint_migrations (

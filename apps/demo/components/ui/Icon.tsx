@@ -13,6 +13,16 @@ const ICONS = {
     ["circle", { cx: 12, cy: 12, r: 10 }],
     ["path", { d: "M12 8v4M12 16h.01" }],
   ],
+  arrowDown: [
+    ["path", { d: "M12 5v14" }],
+    ["path", { d: "m19 12-7 7-7-7" }],
+  ],
+  arrowUpDown: [
+    ["path", { d: "m21 16-4 4-4-4" }],
+    ["path", { d: "M17 20V4" }],
+    ["path", { d: "m3 8 4-4 4 4" }],
+    ["path", { d: "M7 4v16" }],
+  ],
   camera: [
     [
       "path",
@@ -72,6 +82,14 @@ const ICONS = {
     ["path", { d: "M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" }],
     ["path", { d: "M2 12h20" }],
   ],
+  grip: [
+    ["circle", { cx: 9, cy: 12, r: 1 }],
+    ["circle", { cx: 9, cy: 5, r: 1 }],
+    ["circle", { cx: 9, cy: 19, r: 1 }],
+    ["circle", { cx: 15, cy: 12, r: 1 }],
+    ["circle", { cx: 15, cy: 5, r: 1 }],
+    ["circle", { cx: 15, cy: 19, r: 1 }],
+  ],
   history: [
     ["path", { d: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" }],
     ["path", { d: "M3 3v5h5" }],
@@ -85,6 +103,16 @@ const ICONS = {
   link: [
     ["path", { d: "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" }],
     ["path", { d: "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" }],
+  ],
+  layers: [
+    [
+      "path",
+      {
+        d: "M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z",
+      },
+    ],
+    ["path", { d: "M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" }],
+    ["path", { d: "M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17" }],
   ],
   layoutGrid: [
     ["rect", { x: 3, y: 3, width: 7, height: 7, rx: 1 }],
@@ -113,6 +141,18 @@ const ICONS = {
     ["circle", { cx: 12, cy: 12, r: 1 }],
     ["circle", { cx: 19, cy: 12, r: 1 }],
   ],
+  pause: [
+    ["rect", { x: 14, y: 4, width: 4, height: 16, rx: 1 }],
+    ["rect", { x: 6, y: 4, width: 4, height: 16, rx: 1 }],
+  ],
+  play: [
+    [
+      "path",
+      {
+        d: "M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z",
+      },
+    ],
+  ],
   pencil: [
     [
       "path",
@@ -137,6 +177,10 @@ const ICONS = {
   refresh: [
     ["path", { d: "M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" }],
     ["path", { d: "M21 3v5h-5" }],
+  ],
+  search: [
+    ["circle", { cx: 11, cy: 11, r: 8 }],
+    ["path", { d: "m21 21-4.3-4.3" }],
   ],
   smartphone: [
     ["rect", { x: 5, y: 2, width: 14, height: 20, rx: 2 }],

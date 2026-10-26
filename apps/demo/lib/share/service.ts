@@ -6,6 +6,7 @@ import { sniffImageType } from "./sniff";
 import type { ShareStore } from "./store";
 import { createSecret, createShareId, hashSecret, isSecretShape, secretMatches } from "./tokens";
 import { digest } from "./digest";
+import { pageBlobKey } from "./keys";
 import type {
   ClientView,
   CreatedShare,
@@ -66,15 +67,17 @@ export function referencedKeys(
   snapshots: readonly SharedSnapshot[],
   comments: readonly Sequenced<SharedComment>[],
 ): Set<string> {
+  const { source } = project;
   return new Set([
-    ...(project.source.kind === "image" ? ["image"] : []),
+    ...(source.kind === "pages" ? source.pages.map((page) => pageBlobKey(page.id, page.rev)) : []),
     ...snapshots.map((snapshot) => `snapshot:${snapshot.id}`),
     ...comments.flatMap((row) => cropKeyOfRow(row) ?? []),
   ]);
 }
 
 /** Keys the owner can upload (a client's per-claim crop keys aren't among them). */
-const OWNER_UPLOADABLE = /^(image|(snapshot|crop):[A-Za-z0-9_-]{1,64})$/;
+const OWNER_UPLOADABLE =
+  /^(page:[A-Za-z0-9_-]{1,64}(:\d{1,9})?|(snapshot|crop):[A-Za-z0-9_-]{1,64})$/;
 
 const items = <T>(rows: readonly Sequenced<T>[]) => rows.map((row) => row.item);
 
@@ -403,9 +406,22 @@ export async function expireStalePending(
 }
 
 /**
+ * Where a client's comment may sit: a website's comments carry no page; on a
+ * page project, a comment on a snapshot carries no page, and every other
+ * carries one of the project's pages.
+ */
+function checkPage(project: SharedProject, input: ClientCommentInput): Failure | null {
+  const { source } = project;
+  if (source.kind === "url" || input.snapshotId) {
+    return input.pageId === undefined ? null : fail(422, "unknown-page");
+  }
+  return source.pages.some((page) => page.id === input.pageId) ? null : fail(422, "unknown-page");
+}
+
+/**
  * A client's comment: always active, timestamped by the server, immutable for
  * clients afterwards (an id that's taken is refused). Its crop, when sent,
- * must come with the rect it shows.
+ * must come with the rect it shows. Its page must be one of the project's.
  */
 export async function addClientComment(
   services: ShareServices,
@@ -416,6 +432,8 @@ export async function addClientComment(
 ): Promise<Outcome<SharedComment>> {
   const { store } = services;
   if (Boolean(crop) !== Boolean(input.crop)) return fail(400, "crop-mismatch");
+  const misplaced = checkPage(share.project, input);
+  if (misplaced) return misplaced;
   if (input.snapshotId) {
     const snapshots = await store.snapshots(share.id);
     if (!snapshots.some((row) => row.item.id === input.snapshotId)) {

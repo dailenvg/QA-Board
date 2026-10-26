@@ -5,6 +5,7 @@ import {
   dropPin,
   mockCapture,
   mockFrameCheck,
+  newProjectButton,
   onlyCommentCard,
   OVERVIEW_HEADLINE,
   openFolder,
@@ -33,7 +34,7 @@ test("a website project takes a comment from posted to resolved, reopened and de
   await folderDialog.getByLabel("Folder name").fill("Client work");
   await folderDialog.getByRole("button", { name: "Create folder" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Client work");
-  await expect(page.getByRole("link", { name: /Client work/ })).toHaveAttribute(
+  await expect(page.getByRole("treeitem", { name: /Client work/ })).toHaveAttribute(
     "aria-current",
     "page",
   );
@@ -113,7 +114,7 @@ test("an image project accepts a keyboard-placed pin and shows Comments in on th
   await openFolder(page);
   const png = await samplePng(page);
 
-  await page.getByTestId("new-project").click();
+  await newProjectButton(page).click();
   const dialog = page.getByRole("dialog", { name: "New project" });
   await dialog.getByRole("radio", { name: "Image" }).click();
   await dialog.locator('input[type="file"]').setInputFiles({
@@ -212,7 +213,7 @@ test("a name typed after the address is kept exactly as typed", async ({ page })
     finalUrl: "https://acme.example/",
   });
   await openFolder(page);
-  await page.getByTestId("new-project").click();
+  await newProjectButton(page).click();
   const dialog = page.getByRole("dialog", { name: "New project" });
   await dialog.getByLabel("Website address").fill("acme.example");
   // A mouse user clicks straight into the name field and types.

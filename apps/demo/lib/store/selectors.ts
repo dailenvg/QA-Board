@@ -1,3 +1,4 @@
+import { pagesOf } from "./pages";
 import { previewSnapshot } from "./snapshots";
 import { countComments, deriveStatus, type CommentCounts, type ProjectStatus } from "./status";
 import type { Comment, Folder, Project, SquintData } from "./types";
@@ -6,7 +7,10 @@ export interface ProjectSummary {
   project: Project;
   counts: CommentCounts;
   status: ProjectStatus;
-  /** Blob key of a website project's card picture (see `previewSnapshot`); null until captured. */
+  /**
+   * Blob key of the card picture: a page project's first page, or a website's
+   * snapshot (see `previewSnapshot`), null until captured.
+   */
   previewKey: string | null;
 }
 
@@ -16,10 +20,29 @@ export function commentsFor(data: SquintData, projectId: string): Comment[] {
     .sort((a, b) => a.createdAt - b.createdAt);
 }
 
+/** The blob key of a project's card picture (see `ProjectSummary.previewKey`). */
+export function previewKeyOf(data: SquintData, project: Project): string | null {
+  if (project.source.kind === "pages") return pagesOf(project)[0]?.blobKey ?? null;
+  return previewSnapshot(data, project.id)?.blobKey ?? null;
+}
+
 export function summarize(data: SquintData, project: Project): ProjectSummary {
   const counts = countComments(commentsFor(data, project.id));
-  const preview = project.source.kind === "url" ? previewSnapshot(data, project.id) : null;
-  return { project, counts, status: deriveStatus(counts), previewKey: preview?.blobKey ?? null };
+  return { project, counts, status: deriveStatus(counts), previewKey: previewKeyOf(data, project) };
+}
+
+/**
+ * Comment counts on each of a project's pages, by page id, every page
+ * included. Comments on snapshots (from a project's website days) aren't on a page.
+ */
+export function pageCounts(data: SquintData, project: Project): Map<string, CommentCounts> {
+  const comments = commentsFor(data, project.id);
+  return new Map(
+    pagesOf(project).map((page) => [
+      page.id,
+      countComments(comments.filter((comment) => comment.pageId === page.id)),
+    ]),
+  );
 }
 
 /** Projects in a folder, most recently updated first. */
@@ -32,10 +55,6 @@ export function folderSummaries(data: SquintData, folderId: string): ProjectSumm
 
 export function sortedFolders(data: SquintData): Folder[] {
   return [...data.folders].sort((a, b) => a.createdAt - b.createdAt);
-}
-
-export function projectCount(data: SquintData, folderId: string): number {
-  return data.projects.filter((project) => project.folderId === folderId).length;
 }
 
 /** Pin numbers follow creation order across the project, resolved or not. */
