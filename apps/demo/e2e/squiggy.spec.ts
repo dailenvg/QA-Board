@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Comment, CommentStatus, SquintData } from "../lib/store/types";
 import {
+  addDefaultFolder,
   DEFAULT_FOLDER,
   mockFrameCheck,
   newProjectButton,
@@ -152,6 +153,7 @@ test("creating a project on the Overview: Squiggy listens, hops, then settles", 
     finalUrl: "https://example.com/",
     status: 200,
   });
+  await addDefaultFolder(page);
   await openOverview(page);
   await newProjectButton(page).click();
   const dialog = page.getByRole("dialog", { name: "New project" });

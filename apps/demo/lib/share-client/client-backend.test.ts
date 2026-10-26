@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { STATE } from "@/test/share-fixture";
+import { VIEW } from "@/test/share-fixture";
 import { createClientBackend } from "./client-backend";
 import { createClientStore } from "./client-store";
 import { createServerBlobs } from "./server-blobs";
@@ -21,7 +21,7 @@ function setup(answers: Array<() => Response>) {
     const answer = answers.shift();
     return answer ? Promise.resolve(answer()) : Promise.reject(new TypeError("offline"));
   });
-  const store = createClientStore({ ...STATE, comments: [] });
+  const store = createClientStore({ ...VIEW, comments: [] });
   const backend = createClientBackend({ token: TOKEN, store, blobs: createServerBlobs(TOKEN) });
   return { store, backend, calls };
 }
@@ -50,7 +50,7 @@ describe("client comments", () => {
 
   it("treats 'already exists' as delivered (an earlier try got through)", async () => {
     const view = {
-      ...STATE,
+      ...VIEW,
       comments: [{ ...input, status: "active", createdAt: 5, updatedAt: 5 }],
     };
     const { store, backend } = setup([
@@ -72,6 +72,16 @@ describe("client comments", () => {
     const result = await backend.addComment(input, null);
     expect(result.ok).toBe(false);
     expect(!result.ok && result.error).toContain("still being saved");
+    expect(store.getSnapshot().view.comments).toEqual([]);
+  });
+
+  it("says the review window closed, and closes it here too, whatever this clock says", async () => {
+    const { store, backend } = setup([
+      () => Response.json({ error: "review-closed" }, { status: 403 }),
+    ]);
+    const result = await backend.addComment(input, null);
+    expect(!result.ok && result.error).toContain("review window has closed");
+    expect(store.getSnapshot().reviewClosed).toBe(true);
     expect(store.getSnapshot().view.comments).toEqual([]);
   });
 

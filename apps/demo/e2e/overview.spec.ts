@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
+  addDefaultFolder,
   DEFAULT_FOLDER,
   OVERVIEW_HEADLINE,
   folderCard,
@@ -45,24 +46,70 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test("a first visit shows the Overview welcome and an empty state", async ({ page }) => {
+/** The Overview with DEFAULT_FOLDER in place, so New project files into it. */
+async function openOverviewWithFolder(page: Page): Promise<void> {
+  await addDefaultFolder(page);
+  await openOverview(page);
+}
+
+test("a first visit shows the welcome, with no folders: the first step is creating one", async ({
+  page,
+}) => {
   await openOverview(page);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(OVERVIEW_HEADLINE.empty);
   await expect(page.getByTestId("overview-empty")).toBeVisible();
   await expect(page.getByTestId("folder-card")).toHaveCount(0);
+  await expect(page.getByTestId("folder-tree-empty")).toHaveText(
+    "No folders yet. Use New folder above.",
+  );
   await expect(overviewLink(page)).toHaveAttribute("aria-current", "page");
 
-  await page.getByTestId("overview-empty-action").click();
+  const action = page.getByTestId("overview-empty-action");
+  await expect(action).toHaveText("Create your first folder");
+  await action.click();
+  const folderDialog = page.getByRole("dialog", { name: "New folder" });
+  await folderDialog.getByLabel("Folder name").fill("Client work");
+  await folderDialog.getByRole("button", { name: "Create folder" }).click();
+  await expect(page).toHaveURL(/\/f\/[^/]+$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Client work");
+
+  // A folder but no projects yet: the next step is the first project, filed in that folder.
+  await overviewLink(page).click();
+  await expect(action).toHaveText("Add your first project");
+  await action.click();
   const dialog = page.getByRole("dialog", { name: "New project" });
-  await expect(dialog.getByLabel("Folder", { exact: true })).toHaveValue(DEFAULT_FOLDER.id);
+  await expect(dialog.getByRole("combobox", { name: "Folder", exact: true })).toHaveText(
+    "Client work",
+  );
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(dialog).toHaveCount(0);
+});
+
+test("New project with no folders asks to name the first folder, then files the project there", async ({
+  page,
+}) => {
+  await openOverview(page);
+  await newProjectButton(page).click();
+  const dialog = page.getByRole("dialog", { name: "New project" });
+  await expect(dialog.getByRole("combobox", { name: "Folder", exact: true })).toHaveText(
+    "New folder…",
+  );
+  await dialog.getByLabel("Website address").fill("example.com");
+  await dialog.getByTestId("create-project").click();
+  await expect(dialog.getByText("Name the new folder.")).toBeVisible();
+
+  await dialog.getByLabel("Name your first folder").fill("Client work");
+  await dialog.getByTestId("create-project").click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page).toHaveURL(/\/$/);
+  const card = folderCard(page, "Client work");
+  await expect(card.locator(".gf-meta")).toHaveText("1 project");
 });
 
 test("creating a project on the Overview stays there and drops it into its folder", async ({
   page,
 }) => {
-  await openOverview(page);
+  await openOverviewWithFolder(page);
   await addUrlProject(page, "example.com", "Homepage");
 
   await expect(page).toHaveURL(/\/$/);
@@ -92,7 +139,7 @@ test("a folder is one link to its page, with a decorative mascot key and no extr
   page,
   isMobile,
 }) => {
-  await openOverview(page);
+  await openOverviewWithFolder(page);
   await addUrlProject(page, "example.com", "Homepage");
   const card = folderCard(page, DEFAULT_FOLDER.name);
 
@@ -135,7 +182,7 @@ test("a folder is one link to its page, with a decorative mascot key and no extr
 
 test("hovering a folder fans its projects out, and each one opens", async ({ page, isMobile }) => {
   test.skip(isMobile, "Touch has no hover: a tap follows the folder's link.");
-  await openOverview(page);
+  await openOverviewWithFolder(page);
   await addUrlProject(page, "example.com", "Homepage");
   const card = folderCard(page, DEFAULT_FOLDER.name);
   const sheet = card.getByRole("link", { name: /^Homepage\s*,\s*example\.com/ });
@@ -154,7 +201,7 @@ test("Tab moves from the folder to its projects, then its menu, fanning them out
   page,
   isMobile,
 }) => {
-  await openOverview(page);
+  await openOverviewWithFolder(page);
   await page.keyboard.press("n");
   const dialog = page.getByRole("dialog", { name: "New project" });
   await dialog.getByLabel("Website address").fill("example.com");
@@ -186,7 +233,7 @@ test("Tab moves from the folder to its projects, then its menu, fanning them out
 });
 
 test("the corner menu renames a folder and protects the last one", async ({ page }) => {
-  await openOverview(page);
+  await openOverviewWithFolder(page);
   await addUrlProject(page, "example.com", "Homepage");
 
   const card = folderCard(page, DEFAULT_FOLDER.name);
@@ -218,7 +265,7 @@ test("the corner menu renames a folder and protects the last one", async ({ page
 });
 
 test("with two folders the corner menu deletes one", async ({ page }) => {
-  await openOverview(page);
+  await openOverviewWithFolder(page);
   await addUrlProject(page, "example.com", "Homepage");
   await addFolder(page, "Client work");
 
@@ -233,6 +280,7 @@ test("with two folders the corner menu deletes one", async ({ page }) => {
 });
 
 test("old ?folder= links redirect and unknown folders offer a way back", async ({ page }) => {
+  await addDefaultFolder(page);
   await page.goto(`/?folder=${DEFAULT_FOLDER.id}`);
   await expect(page).toHaveURL(new RegExp(`/f/${DEFAULT_FOLDER.id}$`));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(DEFAULT_FOLDER.name);

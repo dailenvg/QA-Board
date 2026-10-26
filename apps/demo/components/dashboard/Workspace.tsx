@@ -20,6 +20,7 @@ import { useDialogState } from "@/lib/use-dialog-state";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { useShortcut } from "@/lib/use-shortcut";
 import { DataRecovery } from "../app-state/DataRecovery";
+import { NEW_FOLDER } from "../new-project/FolderPicker";
 import { NewProjectDialog } from "../new-project/NewProjectDialog";
 import { SearchQueryProvider } from "../search/SearchQueryProvider";
 import { WorkspaceSearch } from "../search/WorkspaceSearch";
@@ -220,7 +221,6 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
             actionsFor={workspace.folderActions}
             activeId={routeFolderId ?? null}
             overviewActive={onOverview}
-            persistent={persistent}
             onNewProject={() => showNewProject({})}
             onNewFolder={() => showNewFolder({ parentId: null })}
             onNewFolderHere={newFolderHere}
@@ -247,8 +247,10 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
             open={newProject.open}
             onClose={newProject.close}
             folders={folders}
+            // No folders yet: the dialog starts on "New folder…", asking for the first one's name.
             defaultFolderId={
-              pickFolder(folders, newProject.payload?.folderId ?? routeFolderId ?? null).id
+              pickFolder(folders, newProject.payload?.folderId ?? routeFolderId ?? null)?.id ??
+              NEW_FOLDER
             }
             onCreated={onCreated}
           />

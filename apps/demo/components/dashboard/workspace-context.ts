@@ -6,9 +6,12 @@ export interface Workspace {
   data: SquintData;
   /** False when the browser blocks storage; changes then last for this visit only. */
   persistent: boolean;
-  /** Oldest first, as in the sidebar. Never empty. */
+  /** Oldest first, as in the sidebar. Empty until the person creates their first folder. */
   folders: readonly Folder[];
-  /** Opens New project, preselecting `folderId` (else the current folder, else the first). */
+  /**
+   * Opens New project, preselecting `folderId` (else the current folder, else the first; with
+   * no folders yet, a new one to name).
+   */
   openNewProject: (folderId?: string) => void;
   /** Opens New folder, at the top level (null) or inside `parentId`. */
   newFolder: (parentId: string | null) => void;

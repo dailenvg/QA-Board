@@ -202,3 +202,35 @@ describe("loading version 2 data", () => {
     expect(savedV3().comments.map((comment) => comment.id)).toEqual(["c1", "c2", "c3"]);
   });
 });
+
+describe("a fresh workspace", () => {
+  it("starts with no folders, so the first one is the person's own", async () => {
+    const { store } = await freshStore();
+    const state = store.getSnapshot();
+    expect(state.status === "ready" && state.data.folders).toEqual([]);
+    const { createFolder } = await import("./actions");
+    const created = createFolder("Client work");
+    expect(created.ok).toBe(true);
+    const after = store.getSnapshot();
+    expect(after.status === "ready" && after.data.folders.map((folder) => folder.name)).toEqual([
+      "Client work",
+    ]);
+  });
+
+  it("starts over with no folders after unreadable data", async () => {
+    localStorage.setItem("squint:v3", "{not json");
+    const { store } = await freshStore();
+    expect(store.resetData().ok).toBe(true);
+    const state = store.getSnapshot();
+    expect(state.status === "ready" && state.data.folders).toEqual([]);
+  });
+
+  it("keeps a stored workspace's folders as they are", async () => {
+    localStorage.setItem("squint:v2", V2);
+    const { ready } = await freshStore();
+    const state = await ready;
+    expect(state.status === "ready" && state.data.folders.map((folder) => folder.id)).toEqual([
+      "default",
+    ]);
+  });
+});

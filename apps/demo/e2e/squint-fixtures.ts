@@ -39,13 +39,51 @@ export async function mockCapture(
   return () => calls;
 }
 
-/** The seeded folder every fresh browser starts with. */
+/**
+ * The folder most specs work in. A fresh browser has no folders (the person creates
+ * the first one), so `addDefaultFolder` stores it, and `openFolder` does by default.
+ */
 export const DEFAULT_FOLDER = { id: "default", name: "My projects" } as const;
 
-/** Opens a folder's page. Creating a project there opens it in the viewer. */
+/**
+ * Adds DEFAULT_FOLDER to this browser's stored workspace (an empty workspace when
+ * there's none yet), keeping everything else. Takes effect on the next page load.
+ */
+export async function addDefaultFolder(page: Page): Promise<void> {
+  if (!page.url().startsWith("http")) await page.goto("/sandbox");
+  await page.evaluate((folder) => {
+    const raw = localStorage.getItem("squint:v3");
+    const data: SquintData = raw
+      ? (JSON.parse(raw) as SquintData)
+      : {
+          version: 3,
+          folders: [],
+          projects: [],
+          comments: [],
+          snapshots: [],
+          revocations: [],
+          authorName: null,
+        };
+    if (data.folders.some((entry) => entry.id === folder.id)) return;
+    // Oldest, so it comes first, as the seeded folder used to.
+    data.folders.unshift({ ...folder, createdAt: 0, parentId: null });
+    localStorage.setItem("squint:v3", JSON.stringify(data));
+  }, DEFAULT_FOLDER);
+}
+
+/** Opens a folder's page (adding DEFAULT_FOLDER first). Creating a project there opens it in the viewer. */
 export async function openFolder(page: Page, id: string = DEFAULT_FOLDER.id): Promise<void> {
+  if (id === DEFAULT_FOLDER.id) await addDefaultFolder(page);
   await page.goto(`/f/${id}`);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+}
+
+/**
+ * Marks the shared review's "How it works" guide as seen in this page's browser, so it
+ * doesn't open over a client's first visit. Call before opening the link.
+ */
+export async function skipReviewGuide(page: Page): Promise<void> {
+  await page.addInitScript(() => localStorage.setItem("squint:review-guide-seen", "1"));
 }
 
 /** Opens the Overview and waits for the store to load. */
@@ -157,7 +195,7 @@ export async function samplePng(page: Page, label = "Mockup", height = 900): Pro
       canvas.height = tall;
       const context = canvas.getContext("2d");
       if (!context) throw new Error("no canvas");
-      context.fillStyle = "#d8fc6c";
+      context.fillStyle = "#deff5b";
       context.fillRect(0, 0, 1200, tall);
       context.fillStyle = "#0c54cc";
       context.font = "bold 96px sans-serif";

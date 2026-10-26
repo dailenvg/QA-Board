@@ -206,7 +206,7 @@ export function PdfPicker({ state, error, onFile, onTakeFirstPages, onCancel }: 
               ? "border-brand bg-brand-soft"
               : message
                 ? "cursor-pointer border-danger bg-card hover:bg-hover"
-                : "cursor-pointer border-field-line bg-card hover:bg-hover active:bg-seg"
+                : "cursor-pointer border-field-line bg-card hover:border-brand-text hover:bg-brand-soft active:border-brand-text active:bg-brand-soft"
           }`}
         >
           <Icon name="fileText" className="size-6 text-muted" />

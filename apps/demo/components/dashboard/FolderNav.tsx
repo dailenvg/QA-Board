@@ -47,13 +47,19 @@ export function FolderNav({
             <Icon name="folderPlus" className="size-5" />
           </button>
         </div>
-        <FolderTree
-          folders={folders}
-          counts={counts}
-          activeId={activeId}
-          labelledBy="folders-heading"
-          actionsFor={actionsFor}
-        />
+        {folders.length ? (
+          <FolderTree
+            folders={folders}
+            counts={counts}
+            activeId={activeId}
+            labelledBy="folders-heading"
+            actionsFor={actionsFor}
+          />
+        ) : (
+          <p data-testid="folder-tree-empty" className="pl-2 text-meta text-muted">
+            No folders yet. Use New folder above.
+          </p>
+        )}
       </div>
     </nav>
   );

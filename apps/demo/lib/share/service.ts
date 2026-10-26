@@ -7,6 +7,7 @@ import type { ShareStore } from "./store";
 import { createSecret, createShareId, hashSecret, isSecretShape, secretMatches } from "./tokens";
 import { digest } from "./digest";
 import { pageBlobKey } from "./keys";
+import { reviewClosed, reviewDeadline } from "./review-window";
 import type {
   ClientView,
   CreatedShare,
@@ -21,7 +22,11 @@ import type {
   ShareState,
 } from "./types";
 
-export type Failure = { ok: false; status: 400 | 404 | 409 | 413 | 415 | 422; error: string };
+export type Failure = {
+  ok: false;
+  status: 400 | 403 | 404 | 409 | 413 | 415 | 422;
+  error: string;
+};
 export type Outcome<T> = { ok: true; value: T } | Failure;
 export type { CreatedShare } from "./types";
 
@@ -338,10 +343,18 @@ export async function clientView(store: ShareStore, share: ShareRecord): Promise
     store.snapshots(share.id),
     store.comments(share.id),
   ]);
-  return { project: share.project, snapshots: items(snapshots), comments: items(comments) };
+  return {
+    project: share.project,
+    snapshots: items(snapshots),
+    comments: items(comments),
+    reviewEndsAt: reviewDeadline(share.createdAt),
+  };
 }
 
 // ── Client writes ──────────────────────────────────────────────────────────
+
+/** 403 once the share's review window is over: clients can still read, but not add. */
+const REVIEW_CLOSED: Failure = fail(403, "review-closed");
 
 /**
  * A pending claim older than this was orphaned (its request died) and may be
@@ -422,6 +435,7 @@ function checkPage(project: SharedProject, input: ClientCommentInput): Failure |
  * A client's comment: always active, timestamped by the server, immutable for
  * clients afterwards (an id that's taken is refused). Its crop, when sent,
  * must come with the rect it shows. Its page must be one of the project's.
+ * Refused once the review window is over.
  */
 export async function addClientComment(
   services: ShareServices,
@@ -431,6 +445,7 @@ export async function addClientComment(
   now: number,
 ): Promise<Outcome<SharedComment>> {
   const { store } = services;
+  if (reviewClosed(share.createdAt, now)) return REVIEW_CLOSED;
   if (Boolean(crop) !== Boolean(input.crop)) return fail(400, "crop-mismatch");
   const misplaced = checkPage(share.project, input);
   if (misplaced) return misplaced;
@@ -490,7 +505,8 @@ export async function addClientComment(
 
 /**
  * Captures the shared project's own address (never one the client sends) and
- * adds it as a snapshot every viewer of the share can comment on.
+ * adds it as a snapshot every viewer of the share can comment on. Refused once
+ * the review window is over.
  */
 export async function captureForClient(
   services: ShareServices,
@@ -499,6 +515,7 @@ export async function captureForClient(
   capture: (url: URL, width: number) => Promise<CapturedImage>,
   now: number,
 ): Promise<Outcome<SharedSnapshot>> {
+  if (reviewClosed(share.createdAt, now)) return REVIEW_CLOSED;
   const { source } = share.project;
   if (source.kind !== "url") return fail(422, "not-a-website");
   if ((await services.store.snapshots(share.id)).length >= SHARE_LIMITS.snapshots) {

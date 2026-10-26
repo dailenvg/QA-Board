@@ -1,0 +1,23 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "demo": {
+      "root": "apps/demo",
+      "framework": "nextjs",
+      "installCommand": "pnpm_config_node_linker=hoisted pnpm install --frozen-lockfile",
+      "buildCommand": "export pnpm_config_node_linker=hoisted && pnpm --filter \"@pinpoint/demo^...\" run build && pnpm run build"
+    },
+    "squint-mascot": {
+      "root": "squint-mascot",
+      "framework": "vite",
+      "installCommand": "npm ci",
+      "buildCommand": "npm run build",
+      "outputDirectory": "dist"
+    }
+  },
+  "rewrites": [
+    { "source": "/mascot", "destination": { "service": "squint-mascot" } },
+    { "source": "/mascot/(.*)", "destination": { "service": "squint-mascot" } },
+    { "source": "/(.*)", "destination": { "service": "demo" } }
+  ]
+}

@@ -24,17 +24,11 @@ const WRITE_MESSAGE = "Your change couldn't be saved in this browser. Try again.
 const UNAVAILABLE_MESSAGE =
   "Your projects aren't available right now. Reload the page and try again.";
 
-/** Deterministic, so two fresh tabs seed the same default folder. */
-const DEFAULT_FOLDER_ID = "default";
 const LOADING: StoreState = { status: "loading" };
 
 let state: StoreState | null = null;
 let migrating = false;
 const listeners = new Set<() => void>();
-
-function seed(): SquintData {
-  return createInitialData(DEFAULT_FOLDER_ID, Date.now());
-}
 
 function emit(): void {
   for (const listener of listeners) listener();
@@ -82,10 +76,10 @@ function load(): StoreState {
   try {
     stored = readStored();
   } catch {
-    return { status: "ready", data: seed(), persistent: false };
+    return { status: "ready", data: createInitialData(), persistent: false };
   }
   const { raw, legacy } = stored;
-  if (raw === null) return { status: "ready", data: seed(), persistent: true };
+  if (raw === null) return { status: "ready", data: createInitialData(), persistent: true };
   const parsed = parseData(raw);
   if (!parsed.ok) return { status: "corrupt", reason: parsed.reason, raw };
   if (!legacy && parsed.storedVersion === 3 && parsed.pendingImages.length === 0) {
@@ -143,9 +137,9 @@ export function dispatch(action: Action): Result {
   return { ok: true, value: undefined };
 }
 
-/** Discards unreadable data and starts over with the default folder. */
+/** Discards unreadable data and starts over with an empty workspace (no folders yet). */
 export function resetData(): Result {
-  const data = seed();
+  const data = createInitialData();
   const saved = write(data);
   if (saved.ok) removeLegacy();
   state = { status: "ready", data, persistent: saved.ok };

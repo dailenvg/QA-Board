@@ -33,6 +33,10 @@ const STILL_SENDING =
 const PAGE_GONE =
   "Your comment wasn't sent: its page was removed from this review. Copy your text, then reload the page.";
 const NOT_SENT_DEFAULT = "Your comment wasn't sent. Retry in a moment.";
+/** 403 review-closed: the share's 72-hour review window is over. */
+const REVIEW_CLOSED =
+  "Your comment wasn't sent: the review window has closed. Copy your text to keep it.";
+const CAPTURE_CLOSED = "The review window has closed, so new snapshots can't be taken.";
 
 interface ClientBackendOptions {
   token: string;
@@ -115,6 +119,10 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
         store.markGone();
         return { ok: false, error: GONE };
       }
+      if (result.error === "review-closed") {
+        store.markReviewClosed();
+        return { ok: false, error: REVIEW_CLOSED };
+      }
       if (result.error === "share-full") return { ok: false, error: SHARE_FULL };
       if (result.error === "unknown-page") return { ok: false, error: PAGE_GONE };
       return { ok: false, error: NOT_SENT[result.status] ?? NOT_SENT_DEFAULT };
@@ -142,6 +150,10 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
       if (result.status === 404) {
         store.markGone();
         return { ok: false, message: GONE };
+      }
+      if (result.error === "review-closed") {
+        store.markReviewClosed();
+        return { ok: false, message: CAPTURE_CLOSED };
       }
       if (result.error === "share-full") return { ok: false, message: SNAPSHOTS_FULL };
       const code = isCaptureErrorCode(result.error)

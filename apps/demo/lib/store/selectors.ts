@@ -62,9 +62,7 @@ export function pinNumbers(comments: readonly Comment[]): Map<string, number> {
   return new Map(comments.map((comment, index) => [comment.id, index + 1]));
 }
 
-/** The requested folder, else the first. Stored data always has at least one folder. */
-export function pickFolder(folders: readonly Folder[], id: string | null): Folder {
-  const folder = folders.find((entry) => entry.id === id) ?? folders[0];
-  if (!folder) throw new Error("Squint data has no folders.");
-  return folder;
+/** The requested folder, else the first; null before the first folder is created. */
+export function pickFolder(folders: readonly Folder[], id: string | null): Folder | null {
+  return folders.find((entry) => entry.id === id) ?? folders[0] ?? null;
 }

@@ -57,6 +57,8 @@ function useFocusTrap(open: boolean, panel: RefObject<HTMLDivElement | null>, on
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        // An open list or popup inside the dialog closes first; the next Escape closes the dialog.
+        if (event.target instanceof Element && event.target.closest("[data-popup-open]")) return;
         event.stopPropagation();
         onCloseRef.current();
         return;

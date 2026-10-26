@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createStoryClock } from "./story-clock";
 import {
   ADD_PROJECT_BEATS,
+  OPEN_LINK_BEATS,
   PIN_BEATS,
   RESOLVE_BEATS,
   STORY_LOOP_MS,
@@ -134,6 +135,7 @@ describe("createStoryClock", () => {
 describe("story beats", () => {
   const stories: Record<string, StoryBeats<string>> = {
     "add a project": ADD_PROJECT_BEATS,
+    "open the link": OPEN_LINK_BEATS,
     "pin comments": PIN_BEATS,
     "resolve them": RESOLVE_BEATS,
   };

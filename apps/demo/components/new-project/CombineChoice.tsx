@@ -32,7 +32,9 @@ export function CombineChoice({ value, onChange }: CombineChoiceProps) {
               key={option.value}
               data-testid={`grouping-${option.value}`}
               className={`relative flex min-h-11 cursor-pointer items-center gap-3 rounded-tile p-4 pr-12 transition-colors has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-focus ${
-                selected ? "bg-brand-soft" : "bg-card ring-1 ring-line ring-inset hover:bg-hover"
+                selected
+                  ? "bg-brand-soft"
+                  : "bg-card ring-1 ring-line ring-inset hover:ring-brand-text"
               }`}
             >
               {selected ? (

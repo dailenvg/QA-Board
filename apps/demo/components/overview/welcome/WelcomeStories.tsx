@@ -15,7 +15,8 @@ import {
 } from "./story-script";
 import type { StoryPlayback } from "./use-story-playback";
 
-const STORIES: readonly StoryDefinition[] = [
+/** The owner's welcome: add a project, pin comments, resolve them. */
+export const WELCOME_STORIES: readonly StoryDefinition[] = [
   {
     title: "Add a project",
     body: "Paste a website address, or upload images or a PDF.",
@@ -41,6 +42,8 @@ const STORIES: readonly StoryDefinition[] = [
 
 interface WelcomeStoriesProps {
   playback: StoryPlayback;
+  /** Three stories, played left to right. Defaults to the owner's welcome. */
+  stories?: readonly StoryDefinition[];
 }
 
 /**
@@ -49,11 +52,11 @@ interface WelcomeStoriesProps {
  * card gets enough width for its scene. Sized by its container, not the
  * viewport, since the sidebar takes a share of the screen from `lg` up.
  *
- * The cards explain; they aren't buttons. The panel's one action (Add your
- * first project) sits below them, so pinning and resolving never seem to
- * open New project, and keyboard users don't tab through three copies of it.
+ * The cards explain; they aren't buttons. The panel's one action (such as
+ * Add your first project) sits below them, so pinning and resolving never seem
+ * to open it, and keyboard users don't tab through three copies of it.
  */
-export function WelcomeStories({ playback }: WelcomeStoriesProps) {
+export function WelcomeStories({ playback, stories = WELCOME_STORIES }: WelcomeStoriesProps) {
   return (
     <div className="@container w-full">
       {/* role="list": Safari drops list semantics from lists styled without markers. */}
@@ -62,7 +65,7 @@ export function WelcomeStories({ playback }: WelcomeStoriesProps) {
         data-testid="welcome-stories"
         className="grid gap-4 @[34rem]:grid-cols-2 @[52rem]:grid-cols-3"
       >
-        {STORIES.map((story, index) => (
+        {stories.map((story, index) => (
           <StoryCard
             key={story.title}
             step={index + 1}
@@ -70,7 +73,7 @@ export function WelcomeStories({ playback }: WelcomeStoriesProps) {
             delay={STORY_DELAYS[index] ?? 0}
             running={playback.running}
             still={playback.still}
-            wide={index === STORIES.length - 1}
+            wide={index === stories.length - 1}
           />
         ))}
       </ol>

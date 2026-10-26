@@ -83,10 +83,13 @@ test("the welcome tells three stories, in order, then offers one way to start", 
     await expect(card).toContainText(title);
   }
 
-  // The cards explain; the panel's one action, below them, starts.
+  // The cards explain; the panel's one action, below them, starts: a fresh workspace has no
+  // folders yet, so the first step is creating one.
   await expect(list.getByRole("button")).toHaveCount(0);
-  await page.getByTestId("overview-empty-action").click();
-  const dialog = page.getByRole("dialog", { name: "New project" });
+  const action = page.getByTestId("overview-empty-action");
+  await expect(action).toHaveText("Create your first folder");
+  await action.click();
+  const dialog = page.getByRole("dialog", { name: "New folder" });
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(dialog).toHaveCount(0);

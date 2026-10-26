@@ -1,4 +1,11 @@
-import type { SharedComment, SharedSnapshot, ShareRecord, ShareState } from "@/lib/share/types";
+import { reviewDeadline } from "@/lib/share/review-window";
+import type {
+  ClientView,
+  SharedComment,
+  SharedSnapshot,
+  ShareRecord,
+  ShareState,
+} from "@/lib/share/types";
 
 export const SNAPSHOT: SharedSnapshot = {
   id: "snap-1",
@@ -35,6 +42,9 @@ export const RECORD: ShareRecord = {
   createdAt: 1,
   updatedAt: 1,
 };
+
+/** What a client of `RECORD` sees. */
+export const VIEW: ClientView = { ...STATE, reviewEndsAt: reviewDeadline(RECORD.createdAt) };
 
 /** The smallest valid PNG and JPEG headers, padded: enough for type sniffing. */
 export const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);

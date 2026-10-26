@@ -59,6 +59,8 @@ interface ViewerViewProps {
   panelNote?: string;
   /** Keeps an unsent draft across reloads (shared links), and warns before leaving it. */
   draftStorage?: DraftStorage;
+  /** Why new comments are off, such as a shared link's closed review window. Reading still works. */
+  commentLocked?: string;
 }
 
 type ScrollRequest = { id: string; target: "pin" | "card"; nonce: number } | null;
@@ -78,6 +80,7 @@ export function ViewerView({
   panelNotice,
   panelNote,
   draftStorage,
+  commentLocked,
 }: ViewerViewProps) {
   const toast = useToast();
   const backend = useViewerBackend();
@@ -184,7 +187,15 @@ export function ViewerView({
     setTab(next);
   };
 
-  useShortcut("c", () => setMode(mode === "comment" ? "browse" : "comment"));
+  // Locking ends Comment mode, unless a draft is open: its text stays on screen to copy.
+  const locked = Boolean(commentLocked);
+  const [wasLocked, setWasLocked] = useState(locked);
+  if (wasLocked !== locked) {
+    setWasLocked(locked);
+    if (locked && !draft) setMode("browse");
+  }
+
+  useShortcut("c", () => setMode(mode === "comment" ? "browse" : "comment"), !locked);
   // The open popover takes Escape first.
   useShortcut("escape", () => setMode("browse"), mode === "comment" && !stageDraft && !openComment);
 
@@ -244,6 +255,7 @@ export function ViewerView({
   };
 
   const place = (point: PinPoint) => {
+    if (locked) return;
     if (stageDraft?.body.trim()) {
       composerRef.current?.focus();
       return;
@@ -452,6 +464,7 @@ export function ViewerView({
         status={deriveStatus(counts)}
         mode={mode}
         onMode={setMode}
+        commentLocked={commentLocked}
         originalUrl={originalUrl}
         breakpoints={
           website ? (
