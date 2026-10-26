@@ -15,6 +15,7 @@ interface SearchPanelProps {
   optionId: (entry: SearchEntry) => string;
   activeKey: string | null;
   onHover: (entry: SearchEntry) => void;
+  /** A result's link was clicked to open in this tab (it navigates itself). */
   onChoose: (entry: SearchEntry) => void;
 }
 

@@ -7,9 +7,9 @@ function searchInput(page: Page): Locator {
   return page.getByRole("combobox", { name: "Search projects and folders" });
 }
 
-/** The field even while hidden (a phone's closed search), where role queries can't see it. */
-function searchField(page: Page): Locator {
-  return page.getByTestId("search-input");
+/** Nothing in the search has focus. A phone's closed field is unmounted, so ask the page. */
+async function expectSearchUnfocused(page: Page): Promise<void> {
+  await expect(page.locator('[data-testid="search-input"]:focus')).toHaveCount(0);
 }
 
 /** Opens the search the way each screen offers it: the field, or the phone's icon button. */
@@ -41,6 +41,8 @@ test("finds a nested project by part of its name, in any case, and Enter opens i
   await expect(option).toBeVisible();
   await expect(option).toContainText("Client work › Q4 › Launch");
   await expect(option.locator("mark")).toHaveText("Campaign Ban");
+  // A real link: middle-click and "Open in new tab" work.
+  await expect(option).toHaveAttribute("href", /\/p\/nested$/);
   await expect(option).toHaveAttribute("aria-selected", "true");
   await expect(input).toHaveAttribute("aria-expanded", "true");
   await expect(input).toHaveAttribute(
@@ -103,7 +105,7 @@ test("no match shows an empty state; Escape clears, then leaves", async ({ page,
   await expect(input).toHaveValue("");
   await expect(input).toBeFocused();
   await input.press("Escape");
-  await expect(searchField(page)).not.toBeFocused();
+  await expectSearchUnfocused(page);
   await expect(page.getByTestId("search-popup")).toHaveCount(0);
 });
 
@@ -118,7 +120,7 @@ test("/ and Ctrl+K focus the search, but not while typing elsewhere or in a dial
   await expect(input).toHaveValue("/");
   await input.press("Escape");
   await input.press("Escape");
-  await expect(searchField(page)).not.toBeFocused();
+  await expectSearchUnfocused(page);
 
   await page.keyboard.press("Control+k");
   await expect(input).toBeFocused();
@@ -128,30 +130,74 @@ test("/ and Ctrl+K focus the search, but not while typing elsewhere or in a dial
   const dialog = page.getByRole("dialog", { name: "New project" });
   await expect(dialog).toBeVisible();
   await page.keyboard.press("/");
-  await expect(searchField(page)).not.toBeFocused();
+  await expectSearchUnfocused(page);
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(dialog).toHaveCount(0);
 });
 
-test("on a phone, search is an icon button that opens the field full width", async ({
+test("on a phone, search is an icon button at the top that opens the field across its row", async ({
   page,
   isMobile,
 }) => {
   test.skip(!isMobile, "Phones only.");
   const toggle = page.getByRole("button", { name: "Search projects and folders" });
   const input = searchInput(page);
+  const header = page.getByTestId("sidebar-header");
   await expect(toggle).toBeVisible();
   await expect(input).toBeHidden();
   const box = await toggle.boundingBox();
   expect(box && box.width >= 44 && box.height >= 44).toBe(true);
+  // Top right: in the sidebar's header, above everything else in the stacked layout.
+  await expect(header.getByRole("search")).toHaveCount(1);
+  const newProject = await page.getByTestId("new-project").boundingBox();
+  expect(box && newProject && box.y + box.height <= newProject.y).toBe(true);
 
   await toggle.click();
   await expect(input).toBeFocused();
-  const field = await input.boundingBox();
-  const main = await page.locator("main").boundingBox();
-  expect(field && main && Math.round(field.width) === Math.round(main.width)).toBe(true);
+  const row = await header.boundingBox();
+  // Polled: the field grows in from the button's corner.
+  await expect
+    .poll(async () => Math.round((await input.boundingBox())?.width ?? 0))
+    .toBe(Math.round(row?.width ?? -1));
+  // What the open field covers is out of reach, not just out of sight.
+  await expect(
+    page.getByRole("button", { name: /^Switch to (dark|light) theme$/ }).filter({ visible: true }),
+  ).toHaveCount(0);
 
   await input.press("Escape");
   await expect(input).toBeHidden();
   await expect(toggle).toBeFocused();
+
+  // Phones have no Escape key: the field's close button leaves too.
+  await toggle.click();
+  await expect(input).toBeFocused();
+  await page.getByTestId("search-close").click();
+  await expect(input).toBeHidden();
+  await expect(toggle).toBeFocused();
+});
+
+test("a query in progress survives the search moving between the page and the sidebar", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "Resizes a desktop window across the breakpoints.");
+  const input = searchInput(page);
+  await input.fill("campaign");
+  await page.getByRole("heading", { level: 1 }).click();
+  await expect(page.getByTestId("search-popup")).toHaveCount(0);
+
+  // Below lg the search moves into the sidebar's header (a remount), query and all.
+  await page.setViewportSize({ width: 800, height: 900 });
+  await expect(page.getByTestId("sidebar-header").getByRole("search")).toHaveCount(1);
+  await expect(input).toHaveValue("campaign");
+
+  // On a phone's width it opens with the query showing, not folded into the icon button.
+  await page.setViewportSize({ width: 375, height: 812 });
+  await expect(input).toHaveValue("campaign");
+  await input.click();
+  await expect(page.getByRole("option", { name: /^Spring Campaign Banner/ })).toBeVisible();
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect(page.locator("main").getByRole("search")).toHaveCount(1);
+  await expect(input).toHaveValue("campaign");
 });

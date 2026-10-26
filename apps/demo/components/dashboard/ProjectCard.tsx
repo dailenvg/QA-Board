@@ -49,9 +49,11 @@ export function ProjectCard({
       exit="exit"
       {...(reduce ? {} : hoverLift)}
       data-testid="project-card"
-      // Hover draws a 2px brand line (pointers only: Tailwind's hover skips touch). Keyboard focus
-      // wins over it and stays distinct: the focus color, set off from the card by a 2px gap.
-      className="group relative flex flex-col gap-3 rounded-panel bg-tile p-3 pb-4 ring-2 ring-transparent transition-shadow duration-200 ease-out hover:shadow-float hover:ring-brand has-[a:focus-visible]:ring-focus has-[a:focus-visible]:ring-offset-2 has-[a:focus-visible]:ring-offset-bg has-[[aria-expanded=true]]:z-20"
+      // Hover draws a 2px brand line (pointers only: Tailwind's hover skips touch). brand-text is
+      // the brand blue as each theme draws lines and text: cobalt in light; in dark the lighter
+      // brand blue, 9:1 on the page where cobalt is under 3:1. Keyboard focus wins over it (higher
+      // specificity) and stays distinct: set off from the card by a 2px gap.
+      className="group relative flex flex-col gap-3 rounded-panel bg-tile p-3 pb-4 ring-2 ring-transparent transition-shadow duration-200 ease-out hover:shadow-float hover:ring-brand-text has-[a:focus-visible]:ring-focus has-[a:focus-visible]:ring-offset-2 has-[a:focus-visible]:ring-offset-bg has-[[aria-expanded=true]]:z-20"
     >
       <ProjectThumbnail source={project.source} previewKey={previewKey} />
       <div className="flex items-start justify-between gap-2 pl-2">

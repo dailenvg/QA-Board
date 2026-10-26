@@ -16,9 +16,11 @@ import { pickFolder, sortedFolders } from "@/lib/store/selectors";
 import type { Folder, Project, SquintData } from "@/lib/store/types";
 import { useSquint } from "@/lib/store/use-squint";
 import { useDialogState } from "@/lib/use-dialog-state";
+import { useMediaQuery } from "@/lib/use-media-query";
 import { useShortcut } from "@/lib/use-shortcut";
 import { DataRecovery } from "../app-state/DataRecovery";
 import { NewProjectDialog } from "../new-project/NewProjectDialog";
+import { SearchQueryProvider } from "../search/SearchQueryProvider";
 import { WorkspaceSearch } from "../search/WorkspaceSearch";
 import { Skeleton } from "../ui/Skeleton";
 import { useToast } from "../ui/ToastProvider";
@@ -46,7 +48,9 @@ export function Workspace({ children }: { children: ReactNode }) {
   return (
     <>
       <Revocations />
-      <WorkspaceShell store={state.status === "ready" ? state : null}>{children}</WorkspaceShell>
+      <SearchQueryProvider>
+        <WorkspaceShell store={state.status === "ready" ? state : null}>{children}</WorkspaceShell>
+      </SearchQueryProvider>
     </>
   );
 }
@@ -57,6 +61,8 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
   const { id: routeFolderId } = useParams<{ id?: string }>();
   const toast = useToast();
   const onOverview = pathname === OVERVIEW_HREF;
+  /** Tailwind's `lg`, in rem like the CSS: sidebar beside the page rather than above it. */
+  const wide = useMediaQuery("(min-width: 64rem)");
   const data = store?.data ?? null;
   const persistent = store?.persistent ?? true;
 
@@ -186,6 +192,13 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
     });
   };
 
+  /**
+   * One search, mounted in one place: top right of the page on wide screens; in the sidebar's
+   * header when the sidebar stacks above the page (else it would sit below the whole sidebar).
+   * Crossing `lg` remounts it; the query lives in `SearchQueryProvider`, so it carries over.
+   */
+  const search = workspace ? <WorkspaceSearch data={workspace.data} /> : null;
+
   return (
     <WorkspaceContext.Provider value={workspace}>
       {/* overflow-x-clip: an open folder's fan may reach into the gutters, never past the screen. */}
@@ -200,18 +213,19 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
             persistent={persistent}
             onNewProject={() => showNewProject({})}
             onNewFolder={() => showNewFolder({ parentId: null })}
+            search={wide ? null : search}
           />
         ) : (
           <SidebarSkeleton />
         )}
         <main id="main" className="flex min-w-0 flex-1 flex-col gap-4 self-stretch">
-          {/* z-30: the open search results lie over the page below. */}
-          <div className="relative z-30 flex justify-end">
-            {workspace ? (
-              <WorkspaceSearch data={workspace.data} />
-            ) : (
-              <Skeleton className="h-11 w-11 sm:w-72 lg:w-80" />
-            )}
+          {/*
+            Wide screens only (CSS, so the row never pops in after hydration); the skeleton holds
+            its place until the store and the media query are both known. z-30: the open search
+            results lie over the page below.
+          */}
+          <div className="relative z-30 flex justify-end max-lg:hidden">
+            {wide && search ? search : <Skeleton className="h-11 w-80" />}
           </div>
           {children}
         </main>

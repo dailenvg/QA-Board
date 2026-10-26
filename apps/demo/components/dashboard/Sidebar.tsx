@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Logo } from "../brand/Logo";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
@@ -19,6 +20,11 @@ interface SidebarProps {
   persistent: boolean;
   onNewProject: () => void;
   onNewFolder: () => void;
+  /**
+   * The workspace search, below `lg`: the sidebar comes first on stacked screens, so its header
+   * is the top right of the page there.
+   */
+  search?: ReactNode;
 }
 
 /** Floating workspace panel: brand, primary action, navigation and appearance. */
@@ -31,15 +37,28 @@ export function Sidebar({
   persistent,
   onNewProject,
   onNewFolder,
+  search = null,
 }: SidebarProps) {
   return (
     <aside
       aria-label="Workspace"
       className="flex min-w-0 flex-col gap-5 rounded-panel bg-panel p-4 lg:sticky lg:top-4 lg:h-[calc(100dvh-2rem)] lg:w-sidebar lg:shrink-0 lg:overflow-y-auto"
     >
-      <div className="flex items-center justify-between gap-3 px-2">
-        <Logo caption="Visual review" />
-        <ThemeToggle className="lg:hidden" />
+      {/*
+        relative: a phone's open search field fills this row. While it does, what it covers is
+        hidden (visibility), so Tab and screen readers can't reach controls under the field.
+      */}
+      <div
+        data-testid="sidebar-header"
+        className="relative flex min-h-11 items-center gap-2 px-2 [&:has([data-search-open])_[data-search-covered]]:invisible"
+      >
+        <div data-search-covered="" className="mr-auto flex min-w-0">
+          <Logo caption="Visual review" />
+        </div>
+        {search}
+        <div data-search-covered="" className="flex lg:hidden">
+          <ThemeToggle />
+        </div>
       </div>
 
       <Button
