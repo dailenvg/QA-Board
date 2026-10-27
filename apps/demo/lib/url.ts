@@ -44,6 +44,17 @@ export function displayHost(url: string): string {
   }
 }
 
+/** Host and path without `www.` (`acme.example/pricing`), just the host for a site's root. */
+export function displayPage(url: string): string {
+  try {
+    const { pathname, search } = new URL(url);
+    const path = `${pathname}${search}`;
+    return path === "/" ? displayHost(url) : `${displayHost(url)}${path}`;
+  } catch {
+    return url;
+  }
+}
+
 export function faviconUrl(url: string): string | null {
   try {
     return new URL("/favicon.ico", url).toString();

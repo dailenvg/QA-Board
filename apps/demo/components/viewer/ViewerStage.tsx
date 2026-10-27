@@ -11,6 +11,7 @@ import { SnapshotStage } from "./SnapshotStage";
 import type { Surface } from "./surface";
 import type { ScreenshotHandler } from "./types";
 import { UrlStage } from "./UrlStage";
+import type { FrameTarget } from "./use-viewer-surface";
 
 interface ViewerStageProps {
   project: Project;
@@ -22,6 +23,12 @@ interface ViewerStageProps {
   onReady: () => void;
   capture: CaptureState;
   onCapture: () => void;
+  /** The website page to capture: the one under review. */
+  captureUrl: string | null;
+  /** The page the live frame shows (websites). */
+  frame: FrameTarget | null;
+  /** The framed site reported another page of its own. */
+  onLocation: ((pageUrl: string) => void) | null;
   /** Width the live site is framed at (tablet and phone breakpoints); null for full width. */
   frameWidth: number | null;
   onShowLatest: () => void;
@@ -49,6 +56,9 @@ export function ViewerStage({
   onReady,
   capture,
   onCapture,
+  captureUrl,
+  frame,
+  onLocation,
   frameWidth,
   onShowLatest,
   onBrowse,
@@ -62,7 +72,7 @@ export function ViewerStage({
       <SnapshotStage
         snapshot={surface.snapshot}
         isLatest={website && surface.snapshot?.id === latest?.id}
-        captureUrl={website ? source.url : null}
+        captureUrl={website ? captureUrl : null}
         capture={capture}
         onCapture={onCapture}
         onShowLatest={onShowLatest}
@@ -100,7 +110,10 @@ export function ViewerStage({
   return (
     <>
       <UrlStage
-        url={source.url}
+        key={frame?.id}
+        url={frame?.url ?? source.url}
+        siteUrl={source.url}
+        onLocation={onLocation}
         projectName={project.name}
         overlay={surface.kind === "frame" ? overlay : null}
         onScreenshot={onScreenshot}

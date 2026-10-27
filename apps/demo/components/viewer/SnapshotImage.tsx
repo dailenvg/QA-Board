@@ -4,7 +4,7 @@ import { useState, type ReactNode, type Ref } from "react";
 import { useBlobUrl } from "@/lib/blob-store/use-blob-url";
 import { absoluteTime } from "@/lib/relative-time";
 import type { Snapshot } from "@/lib/store/types";
-import { displayHost } from "@/lib/url";
+import { displayPage } from "@/lib/url";
 import { Skeleton } from "../ui/Skeleton";
 import { SnapshotMissing } from "./SnapshotMissing";
 import { SurfaceImage } from "./SurfaceImage";
@@ -46,7 +46,7 @@ export function SnapshotImage({
   return (
     <SurfaceImage
       src={image.url}
-      alt={`Snapshot of ${displayHost(snapshot.sourceUrl)}, taken ${absoluteTime(snapshot.createdAt)}`}
+      alt={`Snapshot of ${displayPage(snapshot.sourceUrl)}, taken ${absoluteTime(snapshot.createdAt)}`}
       size={snapshot}
       overlay={overlay}
       imageRef={imageRef}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useFrameLocation } from "@/lib/frame-location/use-frame-location";
 import { Skeleton } from "../ui/Skeleton";
 import { FrameFallback } from "./FrameFallback";
 import type { ScreenshotHandler } from "./types";
@@ -19,11 +20,25 @@ interface FrameViewProps {
   onScreenshot: ScreenshotHandler | null;
   /** In Comment mode the framed site leaves the tab order, so Tab reaches the comment canvas. */
   commentMode: boolean;
+  /** The project's address: only pages on its origin are followed. */
+  siteUrl: string;
+  /** Called with each page the framed site reports it navigated to (see `useFrameLocation`). */
+  onLocation: ((pageUrl: string) => void) | null;
 }
 
 /** The live iframe, with a loading veil and a timeout fallback. */
-export function FrameView({ url, title, overlay, onScreenshot, commentMode }: FrameViewProps) {
+export function FrameView({
+  url,
+  title,
+  overlay,
+  onScreenshot,
+  commentMode,
+  siteUrl,
+  onLocation,
+}: FrameViewProps) {
   const [phase, setPhase] = useState<"loading" | "loaded" | "timeout">("loading");
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  useFrameLocation(frameRef, siteUrl, onLocation);
 
   useEffect(() => {
     if (phase !== "loading") return;
@@ -34,6 +49,7 @@ export function FrameView({ url, title, overlay, onScreenshot, commentMode }: Fr
   return (
     <>
       <iframe
+        ref={frameRef}
         src={url}
         title={title}
         sandbox={SANDBOX}

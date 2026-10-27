@@ -6,7 +6,7 @@ import { instant, spring, useRevealVariants } from "@/lib/motion";
 import { absoluteTime, relativeTime } from "@/lib/relative-time";
 import type { Comment } from "@/lib/store/types";
 import { Button } from "../ui/Button";
-import { Icon } from "../ui/Icon";
+import { Icon, type IconName } from "../ui/Icon";
 import { CommentBadge } from "./CommentBadge";
 import { CommentCropThumb } from "./CommentCropThumb";
 import { CommentEditor } from "./CommentEditor";
@@ -21,13 +21,19 @@ export interface CommentCardActions {
   onDelete: (comment: Comment) => void;
 }
 
+/** The page a comment is on, as its card says it: "Page 2" of a PDF, or "/pricing" of a site. */
+export interface CardPage {
+  label: string;
+  icon: IconName;
+}
+
 interface CommentCardProps extends CommentCardActions {
   comment: Comment;
   number: number;
   /** Where the pin lives, when that isn't the current snapshot. */
   placement: Placement | null;
-  /** The page it's on, on projects with several pages. */
-  pageNumber: number | null;
+  /** The page it's on, on projects (and websites) with several pages. */
+  page: CardPage | null;
   /** Shows Resolve/Reopen, Edit and Delete. Off on a shared link. */
   canModerate: boolean;
   selected: boolean;
@@ -42,7 +48,7 @@ export function CommentCard({
   comment,
   number,
   placement,
-  pageNumber,
+  page,
   canModerate,
   selected,
   now,
@@ -59,7 +65,7 @@ export function CommentCard({
   const bodyId = useId();
   const placementId = useId();
   const pageId = useId();
-  const described = [bodyId, pageNumber ? pageId : null, placement ? placementId : null]
+  const described = [bodyId, page ? pageId : null, placement ? placementId : null]
     .filter(Boolean)
     .join(" ");
   const resolved = comment.status === "resolved";
@@ -137,15 +143,15 @@ export function CommentCard({
             {comment.body}
           </p>
           {edited ? <p className="mt-1 text-label text-muted">Edited</p> : null}
-          {pageNumber ? (
+          {page ? (
             <p
               id={pageId}
               data-testid="comment-page"
               // Same chip as PlacementChip's (8px gap, 12px by 4px padding), on the 4px grid.
-              className="mt-2 inline-flex items-center gap-2 rounded-pill bg-seg px-3 py-1 text-label font-semibold text-ink-2"
+              className="mt-2 inline-flex max-w-full items-center gap-2 rounded-pill bg-seg px-3 py-1 text-label font-semibold text-ink-2"
             >
-              <Icon name="image" className="size-3.5" />
-              Page {pageNumber}
+              <Icon name={page.icon} className="size-3.5 shrink-0" />
+              <span className="truncate">{page.label}</span>
             </p>
           ) : null}
           {placement ? <PlacementChip id={placementId} placement={placement} now={now} /> : null}

@@ -1,6 +1,6 @@
 "use client";
 
-import { displayHost } from "@/lib/url";
+import { displayPage } from "@/lib/url";
 import { useTimedFlag } from "@/lib/use-timed-flag";
 import { Skeleton } from "../ui/Skeleton";
 
@@ -17,7 +17,7 @@ export function CaptureProgress({ url }: { url: string }) {
       className="mx-auto flex w-full max-w-5xl flex-col gap-3"
     >
       <p className="text-meta text-muted">
-        <span className="font-semibold text-ink">Taking a snapshot of {displayHost(url)}…</span>{" "}
+        <span className="font-semibold text-ink">Taking a snapshot of {displayPage(url)}…</span>{" "}
         {fresh
           ? "Comments pin to the snapshot, so they stay on the content while you scroll."
           : "Long pages take a little longer."}
