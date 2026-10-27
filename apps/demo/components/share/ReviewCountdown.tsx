@@ -10,10 +10,14 @@ interface ReviewCountdownProps {
   left: TimeLeft | null;
 }
 
-/** The last day reads as a warning. */
+/**
+ * Open: the brand lime under ink (17:1, the same in both themes), so the
+ * deadline stands out in the bar. The last day turns to the solid danger fill
+ * (6.3:1 light, 7.7:1 dark), and the wording drops to hours. Closed is neutral.
+ */
 const TONE = {
-  open: "bg-brand-soft text-brand-text",
-  lastDay: "bg-comments-soft text-comments-text",
+  open: "bg-highlight text-on-highlight",
+  lastDay: "bg-danger text-card",
   closed: "bg-seg text-ink",
 } as const;
 
@@ -37,9 +41,9 @@ export function ReviewCountdown({ left }: ReviewCountdownProps) {
           exit="exit"
           data-testid="review-countdown"
           data-state={left ? "open" : "closed"}
-          className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-pill px-3 text-label font-semibold whitespace-nowrap tabular-nums transition-colors duration-150 ${tone}`}
+          className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-pill px-4 text-body font-semibold whitespace-nowrap tabular-nums transition-colors duration-150 ${tone}`}
         >
-          <Icon name="clock" className="size-4" />
+          <Icon name="clock" className="size-5" />
           {left ? (
             <>
               <span aria-hidden="true">{shortTimeLeft(left)} left</span>
