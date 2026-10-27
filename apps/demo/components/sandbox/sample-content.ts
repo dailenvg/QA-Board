@@ -26,6 +26,21 @@ export const SAMPLE_PLANS: readonly SamplePlan[] = [
   },
 ];
 
+export const SAMPLE_VALUES: ReadonlyArray<{ title: string; body: string }> = [
+  {
+    title: "Clear feedback",
+    body: "Every comment points at one thing and says what should change.",
+  },
+  {
+    title: "Fewer meetings",
+    body: "Reviews happen on the page itself, whenever people have a moment.",
+  },
+  {
+    title: "Done means done",
+    body: "Resolved comments stay on record, so nothing is asked for twice.",
+  },
+];
+
 export const SAMPLE_FAQ: ReadonlyArray<{ question: string; answer: string }> = [
   {
     question: "What is this page?",
