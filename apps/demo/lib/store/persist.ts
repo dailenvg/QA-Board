@@ -23,7 +23,11 @@ export const STORAGE_KEY = "squint:v3";
  * builds can't read version 3 data). A failed migration leaves them as they are.
  */
 export const LEGACY_STORAGE_KEYS = ["squint:v2", "squint:v1"] as const;
-/** The folder load repair makes for projects left without one when no folder exists. */
+/**
+ * The name load repair gives the folder it makes for projects left without one
+ * when no folder exists. It's also the name of the empty folder every new
+ * browser got before fresh workspaces started with no folders (`legacy-folder.ts`).
+ */
 export const DEFAULT_FOLDER_NAME = "My projects";
 const RECOVERED_FOLDER_ID = "default";
 
