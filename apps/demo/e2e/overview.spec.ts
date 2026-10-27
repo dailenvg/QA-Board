@@ -214,11 +214,15 @@ test("Tab moves from the folder straight to its menu; focus fans the projects ou
   const sheet = card.getByTestId("folder-sheet").filter({ hasText: "Keyboard check" });
   // The sheet is a preview: the folder's link is the card's only way in.
   await expect(card.getByRole("link")).toHaveCount(1);
-  await folderLink.focus();
-  // Touch screens never fan; elsewhere focus on the folder fans its projects out.
+  const menu = card.getByTestId("folder-card-menu");
+  // Reached by keyboard, so focus is visible (a programmatic focus after clicks isn't).
+  await menu.focus();
+  await page.keyboard.press("Shift+Tab");
+  await expect(folderLink).toBeFocused();
+  // Touch screens never fan; elsewhere keyboard focus on the folder fans its projects out.
   if (!isMobile) await expect.poll(() => sheetLift(sheet)).toBeLessThan(-40);
   await page.keyboard.press("Tab");
-  await expect(card.getByTestId("folder-card-menu")).toBeFocused();
+  await expect(menu).toBeFocused();
 
   await page.keyboard.press("Shift+Tab");
   await expect(folderLink).toBeFocused();
