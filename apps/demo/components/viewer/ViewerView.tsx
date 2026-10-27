@@ -502,10 +502,7 @@ export function ViewerView({
               page={sitePage}
               pages={scope.sitePages}
               counts={scope.siteCounts}
-              onNavigate={(url) => {
-                setOpenId(null);
-                view.setPage(url);
-              }}
+              onNavigate={(url) => view.setPage(url)}
             />
           ) : null}
           {severalPages ? (
