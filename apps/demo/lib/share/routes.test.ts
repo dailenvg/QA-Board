@@ -264,6 +264,23 @@ describe("share routes: permissions", () => {
     expect(legacy.status).toBe(400);
   });
 
+  it("client captures refuse pages on other origins and addresses that aren't web pages", async () => {
+    const share = await create();
+    const capture = (url: string) =>
+      captureRoute.POST(
+        request(`/api/s/${share.token}/capture`, {
+          method: "POST",
+          body: JSON.stringify({ width: 800, url }),
+        }),
+        params({ token: share.token }),
+      );
+    const elsewhere = await capture("https://evil.example/pricing");
+    expect(elsewhere.status).toBe(422);
+    expect(await elsewhere.json()).toEqual({ error: "other-site" });
+    expect((await capture("file:///etc/passwd")).status).toBe(400);
+    expect((await capture(`https://acme.example/${"a".repeat(2048)}`)).status).toBe(400);
+  });
+
   it("serves images privately, unsniffed and uncached", async () => {
     const share = await create();
     await ownerCalls(share, share.ownerKey).upload();

@@ -85,8 +85,9 @@ export function clientApi(token: string) {
     blobUrl: (key: string) => `${base}/blobs/${blobPath(key)}`,
     addComment: (form: FormData) =>
       call<SharedComment>(`${base}/comments`, { method: "POST", body: form }),
-    capture: (width: number, signal: AbortSignal) =>
-      call<SharedSnapshot>(`${base}/capture`, { ...jsonInit("POST", { width }), signal }),
+    /** Captures `url`, a page on the shared project's site, at `width`. */
+    capture: (width: number, url: string, signal: AbortSignal) =>
+      call<SharedSnapshot>(`${base}/capture`, { ...jsonInit("POST", { width, url }), signal }),
   };
 }
 

@@ -116,7 +116,8 @@ export const changeSchema = z.object({
 /** A client's new comment. Status and timestamps are the server's to set. */
 export const clientCommentSchema = z.object(commentFields);
 
-export const captureSchema = z.object({ width: z.number().finite() });
+/** A client's capture: a width, and the page to capture (the project's own when missing). */
+export const captureSchema = z.object({ width: z.number().finite(), url: httpUrl.optional() });
 
 /** `page:<pageId>` (with `:<rev>` once replaced), `snapshot:<id>` or `crop:<commentId>`. */
 export const blobKeySchema = z

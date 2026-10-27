@@ -298,6 +298,52 @@ describe("client writes", () => {
     expect(changes.snapshots).toHaveLength(1);
   });
 
+  it("captures another page of the project's site, without its fragment", async () => {
+    const { services, share } = await shared();
+    const asked: string[] = [];
+    const capture = (url: URL, width: number) => {
+      asked.push(url.href);
+      return Promise.resolve({
+        body: new Uint8Array(JPEG),
+        contentType: "image/jpeg",
+        width,
+        height: 900,
+        scale: 1,
+      });
+    };
+    const page = "https://acme.example/pricing?plan=pro#faq";
+    const added = await captureForClient(services, share, 390, capture, 200, page);
+    expect(asked).toEqual(["https://acme.example/pricing?plan=pro"]);
+    expect(added).toMatchObject({
+      ok: true,
+      value: { width: 390, sourceUrl: "https://acme.example/pricing?plan=pro" },
+    });
+    const changes = await pullChanges(services.store, share, 0);
+    expect(changes.snapshots.map((snapshot) => snapshot.sourceUrl)).toEqual([
+      "https://acme.example/pricing?plan=pro",
+    ]);
+  });
+
+  it("refuses pages on any other origin before capturing anything", async () => {
+    const { services, share } = await shared();
+    const before = await services.store.snapshots(share.id);
+    const capture = () => Promise.reject(new Error("must not capture"));
+    for (const page of [
+      "https://evil.example/",
+      "http://acme.example/",
+      "https://acme.example.evil.example/",
+      "https://user:pass@acme.example/",
+      "file:///etc/passwd",
+    ]) {
+      expect(await captureForClient(services, share, 1024, capture, 200, page)).toEqual({
+        ok: false,
+        status: 422,
+        error: "other-site",
+      });
+    }
+    expect(await services.store.snapshots(share.id)).toEqual(before);
+  });
+
   it("leaves no snapshot without an image when storing the image throws", async () => {
     const { services, share } = await shared();
     const before = await services.store.snapshots(share.id);
