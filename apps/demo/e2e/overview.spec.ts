@@ -8,8 +8,10 @@ import {
   mockFrameCheck,
   newProjectButton,
   openOverview,
+  seedWorkspace,
   sheetLift,
 } from "./squint-fixtures";
+import { WORKSPACE_SEED } from "./workspace-seed";
 
 function overviewLink(page: Page): Locator {
   // The sidebar's: folder pages also have one in their breadcrumb.
@@ -117,17 +119,12 @@ test("creating a project on the Overview stays there and drops it into its folde
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(OVERVIEW_HEADLINE.filled);
   const card = folderCard(page, DEFAULT_FOLDER.name);
   await expect(card.locator(".gf-meta")).toHaveText("1 project");
-  await expect(
-    // The name is built from the sheet's spans, so Chrome may space the commas.
-    card.getByRole("link", { name: /^Homepage\s*,\s*example\.com\s*,\s*Ready to review$/ }),
-  ).toHaveCount(1);
-  // Each sheet's name must contain its visible text (WCAG 2.5.3).
-  const axe = await new AxeBuilder({ page })
-    .include('[data-testid="folder-sheet"]')
-    .withRules(["label-content-name-mismatch"])
-    .analyze();
-  expect(axe.violations).toEqual([]);
+  // A preview of the project in the pocket, not a link of its own: the folder is the one link.
+  await expect(card.getByTestId("folder-sheet").filter({ hasText: "Homepage" })).toHaveCount(1);
+  await expect(card.getByRole("link")).toHaveCount(1);
   await expect(card.locator(".gf-front.gf-bump")).toHaveCount(0);
+  // One folder has no order to choose.
+  await expect(page.getByTestId("sort-menu")).toHaveCount(0);
 
   // A project added while its folder is on screen drops in, and the pocket gives under it.
   await addUrlProject(page, "example.com/pricing", "Pricing");
@@ -180,12 +177,15 @@ test("a folder is one link to its page, with a decorative mascot key and no extr
   await expect(page).toHaveURL(new RegExp(`/f/${DEFAULT_FOLDER.id}$`));
 });
 
-test("hovering a folder fans its projects out, and each one opens", async ({ page, isMobile }) => {
+test("hovering a folder fans its projects out, and a click on one opens the folder", async ({
+  page,
+  isMobile,
+}) => {
   test.skip(isMobile, "Touch has no hover: a tap follows the folder's link.");
   await openOverviewWithFolder(page);
   await addUrlProject(page, "example.com", "Homepage");
   const card = folderCard(page, DEFAULT_FOLDER.name);
-  const sheet = card.getByRole("link", { name: /^Homepage\s*,\s*example\.com/ });
+  const sheet = card.getByTestId("folder-sheet").filter({ hasText: "Homepage" });
 
   await page.mouse.move(0, 0);
   await expect.poll(() => sheetLift(sheet)).toBeGreaterThan(0);
@@ -193,11 +193,11 @@ test("hovering a folder fans its projects out, and each one opens", async ({ pag
   await expect.poll(() => sheetLift(sheet)).toBeLessThan(-40);
 
   await sheet.click({ position: { x: 48, y: 12 } });
-  await expect(page).toHaveURL(/\/p\/[^/]+$/);
-  await expect(page.getByRole("heading", { level: 1, name: "Homepage" })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/f/${DEFAULT_FOLDER.id}$`));
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(DEFAULT_FOLDER.name);
 });
 
-test("Tab moves from the folder to its projects, then its menu, fanning them out", async ({
+test("Tab moves from the folder straight to its menu; focus fans the projects out", async ({
   page,
   isMobile,
 }) => {
@@ -211,25 +211,57 @@ test("Tab moves from the folder to its projects, then its menu, fanning them out
 
   const card = folderCard(page, DEFAULT_FOLDER.name);
   const folderLink = card.getByRole("link", { name: /^Open My projects/ });
-  const sheet = card.getByRole("link", { name: /^Keyboard check/ });
-  await folderLink.focus();
-  if (isMobile) {
-    // Touch screens never fan: the folder is one link, and its page lists every project.
-    await page.keyboard.press("Tab");
-    await expect(card.getByTestId("folder-card-menu")).toBeFocused();
-    await expect(sheet).toHaveAttribute("tabindex", "-1");
-    return;
-  }
+  const sheet = card.getByTestId("folder-sheet").filter({ hasText: "Keyboard check" });
+  // The sheet is a preview: the folder's link is the card's only way in.
+  await expect(card.getByRole("link")).toHaveCount(1);
+  const menu = card.getByTestId("folder-card-menu");
+  // Reached by keyboard, so focus is visible (a programmatic focus after clicks isn't).
+  await menu.focus();
+  await page.keyboard.press("Shift+Tab");
+  await expect(folderLink).toBeFocused();
+  // Touch screens never fan; elsewhere keyboard focus on the folder fans its projects out.
+  if (!isMobile) await expect.poll(() => sheetLift(sheet)).toBeLessThan(-40);
   await page.keyboard.press("Tab");
-  await expect(sheet).toBeFocused();
-  await expect.poll(() => sheetLift(sheet)).toBeLessThan(-40);
-  await page.keyboard.press("Tab");
-  await expect(card.getByTestId("folder-card-menu")).toBeFocused();
+  await expect(menu).toBeFocused();
 
   await page.keyboard.press("Shift+Tab");
-  await expect(sheet).toBeFocused();
+  await expect(folderLink).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/\/p\/[^/]+$/);
+  await expect(page).toHaveURL(new RegExp(`/f/${DEFAULT_FOLDER.id}$`));
+});
+
+test("sorting the Overview's folders reorders them and is remembered after a reload", async ({
+  page,
+}) => {
+  // My projects holds four projects; Client work (one, two folders down) and Café menus (one)
+  // were each updated after them, Café menus last.
+  await seedWorkspace(page, WORKSPACE_SEED);
+  const titles = page.getByTestId("folder-card").locator(".gf-title");
+  const trigger = page.getByTestId("sort-menu");
+  const reverse = page.getByTestId("sort-direction");
+
+  await expect(trigger).toHaveAccessibleName("Sort: Last updated");
+  await expect(reverse).toHaveAccessibleName("Order: Newest first");
+  await expect(titles).toHaveText(["Café menus", "Client work", "My projects"]);
+
+  await trigger.click();
+  await page.getByRole("menuitemradio", { name: "Project count" }).click();
+  await expect(reverse).toHaveAccessibleName("Order: Most first");
+  // Subfolders' projects count; ties go by name.
+  await expect(titles).toHaveText(["My projects", "Café menus", "Client work"]);
+
+  await page.reload();
+  await expect(trigger).toHaveAccessibleName("Sort: Project count");
+  await expect(titles).toHaveText(["My projects", "Café menus", "Client work"]);
+
+  await reverse.click();
+  await expect(reverse).toHaveAccessibleName("Order: Fewest first");
+  await expect(titles).toHaveText(["Café menus", "Client work", "My projects"]);
+  await expect(page.getByTestId("sort-status")).toHaveText("Sorted by project count. Fewest first");
+
+  // Folder pages keep their own order.
+  await page.goto(`/f/${DEFAULT_FOLDER.id}`);
+  await expect(page.getByTestId("sort-menu")).toHaveAccessibleName("Sort: Date");
 });
 
 test("the corner menu renames a folder and protects the last one", async ({ page }) => {
@@ -292,7 +324,7 @@ test("old ?folder= links redirect and unknown folders offer a way back", async (
   await expect(overviewLink(page)).toHaveAttribute("aria-current", "page");
 });
 
-test("stacked folder sheets are not tiny targets, at rest or fanned", async ({
+test("folder sheets are previews, never tiny targets, at rest or fanned", async ({
   page,
   isMobile,
 }) => {
@@ -337,19 +369,25 @@ test("stacked folder sheets are not tiny targets, at rest or fanned", async ({
     await page.goto(path);
     const sheets = page.getByTestId("folder-sheet");
     await expect(sheets.first()).toBeAttached();
-    // Stacked, the sheets aren't tab stops: the folder's link stands for them.
-    await expect(sheets.first()).toHaveAttribute("tabindex", "-1");
-    const atRest = await new AxeBuilder({ page }).withRules(["target-size"]).analyze();
+    // Never tab stops or links of their own: the folder's link stands for them.
+    await expect(sheets.first()).not.toHaveAttribute("href");
+    await expect(sheets.first()).not.toHaveAttribute("tabindex");
+    const atRest = await new AxeBuilder({ page })
+      .withRules(["target-size", "aria-hidden-focus"])
+      .analyze();
     expect(atRest.violations).toEqual([]);
     // Touch screens never fan, so the stack is all there is to check.
     if (isMobile) continue;
 
-    // Keyboard focus on the folder fans the files out and makes them reachable.
-    await page.getByTestId("folder-link").first().focus();
-    await page.keyboard.press("Tab");
-    await expect(sheets.first()).toBeFocused();
+    // Keyboard focus on the folder fans the files out; Tab still goes on to its menu.
+    const folderLink = page.getByTestId("folder-link").first();
+    await folderLink.focus();
     await expect.poll(() => sheetLift(sheets.first())).toBeLessThan(-40);
-    const fanned = await new AxeBuilder({ page }).withRules(["target-size"]).analyze();
+    const fanned = await new AxeBuilder({ page })
+      .withRules(["target-size", "aria-hidden-focus"])
+      .analyze();
     expect(fanned.violations).toEqual([]);
+    await page.keyboard.press("Tab");
+    await expect(page.getByTestId("folder-card-menu").first()).toBeFocused();
   }
 });

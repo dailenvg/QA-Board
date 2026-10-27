@@ -152,9 +152,6 @@
   /* Nothing hangs out of the bottom of the pocket, however tall the stack. */
   clip-path: inset(-400px -400px 10px -400px);
 }
-.gf-sheet-slot {
-  display: contents;
-}
 .gf-sheet {
   all: unset;
   box-sizing: border-box;
@@ -167,9 +164,9 @@
   overflow: hidden;
   cursor: pointer;
   /*
-   * Stacked in the pocket, a sheet shows only a sliver of itself, too small to
-   * aim for (WCAG 2.5.8), so a click or tap there opens the folder instead.
-   * Sheets take the pointer once the fan is out, where each one is a full card.
+   * Stacked in the pocket, a sheet shows only a sliver of itself, so the
+   * pointer passes through to the glass. Once the fan is out the sheets take
+   * it, to rise under it; a click on one opens the folder like the rest.
    */
   pointer-events: none;
   background: linear-gradient(180deg, #ffffff 0%, #f2f2f0 100%);
@@ -205,7 +202,7 @@
     pointer-events: auto;
   }
 }
-/* A file under the pointer or keyboard rises out of the fan. */
+/* A file under the pointer rises out of the fan. */
 @media (hover: hover) {
   .gf-sheet:hover {
     transform: translate(
@@ -219,24 +216,6 @@
       0 22px 40px -12px rgba(10, 12, 20, 0.42);
     transition-delay: 0s;
   }
-}
-/*
- * Sheets sit over the folder's art, so focus is two-tone like the viewer's
- * pins: a cobalt ring between white bands reads on any colour behind it.
- */
-.gf-sheet:focus-visible {
-  transform: translate(
-      calc(var(--gf-jx) + var(--gf-slot) * var(--gf-spread)),
-      calc(var(--gf-lift) + var(--gf-depth) * var(--gf-stack) * -1 - 16px)
-    )
-    rotate(calc(var(--gf-slot) * var(--gf-fan) * 0.6));
-  outline: 2px solid var(--pin-focus);
-  outline-offset: 2px;
-  box-shadow:
-    0 0 0 2px var(--pin-halo),
-    0 0 0 6px var(--pin-halo),
-    0 22px 40px -12px rgba(10, 12, 20, 0.42);
-  transition-delay: 0s;
 }
 .gf-sheet-art {
   max-width: none;
@@ -553,7 +532,7 @@
 /*
  * ---- the key: the folder's mascot, standing on the glass at its bottom right ----
  * No plate: the colored mascot is the key. A hairline and a soft lift keep pale
- * hues (The Daily, Clean Breath) from melting into milk glass; the mascot's own
+ * hues (Clean Breath, Pumpkin) from melting into milk glass; the mascot's own
  * ground shadow sits it on the glass. It is part of the folder's link.
  */
 .gf-key {
@@ -585,7 +564,8 @@
 .gf-root:has(.gf-hit:focus-visible) .gf-key {
   transform: translateY(-3px);
 }
-.gf-root:has(.gf-hit:active) .gf-key {
+/* A press anywhere on the folder (glass, art or files: all the same link) presses the key. */
+.gf-root:has(.gf-stage a:active) .gf-key {
   transform: scale(0.94);
   transition-duration: 0.12s;
 }

@@ -17,15 +17,3 @@
  */
 export const FOLDER_GRID =
   "grid grid-cols-1 justify-items-center gap-x-6 gap-y-12 px-4 pt-2 pb-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 max-lg:[@media(hover:hover)]:pt-6 [@media(hover:none)]:gap-y-6 [@media(hover:none)]:pt-0";
-
-/**
- * FOLDER_GRID's column steps as media queries (Tailwind's sm, lg, xl and 2xl),
- * so the grid can tell which row and column each folder lands in. Keep the two
- * in step.
- */
-export const FOLDER_GRID_COLUMNS = [
-  { query: "(min-width: 96rem)", columns: 5 },
-  { query: "(min-width: 80rem)", columns: 4 },
-  { query: "(min-width: 64rem)", columns: 3 },
-  { query: "(min-width: 40rem)", columns: 2 },
-] as const;

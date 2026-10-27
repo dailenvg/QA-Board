@@ -72,9 +72,9 @@ export interface FolderArt {
 const artCache = new Map<string, FolderArt>();
 
 /**
- * The folder's grid cell picks its color (`paletteForCell`), so neighbours
- * never match; its id picks the style, flow and arrangement, which stay the
- * same for life.
+ * The folder's place among its siblings picks its color (`folderSwatches`),
+ * so it keeps it whatever the sort; its id picks the style, flow and
+ * arrangement, which stay the same for life.
  */
 export function folderArt(folderId: string, swatch: PaletteEntry): FolderArt {
   const key = `${folderId}|${swatch.id}`;

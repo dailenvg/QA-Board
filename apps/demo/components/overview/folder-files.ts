@@ -1,4 +1,3 @@
-import { projectHref } from "@/lib/routes";
 import { projectsInside } from "@/lib/store/folders";
 import { summarize } from "@/lib/store/selectors";
 import type { Project, SquintData } from "@/lib/store/types";
@@ -11,7 +10,6 @@ function toFile(data: SquintData, project: Project): FolderFile {
   return {
     id: project.id,
     name: project.name,
-    href: projectHref(project.id),
     status,
     ...(source.kind === "pages"
       ? {

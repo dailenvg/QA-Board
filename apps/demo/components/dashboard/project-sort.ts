@@ -1,22 +1,18 @@
 import type { ProjectSummary } from "@/lib/store/selectors";
 import type { ProjectStatus } from "@/lib/store/status";
 import { projectKind, type ProjectKind } from "./project-source";
+import {
+  nameCollator,
+  parseSortChoice,
+  type SortChoice,
+  type SortDirection,
+  type SortOptions,
+  type SortSpec,
+} from "./sort-choice";
 
 export type SortKey = "date" | "name" | "status" | "fileType";
-export type SortDirection = "asc" | "desc";
 
-export interface ProjectSort {
-  key: SortKey;
-  direction: SortDirection;
-}
-
-interface SortSpec {
-  label: string;
-  /** Where a key starts when picked: the order people expect from it. */
-  natural: SortDirection;
-  /** The resulting order in words, per direction, for the reverse button's label. */
-  order: Record<SortDirection, string>;
-}
+export type ProjectSort = SortChoice<SortKey>;
 
 /** Menu order. */
 export const SORT_KEYS: readonly SortKey[] = ["date", "name", "status", "fileType"];
@@ -39,17 +35,20 @@ export const SORT_SPECS: Record<SortKey, SortSpec> = {
 /** Matches today's folder page: most recently updated first. */
 export const DEFAULT_SORT: ProjectSort = { key: "date", direction: SORT_SPECS.date.natural };
 
+export const PROJECT_SORT: SortOptions<SortKey> = {
+  keys: SORT_KEYS,
+  specs: SORT_SPECS,
+  fallback: DEFAULT_SORT,
+};
+
 /** What needs a look comes first: open comments, then untouched, then done. */
 const STATUS_RANK: Record<ProjectStatus, number> = { comments: 0, ready: 1, resolved: 2 };
 
 const KIND_RANK: Record<ProjectKind["label"], number> = { Website: 0, Image: 1, PDF: 2 };
 
-/** "Banner 2" before "Banner 10", "apple" beside "Apple", accents read as their letter. */
-const collator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
-
 type Compare = (a: ProjectSummary, b: ProjectSummary) => number;
 
-const byName: Compare = (a, b) => collator.compare(a.project.name, b.project.name);
+const byName: Compare = (a, b) => nameCollator.compare(a.project.name, b.project.name);
 const byDate: Compare = (a, b) => a.project.updatedAt - b.project.updatedAt;
 const newestFirst: Compare = (a, b) => byDate(b, a);
 const byStatus: Compare = (a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status];
@@ -78,23 +77,7 @@ export function sortProjects(
   return [...summaries].sort((a, b) => sign * primary(a, b) || tie(a, b));
 }
 
-function isSortKey(value: unknown): value is SortKey {
-  return typeof value === "string" && (SORT_KEYS as readonly string[]).includes(value);
-}
-
-function isSortDirection(value: unknown): value is SortDirection {
-  return value === "asc" || value === "desc";
-}
-
 /** A stored choice; anything unreadable or out of date falls back to the default. */
 export function parseSort(raw: string | null): ProjectSort {
-  if (!raw) return DEFAULT_SORT;
-  try {
-    const value: unknown = JSON.parse(raw);
-    if (typeof value !== "object" || value === null) return DEFAULT_SORT;
-    const { key, direction } = value as Record<string, unknown>;
-    return isSortKey(key) && isSortDirection(direction) ? { key, direction } : DEFAULT_SORT;
-  } catch {
-    return DEFAULT_SORT;
-  }
+  return parseSortChoice(raw, PROJECT_SORT);
 }

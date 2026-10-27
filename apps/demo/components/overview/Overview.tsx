@@ -1,17 +1,17 @@
 "use client";
 
-import { childFolders } from "@/lib/store/folders";
 import { useWorkspace } from "../dashboard/workspace-context";
-import { FolderGrid } from "./FolderGrid";
 import { OverviewEmpty } from "./OverviewEmpty";
+import { OverviewFolders } from "./OverviewFolders";
 import { OverviewHero } from "./OverviewHero";
 import { OverviewSkeleton } from "./OverviewSkeleton";
 
 /**
  * `/`: the hero, then every top-level folder as a glass folder (its count
- * includes its subfolders' projects). "Empty" means no projects at all; then a
- * short guide replaces the grid, ending in the first step: creating a folder
- * when there are none yet, else adding a project.
+ * includes its subfolders' projects), in the order chosen above them. "Empty"
+ * means no projects at all; then a short guide replaces the grid, ending in
+ * the first step: creating a folder when there are none yet, else adding a
+ * project.
  */
 export function Overview() {
   const workspace = useWorkspace();
@@ -28,16 +28,7 @@ export function Overview() {
           }
         />
       ) : (
-        <section aria-labelledby="folders-overview-heading" className="flex flex-col">
-          <h2 id="folders-overview-heading" className="sr-only">
-            Folders
-          </h2>
-          <FolderGrid
-            workspace={workspace}
-            folders={childFolders(workspace.folders, null)}
-            labelledBy="folders-overview-heading"
-          />
-        </section>
+        <OverviewFolders workspace={workspace} />
       )}
     </>
   );

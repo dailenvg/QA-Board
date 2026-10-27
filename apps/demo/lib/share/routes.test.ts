@@ -264,6 +264,22 @@ describe("share routes: permissions", () => {
     expect(legacy.status).toBe(400);
   });
 
+  it("on Vercel without a database, refuses new shares with a 503 and still serves existing ones", async () => {
+    const share = await create();
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("DATABASE_URL", "");
+    try {
+      const response = await createRoute.POST(
+        request("/api/shares", { method: "POST", body: JSON.stringify(STATE) }),
+      );
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({ error: "storage-unavailable" });
+      expect((await clientCalls(share.token).view()).status).toBe(200);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("serves images privately, unsniffed and uncached", async () => {
     const share = await create();
     await ownerCalls(share, share.ownerKey).upload();

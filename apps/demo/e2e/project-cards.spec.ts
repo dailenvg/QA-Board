@@ -45,7 +45,9 @@ test("each card names its type, keeps single files' names, and passes axe", asyn
     // The type is part of the card link's name, after the project's own.
     const link = card.getByRole("link", { name: new RegExp(`^${name}\\s*,\\s*${type}$`) });
     await expect(link).toHaveCount(1);
-    await expect(card.getByTestId("project-type-tag")).toHaveAttribute("title", type);
+    // The pill shows the type in words; it's hidden from screen readers, who hear it in the link.
+    await expect(card.getByTestId("project-type-tag")).toHaveText(type);
+    await expect(card.getByTestId("project-type-tag")).toHaveAttribute("aria-hidden", "true");
     await expect(card).toContainText(line);
   }
 
