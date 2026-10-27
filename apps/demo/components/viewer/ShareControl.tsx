@@ -56,7 +56,7 @@ async function revokeLink(job: RevokeJob): Promise<void> {
 const CREATE_FAILED = "The link couldn't be created. Check your connection and try again.";
 /** The server has nowhere lasting to keep links (no database on this deployment). */
 const STORAGE_UNAVAILABLE =
-  "Links can't be created on this site yet: it has no database to keep them. Ask whoever runs Squint to connect one.";
+  "Sharing isn't set up on this site yet. It needs a database to store links, so ask whoever runs Squint to connect one.";
 
 /** The owner's Share button and dialog, and the sync that runs while the project is shared. */
 export function ShareControl({ data, project }: ShareControlProps) {

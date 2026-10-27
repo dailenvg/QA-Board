@@ -32,12 +32,12 @@ const FOLDER_SORT_SPECS: Record<FolderSortKey, SortSpec> = {
   },
   name: { label: "Name", natural: "asc", order: { asc: "A to Z", desc: "Z to A" } },
   projects: {
-    label: "Most projects",
+    label: "Project count",
     natural: "desc",
     order: { desc: "Most first", asc: "Fewest first" },
   },
   comments: {
-    label: "Open comments first",
+    label: "Open comments",
     natural: "asc",
     order: { asc: "Open comments first", desc: "Open comments last" },
   },

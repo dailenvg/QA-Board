@@ -360,7 +360,7 @@ test("a server with nowhere lasting to keep links says so instead of creating on
   await page.getByTestId("share-button").click();
   const dialog = page.getByTestId("share-dialog");
   await dialog.getByTestId("create-share-link").click();
-  await expect(dialog).toContainText("it has no database to keep them");
+  await expect(dialog).toContainText("It needs a database to store links");
   await expect(dialog).not.toContainText("Check your connection");
   await expect(dialog.getByTestId("share-url")).toHaveCount(0);
 });

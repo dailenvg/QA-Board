@@ -245,19 +245,19 @@ test("sorting the Overview's folders reorders them and is remembered after a rel
   await expect(titles).toHaveText(["Café menus", "Client work", "My projects"]);
 
   await trigger.click();
-  await page.getByRole("menuitemradio", { name: "Most projects" }).click();
+  await page.getByRole("menuitemradio", { name: "Project count" }).click();
   await expect(reverse).toHaveAccessibleName("Order: Most first");
   // Subfolders' projects count; ties go by name.
   await expect(titles).toHaveText(["My projects", "Café menus", "Client work"]);
 
   await page.reload();
-  await expect(trigger).toHaveAccessibleName("Sort: Most projects");
+  await expect(trigger).toHaveAccessibleName("Sort: Project count");
   await expect(titles).toHaveText(["My projects", "Café menus", "Client work"]);
 
   await reverse.click();
   await expect(reverse).toHaveAccessibleName("Order: Fewest first");
   await expect(titles).toHaveText(["Café menus", "Client work", "My projects"]);
-  await expect(page.getByTestId("sort-status")).toHaveText("Sorted by most projects. Fewest first");
+  await expect(page.getByTestId("sort-status")).toHaveText("Sorted by project count. Fewest first");
 
   // Folder pages keep their own order.
   await page.goto(`/f/${DEFAULT_FOLDER.id}`);

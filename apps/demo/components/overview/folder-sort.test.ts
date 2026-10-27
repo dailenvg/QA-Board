@@ -120,7 +120,7 @@ describe("sortFolders by name", () => {
   });
 });
 
-describe("sortFolders by most projects", () => {
+describe("sortFolders by project count", () => {
   const list = [
     stats("Few", { projects: 1 }),
     stats("Many", { projects: 9 }),
