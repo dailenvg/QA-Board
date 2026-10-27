@@ -74,12 +74,32 @@ describe("snapshots in the reducer", () => {
     expect([...prunableSnapshotIds(data)].sort()).toEqual(["desk-old", "tablet-old"]);
   });
 
+  it("keeps the latest snapshot of each page, at each breakpoint", () => {
+    const pricing = (id: string, createdAt: number, width = 1280): Snapshot => ({
+      ...snap(id, createdAt, "site", width),
+      sourceUrl: "https://example.com/pricing#plans",
+    });
+    const data = withSnapshots(
+      snap("home", 1),
+      pricing("pricing-old", 2),
+      pricing("pricing", 3),
+      pricing("pricing-phone", 4, 390),
+    );
+    expect([...prunableSnapshotIds(data)]).toEqual(["pricing-old"]);
+  });
+
   it("previews a project with its newest desktop snapshot, else its newest one", () => {
     const data = withSnapshots(snap("desk", 1), snap("phone", 2, "site", 390));
     expect(previewSnapshot(data, "site")?.id).toBe("desk");
     const phoneOnly = withSnapshots(snap("phone", 1, "site", 390));
     expect(previewSnapshot(phoneOnly, "site")?.id).toBe("phone");
     expect(previewSnapshot(legacy(), "site")).toBeNull();
+  });
+
+  it("previews a project with its own page before other pages", () => {
+    const other = { ...snap("other", 2), sourceUrl: "https://example.com/pricing" };
+    expect(previewSnapshot(withSnapshots(snap("home", 1), other), "site")?.id).toBe("home");
+    expect(previewSnapshot(withSnapshots(other), "site")?.id).toBe("other");
   });
 
   it("keeps a snapshot whose image a pending Undo holds", () => {

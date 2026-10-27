@@ -1,3 +1,4 @@
+import { pageKey } from "../page-address";
 import { breakpointOf } from "./breakpoints";
 import { pagesOf } from "./pages";
 import type { Snapshot, SquintData } from "./types";
@@ -10,13 +11,15 @@ export function snapshotsFor(data: SquintData, projectId: string): Snapshot[] {
 }
 
 /**
- * The newest snapshot of each project at each breakpoint, keyed by project id
- * and breakpoint: a new mobile capture doesn't replace the desktop one.
+ * The newest snapshot of each page of each project at each breakpoint, keyed
+ * by project id, breakpoint and page: a new mobile capture doesn't replace the
+ * desktop one, and a capture of /pricing doesn't replace the home page's.
  */
 function latestByBreakpoint(snapshots: readonly Snapshot[]): Map<string, Snapshot> {
   const latest = new Map<string, Snapshot>();
   for (const snapshot of snapshots) {
-    const key = `${snapshot.projectId}:${breakpointOf(snapshot.width)}`;
+    const page = pageKey(snapshot.sourceUrl) ?? snapshot.sourceUrl;
+    const key = `${snapshot.projectId}:${breakpointOf(snapshot.width)}:${page}`;
     const current = latest.get(key);
     if (!current || snapshot.createdAt >= current.createdAt) latest.set(key, snapshot);
   }
@@ -24,13 +27,20 @@ function latestByBreakpoint(snapshots: readonly Snapshot[]): Map<string, Snapsho
 }
 
 /**
- * The picture for a website project's card: its newest desktop snapshot, else
- * its newest snapshot at any breakpoint. Null before the first capture.
+ * The picture for a website project's card: the newest desktop snapshot of
+ * its own page, else its newest desktop snapshot of any page, else its newest
+ * snapshot. Null before the first capture.
  */
 export function previewSnapshot(data: SquintData, projectId: string): Snapshot | null {
   const list = snapshotsFor(data, projectId);
+  const project = data.projects.find((entry) => entry.id === projectId);
+  const home = project?.source.kind === "url" ? pageKey(project.source.url) : null;
+  const desktop = list.filter((snapshot) => breakpointOf(snapshot.width) === "desktop");
   return (
-    list.findLast((snapshot) => breakpointOf(snapshot.width) === "desktop") ?? list.at(-1) ?? null
+    desktop.findLast((snapshot) => pageKey(snapshot.sourceUrl) === home) ??
+    desktop.at(-1) ??
+    list.at(-1) ??
+    null
   );
 }
 
