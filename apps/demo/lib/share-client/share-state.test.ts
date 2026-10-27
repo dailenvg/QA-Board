@@ -105,6 +105,16 @@ describe("toShareState", () => {
     expect(localBlobKey("crop:c1", project)).toBe("crop:c1");
   });
 
+  it("round-trips a snapshot of another page of the site, so its comments stay on that page", () => {
+    const site: Project = { ...project, source: { kind: "url", url: "https://acme.example/" } };
+    const pricing: Snapshot = { ...snapshot, sourceUrl: "https://acme.example/pricing?plan=pro" };
+    const shared = toShareState(site, [comment], [pricing]);
+    expect(stateSchema.safeParse(shared).success).toBe(true);
+    const [sharedSnapshot] = shared.snapshots;
+    if (!sharedSnapshot) throw new Error("no snapshot");
+    expect(fromSharedSnapshot(sharedSnapshot, "p1")).toEqual(pricing);
+  });
+
   it("finds each shared page's picture wherever this browser keeps it", () => {
     expect(localBlobKey("page:page-1", project)).toBe("image:p1");
     expect(localBlobKey("page:pg2", project)).toBe("page:pg2");

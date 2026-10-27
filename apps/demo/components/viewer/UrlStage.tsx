@@ -8,7 +8,11 @@ import { FrameView } from "./FrameView";
 import type { ScreenshotHandler } from "./types";
 
 interface UrlStageProps {
+  /** The page to frame. */
   url: string;
+  /** The project's address: the frame follows the site only on its origin. */
+  siteUrl: string;
+  onLocation: ((pageUrl: string) => void) | null;
   projectName: string;
   overlay: ReactNode;
   onScreenshot: ScreenshotHandler | null;
@@ -37,6 +41,8 @@ function decide(check: FrameCheckState, forced: boolean): Decision {
  */
 export function UrlStage({
   url,
+  siteUrl,
+  onLocation,
   projectName,
   overlay,
   onScreenshot,
@@ -73,6 +79,8 @@ export function UrlStage({
           overlay={overlay}
           onScreenshot={onScreenshot}
           commentMode={commentMode}
+          siteUrl={siteUrl}
+          onLocation={onLocation}
         />
       ) : null}
       {decision === "blocked" || decision === "unreachable" ? (

@@ -81,6 +81,17 @@ function pagesList(document: ExportDocument, options: MarkdownOptions): string[]
   ];
 }
 
+/**
+ * A website's pages, when comments sit on more than one: each comment's
+ * **Page** names its own, and this lists them all up front.
+ */
+function sitePagesList(document: ExportDocument): string[] {
+  if (document.project.source.kind !== "url") return [];
+  const pages = [...new Set(document.comments.flatMap((comment) => comment.pageUrl ?? []))];
+  if (pages.length < 2) return [];
+  return ["- **Pages reviewed:**", ...pages.sort().map((page) => `  - ${inlineCode(page)}`)];
+}
+
 function captureWidth(document: ExportDocument): string | null {
   const widths = [...new Set(document.snapshots.map((snapshot) => snapshot.width))];
   if (widths.length === 0) return null;
@@ -103,6 +114,7 @@ function header(document: ExportDocument, options: MarkdownOptions): string[] {
     `- **Project:** ${inlineText(document.project.name)}`,
     sourceLine(document),
     ...pagesList(document, options),
+    ...sitePagesList(document),
     ...(captureWidth(document) ? [captureWidth(document) ?? ""] : []),
     `- **Exported:** ${iso(document.exportedAt)}`,
     `- **Comments:** ${active} active, ${resolved} resolved`,

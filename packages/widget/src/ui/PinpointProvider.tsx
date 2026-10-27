@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { LocationReporter } from "./LocationReporter";
 import type { PinpointWidgetProps } from "./PinpointWidget";
 import { WidgetLoader } from "./WidgetLoader";
 
@@ -11,6 +12,14 @@ export interface PinpointProviderProps extends PinpointWidgetProps {
    * without a `?review=<token>` link.
    */
   enabled?: boolean;
+  /**
+   * Opt-in, separate from `enabled`: when this site is shown inside a review
+   * tool's frame (such as Squint), tell it which page is open, so its comments
+   * follow navigation. Pass `{ targetOrigin }` (recommended) to post only to the
+   * review tool; `true` posts the full address, query included, to any framing
+   * page. Off by default; does nothing when the page isn't framed.
+   */
+  reportLocation?: boolean | { targetOrigin: string };
 }
 
 /**
@@ -20,12 +29,17 @@ export interface PinpointProviderProps extends PinpointWidgetProps {
 export function PinpointProvider({
   children,
   enabled = false,
+  reportLocation = false,
   ...widgetProps
 }: PinpointProviderProps) {
   return (
     <>
       {children}
       {enabled ? <WidgetLoader {...widgetProps} /> : null}
+      {reportLocation === true ? <LocationReporter /> : null}
+      {typeof reportLocation === "object" ? (
+        <LocationReporter targetOrigin={reportLocation.targetOrigin} />
+      ) : null}
     </>
   );
 }

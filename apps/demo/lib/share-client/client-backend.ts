@@ -37,6 +37,8 @@ const NOT_SENT_DEFAULT = "Your comment wasn't sent. Retry in a moment.";
 const REVIEW_CLOSED =
   "Your comment wasn't sent: the review window has closed. Copy your text to keep it.";
 const CAPTURE_CLOSED = "The review window has closed, so new snapshots can't be taken.";
+/** 422 other-site: the page asked for isn't on the shared project's site. */
+const OTHER_SITE = "Only pages on this project's site can be captured in this review.";
 
 interface ClientBackendOptions {
   token: string;
@@ -133,8 +135,8 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
     deleteComment: ownerOnly,
     restoreComment: ownerOnly,
     replaceWithImage: () => Promise.resolve(ownerOnly()),
-    async captureSnapshot(_projectId, _url, width, signal): Promise<CaptureOutcome | null> {
-      const result = await api.capture(width, signal);
+    async captureSnapshot(_projectId, url, width, signal): Promise<CaptureOutcome | null> {
+      const result = await api.capture(width, url, signal);
       if (signal.aborted) return null;
       if (result.ok) {
         store.addSnapshot(result.value);
@@ -156,6 +158,7 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
         return { ok: false, message: CAPTURE_CLOSED };
       }
       if (result.error === "share-full") return { ok: false, message: SNAPSHOTS_FULL };
+      if (result.error === "other-site") return { ok: false, message: OTHER_SITE };
       const code = isCaptureErrorCode(result.error)
         ? result.error
         : result.status === 0

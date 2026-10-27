@@ -298,6 +298,121 @@ describe("client writes", () => {
     expect(changes.snapshots).toHaveLength(1);
   });
 
+  it("captures another page of the project's site, without its fragment", async () => {
+    const { services, share } = await shared();
+    const asked: string[] = [];
+    const capture = (url: URL, width: number) => {
+      asked.push(url.href);
+      return Promise.resolve({
+        body: new Uint8Array(JPEG),
+        contentType: "image/jpeg",
+        width,
+        height: 900,
+        scale: 1,
+      });
+    };
+    const page = "https://acme.example/pricing?plan=pro#faq";
+    const added = await captureForClient(services, share, 390, capture, 200, page);
+    expect(asked).toEqual(["https://acme.example/pricing?plan=pro"]);
+    expect(added).toMatchObject({
+      ok: true,
+      value: { width: 390, sourceUrl: "https://acme.example/pricing?plan=pro" },
+    });
+    const changes = await pullChanges(services.store, share, 0);
+    expect(changes.snapshots.map((snapshot) => snapshot.sourceUrl)).toEqual([
+      "https://acme.example/pricing?plan=pro",
+    ]);
+  });
+
+  it("captures the project's own page at its exact address, fragment and all", async () => {
+    const { services, share } = await shared();
+    const hashRouted = {
+      ...share,
+      project: {
+        ...share.project,
+        source: { kind: "url" as const, url: "https://acme.example/#/checkout" },
+      },
+    };
+    const asked: string[] = [];
+    const capture = (url: URL, width: number) => {
+      asked.push(url.href);
+      return Promise.resolve({
+        body: new Uint8Array(JPEG),
+        contentType: "image/jpeg",
+        width,
+        height: 900,
+        scale: 1,
+      });
+    };
+    for (const page of [null, "https://acme.example/", "https://acme.example/#/cart"]) {
+      const added = await captureForClient(services, hashRouted, 1024, capture, 200, page);
+      expect(added).toMatchObject({
+        ok: true,
+        value: { sourceUrl: "https://acme.example/#/checkout" },
+      });
+    }
+    await captureForClient(services, hashRouted, 1024, capture, 200, "https://acme.example/a#b");
+    expect(asked).toEqual([
+      "https://acme.example/#/checkout",
+      "https://acme.example/#/checkout",
+      "https://acme.example/#/checkout",
+      "https://acme.example/a",
+    ]);
+  });
+
+  it("refuses another page that redirected off the site, but not canonical redirects", async () => {
+    const { services, share } = await shared();
+    const before = await services.store.snapshots(share.id);
+    const landingOn = (finalUrl: string) => (_url: URL, width: number) =>
+      Promise.resolve({
+        body: new Uint8Array(JPEG),
+        contentType: "image/jpeg",
+        width,
+        height: 900,
+        scale: 1,
+        finalUrl,
+      });
+    const go = "https://acme.example/go?to=evil";
+    expect(
+      await captureForClient(services, share, 1024, landingOn("https://evil.example/"), 200, go),
+    ).toEqual({ ok: false, status: 422, error: "other-site" });
+    expect(await services.store.snapshots(share.id)).toEqual(before);
+    for (const final of ["https://www.acme.example/go/", "https://acme.example/elsewhere"]) {
+      const added = await captureForClient(services, share, 1024, landingOn(final), 200, go);
+      expect(added).toMatchObject({ ok: true, value: { sourceUrl: go } });
+    }
+    // The project's own address keeps its owner's choice, wherever it redirects.
+    const own = await captureForClient(
+      services,
+      share,
+      1024,
+      landingOn("https://acme-cdn.example/"),
+      200,
+      null,
+    );
+    expect(own).toMatchObject({ ok: true, value: { sourceUrl: "https://acme.example/" } });
+  });
+
+  it("refuses pages on any other origin before capturing anything", async () => {
+    const { services, share } = await shared();
+    const before = await services.store.snapshots(share.id);
+    const capture = () => Promise.reject(new Error("must not capture"));
+    for (const page of [
+      "https://evil.example/",
+      "http://acme.example/",
+      "https://acme.example.evil.example/",
+      "https://user:pass@acme.example/",
+      "file:///etc/passwd",
+    ]) {
+      expect(await captureForClient(services, share, 1024, capture, 200, page)).toEqual({
+        ok: false,
+        status: 422,
+        error: "other-site",
+      });
+    }
+    expect(await services.store.snapshots(share.id)).toEqual(before);
+  });
+
   it("leaves no snapshot without an image when storing the image throws", async () => {
     const { services, share } = await shared();
     const before = await services.store.snapshots(share.id);

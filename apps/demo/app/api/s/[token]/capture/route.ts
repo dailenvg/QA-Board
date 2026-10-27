@@ -14,8 +14,9 @@ export const maxDuration = 60;
 type Params = { params: Promise<{ token: string }> };
 
 /**
- * `POST { width }`: snapshots the shared project's own address (the client
- * never sends one) through the guarded capture, and adds it to the share.
+ * `POST { width, url? }`: snapshots a page of the shared project's site (`url`,
+ * which must be on the project's origin, else the project's own address)
+ * through the guarded capture, and adds it to the share.
  */
 export async function POST(request: Request, { params }: Params) {
   const { token } = await params;
@@ -24,7 +25,8 @@ export async function POST(request: Request, { params }: Params) {
     if (!body.ok) return body.response;
     try {
       const width = clampWidth(body.value.width);
-      const added = await captureForClient(services, share, width, capture, Date.now());
+      const { url = null } = body.value;
+      const added = await captureForClient(services, share, width, capture, Date.now(), url);
       return added.ok ? json(added.value, 201) : failure(added);
     } catch (error) {
       return captureFailure(error instanceof CaptureError ? error.code : "failed");

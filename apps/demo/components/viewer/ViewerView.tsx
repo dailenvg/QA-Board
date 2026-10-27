@@ -15,6 +15,7 @@ import {
 import { newId } from "@/lib/store/id";
 import { pagesOf } from "@/lib/store/pages";
 import { commentsFor, pageCounts, pinNumbers } from "@/lib/store/selectors";
+import { pageOfComment } from "@/lib/store/site-pages";
 import { countComments, deriveStatus } from "@/lib/store/status";
 import type { Comment, Project, SquintData } from "@/lib/store/types";
 import { useDialogState } from "@/lib/use-dialog-state";
@@ -28,16 +29,18 @@ import { DELETION_EXPLANATION, deletionWhen } from "../ui/deletion-when";
 import type { MenuHandle } from "../ui/Menu";
 import { useToast } from "../ui/ToastProvider";
 import { useViewerBackend, type PendingCrop } from "@/lib/viewer-backend/backend";
-import { BREAKPOINT_LABEL, BreakpointSwitch } from "./BreakpointSwitch";
+import { BreakpointSwitch } from "./BreakpointSwitch";
 import { CanvasLayer } from "./CanvasLayer";
 import { CommentsBody } from "./CommentsBody";
 import { CommentsPanel } from "./CommentsPanel";
 import { ExportMenu } from "./ExportMenu";
-import { PageFilter, type PageScope } from "./PageFilter";
+import { PageAddressBar } from "./PageAddressBar";
+import { PageFilter } from "./PageFilter";
 import { PageStrip } from "./PageStrip";
 import { PinPopover } from "./PinPopover";
 import { commentSurfaceKey, placementOf, surfaceKey } from "./surface";
 import { useCommentActions } from "./use-comment-actions";
+import { useCommentScope } from "./use-comment-scope";
 import { useViewerDraft } from "./use-viewer-draft";
 import { useViewerPage } from "./use-viewer-page";
 import { useViewerSurface } from "./use-viewer-surface";
@@ -71,11 +74,12 @@ interface ViewerViewProps {
 type ScrollRequest = { id: string; target: "pin" | "card"; nonce: number } | null;
 
 /**
- * Viewer layout and state: mode, breakpoint, surface, tab, selection, the open
- * pin popover, draft pin, and comment actions. Changes go through the viewer
- * backend (the owner's store or a shared link's server); on a shared link,
- * moderation controls are hidden. Website comments are listed and pinned per
- * breakpoint; pin numbers stay project-wide, so exports and shared links match.
+ * Viewer layout and state: mode, breakpoint, website page, surface, tab,
+ * selection, the open pin popover, draft pin, and comment actions. Changes go
+ * through the viewer backend (the owner's store or a shared link's server); on
+ * a shared link, moderation controls are hidden. Website comments are listed
+ * and pinned per page and breakpoint; pin numbers stay project-wide, so
+ * exports and shared links match.
  */
 export function ViewerView({
   data,
@@ -97,7 +101,6 @@ export function ViewerView({
   const [draft, setDraft] = useViewerDraft(draftStorage);
   const canvasAreaRef = useRef<HTMLElement>(null);
   const pages = useViewerPage(project, draft?.pageId ?? null, () => canvasAreaRef.current);
-  const [pageScope, setPageScope] = useState<PageScope>("all");
   const view = useViewerSurface(project, data, pages, {
     mode: draft ? "comment" : "browse",
     snapshotId: draft?.snapshotId ?? null,
@@ -107,9 +110,10 @@ export function ViewerView({
   /** The pin whose comment popover is open. */
   const [openId, setOpenId] = useState<string | null>(null);
   // Another page swaps the stage, so it closes an open popover, as mode and breakpoint do.
-  const [shownPageId, setShownPageId] = useState(pages.page?.id);
-  if (shownPageId !== pages.page?.id) {
-    setShownPageId(pages.page?.id);
+  const shownPage = pages.page?.id ?? view.sitePage;
+  const [shownPageId, setShownPageId] = useState(shownPage);
+  if (shownPageId !== shownPage) {
+    setShownPageId(shownPage);
     setOpenId(null);
   }
   const popoverId = useId();
@@ -127,34 +131,16 @@ export function ViewerView({
   const handledScroll = useRef(0);
   const focusCanvasPending = useRef(false);
 
-  const { mode, surface, breakpoint, snapshots, latestOf } = view;
+  const { mode, surface, breakpoint, snapshots, latestOf, sitePage, home } = view;
   const { source } = project;
   const website = source.kind === "url";
   const stageKey = surfaceKey(surface);
   const comments = useMemo(() => commentsFor(data, project.id), [data, project.id]);
   const numbers = useMemo(() => pinNumbers(comments), [comments]);
   const severalPages = pages.total > 1;
-  const pageId = pages.page?.id;
-  /**
-   * The comments at the current breakpoint on websites; on page projects all of them, or
-   * those on the page shown ("This page").
-   */
-  const listed = useMemo(() => {
-    if (website) {
-      return comments.filter((comment) => breakpointOfComment(comment, snapshots) === breakpoint);
-    }
-    return severalPages && pageScope === "page"
-      ? comments.filter((comment) => comment.pageId === pageId)
-      : comments;
-  }, [website, comments, snapshots, breakpoint, severalPages, pageScope, pageId]);
+  const scope = useCommentScope({ project, comments, pages, site: view });
+  const { listed } = scope;
   const perPage = useMemo(() => pageCounts(data, project), [data, project]);
-  const pageNumbers = useMemo(
-    () =>
-      severalPages
-        ? new Map(pagesOf(project).map((page, index) => [page.id, index + 1]))
-        : undefined,
-    [severalPages, project],
-  );
   const onStage = listed.filter((comment) => commentSurfaceKey(comment) === stageKey);
   // Resolved pins only show on the Resolved tab.
   const pins =
@@ -165,11 +151,12 @@ export function ViewerView({
       new Map(
         comments.map((comment) => {
           const at = website ? breakpointOfComment(comment, snapshots) : breakpoint;
-          const latestId = latestOf(at)?.id ?? null;
+          const page = website ? pageOfComment(comment, snapshots, home) : undefined;
+          const latestId = latestOf(at, page)?.id ?? null;
           return [comment.id, placementOf(comment, source.kind, snapshots, latestId)];
         }),
       ),
-    [comments, website, source.kind, snapshots, breakpoint, latestOf],
+    [comments, website, source.kind, snapshots, breakpoint, latestOf, home],
   );
   const counts = countComments(comments);
   const listedCounts = countComments(listed);
@@ -227,7 +214,7 @@ export function ViewerView({
   // before the effect below, so a card that switches pages still scrolls to its pin.
   useEffect(() => {
     canvasAreaRef.current?.scrollTo({ top: 0, left: 0 });
-  }, [pageId]);
+  }, [shownPage]);
 
   // Bring the other half of a selection into view once React has rendered it (and, for a
   // pin on another snapshot, once that snapshot has loaded).
@@ -449,14 +436,8 @@ export function ViewerView({
       now={now}
       listRef={listRef}
       // With comments at another breakpoint (or page), an empty list names this one.
-      scope={
-        comments.length > listed.length
-          ? website
-            ? BREAKPOINT_LABEL[breakpoint]
-            : `page ${pages.number}`
-          : undefined
-      }
-      pageNumbers={pageNumbers}
+      scope={scope.emptyScope}
+      pageOf={scope.pageOf}
       canModerate={owner}
       onSelect={(id) => select(id, "card")}
       onEdit={commentActions.edit}
@@ -515,6 +496,15 @@ export function ViewerView({
       </AnimatePresence>
       <div className="flex min-h-0 flex-1 gap-4">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+          {website ? (
+            <PageAddressBar
+              siteUrl={source.url}
+              page={sitePage}
+              pages={scope.sitePages}
+              counts={scope.siteCounts}
+              onNavigate={(url) => view.setPage(url)}
+            />
+          ) : null}
           {severalPages ? (
             <PageStrip
               pages={pagesOf(project)}
@@ -541,6 +531,14 @@ export function ViewerView({
               onReady={() => setStageVersion((value) => value + 1)}
               capture={view.capture.state}
               onCapture={view.capture.capture}
+              captureUrl={view.capture.url}
+              frame={website ? view.frame : null}
+              // Only Browse follows the site: in Comment mode the frame is hidden, and a site
+              // rewriting its own address there (a ?lang=, dropped utm tags) mustn't swap the
+              // snapshot under an open draft or spend a capture. Nothing heard then is replayed.
+              onLocation={
+                website && surface.kind === "frame" ? (url) => view.setPage(url, "frame") : null
+              }
               frameWidth={website && breakpoint !== "desktop" ? BREAKPOINT_WIDTH[breakpoint] : null}
               onShowLatest={view.showLatest}
               onBrowse={() => setMode("browse")}
@@ -561,14 +559,11 @@ export function ViewerView({
         >
           <div className="flex min-h-0 flex-1 flex-col gap-3">
             {panelNotice && !docked ? panelNotice : null}
-            {severalPages ? (
-              <PageFilter value={pageScope} onChange={setPageScope} number={pages.number} />
+            {scope.several ? (
+              <PageFilter value={scope.scope} onChange={scope.setScope} current={scope.current} />
             ) : null}
-            {/* Like "n projects shown" on folder pages: what "This page" leaves in the list. */}
             <p aria-live="polite" className="sr-only">
-              {severalPages && pageScope === "page"
-                ? `${listed.length === 1 ? "1 comment" : `${listed.length} comments`} on page ${pages.number}`
-                : ""}
+              {scope.announcement}
             </p>
             {commentsBody}
           </div>

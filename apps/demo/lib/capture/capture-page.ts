@@ -27,6 +27,8 @@ export interface CapturedImage {
   height: number;
   /** Image px per page px: 1 unless the page was rendered smaller to fit `CAPTURE_LIMITS.maxBytes`. */
   scale: number;
+  /** Where the page ended up after redirects; missing when an external service doesn't say. */
+  finalUrl?: string;
 }
 
 /**
@@ -164,7 +166,7 @@ async function snapshot(
   page.on("crash", () => log("page crashed"));
   log("page");
   await load(page, url, proxy, log);
-  return shoot(page, width, log);
+  return { ...(await shoot(page, width, log)), finalUrl: page.url() };
 }
 
 /** One capture in its own browser; aborting `signal` closes it, ending any step still waiting. */

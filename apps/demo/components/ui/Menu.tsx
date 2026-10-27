@@ -23,6 +23,10 @@ export interface MenuItem {
   danger?: boolean;
   /** Stays focusable (aria-disabled), so a label that explains why is still read out. */
   disabled?: boolean;
+  /** A small count after the label, such as open comments; hidden at zero. */
+  count?: number;
+  /** What the count is, for screen readers: "3 active comments". */
+  countLabel?: string;
 }
 
 /** Opens a menu from elsewhere, such as a context-menu key on a tree row. */
@@ -258,7 +262,14 @@ export function Menu({
                 } ${item.danger ? "text-danger" : "text-ink"}`}
               >
                 <ItemIcon item={item} />
-                {item.label}
+                <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{item.label}</span>
+                {item.count ? (
+                  <span className="min-w-5 rounded-pill bg-seg px-1.5 text-center text-label font-semibold text-ink-2 tabular-nums">
+                    <span className="sr-only">, </span>
+                    {item.count}
+                    {item.countLabel ? <span className="sr-only"> {item.countLabel}</span> : null}
+                  </span>
+                ) : null}
               </button>
             ))}
           </motion.div>

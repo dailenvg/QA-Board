@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { IMAGE_EXPORT, PAGES_EXPORT, URL_EXPORT } from "@/test/export-fixture";
+import { IMAGE_EXPORT, NEW_SNAPSHOT, PAGES_EXPORT, URL_EXPORT } from "@/test/export-fixture";
 import { buildExportDocument } from "./build-document";
 import { toMarkdown } from "./markdown";
 
@@ -46,6 +46,29 @@ describe("toMarkdown", () => {
     expect(bareMarkdown).not.toContain("![");
     expect(bareMarkdown).toContain("`screenshots/03-cccc3333.png` in the ZIP export");
     expect(bareMarkdown).toContain("Download the ZIP export from Squint to get them.");
+  });
+
+  it("gives each website comment its own page, and lists the pages when there are several", () => {
+    expect(zipMarkdown).not.toContain("**Pages reviewed:**");
+    const about = { ...NEW_SNAPSHOT, id: "snap-about", sourceUrl: "https://acme.example/about" };
+    const comments = URL_EXPORT.comments.map((comment) =>
+      comment.snapshotId === NEW_SNAPSHOT.id ? { ...comment, snapshotId: about.id } : comment,
+    );
+    const document = buildExportDocument({
+      ...URL_EXPORT,
+      comments,
+      snapshots: [...URL_EXPORT.snapshots, about],
+    });
+    expect(document.comments.map((comment) => [comment.number, comment.pageUrl])).toEqual([
+      [1, "https://acme.example/pricing?plan=pro"],
+      [3, "https://acme.example/about"],
+      [2, "https://acme.example/pricing?plan=pro"],
+    ]);
+    const markdown = toMarkdown(document, { withFiles: true });
+    expect(markdown).toContain(
+      "- **Pages reviewed:**\n  - `https://acme.example/about`\n  - `https://acme.example/pricing?plan=pro`\n",
+    );
+    expect(markdown).toContain("- **Page:** `https://acme.example/about`");
   });
 
   it("describes image projects by file and size", () => {

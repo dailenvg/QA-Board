@@ -8,6 +8,7 @@ import { createSecret, createShareId, hashSecret, isSecretShape, secretMatches }
 import { digest } from "./digest";
 import { pageBlobKey } from "./keys";
 import { isExpired, rescheduledExpiry, shareExpiresAt } from "./retention";
+import { pageAddress, sameSite } from "../page-address";
 import { reviewClosed, reviewDeadline } from "./review-window";
 import type {
   ClientView,
@@ -539,9 +540,13 @@ export async function addClientComment(
 }
 
 /**
- * Captures the shared project's own address (never one the client sends) and
- * adds it as a snapshot every viewer of the share can comment on. Refused once
- * the review window is over.
+ * Captures a page of the shared project's site, `pageUrl` or (when null) the
+ * project's own address, and adds it as a snapshot every viewer of the share
+ * can comment on. The project's own page is captured at the project's exact
+ * address, `#fragment` included (see `pageAddress`), as the owner's are.
+ * A page on any other origin is refused before anything is
+ * fetched; the capture's own address guard still applies to every page.
+ * Refused once the review window is over.
  */
 export async function captureForClient(
   services: ShareServices,
@@ -549,20 +554,28 @@ export async function captureForClient(
   width: number,
   capture: (url: URL, width: number) => Promise<CapturedImage>,
   now: number,
+  pageUrl: string | null = null,
 ): Promise<Outcome<SharedSnapshot>> {
   if (reviewClosed(share.createdAt, now)) return REVIEW_CLOSED;
   const { source } = share.project;
   if (source.kind !== "url") return fail(422, "not-a-website");
+  const target = pageAddress(pageUrl, source.url);
+  if (!target) return fail(422, "other-site");
   if ((await services.store.snapshots(share.id)).length >= SHARE_LIMITS.snapshots) {
     return fail(413, "share-full");
   }
-  const image = await capture(new URL(source.url), width);
+  const image = await capture(new URL(target), width);
+  // Another page of the site that redirected off it (an open redirect) isn't the site's page.
+  // The project's own address keeps whatever its owner chose, redirects and all.
+  if (target !== source.url && image.finalUrl && !sameSite(target, image.finalUrl)) {
+    return fail(422, "other-site");
+  }
   const snapshot: SharedSnapshot = {
     id: randomUUID(),
     width: image.width,
     height: image.height,
     createdAt: now,
-    sourceUrl: source.url,
+    sourceUrl: target,
     ...(image.scale < 1 ? { scale: image.scale } : {}),
   };
   // Like a comment's crop: the row goes in pending (invisible) first, so cleanup counts the

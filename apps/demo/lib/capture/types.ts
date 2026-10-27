@@ -24,6 +24,8 @@ export const CAPTURE_HEADERS = {
   height: "x-capture-height",
   /** Image px per page px; below 1 when a big page was rendered smaller to fit. */
   scale: "x-capture-scale",
+  /** Optional: the address the page ended up at after redirects. */
+  finalUrl: "x-capture-final-url",
 } as const;
 
 export const CAPTURE_ERROR_CODES = [

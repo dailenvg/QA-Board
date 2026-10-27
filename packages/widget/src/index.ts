@@ -2,6 +2,13 @@
 
 export { PinpointProvider, type PinpointProviderProps } from "./ui/PinpointProvider";
 export type { PinpointWidgetProps } from "./ui/PinpointWidget";
+export { LocationReporter, type LocationReporterProps } from "./ui/LocationReporter";
+export {
+  LOCATION_MESSAGE,
+  reportLocation,
+  type LocationMessage,
+  type ReportLocationOptions,
+} from "./core/location";
 
 export {
   PinpointRequestError,

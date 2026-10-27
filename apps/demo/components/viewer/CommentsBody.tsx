@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import type { RefObject } from "react";
 import { staggerGroup, useRevealVariants } from "@/lib/motion";
 import type { Comment } from "@/lib/store/types";
-import { CommentCard, type CommentCardActions } from "./CommentCard";
+import { CommentCard, type CardPage, type CommentCardActions } from "./CommentCard";
 import type { Placement } from "./surface";
 import type { CommentTab } from "./types";
 
@@ -25,8 +25,8 @@ interface CommentsBodyProps extends CommentCardActions {
    * "Nothing resolved on Mobile yet").
    */
   scope?: string;
-  /** Page numbers by page id, on projects with several pages: each card says its page. */
-  pageNumbers?: ReadonlyMap<string, number>;
+  /** On projects (and websites) with several pages: the page each card says it's on. */
+  pageOf?: (comment: Comment) => CardPage | null;
 }
 
 function emptyCopy(tab: CommentTab, total: number, scope: string | undefined) {
@@ -57,7 +57,7 @@ export function CommentsBody({
   now,
   listRef,
   scope,
-  pageNumbers,
+  pageOf,
   ...actions
 }: CommentsBodyProps) {
   const variants = useRevealVariants();
@@ -83,7 +83,7 @@ export function CommentsBody({
               comment={comment}
               number={numbers.get(comment.id) ?? 0}
               placement={placements.get(comment.id) ?? null}
-              pageNumber={(comment.pageId && pageNumbers?.get(comment.pageId)) || null}
+              page={pageOf?.(comment) ?? null}
               canModerate={canModerate}
               selected={comment.id === selectedId}
               now={now}

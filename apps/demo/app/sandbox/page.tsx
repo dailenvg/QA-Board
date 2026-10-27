@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: "Sample page" };
 export default function SandboxPage() {
   return (
     <>
-      <SandboxHeader />
+      <SandboxHeader current="/sandbox" />
       <main id="main">
         <section
           id="overview"
