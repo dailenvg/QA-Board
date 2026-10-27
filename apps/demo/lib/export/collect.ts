@@ -138,7 +138,11 @@ export async function collectExport(
     project,
     comments,
     snapshots,
-    assets: { crops: new Set(crops.keys()), snapshots: stored.assets, pages: pages.assets },
+    assets: {
+      crops: new Map([...crops].map(([id, blob]) => [id, blob.type])),
+      snapshots: stored.assets,
+      pages: pages.assets,
+    },
     exportedAt,
   });
   const files = new Map([...pages.blobs, ...stored.blobs]);

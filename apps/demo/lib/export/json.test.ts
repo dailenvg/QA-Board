@@ -26,7 +26,7 @@ describe("toJson", () => {
       body: hostile?.body,
       edited: true,
       resolvedAt: null,
-      screenshot: { file: "screenshots/03-cccc3333.png" },
+      screenshot: { file: "screenshots/03-cccc3333.jpg" },
     });
     expect(parsed.comments[2]?.resolvedAt).toBe("2026-10-24T09:00:40.000Z");
   });

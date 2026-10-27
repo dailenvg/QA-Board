@@ -11,8 +11,12 @@ describe("paths", () => {
   });
 
   it("pads screenshot numbers so they sort in pin order", () => {
-    expect(screenshotPath(3, "1a2b-3c4d-5e6f", 12)).toBe("screenshots/03-1a2b3c4d.png");
-    expect(screenshotPath(7, "abc", 120)).toBe("screenshots/007-abc.png");
+    expect(screenshotPath(3, "1a2b-3c4d-5e6f", 12, "image/jpeg")).toBe(
+      "screenshots/03-1a2b3c4d.jpg",
+    );
+    expect(screenshotPath(7, "abc", 120, "image/jpeg")).toBe("screenshots/007-abc.jpg");
+    // Crops made before JPEG keep their PNG extension.
+    expect(screenshotPath(7, "abc", 120, "image/png")).toBe("screenshots/007-abc.png");
     expect(snapshotPath("snap-1", "image/jpeg")).toBe("snapshots/snap-1.jpg");
     expect(snapshotPath("../x", "image/png")).toBe("snapshots/x.png");
   });
@@ -20,8 +24,8 @@ describe("paths", () => {
   it("names page images by page number, and screenshots by the page they're on", () => {
     expect(pagePath({ number: 2, total: 3 }, "image/webp")).toBe("pages/02.webp");
     expect(pagePath({ number: 7, total: 120 }, "image/jpeg")).toBe("pages/007.jpg");
-    expect(screenshotPath(3, "1a2b-3c4d", 12, { number: 2, total: 50 })).toBe(
-      "screenshots/03-p02-1a2b3c4d.png",
+    expect(screenshotPath(3, "1a2b-3c4d", 12, "image/jpeg", { number: 2, total: 50 })).toBe(
+      "screenshots/03-p02-1a2b3c4d.jpg",
     );
   });
 });

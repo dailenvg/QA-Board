@@ -12,7 +12,7 @@ import {
   showComments,
 } from "./squint-fixtures";
 
-const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47];
+const JPEG_SIGNATURE = [0xff, 0xd8, 0xff];
 const HOSTILE = "# Not a heading\n```\n[x](javascript:alert(1))";
 
 /** Picks a format from the Export menu and returns the downloaded file's name and bytes. */
@@ -26,8 +26,8 @@ async function exportAs(page: Page, item: string): Promise<{ name: string; bytes
   return { name: download.suggestedFilename(), bytes: await readFile(path) };
 }
 
-function startsWithPng(bytes: Uint8Array | undefined): boolean {
-  return PNG_SIGNATURE.every((byte, index) => bytes?.[index] === byte);
+function startsWithJpeg(bytes: Uint8Array | undefined): boolean {
+  return JPEG_SIGNATURE.every((byte, index) => bytes?.[index] === byte);
 }
 
 test("a website project exports its comments as ZIP, Markdown and JSON", async ({
@@ -63,7 +63,7 @@ test("a website project exports its comments as ZIP, Markdown and JSON", async (
   expect(zip.name).toMatch(new RegExp(`^launch-page${date.source}\\.zip$`));
   const files = unzipSync(new Uint8Array(zip.bytes));
   const names = Object.keys(files).sort();
-  const screenshot = names.find((name) => /^screenshots\/01-[a-z\d]{8}\.png$/.test(name));
+  const screenshot = names.find((name) => /^screenshots\/01-[a-z\d]{8}\.jpg$/.test(name));
   expect(screenshot).toBeDefined();
   expect(names).toEqual(
     expect.arrayContaining([
@@ -72,7 +72,7 @@ test("a website project exports its comments as ZIP, Markdown and JSON", async (
       expect.stringMatching(/^snapshots\/.+\.png$/),
     ]),
   );
-  expect(startsWithPng(screenshot ? files[screenshot] : undefined)).toBe(true);
+  expect(startsWithJpeg(screenshot ? files[screenshot] : undefined)).toBe(true);
 
   const markdown = strFromU8(files["comments.md"] ?? new Uint8Array());
   expect(markdown).toContain("# Squint review: Launch page");
@@ -126,7 +126,7 @@ test("an image project's ZIP carries its page and each comment's screenshot", as
   const names = Object.keys(files);
   expect(names).toEqual(expect.arrayContaining(["comments.md", "comments.json"]));
   expect(names.some((name) => /^pages\/01\.(webp|jpg)$/.test(name))).toBe(true);
-  expect(names.some((name) => /^screenshots\/01-p01-.+\.png$/.test(name))).toBe(true);
+  expect(names.some((name) => /^screenshots\/01-p01-.+\.jpg$/.test(name))).toBe(true);
   const markdown = strFromU8(files["comments.md"] ?? new Uint8Array());
   expect(markdown).toContain("- **Source:** image `checkout.png` (");
   expect(markdown).toMatch(/of page 1 = x \d+ px, y \d+ px on a \d+ × \d+ px image/);

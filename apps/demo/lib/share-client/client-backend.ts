@@ -1,5 +1,6 @@
 import { CAPTURE_MESSAGES } from "../capture/messages";
 import { isCaptureErrorCode } from "../capture/types";
+import { extensionFor } from "../export/paths";
 import { cleanName } from "../store/actions";
 import type { Result } from "../store/store";
 import type { Comment } from "../store/types";
@@ -62,7 +63,7 @@ function commentForm(comment: Comment, blob: Blob | null, crop: PendingCrop | nu
       ...(blob && crop ? { crop: { rect: crop.rect } } : {}),
     }),
   );
-  if (blob) form.set("crop", blob, "crop.png");
+  if (blob) form.set("crop", blob, `crop.${extensionFor(blob.type)}`);
   return form;
 }
 

@@ -26,18 +26,20 @@ export interface PageNumber {
 }
 
 /**
- * `screenshots/03-1a2b3c4d.png`: pin number, padded so files sort in pin
- * order. A pin on a page names it too: `screenshots/03-p02-1a2b3c4d.png`.
+ * `screenshots/03-1a2b3c4d.jpg`: pin number, padded so files sort in pin
+ * order. A pin on a page names it too: `screenshots/03-p02-1a2b3c4d.jpg`.
+ * The extension follows the crop's type (older crops are PNG).
  */
 export function screenshotPath(
   number: number,
   commentId: string,
   total: number,
+  mimeType: string,
   page: PageNumber | null = null,
 ): string {
   const shortId = commentId.replace(/[^a-z\d]/gi, "").slice(0, 8) || "comment";
   const onPage = page ? `p${padded(page.number, page.total)}-` : "";
-  return `screenshots/${padded(number, total)}-${onPage}${shortId}.png`;
+  return `screenshots/${padded(number, total)}-${onPage}${shortId}.${extensionFor(mimeType)}`;
 }
 
 export function snapshotPath(snapshotId: string, mimeType: string): string {

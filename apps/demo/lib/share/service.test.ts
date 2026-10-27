@@ -275,6 +275,18 @@ describe("client writes", () => {
     ).toMatchObject({ ok: false, status: 422 });
   });
 
+  it("stores a JPEG crop as JPEG", async () => {
+    const { services, share } = await shared();
+    const input = {
+      ...clientComment("k-1"),
+      crop: { rect: { x: 0, y: 0, width: 10, height: 10 } },
+    };
+    expect(await addClientComment(services, share, input, JPEG, 200)).toMatchObject({ ok: true });
+    expect(await readBlob(services, share, "crop:k-1")).toMatchObject({
+      contentType: "image/jpeg",
+    });
+  });
+
   it("captures only the shared project's own address", async () => {
     const { services, share } = await shared();
     const asked: string[] = [];

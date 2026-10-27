@@ -80,7 +80,10 @@ export const URL_EXPORT: ExportInput = {
   comments: URL_COMMENTS,
   snapshots: [NEW_SNAPSHOT, OLD_SNAPSHOT],
   assets: {
-    crops: new Set(["bbbb2222-old", "cccc3333-new"]),
+    crops: new Map([
+      ["bbbb2222-old", "image/png"],
+      ["cccc3333-new", "image/jpeg"],
+    ]),
     snapshots: new Map([
       ["snap-new", { file: "snapshots/snap-new.jpg" }],
       ["snap-old", { omitted: "too-large" as const }],
@@ -121,7 +124,7 @@ export const IMAGE_EXPORT: ExportInput = {
   ],
   snapshots: [],
   assets: {
-    crops: new Set(),
+    crops: new Map(),
     snapshots: new Map(),
     pages: new Map([["page-1", { width: 1200, height: 900, file: "pages/01.png", omitted: null }]]),
   },
@@ -164,7 +167,10 @@ export const PAGES_EXPORT: ExportInput = {
   comments: [pageComment("eeee5555", "c3", T0 + 100), pageComment("ffff6666", "b2", T0 + 200)],
   snapshots: [],
   assets: {
-    crops: new Set(["eeee5555", "ffff6666"]),
+    crops: new Map([
+      ["eeee5555", "image/jpeg"],
+      ["ffff6666", "image/jpeg"],
+    ]),
     snapshots: new Map(),
     pages: new Map([
       ["a1", { width: null, height: null, file: null, omitted: "too-large" as const }],
