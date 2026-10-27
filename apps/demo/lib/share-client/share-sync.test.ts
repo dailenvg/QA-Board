@@ -22,7 +22,8 @@ function fakeStorage(): Storage {
 
 const SITE = "https://acme.example/";
 const STATE: ShareState = {
-  project: { name: "Acme", source: { kind: "url", url: SITE } },
+  // As the owner's browser pushes project p1 (see `ownerData`).
+  project: { name: "Acme", source: { kind: "url", url: SITE }, createdAt: 0 },
   snapshots: Array.from({ length: 5 }, (_, index) => ({
     id: `s${index}`,
     width: 1280,

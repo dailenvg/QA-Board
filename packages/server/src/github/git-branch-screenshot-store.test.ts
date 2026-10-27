@@ -114,4 +114,67 @@ describe("createGitBranchScreenshotStore", () => {
     expect(github.rest.git.createRef).toHaveBeenCalledOnce();
     expect(github.rest.git.updateRef).toHaveBeenCalledOnce();
   });
+
+  it("removes the files it saved for the given pins in one commit, and nothing else", async () => {
+    const github = createFakeGitHub();
+    const store = createGitBranchScreenshotStore({
+      octokit: github.octokit,
+      owner: "owner",
+      repo: "site",
+    });
+    const a = await store.save({ branch: "main", pinId: "a", screenshot });
+    const b = await store.save({ branch: "main", pinId: "b", screenshot });
+    const files = () => {
+      const head = github.state.refs.get("heads/pinpoint-assets") ?? "";
+      const tree = github.state.commits.get(head)?.tree ?? "";
+      return [...(github.state.trees.get(tree)?.keys() ?? [])].sort();
+    };
+    expect(files()).toEqual(["main/a.png", "main/b.png"]);
+    const commits = github.rest.git.createCommit.mock.calls.length;
+
+    const removed = await store.remove?.([
+      { branch: "main", pinId: "a", url: a },
+      // Another pin's URL: not what this store would have made for pin "c".
+      { branch: "main", pinId: "c", url: b },
+      { branch: "main", pinId: "b", url: "https://example.com/main/b.png" },
+      { branch: "main", pinId: "gone", url: a.replace("/a.png", "/gone.png") },
+    ]);
+
+    expect(removed).toBe(1);
+    expect(files()).toEqual(["main/b.png"]);
+    expect(github.rest.git.createCommit).toHaveBeenCalledTimes(commits + 1);
+    expect(github.rest.git.createTree).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        tree: [{ path: "main/a.png", mode: "100644", type: "blob", sha: null }],
+      }),
+    );
+  });
+
+  it("commits nothing when none of the files are there, or the branch isn't", async () => {
+    const github = createFakeGitHub();
+    const store = createGitBranchScreenshotStore({
+      octokit: github.octokit,
+      owner: "owner",
+      repo: "site",
+    });
+    const url = "https://github.com/owner/site/blob/pinpoint-assets/main/a.png?raw=true";
+    expect(await store.remove?.([{ branch: "main", pinId: "a", url }])).toBe(0);
+    await store.save({ branch: "main", pinId: "b", screenshot });
+    expect(await store.remove?.([{ branch: "main", pinId: "a", url }])).toBe(0);
+    expect(github.rest.git.createCommit).toHaveBeenCalledOnce();
+  });
+
+  it("retries a removal when the ref moved", async () => {
+    const github = createFakeGitHub();
+    const store = createGitBranchScreenshotStore({
+      octokit: github.octokit,
+      owner: "owner",
+      repo: "site",
+    });
+    const url = await store.save({ branch: "main", pinId: "a", screenshot });
+    github.state.refConflicts = 1;
+
+    expect(await store.remove?.([{ branch: "main", pinId: "a", url }])).toBe(1);
+    expect(github.rest.git.updateRef).toHaveBeenCalledTimes(2);
+  });
 });

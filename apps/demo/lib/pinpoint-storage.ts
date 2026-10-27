@@ -10,6 +10,7 @@ const globalForPinpoint = globalThis as typeof globalThis & {
 
 /** Waits for migrations before every call, so the first request never races the schema. */
 function afterMigrations(storage: StorageAdapter, ready: Promise<unknown>): StorageAdapter {
+  const expire = storage.expire?.bind(storage);
   return {
     listPins: async (params) => {
       await ready;
@@ -27,6 +28,12 @@ function afterMigrations(storage: StorageAdapter, ready: Promise<unknown>): Stor
       await ready;
       return storage.resolvePin(params);
     },
+    ...(expire && {
+      expire: async (cutoff: number, deadline?: number) => {
+        await ready;
+        return expire(cutoff, deadline);
+      },
+    }),
   };
 }
 

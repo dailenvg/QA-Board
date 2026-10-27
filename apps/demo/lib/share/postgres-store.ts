@@ -17,6 +17,7 @@ interface ShareRow {
   project: SharedProject;
   created_at: string | number;
   updated_at: string | number;
+  expires_at: string | number;
 }
 
 interface ItemRow<T> {
@@ -34,7 +35,7 @@ interface BlobRow {
   blob_url: string | null;
 }
 
-const SHARE_COLUMNS = "id, token_hash, owner_key_hash, project, created_at, updated_at";
+const SHARE_COLUMNS = "id, token_hash, owner_key_hash, project, created_at, updated_at, expires_at";
 
 function toRecord(row: ShareRow): ShareRecord {
   return {
@@ -44,6 +45,7 @@ function toRecord(row: ShareRow): ShareRecord {
     project: row.project,
     createdAt: Number(row.created_at),
     updatedAt: Number(row.updated_at),
+    expiresAt: Number(row.expires_at),
   };
 }
 
@@ -92,7 +94,7 @@ export function createPostgresStore(db: Queryable): ShareStore {
   return {
     async create(record) {
       await db.query(
-        `INSERT INTO squint_shares (${SHARE_COLUMNS}) VALUES ($1, $2, $3, $4::jsonb, $5, $6)`,
+        `INSERT INTO squint_shares (${SHARE_COLUMNS}) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7)`,
         [
           record.id,
           record.tokenHash,
@@ -100,21 +102,30 @@ export function createPostgresStore(db: Queryable): ShareStore {
           JSON.stringify(record.project),
           record.createdAt,
           record.updatedAt,
+          record.expiresAt,
         ],
       );
     },
     byId: (id) => one("id", id),
     byTokenHash: (tokenHash) => one("token_hash", tokenHash),
-    async setProject(id, project, at) {
+    async setProject(id, project, at, expiresAt) {
       await db.query(
-        "UPDATE squint_shares SET project = $2::jsonb, updated_at = $3 WHERE id = $1",
-        [id, JSON.stringify(project), at],
+        `UPDATE squint_shares SET project = $2::jsonb, updated_at = $3, expires_at = $4
+         WHERE id = $1`,
+        [id, JSON.stringify(project), at, expiresAt],
       );
     },
     async remove(id) {
       const found = await locations(id);
       await db.query("DELETE FROM squint_shares WHERE id = $1", [id]);
       return found;
+    },
+    async expiredIds(now, limit) {
+      const { rows } = await db.query<{ id: string }>(
+        "SELECT id FROM squint_shares WHERE expires_at <= $1 ORDER BY expires_at, id LIMIT $2",
+        [now, limit],
+      );
+      return rows.map((row) => row.id);
     },
     snapshots: (id, options) =>
       list<SharedSnapshot>(

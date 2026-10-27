@@ -4,6 +4,7 @@ import pendingComments from "../../migrations/003_squint_share_pending_comments.
 import commentClaims from "../../migrations/004_squint_share_comment_claims.sql";
 import pendingSnapshots from "../../migrations/005_squint_share_pending_snapshots.sql";
 import pages from "../../migrations/006_squint_share_pages.sql";
+import expiresAt from "../../migrations/007_squint_shares_expires_at.sql";
 
 /** The slice of `pg.Pool` the share store uses (PGlite matches it in tests). */
 export interface Queryable {
@@ -18,6 +19,7 @@ export const MIGRATIONS: ReadonlyArray<{ id: string; sql: string }> = [
   { id: "004_squint_share_comment_claims", sql: commentClaims },
   { id: "005_squint_share_pending_snapshots", sql: pendingSnapshots },
   { id: "006_squint_share_pages", sql: pages },
+  { id: "007_squint_shares_expires_at", sql: expiresAt },
 ];
 
 /**

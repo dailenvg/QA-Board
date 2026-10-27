@@ -37,6 +37,7 @@ describe("client store", () => {
       snapshots: [],
       comments: [{ ...COMMENT, id: "k", snapshotId: undefined, pageId: "p2" }],
       reviewEndsAt: VIEW.reviewEndsAt,
+      expiresAt: VIEW.expiresAt,
     };
     const { data, project } = toViewerData(createClientStore(view).getServerSnapshot());
     expect(project.source).toEqual({

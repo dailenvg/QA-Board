@@ -8,6 +8,7 @@ import {
 } from "../storage";
 import type { Pin } from "../types";
 import { decodePinComment, encodePinComment } from "./codec";
+import { expireGitHubPins } from "./expiry";
 import {
   createGitBranchScreenshotStore,
   DEFAULT_ASSETS_BRANCH,
@@ -33,6 +34,8 @@ export interface GitHubStorageOptions {
   assetsBranch?: string;
   /** Read cache lifetime per instance. Defaults to 15 s; writes invalidate it. */
   cacheTtlMs?: number;
+  /** Pause between writes in `expire`, as GitHub asks of bulk mutations. Defaults to 1000 ms. */
+  writeIntervalMs?: number;
   now?: () => number;
 }
 
@@ -42,6 +45,7 @@ interface StoredPin {
 }
 
 const DEFAULT_CACHE_TTL_MS = 15_000;
+const DEFAULT_WRITE_INTERVAL_MS = 1_000;
 
 function byCreatedAt(a: StoredPin, b: StoredPin): number {
   return a.pin.createdAt.localeCompare(b.pin.createdAt);
@@ -67,7 +71,9 @@ export function createGitHubStorage(options: GitHubStorageOptions): StorageAdapt
           ...ref,
           branch: options.assetsBranch ?? DEFAULT_ASSETS_BRANCH,
         }));
-  const cache = new TtlCache<StoredPin[]>(options.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS, options.now);
+  const now = options.now ?? Date.now;
+  const cache = new TtlCache<StoredPin[]>(options.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS, now);
+  const writeIntervalMs = options.writeIntervalMs ?? DEFAULT_WRITE_INTERVAL_MS;
   let login: Promise<string> | null = null;
 
   function trustedLogin(): Promise<string> {
@@ -186,6 +192,20 @@ export function createGitHubStorage(options: GitHubStorageOptions): StorageAdapt
       return update(branch, pinId, (pin) =>
         pin.resolved ? pin : { ...pin, resolved: true, resolvedAt, resolvedBy },
       );
+    },
+
+    /** See `expireGitHubPins`: deletes old pin comments and screenshots, closes emptied issues. */
+    async expire(cutoff, deadline = Infinity) {
+      const context = {
+        octokit,
+        ref,
+        author: await trustedLogin(),
+        screenshots,
+        now,
+        pause: () => new Promise<void>((resolve) => setTimeout(resolve, writeIntervalMs)),
+        forget: (branch: string) => cache.delete(branch),
+      };
+      return expireGitHubPins(context, cutoff, deadline);
     },
   };
 }

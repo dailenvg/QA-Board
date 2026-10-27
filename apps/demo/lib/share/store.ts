@@ -18,9 +18,15 @@ export interface ShareStore {
   create(record: ShareRecord): Promise<void>;
   byId(id: string): Promise<ShareRecord | null>;
   byTokenHash(tokenHash: string): Promise<ShareRecord | null>;
-  setProject(id: string, project: SharedProject, at: number): Promise<void>;
+  /** Replaces the project, and the share's deletion date (`expiresAt`) with it. */
+  setProject(id: string, project: SharedProject, at: number, expiresAt: number): Promise<void>;
   /** Deletes the share and everything under it; returns where its blobs lived. */
   remove(id: string): Promise<BlobLocation[]>;
+  /**
+   * Shares whose `expiresAt` is at or before `now` (epoch ms), soonest first,
+   * at most `limit`: what the daily expiry deletes.
+   */
+  expiredIds(now: number, limit: number): Promise<string[]>;
 
   /**
    * Confirmed snapshots and comments only: pending ones are invisible to every

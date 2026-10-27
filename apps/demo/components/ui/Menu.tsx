@@ -27,7 +27,8 @@ export interface MenuItem {
 
 /** Opens a menu from elsewhere, such as a context-menu key on a tree row. */
 export interface MenuHandle {
-  open: () => void;
+  /** `from`: the control that asked, which gets focus back when the menu closes. */
+  open: (from?: HTMLElement | null) => void;
 }
 
 /** Plain and radio items alike. */
@@ -88,9 +89,12 @@ export function Menu({
   const menuId = useId();
   const variants = usePopVariants();
   const showReason = explaining && Boolean(disabledReason);
+  /** Set when `MenuHandle.open` came from another control; the trigger clears it. */
+  const openedFrom = useRef<HTMLElement | null>(null);
 
-  const openMenu = () => {
+  const openMenu = (from: HTMLElement | null = null) => {
     if (disabledReason) return;
+    openedFrom.current = from;
     setExplaining(false);
     setOpen(true);
   };
@@ -120,7 +124,10 @@ export function Menu({
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [showReason]);
 
-  const focusBack = () => (returnFocus?.() ?? trigger.current)?.focus();
+  const focusBack = () => {
+    const from = openedFrom.current?.isConnected ? openedFrom.current : null;
+    (from ?? returnFocus?.() ?? trigger.current)?.focus();
+  };
 
   const close = () => {
     setOpen(false);
@@ -171,6 +178,7 @@ export function Menu({
             setExplaining((value) => !value);
             return;
           }
+          openedFrom.current = null;
           setExplaining(false);
           setOpen((value) => !value);
         }}
@@ -185,6 +193,7 @@ export function Menu({
           if (disabledReason) return;
           if (!open && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
             event.preventDefault();
+            openedFrom.current = null;
             setOpen(true);
           }
         }}

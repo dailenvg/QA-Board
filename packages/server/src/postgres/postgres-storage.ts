@@ -7,6 +7,7 @@ import {
 } from "../storage";
 import type { Pin } from "../types";
 import {
+  EXPIRE_PINS,
   GET_PIN,
   INSERT_PIN,
   INSERT_REPLY,
@@ -118,6 +119,12 @@ export function createPostgresStorage(options: PostgresStorageOptions): StorageA
       if (!rowCount) throw new PinNotFoundError(pinId);
       await mirrored("resolvePin", (target) => target.resolvePin(params));
       return getPin(branch, pinId);
+    },
+
+    /** Not mirrored: a mirror keeps its own copy and its own retention. */
+    async expire(cutoff) {
+      const { rowCount } = await pool.query(EXPIRE_PINS, [new Date(cutoff).toISOString()]);
+      return { expired: rowCount ?? 0, done: true };
     },
   };
 }

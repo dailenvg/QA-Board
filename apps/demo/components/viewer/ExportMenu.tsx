@@ -1,17 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type Ref } from "react";
 import { useBlobSource, type BlobSource } from "@/lib/blob-store/blob-source";
 import { exportProject, type ExportFormat } from "@/lib/export/export-project";
 import type { Project, SquintData } from "@/lib/store/types";
 import { buttonClass } from "../ui/button-styles";
-import { Menu } from "../ui/Menu";
+import { Menu, type MenuHandle } from "../ui/Menu";
 import { useToast, type ToastInput } from "../ui/ToastProvider";
 
 interface ExportMenuProps {
   data: SquintData;
   project: Project;
   commentCount: number;
+  /** Opens this menu from elsewhere, such as the deletion notice's Export button. */
+  handle?: Ref<MenuHandle>;
 }
 
 const NO_COMMENTS = "Add a comment first. There's nothing to export yet.";
@@ -46,7 +48,7 @@ function runExport(job: ExportRun): void {
 }
 
 /** Top-bar Export menu: a ZIP with screenshots, or bare Markdown or JSON. */
-export function ExportMenu({ data, project, commentCount }: ExportMenuProps) {
+export function ExportMenu({ data, project, commentCount, handle }: ExportMenuProps) {
   const toast = useToast();
   const blobs = useBlobSource();
   const [busy, setBusy] = useState(false);
@@ -61,6 +63,7 @@ export function ExportMenu({ data, project, commentCount }: ExportMenuProps) {
         icon="download"
         text={busy ? "Exporting…" : "Export"}
         testId="export-menu"
+        handle={handle}
         disabledReason={commentCount === 0 ? NO_COMMENTS : busy ? BUSY : null}
         // Phones: the popup anchors to the top bar's right edge, not the trigger, so it can't
         // run off the left side of a 375px screen.

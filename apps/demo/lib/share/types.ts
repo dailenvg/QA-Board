@@ -30,6 +30,8 @@ export type SharedSource =
 export interface SharedProject {
   name: string;
   source: SharedSource;
+  /** When the owner created the project; the share is deleted 30 days later (see `retention.ts`). */
+  createdAt?: number;
 }
 
 export interface SharedSnapshot {
@@ -89,6 +91,12 @@ export interface ShareRecord {
   project: SharedProject;
   createdAt: number;
   updatedAt: number;
+  /**
+   * When the share is deleted for good (epoch ms): `shareExpiresAt(project,
+   * createdAt)`, held back by `rescheduledExpiry` when a push moves it sooner.
+   * From then on it answers like a revoked share.
+   */
+  expiresAt: number;
 }
 
 export type BlobLocation = { kind: "inline"; bytes: Uint8Array } | { kind: "vercel"; url: string };
@@ -107,6 +115,8 @@ export interface ClientView {
   comments: SharedComment[];
   /** When the review window closes (epoch ms): after it, clients can only read. */
   reviewEndsAt: number;
+  /** When the share is deleted for good (epoch ms). */
+  expiresAt: number;
 }
 
 /** The owner's pull: client additions after `since`, and the new cursor. */
@@ -114,6 +124,8 @@ export interface ShareChanges {
   snapshots: SharedSnapshot[];
   comments: SharedComment[];
   cursor: number;
+  /** When the share is deleted for good (epoch ms). */
+  expiresAt: number;
 }
 
 /** The owner's answer to creating a share. Token and owner key are shown this once. */
@@ -124,6 +136,8 @@ export interface CreatedShare {
   /** The owner's secret for every owner route; only its hash is stored. */
   ownerKey: string;
   missingBlobs: string[];
+  /** When the share is deleted for good (epoch ms). */
+  expiresAt: number;
 }
 
 /** What the server holds, by content digest, so the owner can send only what changed. */
@@ -132,6 +146,8 @@ export interface ShareManifest {
   snapshots: Array<{ id: string; digest: string }>;
   comments: Array<{ id: string; digest: string }>;
   missingBlobs: string[];
+  /** When the share is deleted for good (epoch ms). */
+  expiresAt: number;
 }
 
 /** One batch of owner changes (see `changeSchema`). */

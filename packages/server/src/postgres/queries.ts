@@ -41,3 +41,6 @@ WHERE id = $1 AND branch = $2`;
 export const SET_SCREENSHOT_URL = `UPDATE pinpoint_pins
 SET screenshot_url = $2
 WHERE id = $1 AND screenshot_url IS NULL`;
+
+/** Replies go with their pin (`ON DELETE CASCADE`). */
+export const EXPIRE_PINS = `DELETE FROM pinpoint_pins WHERE created_at <= $1::timestamptz`;

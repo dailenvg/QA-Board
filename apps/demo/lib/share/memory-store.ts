@@ -67,15 +67,22 @@ export function createMemoryStore(): ShareStore {
       done(
         [...shares.values()].find((entry) => entry.record.tokenHash === tokenHash)?.record ?? null,
       ),
-    setProject(id, project, at) {
+    setProject(id, project, at, expiresAt) {
       const entry = shares.get(id);
-      if (entry) entry.record = { ...entry.record, project, updatedAt: at };
+      if (entry) entry.record = { ...entry.record, project, updatedAt: at, expiresAt };
       return done(undefined);
     },
     remove(id) {
       const entry = shares.get(id);
       shares.delete(id);
       return done([...(entry?.blobs.values() ?? [])].map((blob) => blob.location));
+    },
+    expiredIds(now, limit) {
+      const expired = [...shares.values()]
+        .map((entry) => entry.record)
+        .filter((record) => record.expiresAt <= now)
+        .sort((a, b) => a.expiresAt - b.expiresAt || a.id.localeCompare(b.id));
+      return done(expired.slice(0, limit).map((record) => record.id));
     },
     snapshots(id, options) {
       const entry = shares.get(id);

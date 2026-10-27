@@ -65,7 +65,8 @@ describe("share routes when storage fails", () => {
 
   it("covers owner routes and link creation too", async () => {
     const store = createMemoryStore();
-    const created = await createShare({ store, blobs: inlineBackend }, STATE, 1);
+    // Created now: an owner route opens only a share that hasn't expired.
+    const created = await createShare({ store, blobs: inlineBackend }, STATE, Date.now());
     const broken: ShareStore = {
       ...store,
       setProject: () => Promise.reject(new Error("database down")),

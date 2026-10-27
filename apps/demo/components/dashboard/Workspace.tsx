@@ -31,6 +31,7 @@ import { Sidebar } from "./Sidebar";
 import { SidebarSkeleton } from "./SidebarSkeleton";
 import { WorkspaceToolbar } from "./WorkspaceToolbar";
 import { WorkspaceContext, type Workspace as WorkspaceValue } from "./workspace-context";
+import { LocalExpiry } from "../app-state/LocalExpiry";
 import { Revocations } from "../app-state/Revocations";
 
 interface ReadyStore {
@@ -50,6 +51,7 @@ export function Workspace({ children }: { children: ReactNode }) {
   return (
     <>
       <Revocations />
+      <LocalExpiry />
       <SearchQueryProvider>
         <WorkspaceShell store={state.status === "ready" ? state : null}>{children}</WorkspaceShell>
       </SearchQueryProvider>

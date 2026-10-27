@@ -140,12 +140,16 @@ The demo picks storage from the environment: GitHub when `GITHUB_TOKEN` and `GIT
 
 Use a fine-grained personal access token scoped to the one repository, with:
 
-| Permission    | Access         | Used for                                                    |
-| ------------- | -------------- | ----------------------------------------------------------- |
-| Contents      | Read and write | Committing screenshots to the `pinpoint-assets` branch.     |
-| Issues        | Read and write | Creating and editing comments, creating the fallback issue. |
-| Pull requests | Read           | Finding the open PR for the branch.                         |
-| Metadata      | Read           | Required by GitHub for every fine-grained token.            |
+| Permission    | Access         | Used for                                                                          |
+| ------------- | -------------- | --------------------------------------------------------------------------------- |
+| Contents      | Read and write | Committing and deleting screenshots on the `pinpoint-assets` branch.              |
+| Issues        | Read and write | Creating, editing and deleting comments; creating and closing the fallback issue. |
+| Pull requests | Read           | Finding the open PR for the branch, and PRs pinpoint commented on (for expiry).   |
+| Metadata      | Read           | Required by GitHub for every fine-grained token.                                  |
+
+Pins on pull requests are ordinary issue comments, written and deleted through the Issues API, so Pull requests stays read-only.
+
+**Expiry.** GitHub storage deletes pins 30 days after they were created whenever its `expire()` runs; in the demo, that's the daily `/api/cron/expire` (see [Data retention](apps/demo/README.md#data-retention)). It deletes pinpoint's own pin comments and their screenshots on `pinpoint-assets`, and closes (never deletes) `[pinpoint] <branch>` issues with no pins left. Comments, issues and files pinpoint didn't create are never touched. Expiry reads only pinpoint's own threads: its `[pinpoint] <branch>` issues, open or closed, and the PRs the trusted login commented on, found through GitHub issue search (`is:pr commenter:<login>`). Search has its own rate limit; hitting it ends the run with `done: false`, and the next run carries on. No extra token scope is needed. Unverified: with a GitHub App token the search uses `commenter:app/<slug>`, which hasn't been tested against live GitHub.
 
 pinpoint only trusts comments authored by the token's own account, resolved once through `GET /user`. Comments from anyone else that contain a pinpoint block are ignored, so reviewers cannot forge pins by pasting the hidden JSON.
 

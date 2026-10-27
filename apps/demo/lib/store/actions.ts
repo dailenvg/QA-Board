@@ -2,6 +2,7 @@ import { deleteBlobs, putBlob } from "../blob-store/blob-store";
 import { pageImageKey } from "../blob-store/keys";
 import { emitSquiggy } from "../squiggy/events";
 import { scheduleBlobSweep } from "./blob-sweep";
+import { expiredProjects, retentionStart } from "./expiry";
 import { newId } from "./id";
 import { fitPicture } from "../image";
 import { fitPages, pageByteBudget } from "../page-budget";
@@ -272,6 +273,28 @@ export async function replaceWithImage(
 
 export const deleteProject = (id: string) =>
   deleted("project", commit({ type: "project/delete", id, at: Date.now() }));
+
+/**
+ * Deletes the projects past retention at `now` (see `expiry.ts`) the way a
+ * manual delete does, minus the Undo: comments, snapshots and images go (the
+ * blob sweep removes the images). A share link isn't revoked: it's dropped
+ * here first, so the delete queues nothing, and the server deletes the share
+ * on its own date (`shareExpiresAt`), the one its reviewers were shown, which
+ * can be later than this browser's. Squiggy isn't told: nobody pressed
+ * anything. Returns the deleted projects.
+ */
+export function deleteExpiredProjects(now: number = Date.now()): Project[] {
+  const state = getSnapshot();
+  if (state.status !== "ready") return [];
+  const deleted: Project[] = [];
+  for (const project of expiredProjects(state.data, retentionStart(now), now)) {
+    if (!dispatch({ type: "project/unshare", id: project.id }).ok) continue;
+    if (!dispatch({ type: "project/delete", id: project.id, at: now }).ok) continue;
+    deleted.push(project);
+  }
+  if (deleted.length > 0) scheduleBlobSweep();
+  return deleted;
+}
 
 /** Undo for `deleteProject`: pass the project and the comments and snapshots it had. */
 export const restoreProject = (project: Project, comments: Comment[], snapshots: Snapshot[]) =>

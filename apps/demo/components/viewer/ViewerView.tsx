@@ -1,6 +1,6 @@
 "use client";
 
-import { useReducedMotion } from "motion/react";
+import { AnimatePresence, useReducedMotion } from "motion/react";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { RESOLVED_HOP } from "../brand/mascot/moods";
 import { toPagePx } from "@/lib/crop/geometry";
@@ -23,6 +23,9 @@ import { useNow } from "@/lib/use-now";
 import { useShortcut } from "@/lib/use-shortcut";
 import { useTimedFlag } from "@/lib/use-timed-flag";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { DeletionNotice } from "../ui/DeletionNotice";
+import { DELETION_EXPLANATION, deletionWhen } from "../ui/deletion-when";
+import type { MenuHandle } from "../ui/Menu";
 import { useToast } from "../ui/ToastProvider";
 import { useViewerBackend, type PendingCrop } from "@/lib/viewer-backend/backend";
 import { BREAKPOINT_LABEL, BreakpointSwitch } from "./BreakpointSwitch";
@@ -61,6 +64,8 @@ interface ViewerViewProps {
   draftStorage?: DraftStorage;
   /** Why new comments are off, such as a shared link's closed review window. Reading still works. */
   commentLocked?: string;
+  /** When this project is deleted (epoch ms); a notice shows under the top bar for its last 5 days. */
+  expiresAt?: number;
 }
 
 type ScrollRequest = { id: string; target: "pin" | "card"; nonce: number } | null;
@@ -81,6 +86,7 @@ export function ViewerView({
   panelNote,
   draftStorage,
   commentLocked,
+  expiresAt,
 }: ViewerViewProps) {
   const toast = useToast();
   const backend = useViewerBackend();
@@ -114,6 +120,7 @@ export function ViewerView({
   const [celebrating, celebrate] = useTimedFlag(CELEBRATION_MS);
   const deleting = useDialogState<Comment>();
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const exportMenuRef = useRef<MenuHandle>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -172,6 +179,9 @@ export function ViewerView({
   );
   const originalUrl = source.kind === "url" ? source.url : (source.referenceUrl ?? null);
   const stageDraft = draft?.surfaceKey === stageKey ? draft : null;
+  const deletion = expiresAt === undefined ? null : deletionWhen(expiresAt, now);
+  // The owner's notice offers Export (the top bar's menu, so formats and progress stay in one place).
+  const canExport = owner && comments.length > 0;
 
   /** Mode and breakpoint changes swap the stage, so they close an open popover. */
   const setMode = (next: ViewerMode) => {
@@ -477,11 +487,32 @@ export function ViewerView({
         }
         actions={
           <>
-            <ExportMenu data={data} project={project} commentCount={comments.length} />
+            <ExportMenu
+              data={data}
+              project={project}
+              commentCount={comments.length}
+              handle={exportMenuRef}
+            />
             {actions}
           </>
         }
       />
+      <AnimatePresence>
+        {deletion ? (
+          <DeletionNotice
+            key="deletion-notice"
+            when={deletion}
+            explanation={
+              !owner
+                ? DELETION_EXPLANATION.client
+                : canExport
+                  ? DELETION_EXPLANATION.owner
+                  : DELETION_EXPLANATION.ownerEmpty
+            }
+            onExport={canExport ? (opener) => exportMenuRef.current?.open(opener) : undefined}
+          />
+        ) : null}
+      </AnimatePresence>
       <div className="flex min-h-0 flex-1 gap-4">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
           {severalPages ? (

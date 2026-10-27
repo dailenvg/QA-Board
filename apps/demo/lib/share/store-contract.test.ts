@@ -8,6 +8,7 @@ import { projectSchema } from "./schemas";
 import { createMemoryStore } from "./memory-store";
 import { MIGRATIONS, migrate, type Queryable } from "./migrate";
 import { createPostgresStore } from "./postgres-store";
+import { shareExpiresAt } from "./retention";
 import { inlineBackend, type BlobBackend } from "./blob-backend";
 import type { ShareServices } from "./server";
 import {
@@ -62,8 +63,38 @@ describe.each(stores)("%s share store", (_name, make) => {
     expect(await store.byTokenHash(RECORD.tokenHash)).toEqual(RECORD);
     expect(await store.byTokenHash("c".repeat(64))).toBeNull();
     const project = { name: "Renamed", source: RECORD.project.source };
-    await store.setProject(RECORD.id, project, 9);
-    expect(await store.byId(RECORD.id)).toMatchObject({ project, updatedAt: 9 });
+    await store.setProject(RECORD.id, project, 9, 12);
+    expect(await store.byId(RECORD.id)).toMatchObject({ project, updatedAt: 9, expiresAt: 12 });
+  });
+
+  it("lists shares expired by `now`, soonest first, up to the limit", async () => {
+    const store = await make();
+    /** 2026-10-27T00:00:00Z: real epoch ms, as `Date.now()` gives. */
+    const NOW = Date.UTC(2026, 9, 27);
+    const DAY = 86_400_000;
+    const shares: Array<[string, number]> = [
+      ["later", NOW + 1],
+      ["edge", NOW],
+      ["first", NOW - 10 * DAY],
+      ["second", NOW - 5 * DAY],
+      ["next-month", NOW + 30 * DAY],
+    ];
+    for (const [index, [id, expiresAt]] of shares.entries()) {
+      await store.create({
+        ...RECORD,
+        id,
+        tokenHash: String(index).repeat(64),
+        createdAt: NOW - DAY,
+        expiresAt,
+      });
+    }
+    expect(await store.expiredIds(NOW, 2)).toEqual(["first", "second"]);
+    expect(await store.expiredIds(NOW, 100)).toEqual(["first", "second", "edge"]);
+    // A push moves the date, and the query with it.
+    await store.setProject("later", RECORD.project, NOW, NOW - DAY);
+    expect(await store.expiredIds(NOW, 100)).toEqual(["first", "second", "later", "edge"]);
+    await store.remove("first");
+    expect(await store.expiredIds(NOW, 1)).toEqual(["second"]);
   });
 
   it("keeps origin and seq when an upsert replaces a row, and refuses taken ids on insert", async () => {
@@ -214,6 +245,7 @@ describe("migrate", () => {
       "004_squint_share_comment_claims",
       "005_squint_share_pending_snapshots",
       "006_squint_share_pages",
+      "007_squint_shares_expires_at",
     ]);
     expect(await migrate(db)).toEqual([]);
   });
@@ -257,7 +289,7 @@ describe("migrate", () => {
       [PNG],
     );
 
-    expect(await migrate(db)).toEqual(["006_squint_share_pages"]);
+    expect(await migrate(db)).toEqual(["006_squint_share_pages", "007_squint_shares_expires_at"]);
     const store = createPostgresStore(db);
     const project = (await store.byId("old"))?.project;
     expect(project).toEqual({
@@ -301,7 +333,9 @@ describe("migrate", () => {
     const [local] = parsed.data.projects;
     if (!local) throw new Error("no project");
     const pushed = toShareState(local, parsed.data.comments, []);
-    expect(digest(pushed.project)).toBe(digest(project));
+    // Apart from the project's creation time, which browsers now add (pushed once, for retention).
+    const { createdAt: _created, ...pushedProject } = pushed.project;
+    expect(digest(pushedProject)).toBe(digest(project));
     expect(pushed.comments.map(digest)).toEqual(comments.map(digest));
 
     // Running it again changes nothing.
@@ -309,6 +343,135 @@ describe("migrate", () => {
     await db.query(sql ?? "");
     expect((await store.byId("old"))?.project).toEqual(project);
     expect((await store.comments("old")).map((row) => row.item)).toEqual(comments);
+  });
+
+  /** A database migrated up to 006, as one was before 007 shipped. */
+  async function before007(): Promise<Queryable> {
+    const db = adapt(new PGlite());
+    await db.query(`CREATE TABLE squint_migrations (
+      id text PRIMARY KEY,
+      applied_at timestamptz NOT NULL DEFAULT now()
+    )`);
+    for (const migration of MIGRATIONS.slice(0, 6)) {
+      await db.query(migration.sql);
+      await db.query("INSERT INTO squint_migrations (id) VALUES ($1)", [migration.id]);
+    }
+    return db;
+  }
+
+  const DAY = 86_400_000;
+  const insertShare = "INSERT INTO squint_shares VALUES ($1, $2, $3, $4, $5, $5)";
+
+  /** Saves a share made at `sharedAt` whose project says it was created at `createdAt`. */
+  async function legacyShare(db: Queryable, id: string, createdAt: unknown, sharedAt: number) {
+    const project = { ...STATE.project, createdAt };
+    const hash = digest(id);
+    await db.query(insertShare, [id, hash, hash, JSON.stringify(project), sharedAt]);
+  }
+
+  it("007 backfills when each share expires, by the same rule as the server", async () => {
+    const db = await before007();
+    // Links dated after the migration runs, so its deploy-time floor never decides here: this
+    // compares the steady-state rule alone (the next test covers the floor).
+    const SHARED = Date.UTC(2100, 9, 10);
+    const CREATED = Date.UTC(2100, 9, 1);
+    const cases: Record<string, unknown> = {
+      ms: CREATED,
+      // Over 25 days before the link: the 5-day notice floor decides.
+      ancient: SHARED - 40 * DAY,
+      seconds: Math.floor(CREATED / 1000),
+      future: SHARED + 1,
+      fraction: CREATED + 0.5,
+      text: String(CREATED),
+      null: null,
+      huge: 1e30,
+      none: undefined,
+    };
+    for (const [id, createdAt] of Object.entries(cases)) {
+      await legacyShare(db, id, createdAt, SHARED);
+    }
+
+    expect(await migrate(db)).toEqual(["007_squint_shares_expires_at"]);
+    const store = createPostgresStore(db);
+    const stored: Record<string, number | undefined> = {};
+    const expected: Record<string, number> = {};
+    for (const [id, createdAt] of Object.entries(cases)) {
+      stored[id] = (await store.byId(id))?.expiresAt;
+      expected[id] = shareExpiresAt({ createdAt } as { createdAt?: number }, SHARED);
+    }
+    expect(stored).toEqual(expected);
+    const fromLink = SHARED + 30 * DAY;
+    expect(stored).toEqual({
+      ms: CREATED + 30 * DAY,
+      ancient: SHARED + 5 * DAY,
+      seconds: fromLink,
+      future: fromLink,
+      fraction: fromLink,
+      text: fromLink,
+      null: fromLink,
+      huge: fromLink,
+      none: fromLink,
+    });
+
+    // The expiry query can use the index.
+    await db.query("SET enable_seqscan = off");
+    const plan = await db.query<{ "QUERY PLAN": string }>(
+      "EXPLAIN SELECT id FROM squint_shares WHERE expires_at <= 5 ORDER BY expires_at, id LIMIT 100",
+    );
+    expect(plan.rows.map((row) => row["QUERY PLAN"]).join("\n")).toContain(
+      "squint_shares_expires_at_idx",
+    );
+
+    // Running it again changes nothing.
+    const sql = MIGRATIONS.find(
+      (migration) => migration.id === "007_squint_shares_expires_at",
+    )?.sql;
+    await db.query(sql ?? "");
+    expect((await store.byId("ms"))?.expiresAt).toBe(CREATED + 30 * DAY);
+  });
+
+  it("007 gives shares already old when it runs 5 days' notice from then", async () => {
+    const db = await before007();
+    const now = Date.now();
+    // Shared 60 days ago; shared 27 days ago, 3 days from its 30; shared yesterday.
+    await legacyShare(db, "stale", now - 61 * DAY, now - 60 * DAY);
+    await legacyShare(db, "nearly", now - 27 * DAY, now - 27 * DAY);
+    await legacyShare(db, "recent", now - 2 * DAY, now - DAY);
+
+    const from = Date.now();
+    expect(await migrate(db)).toEqual(["007_squint_shares_expires_at"]);
+    // Postgres rounds its clock to the nearest ms, so up to 1 ms past `Date.now()`.
+    const to = Date.now() + 1;
+
+    const store = createPostgresStore(db);
+    for (const id of ["stale", "nearly"]) {
+      const expiresAt = (await store.byId(id))?.expiresAt ?? 0;
+      expect(expiresAt).toBeGreaterThanOrEqual(from + 5 * DAY);
+      expect(expiresAt).toBeLessThanOrEqual(to + 5 * DAY);
+    }
+    // A share with more than 5 days left keeps the server's own date.
+    expect((await store.byId("recent"))?.expiresAt).toBe(
+      shareExpiresAt({ createdAt: now - 2 * DAY }, now - DAY),
+    );
+  });
+
+  it("007 lets a deployment that doesn't send expires_at still create shares", async () => {
+    const db = await before007();
+    await migrate(db);
+
+    const from = Date.now();
+    await db.query(
+      "INSERT INTO squint_shares (id, token_hash, owner_key_hash, project, created_at, updated_at) VALUES ('bare', 'x', 'y', '{}', 1, 1)",
+    );
+    const to = Date.now() + 1;
+
+    // 30 days from the insert, like a share the current code makes.
+    const expiresAt = (await createPostgresStore(db).byId("bare"))?.expiresAt ?? 0;
+    expect(expiresAt).toBeGreaterThanOrEqual(from + 30 * DAY);
+    expect(expiresAt).toBeLessThanOrEqual(to + 30 * DAY);
+    await expect(
+      db.query("UPDATE squint_shares SET expires_at = NULL WHERE id = 'bare'"),
+    ).rejects.toThrow(/expires_at/);
   });
 });
 

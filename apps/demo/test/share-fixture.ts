@@ -1,3 +1,4 @@
+import { shareExpiresAt } from "@/lib/share/retention";
 import { reviewDeadline } from "@/lib/share/review-window";
 import type {
   ClientView,
@@ -41,10 +42,15 @@ export const RECORD: ShareRecord = {
   project: STATE.project,
   createdAt: 1,
   updatedAt: 1,
+  expiresAt: shareExpiresAt(STATE.project, 1),
 };
 
 /** What a client of `RECORD` sees. */
-export const VIEW: ClientView = { ...STATE, reviewEndsAt: reviewDeadline(RECORD.createdAt) };
+export const VIEW: ClientView = {
+  ...STATE,
+  reviewEndsAt: reviewDeadline(RECORD.createdAt),
+  expiresAt: RECORD.expiresAt,
+};
 
 /** The smallest valid PNG and JPEG headers, padded: enough for type sniffing. */
 export const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);

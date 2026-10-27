@@ -82,9 +82,44 @@ When Squiggy has something specific to say, its line replaces the hero's subline
 
 Every other Squiggy (the comment panel's tabs, folder keys, empty states and error pages) keeps its own fixed or contextual mood.
 
+## Data retention
+
+Projects are deleted 30 days after they were created: shared copies on the server, and the owner's own projects in their browser (`lib/share/retention.ts`).
+
+- **Notice.** From 5 days before, the viewer shows a "Deletes on Nov 3" notice and the project's card shows a "Deletes Nov 3" pill. The owner's notice offers **Export** once there are comments. In the last 24 hours it counts down like the review window.
+- **Minimum notice.** Nothing is deleted before its notice has shown for 5 days. A share is deleted 30 days after its project was created, or 5 days after its link was created if that's later. Shares that existed before migration 007 also get at least 5 days from when that migration runs, even if they were already past 30 days. The owner's projects go 30 days after they were created, or 5 days after this browser first loaded a build with retention (`squint:retention-start`) if that's later, so older projects still get their full notice.
+- **In the browser.** The owner's expired projects are deleted when the workspace loads and each time the tab comes back into view, and a toast says so (`lib/store/expiry.ts`). This doesn't revoke a shared link: the link keeps working until the server's own deletion date (the "Deletes on" date reviewers were shown), which can be later than the browser's, and the daily cleanup then deletes it. Deleting a project yourself still revokes its link once Undo is no longer offered.
+- **Shared links.** An expired link stops working right away and answers 404, even before the cleanup deletes it.
+- **Rolling deploys.** `expires_at` defaults to 30 days from insert, so an older deployment sharing the database can still create shares.
+- **Daily cleanup.** Vercel Cron calls `GET /api/cron/expire` once a day (`vercel.json`). It deletes expired shares, deletes Blob files a failed delete left behind once they're 31 days old, and deletes pinpoint pins 30 days old in Postgres or GitHub storage (pins get no notice). Each step runs on its own, so one failing doesn't stop the others. When a run hits its time limit, the next one carries on.
+- **`CRON_SECRET`.** The route only runs with `Authorization: Bearer $CRON_SECRET`, which Vercel Cron sends. Without `CRON_SECRET` it answers 503 and nothing expires; with a missing or wrong header it answers 401.
+- **Previews.** Vercel Cron only runs on production deployments. To run the cleanup on a preview, call it yourself:
+
+  ```sh
+  curl -H "Authorization: Bearer $CRON_SECRET" https://<preview-url>/api/cron/expire
+  ```
+
+- **Response.** One result per step:
+
+  ```json
+  {
+    "shares": 2,
+    "blobs": 0,
+    "pins": null,
+    "done": true,
+    "failed": {
+      "shares": false,
+      "blobs": false,
+      "pins": false
+    }
+  }
+  ```
+
+  Each count is how many it deleted, or `null` when the step was skipped (no Blob store, or pin storage that can't expire) or failed. `done` is false when time ran out or a step failed. Any failed step makes the response a 500.
+
 ## Environment
 
-Squint reads four optional variables. Copy `.env.example` to `.env.local` to set them locally.
+Squint reads five optional variables. Copy `.env.example` to `.env.local` to set them locally.
 
 | Variable                   | When set                                                                                               | When unset                                                                         |
 | -------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
@@ -92,6 +127,7 @@ Squint reads four optional variables. Copy `.env.example` to `.env.local` to set
 | `BLOB_READ_WRITE_TOKEN`    | Shared images go to Vercel Blob as private blobs.                                                      | Shared images are stored with the share's data.                                    |
 | `SQUINT_CAPTURE_URL`       | Captures go to this external service (same contract as `POST /api/capture`).                           | Captures run on this server in headless Chromium.                                  |
 | `SQUINT_CHROMIUM_PACK_URL` | On Vercel, Chromium's pack tar is downloaded from this https URL, such as a mirror near the functions. | The pack comes from the matching Sparticuz/chromium GitHub release.                |
+| `CRON_SECRET`              | The daily cleanup (`/api/cron/expire`) runs when called with `Authorization: Bearer <secret>`.         | The cleanup route refuses every call, so nothing expires.                          |
 
 Blob URLs never reach a browser: images are served through token-gated routes either way. `DATABASE_URL` is shared with the pinpoint server, which uses it for its own storage when the GitHub variables aren't set. With `SQUINT_CAPTURE_URL`, Squint still checks the top-level address, but the external service has to refuse private addresses for redirects and subresources itself.
 

@@ -154,6 +154,35 @@ describe("share routes: permissions", () => {
     });
   });
 
+  it("once the share expires, every route answers 404, like after a revoke", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const share = await create();
+      const owner = ownerCalls(share, share.ownerKey);
+      expect((await owner.upload()).status).toBe(200);
+      vi.setSystemTime(share.expiresAt - 1);
+      expect((await clientCalls(share.token).view()).status).toBe(200);
+
+      vi.setSystemTime(share.expiresAt);
+      expect(await statuses(ownerCalls(share, share.ownerKey))).toEqual({
+        push: 404,
+        pull: 404,
+        upload: 404,
+        download: 404,
+        revoke: 404,
+      });
+      expect(await statuses(clientCalls(share.token))).toEqual({
+        view: 404,
+        image: 404,
+        comment: 404,
+        capture: 404,
+      });
+      expect(await (await clientCalls(share.token).view()).json()).toEqual({ error: "not-found" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("after the review window, client writes answer 403 and the view still opens", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     try {

@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import { COMMENT, JPEG, PNG, SNAPSHOT, STATE } from "@/test/share-fixture";
 import { inlineBackend } from "./blob-backend";
 import { createMemoryStore } from "./memory-store";
+import { DELETION_NOTICE_MS, RETENTION_MS } from "./retention";
 import { REVIEW_WINDOW_MS } from "./review-window";
 import { SHARE_LIMITS } from "./schemas";
 import { batchChange, diffState } from "../share-client/diff";
 import type { ShareServices } from "./server";
-import type { ShareRecord, ShareState } from "./types";
+import type { CreatedShare, ShareRecord, ShareState } from "./types";
 import {
   addClientComment,
   captureForClient,
@@ -41,7 +42,7 @@ async function pushState(
 async function shared() {
   const services: ShareServices = { store: createMemoryStore(), blobs: inlineBackend };
   const created = await createShare(services, STATE, 100);
-  const share = await ownerShare(services.store, created.shareId, created.ownerKey);
+  const share = await ownerShare(services.store, created.shareId, created.ownerKey, 100);
   if (!share) throw new Error("no share");
   return { services, created, share };
 }
@@ -52,21 +53,21 @@ describe("access", () => {
   it("opens a share by owner key or by token, never the other way round", async () => {
     const { services, created } = await shared();
     const { store } = services;
-    expect(await ownerShare(store, created.shareId, created.ownerKey)).not.toBeNull();
-    expect(await clientShare(store, created.token)).not.toBeNull();
-    expect(await ownerShare(store, created.shareId, created.token)).toBeNull();
-    expect(await ownerShare(store, created.shareId, null)).toBeNull();
-    expect(await ownerShare(store, "other", created.ownerKey)).toBeNull();
-    expect(await clientShare(store, created.ownerKey)).toBeNull();
-    expect(await clientShare(store, "short")).toBeNull();
+    expect(await ownerShare(store, created.shareId, created.ownerKey, 100)).not.toBeNull();
+    expect(await clientShare(store, created.token, 100)).not.toBeNull();
+    expect(await ownerShare(store, created.shareId, created.token, 100)).toBeNull();
+    expect(await ownerShare(store, created.shareId, null, 100)).toBeNull();
+    expect(await ownerShare(store, "other", created.ownerKey, 100)).toBeNull();
+    expect(await clientShare(store, created.ownerKey, 100)).toBeNull();
+    expect(await clientShare(store, "short", 100)).toBeNull();
   });
 
   it("forgets a revoked share entirely", async () => {
     const { services, created, share } = await shared();
     await putOwnerBlob(services, share, "crop:c-1", PNG);
     await revokeShare(services, share);
-    expect(await clientShare(services.store, created.token)).toBeNull();
-    expect(await ownerShare(services.store, created.shareId, created.ownerKey)).toBeNull();
+    expect(await clientShare(services.store, created.token, 100)).toBeNull();
+    expect(await ownerShare(services.store, created.shareId, created.ownerKey, 100)).toBeNull();
   });
 });
 
@@ -118,6 +119,7 @@ describe("owner push and pull", () => {
       snapshots: [],
       comments: [],
       cursor: first.cursor,
+      expiresAt: first.expiresAt,
     });
   });
 
@@ -373,6 +375,102 @@ describe("review window", () => {
   });
 });
 
+describe("retention", () => {
+  /** Real epoch ms, as `Date.now()` gives: the project on Oct 1, its link on Oct 10. */
+  const CREATED = Date.UTC(2026, 9, 1);
+  const SHARED = Date.UTC(2026, 9, 10);
+  const DAY = 86_400_000;
+
+  /** Every payload that tells a browser when the share is deleted. */
+  async function expiries(created: CreatedShare, services: ShareServices) {
+    const share = await ownerShare(services.store, created.shareId, created.ownerKey, SHARED);
+    if (!share) throw new Error("no share");
+    return {
+      created: created.expiresAt,
+      manifest: (await shareManifest(services.store, share)).expiresAt,
+      pull: (await pullChanges(services.store, share, 0)).expiresAt,
+      view: (await clientView(services.store, share)).expiresAt,
+    };
+  }
+
+  const everywhere = (expiresAt: number) => ({
+    created: expiresAt,
+    manifest: expiresAt,
+    pull: expiresAt,
+    view: expiresAt,
+  });
+
+  it("deletes 30 days after the project was created, and says so to owner and client", async () => {
+    const services: ShareServices = { store: createMemoryStore(), blobs: inlineBackend };
+    const state = { ...STATE, project: { ...STATE.project, createdAt: CREATED } };
+    const created = await createShare(services, state, SHARED);
+    expect(await expiries(created, services)).toEqual(everywhere(CREATED + RETENTION_MS));
+  });
+
+  it("counts from the link when the project doesn't say, or says it in seconds", async () => {
+    const services: ShareServices = { store: createMemoryStore(), blobs: inlineBackend };
+    const seconds = { ...STATE.project, createdAt: Math.floor(CREATED / 1000) };
+    const withoutDate = await createShare(services, STATE, SHARED);
+    const inSeconds = await createShare(services, { ...STATE, project: seconds }, SHARED);
+    expect(await expiries(withoutDate, services)).toEqual(everywhere(SHARED + RETENTION_MS));
+    expect(await expiries(inSeconds, services)).toEqual(everywhere(SHARED + RETENTION_MS));
+  });
+
+  it("moves to the project's date once an owner push carries it", async () => {
+    const services: ShareServices = { store: createMemoryStore(), blobs: inlineBackend };
+    const created = await createShare(services, STATE, SHARED);
+    const share = await ownerShare(services.store, created.shareId, created.ownerKey, SHARED + 1);
+    if (!share) throw new Error("no share");
+    const dated = { ...STATE, project: { ...STATE.project, createdAt: CREATED } };
+    await pushState(services, share, dated, 0, SHARED + 1);
+    expect((await clientView(services.store, share)).expiresAt).toBe(SHARED + RETENTION_MS);
+    // Routes read the share afresh on every request.
+    const reread = await ownerShare(services.store, created.shareId, created.ownerKey, SHARED + 1);
+    if (!reread) throw new Error("no share");
+    expect((await clientView(services.store, reread)).expiresAt).toBe(CREATED + RETENTION_MS);
+    expect(reread.createdAt).toBe(SHARED);
+  });
+
+  it("never deletes sooner than 5 days after the link, so the notice shows that long", async () => {
+    const services: ShareServices = { store: createMemoryStore(), blobs: inlineBackend };
+    const ancient = { ...STATE.project, createdAt: SHARED - 40 * DAY };
+    const created = await createShare(services, { ...STATE, project: ancient }, SHARED);
+    expect(await expiries(created, services)).toEqual(everywhere(SHARED + DELETION_NOTICE_MS));
+  });
+
+  it("gives 5 days' notice when a push reveals the project is older than the link knew", async () => {
+    const services: ShareServices = { store: createMemoryStore(), blobs: inlineBackend };
+    const created = await createShare(services, STATE, SHARED);
+    const owner = async (now: number) => {
+      const share = await ownerShare(services.store, created.shareId, created.ownerKey, now);
+      if (!share) throw new Error("no share");
+      return share;
+    };
+    const ancient = { ...STATE, project: { ...STATE.project, createdAt: SHARED - 60 * DAY } };
+    const pushedAt = SHARED + 20 * DAY;
+    await pushState(services, await owner(pushedAt), ancient, 0, pushedAt);
+    const expiresAt = pushedAt + DELETION_NOTICE_MS;
+    expect((await clientView(services.store, await owner(pushedAt))).expiresAt).toBe(expiresAt);
+    // A later push keeps the date it already showed.
+    const renamed = { ...ancient, project: { ...ancient.project, name: "Renamed" } };
+    await pushState(services, await owner(pushedAt + DAY), renamed, 0, pushedAt + DAY);
+    expect((await owner(pushedAt + DAY)).expiresAt).toBe(expiresAt);
+  });
+
+  it("treats an expired share as gone for owner and client, before the cron deletes it", async () => {
+    const services: ShareServices = { store: createMemoryStore(), blobs: inlineBackend };
+    const created = await createShare(services, STATE, SHARED);
+    const { store } = services;
+    const opened = async (now: number) => ({
+      owner: (await ownerShare(store, created.shareId, created.ownerKey, now)) !== null,
+      client: (await clientShare(store, created.token, now)) !== null,
+    });
+    expect(await opened(created.expiresAt - 1)).toEqual({ owner: true, client: true });
+    expect(await opened(created.expiresAt)).toEqual({ owner: false, client: false });
+    expect(await store.byId(created.shareId)).not.toBeNull();
+  });
+});
+
 describe("owner changes", () => {
   it("sends nothing when nothing changed, and only what changed otherwise", async () => {
     const { services, share } = await shared();
@@ -460,7 +558,7 @@ describe("page projects", () => {
   async function pagesShared() {
     const services: ShareServices = { store: createMemoryStore(), blobs: inlineBackend };
     const created = await createShare(services, PAGES, 100);
-    const share = await ownerShare(services.store, created.shareId, created.ownerKey);
+    const share = await ownerShare(services.store, created.shareId, created.ownerKey, 100);
     if (!share) throw new Error("no share");
     return { services, created, share };
   }
@@ -498,7 +596,7 @@ describe("page projects", () => {
       0,
       200,
     );
-    const updated = await ownerShare(services.store, created.shareId, created.ownerKey);
+    const updated = await ownerShare(services.store, created.shareId, created.ownerKey, 200);
     if (!updated) throw new Error("no share");
     expect(await readBlob(services, updated, "page:p2")).toBeNull();
   });
