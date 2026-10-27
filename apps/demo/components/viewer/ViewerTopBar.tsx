@@ -47,7 +47,9 @@ export function ViewerTopBar({
     <header className="relative z-40 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-panel bg-panel p-2">
       {leading}
       <div className="flex min-w-40 flex-1 items-center gap-2">
-        <h1 className="truncate text-heading font-bold">{project.name}</h1>
+        <h1 title={project.name} className="truncate text-heading font-bold">
+          {project.name}
+        </h1>
         <StatusChip status={status} />
       </div>
       {/*

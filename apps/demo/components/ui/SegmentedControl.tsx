@@ -36,7 +36,7 @@ interface SegmentedControlProps<T extends string> {
   surface?: "seg" | "panel";
   /** Selected thumb: raised neutral, or filled brand blue for the control that sets the app's mode. */
   tone?: "neutral" | "brand";
-  /** `wide`: labels show from the `xl` breakpoint up; below it the options are icon-only. */
+  /** `wide`: labels show from the `2xl` breakpoint up; below it the options are icon-only. */
   labels?: "always" | "wide";
   /** `sm`: count chips show from the `sm` breakpoint up; below it they're only read out. */
   counts?: "always" | "sm";
@@ -93,7 +93,7 @@ export function SegmentedControl<T extends string>({
   const reduce = useReducedMotion();
   const baseId = useId();
   const group = useRadioGroup(options, value, onChange);
-  const labelClass = labels === "wide" ? "relative max-xl:sr-only" : "relative";
+  const labelClass = labels === "wide" ? "relative max-2xl:sr-only" : "relative";
   const countClass = counts === "sm" ? "max-sm:sr-only" : "";
 
   return (
@@ -126,7 +126,7 @@ export function SegmentedControl<T extends string>({
             onKeyDown={(event) => group.onKeyDown(event, index)}
             // The focus ring is drawn inside the option, so a scrolling parent can't clip it.
             className={`relative flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-pill text-body whitespace-nowrap transition-colors duration-150 focus-visible:-outline-offset-2 ${
-              labels === "wide" ? "px-3 xl:px-5" : "px-5"
+              labels === "wide" ? "px-3 2xl:px-5" : "px-5"
             } ${stretch ? "flex-1" : ""} ${
               disabled
                 ? "cursor-not-allowed font-medium text-muted opacity-50"
