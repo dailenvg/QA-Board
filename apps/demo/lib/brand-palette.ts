@@ -63,33 +63,36 @@ export function paletteEntry(id: string): PaletteEntry {
 export const RESOLVED_GREEN = paletteEntry("allergy");
 
 /**
- * The palette in grid order: neighbours alternate warm and cool, and the three
- * reds (Omega Oil, Sockeye Salmon, Bladder) sit five apart.
+ * The palette in grid order, without The Daily: its lime is the app's
+ * highlight (selection, type tags), so folders don't wear it. Seven warm and
+ * seven cool colors alternate, and with an odd ROW_STEP they alternate down
+ * each column too. The reds (Omega Oil, Sockeye Salmon, Bladder), greens
+ * (Allergy, Clean Breath, Colostrum), pinks and blues are placed so that no
+ * two of a kind sit side by side or stacked, at any column count up to five.
  */
 const GRID_ORDER = [
-  "daily",
   "calm",
-  "omega-oil",
-  "clean-breath",
-  "hip-joint",
-  "pumpkin",
-  "probiotic",
-  "sockeye",
-  "allergy",
-  "goat-milk",
-  "bone-broth",
-  "yak-chew",
-  "bladder",
   "skin-coat",
+  "probiotic",
+  "bone-broth",
+  "clean-breath",
+  "omega-oil",
+  "goat-milk",
+  "hip-joint",
+  "yak-chew",
+  "pumpkin",
   "colostrum",
+  "bladder",
+  "allergy",
+  "sockeye",
 ].map(paletteEntry);
 
 /**
  * Each row steps this far through GRID_ORDER. It shares no factor with the
- * palette's length, so one column only repeats a color after every color has
- * been used.
+ * palette's length (14), so one column only repeats a color after every color
+ * has been used.
  */
-const ROW_STEP = 7;
+const ROW_STEP = 3;
 
 /**
  * The color for a grid cell. Within a row the colors are consecutive, and down

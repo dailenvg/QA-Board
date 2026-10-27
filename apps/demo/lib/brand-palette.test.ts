@@ -7,6 +7,7 @@ import {
   NATIVE_PET_PALETTE,
   NAVY,
   PAPER,
+  paletteForCell,
   RESOLVED_GREEN,
 } from "./brand-palette";
 import { contrast } from "./color";
@@ -52,6 +53,69 @@ describe("COMMENTER_PALETTE", () => {
     const daily = NATIVE_PET_PALETTE.find((entry) => entry.id === "daily");
     expect(daily?.hex).toBe("#E1FD73");
     expect(NATIVE_PET_PALETTE).toHaveLength(15);
+  });
+});
+
+describe("paletteForCell", () => {
+  const WARM = new Set([
+    "omega-oil",
+    "hip-joint",
+    "pumpkin",
+    "sockeye",
+    "bladder",
+    "skin-coat",
+    "bone-broth",
+  ]);
+  /** Colors of a kind that shouldn't touch: two reds side by side read as one block. */
+  const KINDS = [
+    ["omega-oil", "sockeye", "bladder"],
+    ["allergy", "colostrum", "clean-breath"],
+    ["hip-joint", "skin-coat", "sockeye"],
+    ["probiotic", "yak-chew", "calm"],
+  ];
+  const FOLDER_COLORS = 14;
+  /** A grid of `rows` by `columns` color ids, as FolderGrid lays folders out. */
+  const grid = (columns: number, rows = FOLDER_COLORS) =>
+    Array.from({ length: rows }, (_, row) =>
+      Array.from({ length: columns }, (_, col) => paletteForCell(row * columns + col, columns).id),
+    );
+  /** Each cell with its right and lower neighbours. */
+  const neighbours = (cells: string[][]) =>
+    cells.flatMap((row, r) =>
+      row.flatMap((id, c) => [
+        ...(c + 1 < row.length ? [[id, row[c + 1]]] : []),
+        ...(r + 1 < cells.length ? [[id, cells[r + 1]?.[c]]] : []),
+      ]),
+    ) as [string, string][];
+
+  it("never gives a folder The Daily's lime, the app's highlight", () => {
+    const used = new Set(grid(5).flat());
+    expect(used.has("daily")).toBe(false);
+    expect(used.size).toBe(FOLDER_COLORS);
+    expect(NATIVE_PET_PALETTE.length - 1).toBe(FOLDER_COLORS);
+  });
+
+  it("repeats no color in a row or column until every color is used", () => {
+    for (let columns = 1; columns <= 5; columns += 1) {
+      const cells = grid(columns);
+      for (const row of cells) expect(new Set(row).size).toBe(row.length);
+      for (let col = 0; col < columns; col += 1) {
+        expect(new Set(cells.map((row) => row[col])).size).toBe(FOLDER_COLORS);
+      }
+    }
+  });
+
+  it("alternates warm and cool, and keeps colors of a kind apart, across and down", () => {
+    for (let columns = 1; columns <= 5; columns += 1) {
+      for (const [a, b] of neighbours(grid(columns))) {
+        expect(WARM.has(a)).not.toBe(WARM.has(b));
+        for (const kind of KINDS) expect(kind.includes(a) && kind.includes(b)).toBe(false);
+      }
+    }
+  });
+
+  it("treats a missing column count as one column", () => {
+    expect(paletteForCell(3, 0)).toBe(paletteForCell(3, 1));
   });
 });
 
