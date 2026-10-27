@@ -1,5 +1,10 @@
-/** Where Squint is served publicly. Other Vercel deployments sit behind Vercel's login. */
-export const PRODUCTION_SITE_URL = "https://squintreview.com";
+/**
+ * Where Squint is served publicly: the www host, which Vercel serves directly
+ * (the bare domain 308-redirects to it, and link unfurlers such as ClickUp
+ * often don't follow a redirect for a preview image). Other Vercel
+ * deployments sit behind Vercel's login.
+ */
+export const PRODUCTION_SITE_URL = "https://www.squintreview.com";
 
 const LOCAL_SITE_URL = "http://localhost:3000";
 

@@ -24,9 +24,11 @@ describe("siteUrl", () => {
     );
   });
 
-  it("uses the custom domain on production builds", () => {
+  it("uses the custom domain's www host on production builds", () => {
     const url = siteUrl({ VERCEL_ENV: "production", VERCEL_URL: "squint-abc123.vercel.app" });
     expect(url.href).toBe(`${PRODUCTION_SITE_URL}/`);
+    // The host Vercel serves, not the bare domain that redirects to it.
+    expect(url.href).toBe("https://www.squintreview.com/");
   });
 
   it("uses the deployment host on preview and development Vercel builds", () => {
