@@ -84,13 +84,59 @@ The demo app also ships a `/review-link` page that builds this link for you on p
 
 ### Widget props
 
-| Prop       | Default                                                          | Notes                                                                                                                      |
-| ---------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `enabled`  | `NEXT_PUBLIC_VERCEL_ENV === "preview"` (`/next`), `false` (core) | The core export never enables itself, so it cannot ship to production by accident.                                         |
-| `endpoint` | `/api/pinpoint`                                                  | URL of the route handler.                                                                                                  |
-| `client`   | HTTP client for `endpoint`                                       | Any `PinpointClient`, for example `createMemoryClient()` to try the UI without a server. Takes precedence over `endpoint`. |
-| `branch`   | `NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF` (`/next`)                    | Shown in the toolbar only; the server decides the branch pins are stored under.                                            |
-| `path`     | `location.pathname`                                              | Page path pins are keyed by. Client-side navigations are detected automatically.                                           |
+| Prop             | Default                                                          | Notes                                                                                                                                                                                                           |
+| ---------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`        | `NEXT_PUBLIC_VERCEL_ENV === "preview"` (`/next`), `false` (core) | The core export never enables itself, so it cannot ship to production by accident.                                                                                                                              |
+| `endpoint`       | `/api/pinpoint`                                                  | URL of the route handler.                                                                                                                                                                                       |
+| `client`         | HTTP client for `endpoint`                                       | Any `PinpointClient`, for example `createMemoryClient()` to try the UI without a server. Takes precedence over `endpoint`.                                                                                      |
+| `branch`         | `NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF` (`/next`)                    | Shown in the toolbar only; the server decides the branch pins are stored under.                                                                                                                                 |
+| `path`           | `location.pathname`                                              | Page path pins are keyed by. Client-side navigations are detected automatically.                                                                                                                                |
+| `reportLocation` | `false`                                                          | Opt-in. When the page is shown inside a review tool's frame (such as Squint), tells it which page is open. See [Following navigation in a framing review tool](#following-navigation-in-a-framing-review-tool). |
+
+### Following navigation in a framing review tool
+
+Squint shows a website project in an iframe. A cross-origin frame never exposes its address, so by default Squint only knows the page someone typed or picked in its page address bar. A site can opt in to telling it: when framed, it posts `{ type: "squint:location", href }` to its parent on load and after every client-side navigation (`history.pushState`, `replaceState`, back and forward). Squint then moves its address bar, snapshots and comments to that page.
+
+Nothing is sent when the page isn't framed. The message carries the page's full address, query included, to whichever page frames it, so only turn it on where that's fine (preview deployments, for example), or name the review tool's origin.
+
+```tsx
+// React: with the widget's provider, or on its own.
+import { PinpointProvider, LocationReporter } from "@pinpoint/widget";
+
+<PinpointProvider reportLocation>{children}</PinpointProvider>;
+<PinpointProvider reportLocation={{ targetOrigin: "https://squint.example" }}>
+  {children}
+</PinpointProvider>;
+<LocationReporter targetOrigin="https://squint.example" />;
+```
+
+`reportLocation({ targetOrigin })` does the same without React and returns a function that stops it. Any other site can paste this snippet instead:
+
+```html
+<script>
+  (function () {
+    if (window.parent === window) return;
+    var last = null;
+    function post() {
+      if (location.href === last) return;
+      last = location.href;
+      window.parent.postMessage({ type: "squint:location", href: location.href }, "*");
+    }
+    ["pushState", "replaceState"].forEach(function (name) {
+      var original = history[name];
+      history[name] = function () {
+        var result = original.apply(this, arguments);
+        post();
+        return result;
+      };
+    });
+    window.addEventListener("popstate", post);
+    post();
+  })();
+</script>
+```
+
+Replace `"*"` with Squint's origin to send the address nowhere else. Squint believes a message only when it comes from the project's own iframe, that frame is on the project's origin, and the address it names is on that origin too; it reads nothing else from it.
 
 ### Handler options
 
