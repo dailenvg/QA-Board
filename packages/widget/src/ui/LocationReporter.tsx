@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { reportLocation } from "../core/location";
 
 export interface LocationReporterProps {
-  /** Who may read the address; see `reportLocation`. Any framing page by default. */
+  /** Who may read the address: set it to the review tool's origin (see `reportLocation`). */
   targetOrigin?: string;
 }
 

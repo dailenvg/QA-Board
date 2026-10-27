@@ -97,13 +97,12 @@ The demo app also ships a `/review-link` page that builds this link for you on p
 
 Squint shows a website project in an iframe. A cross-origin frame never exposes its address, so by default Squint only knows the page someone typed or picked in its page address bar. A site can opt in to telling it: when framed, it posts `{ type: "squint:location", href }` to its parent on load and after every client-side navigation (`history.pushState`, `replaceState`, back and forward). Squint then moves its address bar, snapshots and comments to that page.
 
-Nothing is sent when the page isn't framed. The message carries the page's full address, query included, to whichever page frames it, so only turn it on where that's fine (preview deployments, for example), or name the review tool's origin.
+Nothing is sent when the page isn't framed. With `"*"` (the default) the message carries the page's full address, query included, to any page that frames the site, so set `targetOrigin` to the review tool's origin, in the widget and in the snippet alike. Only turn it on where that's fine at all (preview deployments, for example).
 
 ```tsx
 // React: with the widget's provider, or on its own.
 import { PinpointProvider, LocationReporter } from "@pinpoint/widget";
 
-<PinpointProvider reportLocation>{children}</PinpointProvider>;
 <PinpointProvider reportLocation={{ targetOrigin: "https://squint.example" }}>
   {children}
 </PinpointProvider>;
@@ -115,12 +114,13 @@ import { PinpointProvider, LocationReporter } from "@pinpoint/widget";
 ```html
 <script>
   (function () {
+    var SQUINT_ORIGIN = "https://squint.example"; // where your Squint runs
     if (window.parent === window) return;
     var last = null;
     function post() {
       if (location.href === last) return;
       last = location.href;
-      window.parent.postMessage({ type: "squint:location", href: location.href }, "*");
+      window.parent.postMessage({ type: "squint:location", href: location.href }, SQUINT_ORIGIN);
     }
     ["pushState", "replaceState"].forEach(function (name) {
       var original = history[name];
@@ -136,7 +136,7 @@ import { PinpointProvider, LocationReporter } from "@pinpoint/widget";
 </script>
 ```
 
-Replace `"*"` with Squint's origin to send the address nowhere else. Squint believes a message only when it comes from the project's own iframe, that frame is on the project's origin, and the address it names is on that origin too; it reads nothing else from it.
+Set `SQUINT_ORIGIN` to your Squint's origin, so the address goes nowhere else (`"*"` would send it to any page that frames the site). Squint compares addresses exactly: a trailing slash, `index.html` or another query order make separate pages, so a `/pricing` to `/pricing/` redirect reported from the frame splits that page in two. Squint believes a message only when it comes from the project's own iframe, that frame is on the project's origin, and the address it names is on that origin too; it reads nothing else from it.
 
 ### Handler options
 

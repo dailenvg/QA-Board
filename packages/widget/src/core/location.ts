@@ -9,7 +9,8 @@ export interface LocationMessage {
 export interface ReportLocationOptions {
   /**
    * Who may read the address: the review tool's origin, such as
-   * `https://squint.example`. Defaults to `"*"`, any page that frames this one.
+   * `https://squint.example`. Set it: the default, `"*"`, sends the full
+   * address, query included, to any page that frames this one.
    */
   targetOrigin?: string;
   /** The window to report on; `window` by default (tests pass their own). */

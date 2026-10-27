@@ -15,8 +15,9 @@ export interface PinpointProviderProps extends PinpointWidgetProps {
   /**
    * Opt-in, separate from `enabled`: when this site is shown inside a review
    * tool's frame (such as Squint), tell it which page is open, so its comments
-   * follow navigation. `true` posts to any framing page; pass `{ targetOrigin }`
-   * to post only to one. Off by default; does nothing when the page isn't framed.
+   * follow navigation. Pass `{ targetOrigin }` (recommended) to post only to the
+   * review tool; `true` posts the full address, query included, to any framing
+   * page. Off by default; does nothing when the page isn't framed.
    */
   reportLocation?: boolean | { targetOrigin: string };
 }

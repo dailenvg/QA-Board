@@ -45,9 +45,9 @@ export function previewSnapshot(data: SquintData, projectId: string): Snapshot |
 }
 
 /**
- * Older snapshots nobody commented on: replaced by a newer one at the same
- * breakpoint and safe to drop, unless a pending Undo holds their image
- * (`held` blob keys).
+ * Older snapshots nobody commented on: replaced by a newer one of the same
+ * page and breakpoint and safe to drop, unless a pending Undo holds their
+ * image (`held` blob keys).
  */
 export function prunableSnapshotIds(
   data: SquintData,
