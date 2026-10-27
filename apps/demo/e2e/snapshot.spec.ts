@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { CLIENT_CAPTURE_TIMEOUT_MS } from "../lib/capture/use-capture";
 import { LEGACY_V1 } from "../test/legacy-v1";
 import { snapshotPng } from "./sample-snapshot";
 import {
@@ -209,6 +210,27 @@ test("a failed snapshot offers Retry and a screenshot upload", async ({ page, ba
   await expect(
     page.getByRole("img", { name: /Internal site, the image under review/ }),
   ).toBeVisible();
+});
+
+test("a snapshot that never comes back times out with Retry instead of loading forever", async ({
+  page,
+  baseURL,
+}) => {
+  await page.clock.install();
+  await page.unroute("**/api/capture");
+  // Never answers, like a server that died mid-capture.
+  await page.route("**/api/capture", () => undefined);
+  await sandboxProject(page, baseURL, "Silent site");
+  await page.getByTestId("mode-comment").click();
+  await expect(page.getByTestId("canvas-area")).toContainText("Taking a snapshot");
+
+  await page.clock.runFor(CLIENT_CAPTURE_TIMEOUT_MS + 1_000);
+  const failed = page.getByTestId("capture-failed");
+  await expect(failed).toContainText("took too long");
+
+  await mockCapture(page);
+  await failed.getByRole("button", { name: "Retry" }).click();
+  await expect(snapshotImage(page)).toBeVisible();
 });
 
 test("an image comment gets a screenshot that survives delete and undo", async ({ page }) => {

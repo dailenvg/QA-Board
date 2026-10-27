@@ -7,6 +7,10 @@ interface FakeIssue {
   creator: string;
   isPull: boolean;
   head?: string;
+  /** Missing means open. */
+  state?: "open" | "closed";
+  /** ISO time; missing means long ago. */
+  created_at?: string;
 }
 
 interface FakeComment {
@@ -14,7 +18,11 @@ interface FakeComment {
   issue_number: number;
   body: string;
   login: string;
+  /** ISO time; missing means long ago. */
+  created_at?: string;
 }
+
+const LONG_AGO = "2020-01-01T00:00:00.000Z";
 
 interface FakeCommit {
   sha: string;
@@ -28,6 +36,8 @@ export interface FakeGitHubState {
   comments: FakeComment[];
   refs: Map<string, string>;
   commits: Map<string, FakeCommit>;
+  /** Files in each tree, by tree sha: path to blob sha. Unknown trees are empty. */
+  trees: Map<string, Map<string, string>>;
   /** Number of upcoming updateRef calls that fail as a non-fast-forward. */
   refConflicts: number;
 }
@@ -44,6 +54,7 @@ export function createFakeGitHub(initial: Partial<FakeGitHubState> = {}) {
     comments: [],
     refs: new Map(),
     commits: new Map(),
+    trees: new Map(),
     refConflicts: 0,
     ...initial,
   };
@@ -53,11 +64,59 @@ export function createFakeGitHub(initial: Partial<FakeGitHubState> = {}) {
     id: comment.id,
     body: comment.body,
     user: { login: comment.login },
+    created_at: comment.created_at ?? LONG_AGO,
+    issue_url: `https://api.github.com/repos/owner/site/issues/${comment.issue_number}`,
   });
+  const isOpen = (issue: FakeIssue) => (issue.state ?? "open") === "open";
+  const createdAt = (issue: FakeIssue) => issue.created_at ?? LONG_AGO;
+  const issueView = (issue: FakeIssue) => ({
+    number: issue.number,
+    title: issue.title,
+    state: issue.state ?? "open",
+    created_at: createdAt(issue),
+    pull_request: issue.isPull ? {} : undefined,
+  });
+
+  /**
+   * `GET /search/issues` for the qualifiers pinpoint sends: `repo:`, `is:pr`,
+   * `commenter:` (`app/<slug>` meaning `<slug>[bot]`) and `created:<=<day>`.
+   * Any other term fails the test rather than being ignored.
+   */
+  function searchIssues({ q, per_page, page }: { q: string; per_page: number; page: number }) {
+    let pullsOnly = false;
+    let commenter: string | null = null;
+    let latestDay: string | null = null;
+    for (const term of q.split(" ")) {
+      if (term === "repo:owner/site") continue;
+      if (term === "is:pr") pullsOnly = true;
+      else if (term.startsWith("commenter:")) {
+        commenter = term.slice("commenter:".length).replace(/^app\/(.+)$/, "$1[bot]");
+      } else if (term.startsWith("created:<=")) latestDay = term.slice("created:<=".length);
+      else throw new Error(`Unexpected search term: ${term}`);
+    }
+    const matches = state.issues
+      .filter((issue) => !pullsOnly || issue.isPull)
+      .filter((issue) => latestDay === null || createdAt(issue).slice(0, 10) <= latestDay)
+      .filter((issue) =>
+        state.comments.some((c) => c.issue_number === issue.number && c.login === commenter),
+      )
+      .sort((a, b) => createdAt(a).localeCompare(createdAt(b)) || a.number - b.number);
+    const start = (page - 1) * per_page;
+    return Promise.resolve({
+      data: {
+        total_count: matches.length,
+        incomplete_results: false,
+        items: matches.slice(start, start + per_page).map(issueView),
+      },
+    });
+  }
 
   const rest = {
     users: {
       getAuthenticated: vi.fn(() => Promise.resolve({ data: { login: state.login } })),
+    },
+    search: {
+      issuesAndPullRequests: vi.fn(searchIssues),
     },
     pulls: {
       list: vi.fn(({ head }: { head: string }) =>
@@ -69,17 +128,26 @@ export function createFakeGitHub(initial: Partial<FakeGitHubState> = {}) {
       ),
     },
     issues: {
-      listForRepo: vi.fn(({ creator }: { creator: string }) =>
+      listForRepo: vi.fn(({ creator, state: wanted }: { creator: string; state?: string }) =>
         Promise.resolve({
           data: state.issues
             .filter((issue) => issue.creator === creator)
-            .map((issue) => ({
-              number: issue.number,
-              title: issue.title,
-              pull_request: issue.isPull ? {} : undefined,
-            })),
+            .filter((issue) => wanted !== "open" || isOpen(issue))
+            .map(issueView),
         }),
       ),
+      update: vi.fn(({ issue_number, state: next }: { issue_number: number; state: string }) => {
+        const issue = state.issues.find((entry) => entry.number === issue_number);
+        if (!issue) return Promise.reject(httpError(404, "Not Found"));
+        issue.state = next === "closed" ? "closed" : "open";
+        return Promise.resolve({ data: {} });
+      }),
+      deleteComment: vi.fn(({ comment_id }: { comment_id: number }) => {
+        const index = state.comments.findIndex((c) => c.id === comment_id);
+        if (index === -1) return Promise.reject(httpError(404, "Not Found"));
+        state.comments.splice(index, 1);
+        return Promise.resolve({ data: {} });
+      }),
       create: vi.fn(({ title }: { title: string }) => {
         const issue = { number: next(), title, creator: state.login, isPull: false };
         state.issues.push(issue);
@@ -91,7 +159,8 @@ export function createFakeGitHub(initial: Partial<FakeGitHubState> = {}) {
         }),
       ),
       createComment: vi.fn(({ issue_number, body }: { issue_number: number; body: string }) => {
-        const comment = { id: next(), issue_number, body, login: state.login };
+        const created_at = new Date().toISOString();
+        const comment = { id: next(), issue_number, body, login: state.login, created_at };
         state.comments.push(comment);
         return Promise.resolve({ data: commentView(comment) });
       }),
@@ -122,7 +191,33 @@ export function createFakeGitHub(initial: Partial<FakeGitHubState> = {}) {
           : Promise.reject(httpError(404, "Not Found"));
       }),
       createBlob: vi.fn(() => Promise.resolve({ data: { sha: `blob-${next()}` } })),
-      createTree: vi.fn(() => Promise.resolve({ data: { sha: `tree-${next()}` } })),
+      createTree: vi.fn(
+        ({
+          base_tree,
+          tree,
+        }: {
+          base_tree?: string;
+          tree: Array<{ path: string; sha: string | null }>;
+        }) => {
+          const files = new Map(base_tree ? state.trees.get(base_tree) : undefined);
+          for (const entry of tree) {
+            if (entry.sha === null) files.delete(entry.path);
+            else files.set(entry.path, entry.sha);
+          }
+          const sha = `tree-${next()}`;
+          state.trees.set(sha, files);
+          return Promise.resolve({ data: { sha } });
+        },
+      ),
+      getTree: vi.fn(({ tree_sha }: { tree_sha: string }) => {
+        const files = [...(state.trees.get(tree_sha) ?? new Map<string, string>())];
+        return Promise.resolve({
+          data: {
+            tree: files.map(([path, sha]) => ({ path, sha, type: "blob" })),
+            truncated: false,
+          },
+        });
+      }),
       createCommit: vi.fn(({ tree, parents }: { tree: string; parents: string[] }) => {
         const commit = { sha: `commit-${next()}`, tree, parents };
         state.commits.set(commit.sha, commit);

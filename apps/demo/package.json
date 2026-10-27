@@ -16,7 +16,7 @@
   "dependencies": {
     "@pinpoint/server": "workspace:*",
     "@pinpoint/widget": "workspace:*",
-    "@sparticuz/chromium": "^153.0.0",
+    "@sparticuz/chromium-min": "153.0.0",
     "@vercel/blob": "^2.8.2",
     "fflate": "^0.8.3",
     "motion": "^14.6.0",

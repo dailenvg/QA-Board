@@ -2,8 +2,10 @@
 
 import { useEffect } from "react";
 import { scheduleBlobSweep } from "@/lib/store/blob-sweep";
+import { projectExpiresAt, readRetentionStart } from "@/lib/store/expiry";
 import { useSquint } from "@/lib/store/use-squint";
 import { DataRecovery } from "../app-state/DataRecovery";
+import { LocalExpiry } from "../app-state/LocalExpiry";
 import { Revocations } from "../app-state/Revocations";
 import { ViewerBackendContext } from "@/lib/viewer-backend/backend";
 import { FolderBackLink } from "./FolderBackLink";
@@ -26,12 +28,15 @@ export function Viewer({ projectId }: { projectId: string }) {
   return (
     <ViewerBackendContext value={localBackend}>
       <Revocations />
+      <LocalExpiry />
       <ViewerView
         key={project.id}
         data={state.data}
         project={project}
         leading={<FolderBackLink folder={folder} />}
         actions={<ShareControl data={state.data} project={project} />}
+        // When this browser deletes it (LocalExpiry); "ready" only happens on the client.
+        expiresAt={projectExpiresAt(project, readRetentionStart())}
       />
     </ViewerBackendContext>
   );

@@ -43,7 +43,7 @@ Open `http://localhost:3000/sandbox?review=<token>` to try the widget.
 - **Frame check.** Before a website loads, `/api/frame-check` fetches it server-side (HEAD, then GET when needed; 6s timeout; up to 4 redirects) and reads `X-Frame-Options` and CSP `frame-ancestors`. Only `http` and `https` are fetched. Every hop is resolved first, and the server won't fetch an address that points at a loopback, private, link-local or otherwise non-public network.
 - **Screenshot fallback.** Sites that refuse framing, can't be reached, or don't load within 15 seconds get a fallback with **Upload a screenshot instead** (the project becomes an image and keeps the original URL) and **Open site in new tab**. When the server can't tell (for example a local address), the browser simply tries.
 - **Snapshots.** On a website project, Browse shows the live iframe and Comment mode shows a full-page snapshot, taken server-side at the stage's width (`lib/capture`). Pins are placed on the snapshot, so they scroll with its content. **Refresh snapshot** takes a new one, and earlier comments stay on the snapshot they were placed on: their card says _Earlier snapshot_, and selecting one switches the stage to it. If the first capture fails, the stage says why and offers **Retry**; owners can also upload a screenshot instead. Snapshot and screenshot images live in IndexedDB (`lib/blob-store`), their metadata in `squint:v3`. Once nothing uses an image, it's deleted about a minute later, and never while Undo could still bring it back.
-- **Capture safety.** `/api/capture` accepts only `http` and `https` addresses and checks the address the same way the frame check does. Every connection the headless page makes, redirects and subresources included, goes through a per-capture proxy that refuses non-public addresses when it connects. Limits: width 320 to 2560 px, height 16,000 px (taller pages are cut off), image 4 MB (a bigger page is rendered at a smaller scale, which is recorded on the snapshot), 25 seconds per capture, two captures at a time per server instance, and ten requests per minute per IP. Locally it uses the Playwright Chromium from `pnpm exec playwright install chromium`; on Vercel, `@sparticuz/chromium`. With `SQUINT_CAPTURE_URL` set, captures go to an external service with the same contract instead (see [Environment](#environment)).
+- **Capture safety.** `/api/capture` accepts only `http` and `https` addresses and checks the address the same way the frame check does. Every connection the headless page makes, redirects and subresources included, goes through a per-capture proxy that refuses non-public addresses when it connects. Limits: width 320 to 2560 px, height 16,000 px (taller pages are cut off), image 4 MB (a bigger page is rendered at a smaller scale, which is recorded on the snapshot), 25 seconds per capture, two captures at a time per server instance (on Vercel the second waits for the first), and ten requests per minute per IP. Locally it uses the Playwright Chromium from `pnpm exec playwright install chromium`; on Vercel, `@sparticuz/chromium-min`, which downloads the Chromium pack for the function's architecture on first use and keeps it in `/tmp`. With `SQUINT_CAPTURE_URL` set, captures go to an external service with the same contract instead (see [Environment](#environment)).
 - **Comment screenshots.** Posting a comment saves a PNG of the part of the snapshot or image that was on screen, with the pin marked. It shows on the comment card and opens larger.
 - **Export.** The viewer's **Export** menu downloads a ZIP, or the Markdown or JSON on its own (`lib/export`). The ZIP holds `comments.md`, `comments.json` and `screenshots/<NN>-<id>.png` (`<NN>-p<PP>-<id>.png` for a pin on page `<PP>`), plus a page project's page images in `pages/<PP>.<ext>` and the full-page snapshots the comments sit on in `snapshots/`. Images are capped at 40 MB in total: pages with comments first, then the other pages, then snapshots; the rest are listed as left out. The Markdown is written for AI coding agents: a short header on how to use it (with a page project's pages listed), then one section per comment, active ones first, each saying which page it's on and where in page px. The JSON follows the versioned schema `squint.comments/2`; what changed from `squint.comments/1` is noted in `lib/export/json.ts`. Files are named `<project-slug>-comments-<yyyy-mm-dd>.<ext>`. Export is disabled, with the reason shown, until the project has a comment.
 - **Sharing.** **Share** in the viewer creates a share link (`/s/<token>`) to one project and uploads a copy of it to the server. The owner's workspace stays in their browser.
@@ -82,15 +82,52 @@ When Squiggy has something specific to say, its line replaces the hero's subline
 
 Every other Squiggy (the comment panel's tabs, folder keys, empty states and error pages) keeps its own fixed or contextual mood.
 
+## Data retention
+
+Projects are deleted 30 days after they were created: shared copies on the server, and the owner's own projects in their browser (`lib/share/retention.ts`).
+
+- **Notice.** From 5 days before, the viewer shows a "Deletes on Nov 3" notice and the project's card shows a "Deletes Nov 3" pill. The owner's notice offers **Export** once there are comments. In the last 24 hours it counts down like the review window.
+- **Minimum notice.** Nothing is deleted before its notice has shown for 5 days. A share is deleted 30 days after its project was created, or 5 days after its link was created if that's later. Shares that existed before migration 007 also get at least 5 days from when that migration runs, even if they were already past 30 days. The owner's projects go 30 days after they were created, or 5 days after this browser first loaded a build with retention (`squint:retention-start`) if that's later, so older projects still get their full notice.
+- **In the browser.** The owner's expired projects are deleted when the workspace loads and each time the tab comes back into view, and a toast says so (`lib/store/expiry.ts`). This doesn't revoke a shared link: the link keeps working until the server's own deletion date (the "Deletes on" date reviewers were shown), which can be later than the browser's, and the daily cleanup then deletes it. Deleting a project yourself still revokes its link once Undo is no longer offered.
+- **Shared links.** An expired link stops working right away and answers 404, even before the cleanup deletes it.
+- **Rolling deploys.** `expires_at` defaults to 30 days from insert, so an older deployment sharing the database can still create shares.
+- **Daily cleanup.** Vercel Cron calls `GET /api/cron/expire` once a day (`vercel.json`). It deletes expired shares, deletes Blob files a failed delete left behind once they're 31 days old, and deletes pinpoint pins 30 days old in Postgres or GitHub storage (pins get no notice). Each step runs on its own, so one failing doesn't stop the others. When a run hits its time limit, the next one carries on.
+- **`CRON_SECRET`.** The route only runs with `Authorization: Bearer $CRON_SECRET`, which Vercel Cron sends. Without `CRON_SECRET` it answers 503 and nothing expires; with a missing or wrong header it answers 401.
+- **Previews.** Vercel Cron only runs on production deployments. To run the cleanup on a preview, call it yourself:
+
+  ```sh
+  curl -H "Authorization: Bearer $CRON_SECRET" https://<preview-url>/api/cron/expire
+  ```
+
+- **Response.** One result per step:
+
+  ```json
+  {
+    "shares": 2,
+    "blobs": 0,
+    "pins": null,
+    "done": true,
+    "failed": {
+      "shares": false,
+      "blobs": false,
+      "pins": false
+    }
+  }
+  ```
+
+  Each count is how many it deleted, or `null` when the step was skipped (no Blob store, or pin storage that can't expire) or failed. `done` is false when time ran out or a step failed. Any failed step makes the response a 500.
+
 ## Environment
 
-Squint reads three optional variables. Copy `.env.example` to `.env.local` to set them locally.
+Squint reads five optional variables. Copy `.env.example` to `.env.local` to set them locally.
 
-| Variable                | When set                                                                     | When unset                                                                         |
-| ----------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `DATABASE_URL`          | Shares are stored in Postgres (tables `squint_*`, migrated on first use).    | Shares live in the server's memory, per instance, lost on restart. Local use only. |
-| `BLOB_READ_WRITE_TOKEN` | Shared images go to Vercel Blob as private blobs.                            | Shared images are stored with the share's data.                                    |
-| `SQUINT_CAPTURE_URL`    | Captures go to this external service (same contract as `POST /api/capture`). | Captures run on this server in headless Chromium.                                  |
+| Variable                   | When set                                                                                               | When unset                                                                         |
+| -------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| `DATABASE_URL`             | Shares are stored in Postgres (tables `squint_*`, migrated on first use).                              | Shares live in the server's memory, per instance, lost on restart. Local use only. |
+| `BLOB_READ_WRITE_TOKEN`    | Shared images go to Vercel Blob as private blobs.                                                      | Shared images are stored with the share's data.                                    |
+| `SQUINT_CAPTURE_URL`       | Captures go to this external service (same contract as `POST /api/capture`).                           | Captures run on this server in headless Chromium.                                  |
+| `SQUINT_CHROMIUM_PACK_URL` | On Vercel, Chromium's pack tar is downloaded from this https URL, such as a mirror near the functions. | The pack comes from the matching Sparticuz/chromium GitHub release.                |
+| `CRON_SECRET`              | The daily cleanup (`/api/cron/expire`) runs when called with `Authorization: Bearer <secret>`.         | The cleanup route refuses every call, so nothing expires.                          |
 
 Blob URLs never reach a browser: images are served through token-gated routes either way. `DATABASE_URL` is shared with the pinpoint server, which uses it for its own storage when the GitHub variables aren't set. With `SQUINT_CAPTURE_URL`, Squint still checks the top-level address, but the external service has to refuse private addresses for redirects and subresources itself.
 

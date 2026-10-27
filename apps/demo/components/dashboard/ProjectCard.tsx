@@ -5,8 +5,11 @@ import Link from "next/link";
 import { hoverLift, useRevealVariants } from "@/lib/motion";
 import { relativeTime } from "@/lib/relative-time";
 import { projectHref } from "@/lib/routes";
+import { projectExpiresAt, readRetentionStart } from "@/lib/store/expiry";
 import type { ProjectSummary } from "@/lib/store/selectors";
 import type { Project } from "@/lib/store/types";
+import { DeletionPill } from "../ui/DeletionNotice";
+import { deletionWhen } from "../ui/deletion-when";
 import { Icon } from "../ui/Icon";
 import { Menu } from "../ui/Menu";
 import { StatusChip } from "../ui/StatusChip";
@@ -41,6 +44,10 @@ export function ProjectCard({
   const { project, counts, status, previewKey } = summary;
   const reduce = useReducedMotion();
   const variants = useRevealVariants();
+  // `now` is 0 on the server and while hydrating: no notice, and no retention start read there.
+  const deletion = now
+    ? deletionWhen(projectExpiresAt(project, readRetentionStart(now)), now)
+    : null;
 
   return (
     <motion.li
@@ -87,7 +94,10 @@ export function ProjectCard({
         />
       </div>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-2">
-        <StatusChip status={status} />
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusChip status={status} />
+          {deletion ? <DeletionPill when={deletion} /> : null}
+        </div>
         <p className="flex items-center gap-3 text-meta text-muted">
           <span className="inline-flex items-center gap-1" title="Active and resolved comments">
             <Icon name="message" className="size-3.5" />

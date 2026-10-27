@@ -2,8 +2,11 @@ import type { Octokit } from "@octokit/rest";
 import { escapeInline } from "./markdown";
 import type { RepoRef } from "./repo";
 
+/** Every fallback issue's title starts with this, then the branch. */
+export const ISSUE_TITLE_PREFIX = "[pinpoint] ";
+
 export function issueTitle(branch: string): string {
-  return `[pinpoint] ${branch}`;
+  return `${ISSUE_TITLE_PREFIX}${branch}`;
 }
 
 /** Open PR whose head is `owner:branch`, if any. */

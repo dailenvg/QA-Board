@@ -57,7 +57,13 @@ export function SharedReview({ token, initial }: SharedReviewProps) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot);
   const { data, project } = useMemo(() => toViewerData(state), [state]);
   useClientRefresh(token, store);
-  const review = useReviewWindow(state.view.reviewEndsAt, state.reviewClosed);
+  const { reviewEndsAt, expiresAt } = state.view;
+  // A project deleted before its review window ends can't take comments past deletion, so the
+  // countdown ends then too: it never promises more time than the deletion notice allows.
+  const review = useReviewWindow(
+    Number.isFinite(expiresAt) ? Math.min(reviewEndsAt, expiresAt) : reviewEndsAt,
+    state.reviewClosed,
+  );
 
   if (state.gone) return <ShareUnavailable />;
   if (!isClient) return <ViewerSkeleton />;
@@ -81,6 +87,7 @@ export function SharedReview({ token, initial }: SharedReviewProps) {
           panelNote={review.closed ? CLOSED.note : CLIENT_NOTE}
           draftStorage={draftStorage}
           commentLocked={review.closed ? CLOSED.reason : undefined}
+          expiresAt={expiresAt}
           panelNotice={
             <p
               data-testid="client-notice"

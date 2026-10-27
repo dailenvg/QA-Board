@@ -1,9 +1,11 @@
 import init from "../../migrations/001_init.sql";
+import pinsCreatedAt from "../../migrations/002_pins_created_at.sql";
 import type { Queryable } from "./postgres-storage";
 
 /** Ordered migrations. Add new files here; never edit an applied one. */
 export const MIGRATIONS: ReadonlyArray<{ id: string; sql: string }> = [
   { id: "001_init", sql: init },
+  { id: "002_pins_created_at", sql: pinsCreatedAt },
 ];
 
 const CREATE_LEDGER = `CREATE TABLE IF NOT EXISTS pinpoint_migrations (

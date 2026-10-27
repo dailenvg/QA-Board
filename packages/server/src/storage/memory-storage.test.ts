@@ -40,4 +40,21 @@ describe("createMemoryStorage", () => {
       storage.addReply({ branch: "main", pinId: "pin-1", reply }),
     ).rejects.toBeInstanceOf(PinNotFoundError);
   });
+
+  it("expires pins created up to the cutoff, replies included", async () => {
+    const storage = createMemoryStorage();
+    await storage.createPin(draft({ id: "old", createdAt: "2026-09-01T00:00:00.000Z" }));
+    await storage.createPin(draft({ id: "edge", createdAt: "2026-09-27T04:00:00.000Z" }));
+    await storage.createPin(draft({ id: "new", createdAt: "2026-09-27T04:00:00.001Z" }));
+    const reply = { id: "r1", author: "Bo", body: "Done", createdAt: "2026-09-02T00:00:00.000Z" };
+    await storage.addReply({ branch: "feature/x", pinId: "old", reply });
+
+    expect(await storage.expire?.(Date.parse("2026-09-27T04:00:00.000Z"))).toEqual({
+      expired: 2,
+      done: true,
+    });
+
+    const left = await storage.listPins({ branch: "feature/x", path: "/pricing" });
+    expect(left.map((pin) => pin.id)).toEqual(["new"]);
+  });
 });

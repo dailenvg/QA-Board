@@ -22,7 +22,7 @@ export function ShareUnavailable() {
           <h1 className="text-title font-bold">This link isn&apos;t available</h1>
           <p className="mt-2 text-body text-muted">
             The project owner may have revoked it, or the address is incomplete. Ask them for a new
-            link.
+            link. Links also stop working 30 days after the project was created.
           </p>
         </div>
         <Logo linked={false} caption="Visual review" />

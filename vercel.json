@@ -19,5 +19,6 @@
     { "source": "/mascot", "destination": { "service": "squint-mascot" } },
     { "source": "/mascot/(.*)", "destination": { "service": "squint-mascot" } },
     { "source": "/(.*)", "destination": { "service": "demo" } }
-  ]
+  ],
+  "crons": [{ "path": "/api/cron/expire", "schedule": "0 4 * * *" }]
 }

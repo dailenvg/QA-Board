@@ -70,5 +70,13 @@ export function createMemoryStorage(options: MemoryStorageOptions = {}): Storage
           : save({ ...pin, resolved: true, resolvedAt, resolvedBy });
       });
     },
+
+    expire(cutoff) {
+      return settle(() => {
+        const old = [...pins.values()].filter((pin) => Date.parse(pin.createdAt) <= cutoff);
+        for (const pin of old) pins.delete(pin.id);
+        return { expired: old.length, done: true };
+      });
+    },
   };
 }

@@ -36,6 +36,20 @@ export interface StorageAdapter {
   createPin(draft: PinDraft): Promise<Pin>;
   addReply(params: AddReplyParams): Promise<Pin>;
   resolvePin(params: ResolvePinParams): Promise<Pin>;
+  /**
+   * Optional. Deletes pins created at or before `cutoff` (epoch ms), replies
+   * included, stopping early once `deadline` (epoch ms) passes; a later call
+   * goes on. Adapters without it keep pins.
+   */
+  expire?(cutoff: number, deadline?: number): Promise<ExpireResult>;
+}
+
+/** What one `expire` call did. */
+export interface ExpireResult {
+  /** Pins deleted. */
+  expired: number;
+  /** False when it stopped early (deadline or rate limit) with expired pins left. */
+  done: boolean;
 }
 
 export interface SaveScreenshotParams {
@@ -44,9 +58,22 @@ export interface SaveScreenshotParams {
   screenshot: Screenshot;
 }
 
+export interface RemoveScreenshotParams {
+  branch: string;
+  pinId: string;
+  /** What `save` returned for this pin. */
+  url: string;
+}
+
 /** Where screenshot images live. Returns a URL that can be embedded in comments. */
 export interface ScreenshotStore {
   save(params: SaveScreenshotParams): Promise<string>;
+  /**
+   * Optional. Deletes the screenshots `save` stored for these pins, and returns
+   * how many it deleted. A URL this store wouldn't have made for that pin, or a
+   * file that's already gone, is left alone.
+   */
+  remove?(screenshots: readonly RemoveScreenshotParams[]): Promise<number>;
 }
 
 /** Base class for storage failures the handler maps to an HTTP status. */

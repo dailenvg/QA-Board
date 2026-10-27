@@ -7,6 +7,7 @@ import type { ShareStore } from "./store";
 import { createSecret, createShareId, hashSecret, isSecretShape, secretMatches } from "./tokens";
 import { digest } from "./digest";
 import { pageBlobKey } from "./keys";
+import { isExpired, rescheduledExpiry, shareExpiresAt } from "./retention";
 import { reviewClosed, reviewDeadline } from "./review-window";
 import type {
   ClientView,
@@ -41,22 +42,38 @@ export type ClientCommentInput = Omit<
 
 // ── Access ─────────────────────────────────────────────────────────────────
 
-/** The share, if `ownerKey` is its owner key. Unknown share and wrong key look the same. */
+/**
+ * The share while it's live at `now`: an expired one is gone at once, even
+ * before the daily cron deletes it, and answers exactly like a revoked one.
+ */
+function live(share: ShareRecord | null, now: number): ShareRecord | null {
+  return share && !isExpired(share.expiresAt, now) ? share : null;
+}
+
+/**
+ * The share, if `ownerKey` is its owner key and it hasn't expired at `now`.
+ * Unknown, revoked, expired and wrong key all look the same.
+ */
 export async function ownerShare(
   store: ShareStore,
   shareId: string,
   ownerKey: string | null,
+  now: number,
 ): Promise<ShareRecord | null> {
   if (!ownerKey || !isSecretShape(ownerKey)) return null;
   const share = await store.byId(shareId);
-  return share && secretMatches(ownerKey, share.ownerKeyHash) ? share : null;
+  return share && secretMatches(ownerKey, share.ownerKeyHash) ? live(share, now) : null;
 }
 
-/** The share a client link opens. Unknown and revoked tokens look the same. */
-export async function clientShare(store: ShareStore, token: string): Promise<ShareRecord | null> {
+/** The share a client link opens at `now`. Unknown, revoked and expired tokens look the same. */
+export async function clientShare(
+  store: ShareStore,
+  token: string,
+  now: number,
+): Promise<ShareRecord | null> {
   if (!isSecretShape(token)) return null;
   const share = await store.byTokenHash(hashSecret(token));
-  return share && secretMatches(token, share.tokenHash) ? share : null;
+  return share && secretMatches(token, share.tokenHash) ? live(share, now) : null;
 }
 
 // ── Blob bookkeeping ───────────────────────────────────────────────────────
@@ -160,11 +177,18 @@ export async function createShare(
     project: state.project,
     createdAt: now,
     updatedAt: now,
+    expiresAt: shareExpiresAt(state.project, now),
   };
   await store.create(share);
   for (const snapshot of state.snapshots) await store.upsertSnapshot(share.id, snapshot, "owner");
   for (const comment of state.comments) await store.upsertComment(share.id, comment, "owner");
-  return { shareId: share.id, token, ownerKey, missingBlobs: await missingBlobs(store, share) };
+  return {
+    shareId: share.id,
+    token,
+    ownerKey,
+    missingBlobs: await missingBlobs(store, share),
+    expiresAt: share.expiresAt,
+  };
 }
 
 /** Of `ids`, the rows the owner may delete: its own, and client rows it has pulled (seq ≤ cursor). */
@@ -204,6 +228,7 @@ export async function shareManifest(store: ShareStore, share: ShareRecord): Prom
     snapshots: digests(snapshots),
     comments: digests(comments),
     missingBlobs: await missingBlobs(store, share),
+    expiresAt: share.expiresAt,
   };
 }
 
@@ -231,7 +256,11 @@ export async function applyChanges(
   ) {
     return fail(413, "share-full");
   }
-  if (change.project) await store.setProject(share.id, change.project, now);
+  if (change.project) {
+    // Retention counts from the project's creation once it says when that was (see `retention.ts`).
+    const expiresAt = rescheduledExpiry(share.expiresAt, change.project, share.createdAt, now);
+    await store.setProject(share.id, change.project, now, expiresAt);
+  }
   for (const snapshot of change.snapshots) await store.upsertSnapshot(share.id, snapshot, "owner");
   for (const comment of change.comments) await store.upsertComment(share.id, comment, "owner");
   await store.deleteSnapshots(share.id, deleteSnapshots);
@@ -257,7 +286,12 @@ export async function pullChanges(
   const newSnapshots = fresh(snapshots);
   const newComments = fresh(comments);
   const cursor = Math.max(since, ...[...newSnapshots, ...newComments].map((row) => row.seq));
-  return { snapshots: items(newSnapshots), comments: items(newComments), cursor };
+  return {
+    snapshots: items(newSnapshots),
+    comments: items(newComments),
+    cursor,
+    expiresAt: share.expiresAt,
+  };
 }
 
 export interface UploadProgress {
@@ -318,7 +352,7 @@ export async function putOwnerBlob(
 }
 
 /** Deletes the share, its rows and its blob files. The link stops working at once. */
-export async function revokeShare({ store, blobs }: ShareServices, share: ShareRecord) {
+export async function revokeShare({ store, blobs }: ShareServices, share: Pick<ShareRecord, "id">) {
   await blobs.discard(await store.remove(share.id));
 }
 
@@ -348,6 +382,7 @@ export async function clientView(store: ShareStore, share: ShareRecord): Promise
     snapshots: items(snapshots),
     comments: items(comments),
     reviewEndsAt: reviewDeadline(share.createdAt),
+    expiresAt: share.expiresAt,
   };
 }
 

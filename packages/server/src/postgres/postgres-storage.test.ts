@@ -140,6 +140,19 @@ describe("createPostgresStorage", () => {
     });
   });
 
+  it("expires pins created up to the cutoff, passing it as a timestamp, not epoch seconds", async () => {
+    const { pool, query } = mockPool(() => result([], 3));
+    const cutoff = Date.parse("2026-09-27T04:00:00.000Z");
+
+    expect(await createPostgresStorage({ pool }).expire?.(cutoff)).toEqual({
+      expired: 3,
+      done: true,
+    });
+
+    expect(sqlOf(query, 0)).toBe("DELETE FROM pinpoint_pins WHERE created_at <= $1::timestamptz");
+    expect(query.mock.calls[0]?.[1]).toEqual(["2026-09-27T04:00:00.000Z"]);
+  });
+
   it("requires a pool or connection string", () => {
     expect(() => createPostgresStorage({})).toThrow(/pool/);
   });

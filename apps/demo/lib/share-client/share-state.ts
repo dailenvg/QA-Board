@@ -77,6 +77,7 @@ export function toShareState(
     project: {
       name: cap(project.name, SHARE_LIMITS.projectName) || "Untitled",
       source: sharedSource(project),
+      createdAt: project.createdAt,
     },
     snapshots: snapshots.map(sharedSnapshot),
     comments: comments.map(sharedComment),

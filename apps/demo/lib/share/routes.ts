@@ -12,8 +12,8 @@ export interface ShareContext {
 type Handler = (context: ShareContext) => Promise<Response>;
 
 /**
- * Rate limit, then the owner key from `x-squint-owner-key`; anything wrong is a
- * plain 404, and a storage failure a JSON 500.
+ * Rate limit, then the owner key from `x-squint-owner-key`; anything wrong
+ * (expired share included) is a plain 404, and a storage failure a JSON 500.
  */
 export async function asOwner(
   request: Request,
@@ -26,14 +26,14 @@ export async function asOwner(
   return guardStorage(async () => {
     const services = await shareServices();
     const key = request.headers.get(OWNER_KEY_HEADER);
-    const share = await ownerShare(services.store, shareId, key);
+    const share = await ownerShare(services.store, shareId, key, Date.now());
     return share ? run({ services, share }) : notFound();
   });
 }
 
 /**
- * Rate limit, then the share token from the path; unknown or revoked is a
- * plain 404, and a storage failure a JSON 500.
+ * Rate limit, then the share token from the path; unknown, revoked or expired
+ * is a plain 404, and a storage failure a JSON 500.
  */
 export async function asClient(
   request: Request,
@@ -45,7 +45,7 @@ export async function asClient(
   if (limited) return limited;
   return guardStorage(async () => {
     const services = await shareServices();
-    const share = await clientShare(services.store, token);
+    const share = await clientShare(services.store, token, Date.now());
     return share ? run({ services, share }) : notFound();
   });
 }

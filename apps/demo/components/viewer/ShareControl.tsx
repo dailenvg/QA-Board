@@ -113,7 +113,9 @@ export function ShareControl({ data, project }: ShareControlProps) {
   const failing = share && (status.phase === "error" || status.pullHeld);
   // The dialog says how long is left; the button only whether clients can still comment.
   const closed = Boolean(share && now && reviewClosed(share.createdAt, now));
-  const shareLabel = share ? `Share (link is on${closed ? ", but the review window has closed" : ""})` : "Share";
+  const shareLabel = share
+    ? `Share (link is on${closed ? ", but the review window has closed" : ""})`
+    : "Share";
   return (
     <>
       {failing ? (

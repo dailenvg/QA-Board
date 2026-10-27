@@ -62,6 +62,7 @@ export const sourceSchema = z.discriminatedUnion("kind", [
 export const projectSchema = z.object({
   name: text(SHARE_LIMITS.projectName),
   source: sourceSchema,
+  createdAt: time.optional(),
 });
 
 export const snapshotSchema = z.object({
