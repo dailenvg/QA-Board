@@ -533,7 +533,12 @@ export function ViewerView({
               onCapture={view.capture.capture}
               captureUrl={view.capture.url}
               frame={website ? view.frame : null}
-              onLocation={website ? (url) => view.setPage(url, "frame") : null}
+              // Only Browse follows the site: in Comment mode the frame is hidden, and a site
+              // rewriting its own address there (a ?lang=, dropped utm tags) mustn't swap the
+              // snapshot under an open draft or spend a capture. Nothing heard then is replayed.
+              onLocation={
+                website && surface.kind === "frame" ? (url) => view.setPage(url, "frame") : null
+              }
               frameWidth={website && breakpoint !== "desktop" ? BREAKPOINT_WIDTH[breakpoint] : null}
               onShowLatest={view.showLatest}
               onBrowse={() => setMode("browse")}
