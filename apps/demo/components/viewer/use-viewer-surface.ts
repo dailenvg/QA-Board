@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useViewerBackend } from "@/lib/viewer-backend/backend";
 import { useCapture, type CaptureState } from "@/lib/capture/use-capture";
-import { pageKey } from "@/lib/page-address";
+import { pageAddress, pageKey } from "@/lib/page-address";
 import {
   BREAKPOINT_WIDTH,
   breakpointOf,
@@ -49,6 +49,8 @@ export function useViewerSurface(
   const projectUrl = project.source.kind === "url" ? project.source.url : null;
   /** The project's own page; every website comment without a known snapshot is on it. */
   const home = projectUrl ? (pageKey(projectUrl) ?? projectUrl) : "";
+  /** Where a page is framed and captured: the project's own page at its exact address (fragment kept). */
+  const addressOf = (page: string) => (projectUrl && pageAddress(page, projectUrl)) || page;
   const start = data.snapshots.find((snapshot) => snapshot.id === initial.snapshotId) ?? null;
   const [mode, setModeState] = useState<ViewerMode>(initial.mode);
   const [viewedId, setViewedId] = useState<string | null>(initial.snapshotId);
@@ -62,10 +64,7 @@ export function useViewerSurface(
     start ? breakpointOf(start.width) : "desktop",
   );
   const [sitePage, setSitePage] = useState(() => (start ? pageOfSnapshot(start, home) : home));
-  const [frame, setFrame] = useState<FrameTarget>(() => ({
-    url: sitePage === home && projectUrl ? projectUrl : sitePage,
-    id: 0,
-  }));
+  const [frame, setFrame] = useState<FrameTarget>(() => ({ url: addressOf(sitePage), id: 0 }));
   /** The breakpoint and page the last capture was for, so its failure only shows there. */
   const [capturedFor, setCapturedFor] = useState(`${breakpoint} ${sitePage}`);
   const list = useMemo(() => snapshotsFor(data, project.id), [data, project.id]);
@@ -80,7 +79,7 @@ export function useViewerSurface(
   const stage: StageSource = pages.page ? { kind: "pages", page: pages.page } : { kind: "url" };
   const surface = stageSurface(stage, mode, viewed, latest);
   const backend = useViewerBackend();
-  const captureUrl = kind === "url" ? sitePage : null;
+  const captureUrl = kind === "url" ? addressOf(sitePage) : null;
   const capturer = useMemo(
     () =>
       captureUrl
@@ -112,7 +111,7 @@ export function useViewerSurface(
   /** Shows a page of the website in both modes. The frame only reloads when the reviewer picks it. */
   const setPage = (next: string, from: PageChange = "pick") => {
     if (kind !== "url") return;
-    if (from === "pick") setFrame((current) => ({ url: next, id: current.id + 1 }));
+    if (from === "pick") setFrame((current) => ({ url: addressOf(next), id: current.id + 1 }));
     if (next === sitePage) return;
     setSitePage(next);
     setViewedId(null);
@@ -133,7 +132,7 @@ export function useViewerSurface(
     if (target.pageId) pages.selectPage(target.pageId);
     if (website && page !== sitePage) {
       setSitePage(page);
-      setFrame((current) => ({ url: page, id: current.id + 1 }));
+      setFrame((current) => ({ url: addressOf(page), id: current.id + 1 }));
     }
     setBreakpointState(at);
     setViewedId(target.viewedSnapshotId);

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { originOf, pageKey, pagePath, resolvePageAddress, samePage } from "./page-address";
+import {
+  originOf,
+  pageAddress,
+  pageKey,
+  pagePath,
+  resolvePageAddress,
+  samePage,
+} from "./page-address";
 
 const SITE = "https://acme.example/";
 
@@ -37,6 +44,23 @@ describe("samePage", () => {
     expect(samePage("https://acme.example/other", "https://acme.example/app/")).toBe(
       "https://acme.example/other",
     );
+  });
+});
+
+describe("pageAddress", () => {
+  const HASH_ROUTED = "https://acme.example/app#/checkout";
+
+  it("opens the project's own page at the project's exact address, fragment kept", () => {
+    expect(pageAddress(null, HASH_ROUTED)).toBe(HASH_ROUTED);
+    expect(pageAddress("https://acme.example/app", HASH_ROUTED)).toBe(HASH_ROUTED);
+    expect(pageAddress("https://acme.example/app#/cart", HASH_ROUTED)).toBe(HASH_ROUTED);
+  });
+
+  it("opens other pages of the site at their page key, and refuses other origins", () => {
+    expect(pageAddress("https://acme.example/pricing#faq", HASH_ROUTED)).toBe(
+      "https://acme.example/pricing",
+    );
+    expect(pageAddress("https://evil.example/app", HASH_ROUTED)).toBeNull();
   });
 });
 

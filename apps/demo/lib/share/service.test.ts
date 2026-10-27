@@ -324,6 +324,42 @@ describe("client writes", () => {
     ]);
   });
 
+  it("captures the project's own page at its exact address, fragment and all", async () => {
+    const { services, share } = await shared();
+    const hashRouted = {
+      ...share,
+      project: {
+        ...share.project,
+        source: { kind: "url" as const, url: "https://acme.example/#/checkout" },
+      },
+    };
+    const asked: string[] = [];
+    const capture = (url: URL, width: number) => {
+      asked.push(url.href);
+      return Promise.resolve({
+        body: new Uint8Array(JPEG),
+        contentType: "image/jpeg",
+        width,
+        height: 900,
+        scale: 1,
+      });
+    };
+    for (const page of [null, "https://acme.example/", "https://acme.example/#/cart"]) {
+      const added = await captureForClient(services, hashRouted, 1024, capture, 200, page);
+      expect(added).toMatchObject({
+        ok: true,
+        value: { sourceUrl: "https://acme.example/#/checkout" },
+      });
+    }
+    await captureForClient(services, hashRouted, 1024, capture, 200, "https://acme.example/a#b");
+    expect(asked).toEqual([
+      "https://acme.example/#/checkout",
+      "https://acme.example/#/checkout",
+      "https://acme.example/#/checkout",
+      "https://acme.example/a",
+    ]);
+  });
+
   it("refuses pages on any other origin before capturing anything", async () => {
     const { services, share } = await shared();
     const before = await services.store.snapshots(share.id);

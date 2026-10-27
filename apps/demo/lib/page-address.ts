@@ -42,6 +42,20 @@ export function samePage(address: string, projectUrl: string): string | null {
   return key && origin && new URL(key).origin === origin ? key : null;
 }
 
+/**
+ * The address to frame or capture for a page of the project's site (`null`
+ * meaning the project's own page). The project's own page is opened at the
+ * project's address exactly, `#fragment` included, so a hash-routed app
+ * (`/#/checkout`) still opens on its route; any other same-origin page at its
+ * `pageKey`. Null for a page on another origin.
+ */
+export function pageAddress(page: string | null, projectUrl: string): string | null {
+  if (page === null) return projectUrl;
+  const key = samePage(page, projectUrl);
+  if (!key) return null;
+  return key === pageKey(projectUrl) ? projectUrl : key;
+}
+
 /** Where a page is on its site: `/`, `/pricing`, `/search?q=shoes`. */
 export function pagePath(pageUrl: string): string {
   const url = parse(pageUrl);
