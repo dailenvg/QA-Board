@@ -360,6 +360,39 @@ describe("client writes", () => {
     ]);
   });
 
+  it("refuses another page that redirected off the site, but not canonical redirects", async () => {
+    const { services, share } = await shared();
+    const before = await services.store.snapshots(share.id);
+    const landingOn = (finalUrl: string) => (_url: URL, width: number) =>
+      Promise.resolve({
+        body: new Uint8Array(JPEG),
+        contentType: "image/jpeg",
+        width,
+        height: 900,
+        scale: 1,
+        finalUrl,
+      });
+    const go = "https://acme.example/go?to=evil";
+    expect(
+      await captureForClient(services, share, 1024, landingOn("https://evil.example/"), 200, go),
+    ).toEqual({ ok: false, status: 422, error: "other-site" });
+    expect(await services.store.snapshots(share.id)).toEqual(before);
+    for (const final of ["https://www.acme.example/go/", "https://acme.example/elsewhere"]) {
+      const added = await captureForClient(services, share, 1024, landingOn(final), 200, go);
+      expect(added).toMatchObject({ ok: true, value: { sourceUrl: go } });
+    }
+    // The project's own address keeps its owner's choice, wherever it redirects.
+    const own = await captureForClient(
+      services,
+      share,
+      1024,
+      landingOn("https://acme-cdn.example/"),
+      200,
+      null,
+    );
+    expect(own).toMatchObject({ ok: true, value: { sourceUrl: "https://acme.example/" } });
+  });
+
   it("refuses pages on any other origin before capturing anything", async () => {
     const { services, share } = await shared();
     const before = await services.store.snapshots(share.id);

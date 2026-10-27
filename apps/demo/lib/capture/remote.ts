@@ -40,5 +40,6 @@ export async function captureRemote(
   if (!(scale > 0 && scale <= 1)) throw new CaptureError("failed");
   const body = new Uint8Array(await response.arrayBuffer());
   if (body.length > CAPTURE_LIMITS.maxBytes) throw new CaptureError("failed");
-  return { body, contentType, width, height, scale };
+  const finalUrl = response.headers.get(CAPTURE_HEADERS.finalUrl);
+  return { body, contentType, width, height, scale, ...(finalUrl ? { finalUrl } : {}) };
 }

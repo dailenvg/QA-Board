@@ -6,6 +6,7 @@ import {
   pagePath,
   resolvePageAddress,
   samePage,
+  sameSite,
 } from "./page-address";
 
 const SITE = "https://acme.example/";
@@ -61,6 +62,25 @@ describe("pageAddress", () => {
       "https://acme.example/pricing",
     );
     expect(pageAddress("https://evil.example/app", HASH_ROUTED)).toBeNull();
+  });
+});
+
+describe("sameSite", () => {
+  it("lets ordinary canonical redirects through", () => {
+    expect(sameSite("https://acme.example/pricing", "https://acme.example/pricing/")).toBe(true);
+    expect(sameSite("http://acme.example/pricing", "https://acme.example/pricing")).toBe(true);
+    expect(sameSite("https://acme.example/a", "https://www.acme.example/a")).toBe(true);
+    expect(sameSite("https://www.acme.example/a", "https://acme.example/b")).toBe(true);
+    expect(sameSite("http://localhost:3000/a", "http://localhost:3000/b")).toBe(true);
+  });
+
+  it("refuses redirects to another site, a downgrade or another port", () => {
+    expect(sameSite("https://acme.example/go", "https://evil.example/")).toBe(false);
+    expect(sameSite("https://acme.example/go", "https://acme.example.evil.example/")).toBe(false);
+    expect(sameSite("https://acme.example/", "http://acme.example/")).toBe(false);
+    expect(sameSite("https://acme.example/", "https://acme.example:8443/")).toBe(false);
+    expect(sameSite("http://acme.example:8080/", "https://acme.example/")).toBe(false);
+    expect(sameSite("https://acme.example/", "about:blank")).toBe(false);
   });
 });
 

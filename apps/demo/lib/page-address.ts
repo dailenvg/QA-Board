@@ -56,6 +56,25 @@ export function pageAddress(page: string | null, projectUrl: string): string | n
   return key === pageKey(projectUrl) ? projectUrl : key;
 }
 
+const bareHost = (url: URL) => url.hostname.replace(/^www\./, "");
+const portOf = (url: URL) => url.port || (url.protocol === "https:" ? "443" : "80");
+
+/**
+ * Whether a capture that asked for `requested` and ended up at `final` (after
+ * redirects) stayed on the same site: the same host, give or take a leading
+ * `www.`, on the same scheme and port, or upgraded from http to https on the
+ * default ports. Ordinary canonical redirects pass; an open redirect to
+ * another site doesn't.
+ */
+export function sameSite(requested: string, final: string): boolean {
+  const from = parse(requested);
+  const to = parse(final);
+  if (!from || !to || bareHost(from) !== bareHost(to)) return false;
+  if (from.protocol === to.protocol) return portOf(from) === portOf(to);
+  const upgraded = from.protocol === "http:" && to.protocol === "https:";
+  return upgraded && !from.port && !to.port;
+}
+
 /** Where a page is on its site: `/`, `/pricing`, `/search?q=shoes`. */
 export function pagePath(pageUrl: string): string {
   const url = parse(pageUrl);

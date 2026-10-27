@@ -8,7 +8,7 @@ import { createSecret, createShareId, hashSecret, isSecretShape, secretMatches }
 import { digest } from "./digest";
 import { pageBlobKey } from "./keys";
 import { isExpired, rescheduledExpiry, shareExpiresAt } from "./retention";
-import { pageAddress } from "../page-address";
+import { pageAddress, sameSite } from "../page-address";
 import { reviewClosed, reviewDeadline } from "./review-window";
 import type {
   ClientView,
@@ -565,6 +565,11 @@ export async function captureForClient(
     return fail(413, "share-full");
   }
   const image = await capture(new URL(target), width);
+  // Another page of the site that redirected off it (an open redirect) isn't the site's page.
+  // The project's own address keeps whatever its owner chose, redirects and all.
+  if (target !== source.url && image.finalUrl && !sameSite(target, image.finalUrl)) {
+    return fail(422, "other-site");
+  }
   const snapshot: SharedSnapshot = {
     id: randomUUID(),
     width: image.width,
