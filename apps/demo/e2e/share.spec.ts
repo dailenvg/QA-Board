@@ -345,6 +345,26 @@ test("an unsent client comment survives a reload, with a warning before leaving"
   await clientContext.close();
 });
 
+test("a server with nowhere lasting to keep links says so instead of creating one", async ({
+  page,
+}) => {
+  await openFolder(page);
+  await createImageProject(page, "checkout.png");
+  // What a Vercel deployment without DATABASE_URL answers (see canCreateShares).
+  await page.route("**/api/shares", (route) =>
+    route.request().method() === "POST"
+      ? route.fulfill({ status: 503, json: { error: "storage-unavailable" } })
+      : route.fallback(),
+  );
+
+  await page.getByTestId("share-button").click();
+  const dialog = page.getByTestId("share-dialog");
+  await dialog.getByTestId("create-share-link").click();
+  await expect(dialog).toContainText("it has no database to keep them");
+  await expect(dialog).not.toContainText("Check your connection");
+  await expect(dialog.getByTestId("share-url")).toHaveCount(0);
+});
+
 test("an image project is shared as its page, and a client's comment comes back on it", async ({
   page,
   browser,
