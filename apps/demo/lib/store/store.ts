@@ -1,3 +1,4 @@
+import { legacyFolderChecked, markLegacyFolderChecked, withoutLegacyFolder } from "./legacy-folder";
 import { migrateImages } from "./migrate-images";
 import {
   createInitialData,
@@ -46,7 +47,8 @@ function removeLegacy(): void {
  * Data saved by an earlier version (already upgraded in memory): move any
  * version 1 images to the blob store, then save it as version 3 and drop the
  * old copies. All or nothing: if any step fails, the old copy stays exactly
- * as it was and this visit runs unsaved (the next load tries again).
+ * as it was and this visit runs unsaved (the next load tries again). Once
+ * saved, the leftover folder check (see `load`) is done too.
  */
 function migrate(data: SquintData, images: readonly PendingImage[]): void {
   if (migrating) return;
@@ -54,7 +56,10 @@ function migrate(data: SquintData, images: readonly PendingImage[]): void {
   void migrateImages(images).then((imagesSaved) => {
     migrating = false;
     const saved = imagesSaved && write(data).ok;
-    if (saved) removeLegacy();
+    if (saved) {
+      removeLegacy();
+      markLegacyFolderChecked();
+    }
     state = { status: "ready", data, persistent: saved };
     emit();
   });
@@ -71,6 +76,19 @@ function readStored(): { raw: string | null; legacy: boolean } {
   return { raw: null, legacy: false };
 }
 
+/**
+ * Version 3 data on the load that checks for the leftover default folder
+ * (`legacy-folder.ts`). A removal is saved before the check is marked done;
+ * if the save fails the folder stays, as with any failed write, and the next
+ * load checks again.
+ */
+function finishLegacyFolderCheck(stored: SquintData, data: SquintData): StoreState {
+  const saved = data === stored || write(data).ok;
+  if (saved) markLegacyFolderChecked();
+  return { status: "ready", data: saved ? data : stored, persistent: true };
+}
+
+/** Reads the saved data, dropping the leftover default folder on the first load that checks. */
 function load(): StoreState {
   let stored: { raw: string | null; legacy: boolean };
   try {
@@ -82,10 +100,13 @@ function load(): StoreState {
   if (raw === null) return { status: "ready", data: createInitialData(), persistent: true };
   const parsed = parseData(raw);
   if (!parsed.ok) return { status: "corrupt", reason: parsed.reason, raw };
+  const checking = !legacyFolderChecked();
+  const data = checking ? withoutLegacyFolder(parsed.data) : parsed.data;
   if (!legacy && parsed.storedVersion === 3 && parsed.pendingImages.length === 0) {
-    return { status: "ready", data: parsed.data, persistent: true };
+    if (checking) return finishLegacyFolderCheck(parsed.data, data);
+    return { status: "ready", data, persistent: true };
   }
-  migrate(parsed.data, parsed.pendingImages);
+  migrate(data, parsed.pendingImages);
   return LOADING;
 }
 

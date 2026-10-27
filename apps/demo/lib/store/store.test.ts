@@ -234,3 +234,66 @@ describe("a fresh workspace", () => {
     ]);
   });
 });
+
+describe("the leftover default folder", () => {
+  /** What every new browser saved before fresh workspaces started with no folders. */
+  const leftover = {
+    version: 3,
+    folders: [{ id: "default", name: "My projects", createdAt: 1_761_000_000_000, parentId: null }],
+    projects: [],
+    comments: [],
+    snapshots: [],
+    revocations: [],
+    authorName: null,
+  };
+  const CHECK_KEY = "squint:legacy-folder-cleanup";
+
+  function folderNames(state: StoreState): string[] | false {
+    return state.status === "ready" && state.data.folders.map((folder) => folder.name);
+  }
+
+  it("is removed on load and saved that way, once", async () => {
+    localStorage.setItem("squint:v3", JSON.stringify(leftover));
+    const { store } = await freshStore();
+    expect(folderNames(store.getSnapshot())).toEqual([]);
+    expect(savedV3()).toMatchObject({ version: 3, folders: [] });
+    expect(localStorage.getItem(CHECK_KEY)).not.toBeNull();
+  });
+
+  it("stays once this browser was checked", async () => {
+    localStorage.setItem(CHECK_KEY, "1");
+    const raw = JSON.stringify(leftover);
+    localStorage.setItem("squint:v3", raw);
+    const { store } = await freshStore();
+    expect(folderNames(store.getSnapshot())).toEqual(["My projects"]);
+    expect(localStorage.getItem("squint:v3")).toBe(raw);
+  });
+
+  it("stays for this visit when the removal can't be saved; the next load tries again", async () => {
+    const raw = JSON.stringify(leftover);
+    localStorage.setItem("squint:v3", raw);
+    full.add("squint:v3");
+    const { store } = await freshStore();
+    expect(folderNames(store.getSnapshot())).toEqual(["My projects"]);
+    expect(localStorage.getItem("squint:v3")).toBe(raw);
+    expect(localStorage.getItem(CHECK_KEY)).toBeNull();
+    full.clear();
+    expect(folderNames((await freshStore()).store.getSnapshot())).toEqual([]);
+  });
+
+  it("is removed from older data as it's saved as version 3", async () => {
+    localStorage.setItem("squint:v2", JSON.stringify({ ...leftover, version: 2 }));
+    const { ready } = await freshStore();
+    expect(folderNames(await ready)).toEqual([]);
+    expect(savedV3()).toMatchObject({ version: 3, folders: [] });
+    expect(localStorage.getItem("squint:v2")).toBeNull();
+    expect(localStorage.getItem(CHECK_KEY)).not.toBeNull();
+  });
+
+  it("stays when it holds a project, and the check is still marked done", async () => {
+    localStorage.setItem("squint:v2", V2);
+    const { ready } = await freshStore();
+    expect(folderNames(await ready)).toEqual(["My projects"]);
+    expect(localStorage.getItem(CHECK_KEY)).not.toBeNull();
+  });
+});

@@ -48,6 +48,8 @@ export const DEFAULT_FOLDER = { id: "default", name: "My projects" } as const;
 /**
  * Adds DEFAULT_FOLDER to this browser's stored workspace (an empty workspace when
  * there's none yet), keeping everything else. Takes effect on the next page load.
+ * Alone and empty it looks like the old seeded folder load removes once
+ * (`lib/store/legacy-folder.ts`), so this marks that check done.
  */
 export async function addDefaultFolder(page: Page): Promise<void> {
   if (!page.url().startsWith("http")) await page.goto("/sandbox");
@@ -64,6 +66,7 @@ export async function addDefaultFolder(page: Page): Promise<void> {
           revocations: [],
           authorName: null,
         };
+    localStorage.setItem("squint:legacy-folder-cleanup", "1");
     if (data.folders.some((entry) => entry.id === folder.id)) return;
     // Oldest, so it comes first, as the seeded folder used to.
     data.folders.unshift({ ...folder, createdAt: 0, parentId: null });
