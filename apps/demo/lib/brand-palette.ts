@@ -6,6 +6,7 @@
  */
 
 import { contrast } from "./color";
+import type { Folder } from "./store/types";
 
 export interface PaletteEntry {
   id: string;
@@ -63,14 +64,14 @@ export function paletteEntry(id: string): PaletteEntry {
 export const RESOLVED_GREEN = paletteEntry("allergy");
 
 /**
- * The palette in grid order, without The Daily: its lime is the app's
- * highlight (selection, type tags), so folders don't wear it. Seven warm and
- * seven cool colors alternate, and with an odd ROW_STEP they alternate down
- * each column too. The reds (Omega Oil, Sockeye Salmon, Bladder), greens
- * (Allergy, Clean Breath, Colostrum), pinks and blues are placed so that no
- * two of a kind sit side by side or stacked, at any column count up to five.
+ * The folder palette in the order folders are given it, without The Daily: its
+ * lime is the app's highlight (selection, type tags), so folders don't wear
+ * it. Seven warm and seven cool colors alternate, also across the wrap from
+ * the last back to the first, and the reds (Omega Oil, Sockeye Salmon,
+ * Bladder), greens (Allergy, Clean Breath, Colostrum), pinks and blues are
+ * placed so that no two of a kind come one after the other.
  */
-const GRID_ORDER = [
+const FOLDER_ORDER = [
   "calm",
   "skin-coat",
   "probiotic",
@@ -87,25 +88,43 @@ const GRID_ORDER = [
   "sockeye",
 ].map(paletteEntry);
 
-/**
- * Each row steps this far through GRID_ORDER. It shares no factor with the
- * palette's length (14), so one column only repeats a color after every color
- * has been used.
- */
-const ROW_STEP = 3;
+/** How many colors folders take turns with. */
+export const FOLDER_COLOR_COUNT = FOLDER_ORDER.length;
 
 /**
- * The color for a grid cell. Within a row the colors are consecutive, and down
- * a column each row moves ROW_STEP along, so no row or column repeats a color
- * until it holds more cells than the palette has colors.
+ * The color of the folder `rank`th in creation order among its siblings (0 for
+ * the oldest). It follows the folder, not its place on screen, so sorting or a
+ * new column count never recolors it. Consecutive folders get consecutive
+ * colors, and no color repeats until all of them have been used.
  */
-export function paletteForCell(index: number, columns: number): PaletteEntry {
-  const cols = Math.max(1, columns);
-  const row = Math.floor(index / cols);
-  const col = index % cols;
-  const entry = GRID_ORDER[(col + row * ROW_STEP) % GRID_ORDER.length];
+export function folderColor(rank: number): PaletteEntry {
+  const index = Math.max(0, Math.floor(rank)) % FOLDER_ORDER.length;
+  const entry = FOLDER_ORDER[index];
   if (!entry) throw new Error("The brand palette is empty.");
   return entry;
+}
+
+/** Oldest first; folders made in the same millisecond go by id, so input order never matters. */
+function byCreation(a: Folder, b: Folder): number {
+  return a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+}
+
+/**
+ * Every folder's color, by id: its place in creation order among its siblings
+ * (the top-level folders, or one folder's subfolders), through folderColor. The
+ * Overview's sort, the grid's column count and the viewport never change it, so
+ * a folder's art and mascot keep their color wherever it shows. Deleting an
+ * older sibling, or moving the folder to another parent, does move it along.
+ */
+export function folderSwatches(folders: readonly Folder[]): Map<string, PaletteEntry> {
+  const swatches = new Map<string, PaletteEntry>();
+  const nextRank = new Map<string | null, number>();
+  for (const folder of [...folders].sort(byCreation)) {
+    const rank = nextRank.get(folder.parentId) ?? 0;
+    nextRank.set(folder.parentId, rank + 1);
+    swatches.set(folder.id, folderColor(rank));
+  }
+  return swatches;
 }
 
 /** Green means resolved on pins and badges, so no commenter is given a green. */

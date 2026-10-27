@@ -564,7 +564,8 @@
 .gf-root:has(.gf-hit:focus-visible) .gf-key {
   transform: translateY(-3px);
 }
-.gf-root:has(.gf-hit:active) .gf-key {
+/* A press anywhere on the folder (glass, art or files: all the same link) presses the key. */
+.gf-root:has(.gf-stage a:active) .gf-key {
   transform: scale(0.94);
   transition-duration: 0.12s;
 }

@@ -2,31 +2,17 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { useMemo } from "react";
-import { paletteForCell } from "@/lib/brand-palette";
+import { folderColor, folderSwatches } from "@/lib/brand-palette";
 import { subtreeIds } from "@/lib/store/folders";
 import type { Folder } from "@/lib/store/types";
 import { staggerGroup } from "@/lib/motion";
-import { useMediaQuery } from "@/lib/use-media-query";
 import { useTheme } from "@/lib/use-theme";
 import type { Workspace } from "../dashboard/workspace-context";
 import { FolderCard } from "./FolderCard";
 import { folderFiles, projectCountLabel } from "./folder-files";
-import { FOLDER_GRID, FOLDER_GRID_COLUMNS } from "./folder-grid-classes";
+import { FOLDER_GRID } from "./folder-grid-classes";
 
 const stagger = staggerGroup(0.08, 0.12);
-
-/** How many columns FOLDER_GRID shows at the current viewport width. */
-function useGridColumns(): number {
-  const [xxl, xl, lg, sm] = FOLDER_GRID_COLUMNS;
-  const matches = [
-    useMediaQuery(xxl.query),
-    useMediaQuery(xl.query),
-    useMediaQuery(lg.query),
-    useMediaQuery(sm.query),
-  ];
-  const step = FOLDER_GRID_COLUMNS.find((_, i) => matches[i]);
-  return step?.columns ?? 1;
-}
 
 interface FolderGridProps {
   workspace: Workspace;
@@ -38,13 +24,14 @@ interface FolderGridProps {
 
 /**
  * Folders as glass folder cards, the newest projects inside each (its
- * subfolders' included, and counted). Each folder's color comes from its cell
- * in the grid, so no two folders in a row or column share one.
+ * subfolders' included, and counted). Each folder keeps its own color
+ * (folderSwatches: its place in creation order among its siblings), so a new
+ * sort order moves folders without recoloring them.
  */
 export function FolderGrid({ workspace, folders, labelledBy }: FolderGridProps) {
   const { data } = workspace;
   const tone = useTheme();
-  const columns = useGridColumns();
+  const swatches = useMemo(() => folderSwatches(workspace.folders), [workspace.folders]);
   const cards = useMemo(
     () =>
       new Map(
@@ -78,7 +65,7 @@ export function FolderGrid({ workspace, folders, labelledBy }: FolderGridProps) 
             files={cards.get(folder.id)?.files ?? []}
             meta={cards.get(folder.id)?.meta ?? ""}
             index={index}
-            swatch={paletteForCell(index, columns)}
+            swatch={swatches.get(folder.id) ?? folderColor(index)}
             tone={tone}
             actions={workspace.folderActions(folder)}
           />

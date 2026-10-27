@@ -70,15 +70,19 @@ function SiteCard({ url }: { url: string }) {
   const showIcon = Boolean(icon) && !iconFailed;
   return (
     <div className="flex h-full flex-col">
-      {/* min-h-12 and pl-12: the card's type tag sits inside the bar's left end, like a tab icon. */}
+      {/*
+       * The card's type pill ("Website", ProjectTypeTag) sits in the bar's left end, like a
+       * browser tab: min-h-10 centers it (8px inset, 24px pill, 8px) and pl-28 keeps the address
+       * field clear of it. The window dots move to the right end so nothing sits under the pill.
+       */}
       <div
         aria-hidden="true"
-        className="flex min-h-12 items-center gap-2 border-b border-line pr-3 pl-12"
+        className="flex min-h-10 items-center gap-2 border-b border-line pr-4 pl-28"
       >
-        <span className="size-2 rounded-pill bg-line-strong" />
-        <span className="size-2 rounded-pill bg-line-strong" />
-        <span className="size-2 rounded-pill bg-line-strong" />
-        <span className="ml-2 h-4 flex-1 rounded-pill bg-tile" />
+        <span className="mr-2 h-4 min-w-0 flex-1 rounded-pill bg-tile" />
+        <span className="size-2 shrink-0 rounded-pill bg-line-strong" />
+        <span className="size-2 shrink-0 rounded-pill bg-line-strong" />
+        <span className="size-2 shrink-0 rounded-pill bg-line-strong" />
       </div>
       <div className="grid flex-1 place-items-center gap-2 p-4 text-center">
         {/* Favicons are drawn for light browser chrome; a fixed light chip keeps dark ones visible in dark mode. */}

@@ -4,7 +4,12 @@ import { FOLDER_MAX_WIDTH } from "./glass-folder/geometry";
 
 const FOLDERS = 3;
 
-/** Overview placeholder: the hero, then folder-shaped cards. */
+/**
+ * Overview placeholder: the hero, the sort row, then folder-shaped cards. The
+ * sort row is reserved even though it only shows with two or more folders
+ * (unknown until the workspace loads): most workspaces have them, and a row
+ * that appears late would push every folder down.
+ */
 export function OverviewSkeleton() {
   return (
     <div role="status" aria-busy="true" className="flex flex-col gap-4">
@@ -16,6 +21,11 @@ export function OverviewSkeleton() {
           <Skeleton className="h-10 w-full max-w-sm" />
           <Skeleton className="h-5 w-full max-w-md" />
         </div>
+      </div>
+      {/* Matches OverviewFolders' sort row: the menu, then the order (icon-only on phones). */}
+      <div className="-mb-4 flex justify-center gap-2 px-4 sm:justify-end [@media(hover:none)]:pb-10">
+        <Skeleton className="h-11 w-44 rounded-pill" />
+        <Skeleton className="h-11 w-11 rounded-pill sm:w-36" />
       </div>
       <div className={FOLDER_GRID}>
         {Array.from({ length: FOLDERS }, (_, index) => (

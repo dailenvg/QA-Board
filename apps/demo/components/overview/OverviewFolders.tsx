@@ -28,8 +28,10 @@ export function OverviewFolders({ workspace }: { workspace: Workspace }) {
       </h2>
       {sorted.length > 1 ? (
         // On touch, folder cards pull their headroom up (FolderCard); this padding takes it,
-        // so the first row never sits over the controls.
-        <div className="flex justify-end px-4 [@media(hover:none)]:pb-10">
+        // so the first row never sits over the controls. Phones show one centered column of
+        // folders narrower than the row, so the controls center over it (as the hero's text
+        // does); from sm up they sit at the grid's right edge.
+        <div className="flex justify-center px-4 sm:justify-end [@media(hover:none)]:pb-10">
           <SortControls sort={sort} options={FOLDER_SORT} onKey={setKey} onReverse={reverse} />
         </div>
       ) : null}
