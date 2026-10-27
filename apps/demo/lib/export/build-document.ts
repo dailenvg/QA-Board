@@ -19,8 +19,8 @@ export type PageAsset = Pick<ExportPage, "width" | "height" | "file" | "omitted"
 
 /** What's known about the files that go with the comments (read from the blob store). */
 export interface ExportAssets {
-  /** Ids of comments whose crop is stored in this browser. */
-  crops: ReadonlySet<string>;
+  /** The MIME type of each comment's crop stored in this browser, by comment id. */
+  crops: ReadonlyMap<string, string>;
   snapshots: ReadonlyMap<string, SnapshotAsset>;
   /** Page projects: each page's image, by page id. */
   pages: ReadonlyMap<string, PageAsset>;
@@ -125,7 +125,7 @@ export function buildExportDocument({
     const snapshot = comment.snapshotId ? byId.get(comment.snapshotId) : undefined;
     const page = comment.pageId && !comment.snapshotId ? pagesById.get(comment.pageId) : undefined;
     const onPage = page ? { number: page.number, total: pages.length } : null;
-    const crop = comment.crop && assets.crops.has(comment.id) ? comment.crop : null;
+    const cropType = assets.crops.get(comment.id);
     return {
       number,
       id: comment.id,
@@ -137,9 +137,13 @@ export function buildExportDocument({
       resolvedAt: comment.resolvedAt ?? null,
       location: locate(comment, snapshot, page),
       pageUrl: pageUrl(project, snapshot),
-      screenshot: crop
-        ? { file: screenshotPath(number, comment.id, comments.length, onPage), rect: crop.rect }
-        : null,
+      screenshot:
+        comment.crop && cropType !== undefined
+          ? {
+              file: screenshotPath(number, comment.id, comments.length, cropType, onPage),
+              rect: comment.crop.rect,
+            }
+          : null,
     };
   });
   const order = (entry: ExportComment) => (entry.status === "active" ? 0 : 1);

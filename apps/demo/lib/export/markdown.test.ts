@@ -42,9 +42,9 @@ describe("toMarkdown", () => {
   });
 
   it("embeds screenshots in the ZIP copy and points at the ZIP in the bare one", () => {
-    expect(zipMarkdown).toContain("![Screenshot for comment 3](screenshots/03-cccc3333.png)");
+    expect(zipMarkdown).toContain("![Screenshot for comment 3](screenshots/03-cccc3333.jpg)");
     expect(bareMarkdown).not.toContain("![");
-    expect(bareMarkdown).toContain("`screenshots/03-cccc3333.png` in the ZIP export");
+    expect(bareMarkdown).toContain("`screenshots/03-cccc3333.jpg` in the ZIP export");
     expect(bareMarkdown).toContain("Download the ZIP export from Squint to get them.");
   });
 
@@ -73,7 +73,7 @@ describe("toMarkdown", () => {
       "- **Location:** 50% from the left, 10% from the top of page 3 = x 800 px, y 90 px on a 1600 × 900 px page",
     );
     expect(deck).toContain("- **Page:** 3 of 3; image [pages/03.webp](pages/03.webp)");
-    expect(deck).toContain("![Screenshot for comment 2](screenshots/02-p02-ffff6666.png)");
+    expect(deck).toContain("![Screenshot for comment 2](screenshots/02-p02-ffff6666.jpg)");
     expect(deck).toContain("Page images, when included, are in `pages/`.");
   });
 });

@@ -9,7 +9,8 @@ import type { ExportDocument } from "./types";
  *   and `omitted`, and its image is `pages/<PP>.<ext>` (was
  *   `source-image.<ext>`). `location.surface` "image" became "page", and
  *   `location.page` (`{ id, number, name }`, else null) says which page.
- *   A screenshot of a pin on a page is `screenshots/<NN>-p<PP>-<id>.png`.
+ *   A screenshot of a pin on a page is `screenshots/<NN>-p<PP>-<id>.<ext>`
+ *   (`.jpg` for newer screenshots, `.png` for older ones).
  * - `squint.comments/1`: the first version.
  */
 export const JSON_SCHEMA = "squint.comments/2";

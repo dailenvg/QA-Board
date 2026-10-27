@@ -33,7 +33,7 @@ describe("buildExportDocument", () => {
   it("links screenshots that are stored, and only the snapshots comments use", () => {
     expect(document.comments.map((comment) => comment.screenshot?.file ?? null)).toEqual([
       null,
-      "screenshots/03-cccc3333.png",
+      "screenshots/03-cccc3333.jpg",
       "screenshots/02-bbbb2222.png",
     ]);
     expect(document.snapshots.map(({ id, file, omitted }) => ({ id, file, omitted }))).toEqual([
@@ -45,7 +45,7 @@ describe("buildExportDocument", () => {
   it("drops the screenshot link when the crop isn't stored", () => {
     const missing = buildExportDocument({
       ...URL_EXPORT,
-      assets: { ...URL_EXPORT.assets, crops: new Set() },
+      assets: { ...URL_EXPORT.assets, crops: new Map() },
     });
     expect(missing.comments.every((comment) => comment.screenshot === null)).toBe(true);
   });
@@ -90,8 +90,8 @@ describe("buildExportDocument", () => {
         comment.screenshot?.file,
       ]),
     ).toEqual([
-      [1, 3, 800, 90, "screenshots/01-p03-eeee5555.png"],
-      [2, 2, 800, 90, "screenshots/02-p02-ffff6666.png"],
+      [1, 3, 800, 90, "screenshots/01-p03-eeee5555.jpg"],
+      [2, 2, 800, 90, "screenshots/02-p02-ffff6666.jpg"],
     ]);
     const source = deck.project.source;
     expect(
