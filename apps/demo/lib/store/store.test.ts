@@ -290,10 +290,46 @@ describe("the leftover default folder", () => {
     expect(localStorage.getItem(CHECK_KEY)).not.toBeNull();
   });
 
-  it("stays when it holds a project, and the check is still marked done", async () => {
-    localStorage.setItem("squint:v2", V2);
-    const { ready } = await freshStore();
-    expect(folderNames(await ready)).toEqual(["My projects"]);
+  const project = {
+    id: "p1",
+    folderId: "default",
+    name: "Homepage",
+    source: { kind: "url", url: "https://example.com/" },
+    createdAt: 1_761_000_000_000,
+    updatedAt: 1_761_000_000_000,
+  };
+
+  /** Stores `data` as version 3, loads it, and expects the folder kept and the data not rewritten. */
+  async function expectKeptUnwritten(data: object): Promise<void> {
+    const raw = JSON.stringify(data);
+    localStorage.setItem("squint:v3", raw);
+    const { store } = await freshStore();
+    expect(folderNames(store.getSnapshot())).toEqual(["My projects"]);
+    expect(localStorage.getItem("squint:v3")).toBe(raw);
     expect(localStorage.getItem(CHECK_KEY)).not.toBeNull();
+  }
+
+  it("stays when it holds a project, and the check is still marked done", async () => {
+    await expectKeptUnwritten({ ...leftover, projects: [project] });
+  });
+
+  it("stays, unwritten, when the only other thing stored is an orphan comment", async () => {
+    const comment = {
+      id: "c1",
+      projectId: "gone",
+      x: 10,
+      y: 20,
+      body: "Tighten the hero copy.",
+      author: "Ana",
+      status: "active",
+      createdAt: 1_761_000_000_000,
+      updatedAt: 1_761_000_000_000,
+    };
+    await expectKeptUnwritten({ ...leftover, comments: [comment] });
+  });
+
+  it("stays, unwritten, when the only project stored is a javascript: one load drops", async () => {
+    const unsafe = { ...project, source: { kind: "url", url: "javascript:alert(1)" } };
+    await expectKeptUnwritten({ ...leftover, projects: [unsafe] });
   });
 });

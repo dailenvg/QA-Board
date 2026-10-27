@@ -101,7 +101,7 @@ function load(): StoreState {
   const parsed = parseData(raw);
   if (!parsed.ok) return { status: "corrupt", reason: parsed.reason, raw };
   const checking = !legacyFolderChecked();
-  const data = checking ? withoutLegacyFolder(parsed.data) : parsed.data;
+  const data = checking ? withoutLegacyFolder(parsed, raw) : parsed.data;
   if (!legacy && parsed.storedVersion === 3 && parsed.pendingImages.length === 0) {
     if (checking) return finishLegacyFolderCheck(parsed.data, data);
     return { status: "ready", data, persistent: true };
