@@ -77,9 +77,9 @@ function readStored(): { raw: string | null; legacy: boolean } {
 }
 
 /**
- * Version 3 data on the load that checks for the leftover default folder
+ * Finishes a version 3 load that checked for the leftover default folder
  * (`legacy-folder.ts`). A removal is saved before the check is marked done;
- * if the save fails the folder stays, as with any failed write, and the next
+ * if the save fails, the folder stays (as with any failed write) and the next
  * load checks again.
  */
 function finishLegacyFolderCheck(stored: SquintData, data: SquintData): StoreState {

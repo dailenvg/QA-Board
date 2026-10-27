@@ -48,8 +48,8 @@ export const DEFAULT_FOLDER = { id: "default", name: "My projects" } as const;
 /**
  * Adds DEFAULT_FOLDER to this browser's stored workspace (an empty workspace when
  * there's none yet), keeping everything else. Takes effect on the next page load.
- * Alone and empty it looks like the old seeded folder load removes once
- * (`lib/store/legacy-folder.ts`), so this marks that check done.
+ * Alone and empty, it looks like the old seeded folder that load removes once
+ * (`lib/store/legacy-folder.ts`), so this also marks that check done.
  */
 export async function addDefaultFolder(page: Page): Promise<void> {
   if (!page.url().startsWith("http")) await page.goto("/sandbox");

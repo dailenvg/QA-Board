@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import type { SquintData } from "../lib/store/types";
 import { folderCard, seedWorkspace } from "./squint-fixtures";
 
-/** Before fresh workspaces started empty: the folder every new browser got, untouched. */
+/** The untouched folder every new browser got before fresh workspaces started empty. */
 const LEFTOVER: SquintData = {
   version: 3,
   folders: [
@@ -22,7 +22,7 @@ async function storedFolderNames(page: Page): Promise<string[]> {
   });
 }
 
-test("an untouched folder left from the old seed is removed, so the welcome shows", async ({
+test("an untouched folder left from the old seed is removed, so the welcome screen shows", async ({
   page,
 }) => {
   await seedWorkspace(page, LEFTOVER);

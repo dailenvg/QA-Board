@@ -1,7 +1,7 @@
 import { DEFAULT_FOLDER_NAME } from "./persist";
 import type { SquintData } from "./types";
 
-/** Set once this browser has been checked for the leftover folder, kept apart from the data. */
+/** Set once this browser has been checked for the leftover folder, kept apart from the workspace data. */
 export const LEGACY_FOLDER_CHECK_KEY = "squint:legacy-folder-cleanup";
 
 /**
@@ -12,9 +12,9 @@ export const NO_DEFAULT_FOLDER_SINCE = Date.UTC(2026, 9, 26, 19, 28);
 
 /**
  * Before that deploy every new browser got an empty top-level "My projects"
- * folder, which hides the welcome. True only for that folder as it was made:
- * alone, never renamed or nested into, made before the cutoff, in a workspace
- * nothing else was ever saved in (no projects, comments, snapshots, pending
+ * folder, which hides the welcome screen. True only for that folder as it was
+ * made: the only folder, never renamed, made before the cutoff, in a workspace
+ * that holds nothing else (no projects, comments, snapshots, pending
  * revocations or comment author name).
  */
 function isUntouchedLegacyFolder(data: SquintData): boolean {
