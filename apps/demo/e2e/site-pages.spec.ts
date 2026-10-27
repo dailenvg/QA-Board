@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
   createUrlProject,
+  dropPin,
   hideComments,
   mockCapture,
   mockFrameCheck,
@@ -54,15 +55,37 @@ function captureUrls(page: Page): string[] {
   return urls;
 }
 
-async function sandboxProject(page: Page, baseURL: string | undefined, name: string) {
+async function sandboxProject(
+  page: Page,
+  baseURL: string | undefined,
+  name: string,
+  address = `${baseURL}/sandbox`,
+) {
   await mockFrameCheck(page, {
     verdict: "embeddable",
     finalUrl: `${baseURL}/sandbox`,
     status: 200,
   });
   await openFolder(page);
-  await createUrlProject(page, `${baseURL}/sandbox`, name);
+  await createUrlProject(page, address, name);
   await expect(addressField(page)).toHaveValue("/sandbox");
+}
+
+/** The sandbox's frame, once it's loaded. */
+function siteFrame(page: Page) {
+  const frame = page.frames().find((entry) => entry.url().includes("/sandbox"));
+  if (!frame) throw new Error("the site's frame isn't there");
+  return frame;
+}
+
+/** Waits until the viewer's window has heard a message, so a test can check it was ignored. */
+function nextMessage(page: Page): Promise<unknown> {
+  return page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        window.addEventListener("message", (event) => resolve(event.data), { once: true });
+      }),
+  );
 }
 
 function snapshotOf(page: Page, path: string): Locator {
@@ -194,9 +217,7 @@ test("the framed site's own navigation moves the address bar, from its own frame
         window.addEventListener("message", (event) => resolve(event.origin), { once: true });
       }),
   );
-  const frame = page.frames().find((entry) => entry.url().includes("/sandbox"));
-  if (!frame) throw new Error("the site's frame isn't there");
-  await frame.goto("http://evil.test/");
+  await siteFrame(page).goto("http://evil.test/");
   expect(await received).toBe("http://evil.test");
   await expect(addressField(page)).toHaveValue("/sandbox/about");
 });
@@ -274,4 +295,57 @@ test("a client reviews each page the owner reviewed, and captures others on the 
   await pickPage(page, "/sandbox");
   await expect(card(page, "Client about note.")).toHaveCount(0);
   await clientContext.close();
+});
+
+test("a project's own address keeps its fragment when framed and captured", async ({
+  page,
+  baseURL,
+}) => {
+  await mockCapture(page);
+  const asked = captureUrls(page);
+  const own = `${baseURL}/sandbox#/checkout`;
+  await sandboxProject(page, baseURL, "Hash route", own);
+  const frame = page.getByTestId("preview-frame");
+  await expect(frame).toHaveAttribute("src", own);
+
+  await page.getByTestId("mode-comment").click();
+  await expect(snapshotOf(page, "/sandbox")).toBeVisible();
+  await goToPage(page, "/sandbox/about");
+  await expect(snapshotOf(page, "/sandbox/about")).toBeVisible();
+  // Back on the project's own page: its snapshot, and the frame at its exact address.
+  await pickPage(page, "/sandbox");
+  await expect(snapshotOf(page, "/sandbox")).toBeVisible();
+  await page.getByTestId("mode-browse").click();
+  await expect(frame).toHaveAttribute("src", own);
+  expect(asked).toEqual([own, `${baseURL}/sandbox/about`]);
+});
+
+test("Comment mode doesn't follow the hidden frame, and Browse doesn't replay what it missed", async ({
+  page,
+  baseURL,
+}) => {
+  const captures = await mockCapture(page);
+  await sandboxProject(page, baseURL, "Stay put");
+  await expect(page.getByTestId("preview-frame")).toBeVisible();
+  const site = siteFrame(page);
+
+  // The hidden site rewrites its own address while a draft pin is open.
+  await page.getByTestId("mode-comment").click();
+  await expect(snapshotOf(page, "/sandbox")).toBeVisible();
+  const draft = await dropPin(page);
+  await draft.getByLabel("Comment", { exact: true }).fill("Half a thought");
+  const heard = nextMessage(page);
+  await site.evaluate(() => history.replaceState(null, "", "/sandbox?lang=fr"));
+  expect(await heard).toMatchObject({ href: `${baseURL}/sandbox?lang=fr` });
+  await expect(addressField(page)).toHaveValue("/sandbox");
+  await expect(draft.getByLabel("Comment", { exact: true })).toHaveValue("Half a thought");
+  expect(captures()).toBe(1);
+  await draft.getByRole("button", { name: "Cancel" }).click();
+
+  // Back in Browse, what was missed isn't replayed; the site's next navigation is followed.
+  await page.getByTestId("mode-browse").click();
+  await expect(addressField(page)).toHaveValue("/sandbox");
+  await site.evaluate(() => history.pushState(null, "", "/sandbox/about"));
+  await expect(addressField(page)).toHaveValue("/sandbox/about");
+  expect(captures()).toBe(1);
 });
