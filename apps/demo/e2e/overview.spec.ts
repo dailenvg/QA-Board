@@ -8,8 +8,10 @@ import {
   mockFrameCheck,
   newProjectButton,
   openOverview,
+  seedWorkspace,
   sheetLift,
 } from "./squint-fixtures";
+import { WORKSPACE_SEED } from "./workspace-seed";
 
 function overviewLink(page: Page): Locator {
   // The sidebar's: folder pages also have one in their breadcrumb.
@@ -121,6 +123,8 @@ test("creating a project on the Overview stays there and drops it into its folde
   await expect(card.getByTestId("folder-sheet").filter({ hasText: "Homepage" })).toHaveCount(1);
   await expect(card.getByRole("link")).toHaveCount(1);
   await expect(card.locator(".gf-front.gf-bump")).toHaveCount(0);
+  // One folder has no order to choose.
+  await expect(page.getByTestId("sort-menu")).toHaveCount(0);
 
   // A project added while its folder is on screen drops in, and the pocket gives under it.
   await addUrlProject(page, "example.com/pricing", "Pricing");
@@ -220,6 +224,40 @@ test("Tab moves from the folder straight to its menu; focus fans the projects ou
   await expect(folderLink).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(new RegExp(`/f/${DEFAULT_FOLDER.id}$`));
+});
+
+test("sorting the Overview's folders reorders them and is remembered after a reload", async ({
+  page,
+}) => {
+  // My projects holds four projects; Client work (one, two folders down) and Café menus (one)
+  // were each updated after them, Café menus last.
+  await seedWorkspace(page, WORKSPACE_SEED);
+  const titles = page.getByTestId("folder-card").locator(".gf-title");
+  const trigger = page.getByTestId("sort-menu");
+  const reverse = page.getByTestId("sort-direction");
+
+  await expect(trigger).toHaveAccessibleName("Sort: Last updated");
+  await expect(reverse).toHaveAccessibleName("Order: Newest first");
+  await expect(titles).toHaveText(["Café menus", "Client work", "My projects"]);
+
+  await trigger.click();
+  await page.getByRole("menuitemradio", { name: "Most projects" }).click();
+  await expect(reverse).toHaveAccessibleName("Order: Most first");
+  // Subfolders' projects count; ties go by name.
+  await expect(titles).toHaveText(["My projects", "Café menus", "Client work"]);
+
+  await page.reload();
+  await expect(trigger).toHaveAccessibleName("Sort: Most projects");
+  await expect(titles).toHaveText(["My projects", "Café menus", "Client work"]);
+
+  await reverse.click();
+  await expect(reverse).toHaveAccessibleName("Order: Fewest first");
+  await expect(titles).toHaveText(["Café menus", "Client work", "My projects"]);
+  await expect(page.getByTestId("sort-status")).toHaveText("Sorted by most projects. Fewest first");
+
+  // Folder pages keep their own order.
+  await page.goto(`/f/${DEFAULT_FOLDER.id}`);
+  await expect(page.getByTestId("sort-menu")).toHaveAccessibleName("Sort: Date");
 });
 
 test("the corner menu renames a folder and protects the last one", async ({ page }) => {

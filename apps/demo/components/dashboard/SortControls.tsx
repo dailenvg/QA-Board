@@ -7,24 +7,31 @@ import { buttonClass } from "../ui/button-styles";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { Menu } from "../ui/Menu";
-import { SORT_KEYS, SORT_SPECS, type ProjectSort, type SortKey } from "./project-sort";
+import type { SortChoice, SortOptions } from "./sort-choice";
 
-interface SortControlsProps {
-  sort: ProjectSort;
-  onKey: (key: SortKey) => void;
+interface SortControlsProps<Key extends string> {
+  sort: SortChoice<Key>;
+  /** The list's keys in menu order, and what each one reads as. */
+  options: SortOptions<Key>;
+  onKey: (key: Key) => void;
   onReverse: () => void;
 }
 
 /**
- * What the folder's projects are sorted by (a menu of options), and a button
- * that reverses the order. The button's face is the current order in words
+ * What a list (a folder's projects, the Overview's folders) is sorted by (a
+ * menu of options), and a button that reverses the order. The button's face is the current order in words
  * ("Newest first", icon-only on phones) and that is its name too, so what you
  * see is what's read out; its tooltip, read as the description, says what a
  * press does ("Reverse order"). An arrow alone doesn't say which end is which.
  */
-export function SortControls({ sort, onKey, onReverse }: SortControlsProps) {
+export function SortControls<Key extends string>({
+  sort,
+  options,
+  onKey,
+  onReverse,
+}: SortControlsProps<Key>) {
   const reduce = useReducedMotion();
-  const spec = SORT_SPECS[sort.key];
+  const spec = options.specs[sort.key];
   const order = spec.order[sort.direction];
   const label = `Sort: ${spec.label}`;
   /** Announces the new order once the person has changed it (not on load). */
@@ -38,8 +45,8 @@ export function SortControls({ sort, onKey, onReverse }: SortControlsProps) {
         icon="arrowUpDown"
         testId="sort-menu"
         triggerClassName={`${buttonClass("secondary", "sm")} aria-expanded:bg-hover`}
-        items={SORT_KEYS.map((key) => ({
-          label: SORT_SPECS[key].label,
+        items={options.keys.map((key) => ({
+          label: options.specs[key].label,
           checked: key === sort.key,
           onSelect: () => {
             setChanged(true);

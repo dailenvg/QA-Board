@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import type { Folder } from "@/lib/store/types";
 import { Menu, type MenuItem } from "../ui/Menu";
 import { SegmentedControl } from "../ui/SegmentedControl";
-import type { ProjectSort, SortKey } from "./project-sort";
+import { PROJECT_SORT, type ProjectSort, type SortKey } from "./project-sort";
 import { SortControls } from "./SortControls";
 import { STATUS_FILTER_OPTIONS, type StatusFilterValue } from "./status-filter";
 
@@ -71,7 +71,12 @@ export function DashboardHeader({
           />
         </EdgeFadeScroller>
         <div className="ml-auto">
-          <SortControls sort={sort} onKey={onSortKey} onReverse={onReverseSort} />
+          <SortControls
+            sort={sort}
+            options={PROJECT_SORT}
+            onKey={onSortKey}
+            onReverse={onReverseSort}
+          />
         </div>
       </div>
     </header>
