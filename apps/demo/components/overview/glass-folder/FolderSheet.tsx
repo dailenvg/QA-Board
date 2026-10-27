@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import type { CSSProperties } from "react";
-import { STATUS_LABEL, type ProjectStatus } from "@/lib/store/status";
+import type { ProjectStatus } from "@/lib/store/status";
 import { BlobImage } from "../../ui/BlobImage";
 import { STATUS_DOT } from "../../ui/StatusChip";
 import { hashString, rng } from "./art";
@@ -15,7 +14,6 @@ export interface FolderFile {
   meta?: string;
   /** Blob-store key of a picture; makes the file a picture. Without it, a sheet of paper. */
   imageKey?: string;
-  href: string;
   status?: ProjectStatus;
 }
 
@@ -28,17 +26,15 @@ interface FolderSheetProps {
   stackIndex: number;
   dropping: boolean;
   onDropEnd: () => void;
-  /**
-   * A tab stop only while the files are fanned out by keyboard focus. Stacked,
-   * the sheet is reached through the folder's own link.
-   */
-  reachable: boolean;
 }
 
 /** Ruled lines on a paper sheet, as widths. */
 const LINES = ["86%", "92%", "64%", "88%", "42%"] as const;
 
-/** One file in the pocket, linking to its project. Reachable while the folder fans out. */
+/**
+ * One file in the pocket: a preview of a project, not a way into it. It sits
+ * inside the folder's own (hidden) link, so a click on it opens the folder.
+ */
 export function FolderSheet({
   file,
   slot,
@@ -46,7 +42,6 @@ export function FolderSheet({
   stackIndex,
   dropping,
   onDropEnd,
-  reachable,
 }: FolderSheetProps) {
   // Jitter follows the id, so a sheet keeps its tilt through renames and reloads.
   const jitter = rng(hashString(file.id));
@@ -59,48 +54,34 @@ export function FolderSheet({
   } as CSSProperties;
   const picture = Boolean(file.imageKey);
 
-  // The link's name comes from its text, so it always contains what's visible
-  // (WCAG 2.5.3): the name, the host or kind, then the status for screen readers.
   return (
-    <div role="listitem" className="gf-sheet-slot">
-      <Link
-        href={file.href}
-        tabIndex={reachable ? undefined : -1}
-        data-testid="folder-sheet"
-        className={`gf-sheet${picture ? " gf-sheet--art" : ""}${dropping ? " gf-sheet--drop" : ""}`}
-        style={style}
-        onAnimationEnd={dropping ? onDropEnd : undefined}
-      >
-        {file.imageKey ? (
-          <BlobImage
-            className="gf-sheet-art"
-            blobKey={file.imageKey}
-            alt=""
-            fill
-            sizes={`${SHEET_W}px`}
-            draggable={false}
-          />
-        ) : (
-          <span className="gf-lines" aria-hidden="true">
-            {LINES.map((width) => (
-              <i key={width} style={{ width }} />
-            ))}
-          </span>
-        )}
-        <span className="gf-sheet-head">
-          {file.status ? (
-            <span aria-hidden="true" className={`gf-sheet-status ${STATUS_DOT[file.status]}`} />
-          ) : null}
-          <span className="gf-sheet-name">{file.name}</span>
-          {file.meta ? (
-            <>
-              <span className="sr-only">, </span>
-              <span className="gf-sheet-meta">{file.meta}</span>
-            </>
-          ) : null}
-          {file.status ? <span className="sr-only">, {STATUS_LABEL[file.status]}</span> : null}
+    <div
+      data-testid="folder-sheet"
+      className={`gf-sheet${picture ? " gf-sheet--art" : ""}${dropping ? " gf-sheet--drop" : ""}`}
+      style={style}
+      onAnimationEnd={dropping ? onDropEnd : undefined}
+    >
+      {file.imageKey ? (
+        <BlobImage
+          className="gf-sheet-art"
+          blobKey={file.imageKey}
+          alt=""
+          fill
+          sizes={`${SHEET_W}px`}
+          draggable={false}
+        />
+      ) : (
+        <span className="gf-lines">
+          {LINES.map((width) => (
+            <i key={width} style={{ width }} />
+          ))}
         </span>
-      </Link>
+      )}
+      <span className="gf-sheet-head">
+        {file.status ? <span className={`gf-sheet-status ${STATUS_DOT[file.status]}`} /> : null}
+        <span className="gf-sheet-name">{file.name}</span>
+        {file.meta ? <span className="gf-sheet-meta">{file.meta}</span> : null}
+      </span>
     </div>
   );
 }

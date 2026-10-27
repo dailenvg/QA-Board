@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useId, useRef, type CSSProperties, type ReactNode } from "react";
 import { fanSlot, type ArtRecipe } from "./art";
 import { ArtCanvas } from "./ArtCanvas";
 import { FolderSheet, type FolderFile } from "./FolderSheet";
@@ -18,7 +18,6 @@ import {
   W,
   frostPath,
 } from "./geometry";
-import { useMediaQuery } from "@/lib/use-media-query";
 import { useEntrance, usePointerParallax } from "./hooks";
 import { useArrivals } from "./use-arrivals";
 import "./glass-folder.css";
@@ -50,7 +49,7 @@ export interface GlassFolderProps {
   seed: number;
   /** The folder's contents, newest first. The newest few show; new ids drop in. */
   files: readonly FolderFile[];
-  /** Where the folder itself leads: the glass and the art are one link. */
+  /** Where the folder leads: the glass, the art and the files are one link. */
   href: string;
   /** Accessible name of that link. */
   linkLabel: string;
@@ -74,8 +73,8 @@ export interface GlassFolderProps {
  *
  * - Rest: flat; the tops of the files only just show.
  * - Hover, or keyboard focus anywhere inside: the front falls forward and the
- *   files fan out, each one a link to its project.
- * - Click or tap the glass or the art: the folder's own link.
+ *   files fan out, previews of the newest projects.
+ * - Click or tap anywhere on it, files included: the folder's own link.
  * - A new file drops into the pocket, which gives a little under it.
  */
 export function GlassFolder({
@@ -98,10 +97,6 @@ export function GlassFolder({
   const entered = useEntrance(root, appear, appearDelay);
   const { dropping, bump, settle } = useArrivals(files.map((file) => file.id));
   usePointerParallax(root);
-  // Keyboard focus anywhere inside fans the files out; only then are they tab stops.
-  // Touch screens never fan (see glass-folder.css), so there the folder link is the way in.
-  const [focusInside, setFocusInside] = useState(false);
-  const canFan = useMediaQuery("(hover: hover)");
 
   const k = width / W;
   const ratio = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
@@ -126,10 +121,6 @@ export function GlassFolder({
       data-tone={tone}
       data-entered={entered || undefined}
       style={style}
-      onFocus={() => setFocusInside(true)}
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setFocusInside(false);
-      }}
     >
       <div className="gf-stage" style={{ transform: `translateY(${HEADROOM * k}px) scale(${k})` }}>
         <div className="gf-shadow" aria-hidden="true" />
@@ -195,8 +186,11 @@ export function GlassFolder({
           </span>
         </div>
 
-        {/* The contents: after the glass in tab order, beneath it on screen. */}
-        <div className="gf-files" role="list" aria-label={`${label} contents`}>
+        {/*
+         * The contents, beneath the glass: previews only, so a click on one opens the folder
+         * like the rest of it. Hidden and out of the tab order: the glass's link stands for them.
+         */}
+        <Link href={href} className="gf-files" tabIndex={-1} aria-hidden="true">
           {visible.map((file, index) => (
             <FolderSheet
               key={file.id}
@@ -206,10 +200,9 @@ export function GlassFolder({
               stackIndex={index}
               dropping={file.id === dropping}
               onDropEnd={settle}
-              reachable={canFan && focusInside}
             />
           ))}
-        </div>
+        </Link>
 
         {keycap ? (
           <div className="gf-key" aria-hidden="true">
