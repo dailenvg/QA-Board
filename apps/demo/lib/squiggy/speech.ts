@@ -7,6 +7,7 @@ export type AmbientSpeech =
 
 /** A one-off line for the event Squiggy is reacting to. Never a link. */
 export type ReactionSpeech =
+  | { kind: "signed-in" }
   | { kind: "just-resolved" }
   | { kind: "just-created"; projectName: string }
   | { kind: "just-deleted"; undoable: boolean }
@@ -30,6 +31,8 @@ export function squiggySpeech(summary: WorkspaceSummary): AmbientSpeech | null {
 /** The line for an event. Projects and comments come back with Undo; folders don't. */
 export function reactionSpeech(event: SquiggyEvent): ReactionSpeech {
   switch (event.type) {
+    case "signed-in":
+      return { kind: "signed-in" };
     case "comment-resolved":
       return { kind: "just-resolved" };
     case "project-created":

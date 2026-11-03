@@ -35,6 +35,7 @@ describe("squiggySpeech", () => {
 
 describe("reactionSpeech", () => {
   it("has a line for each event, with the new project's name", () => {
+    expect(reactionSpeech({ type: "signed-in" })).toEqual({ kind: "signed-in" });
     expect(reactionSpeech({ type: "comment-resolved" })).toEqual({ kind: "just-resolved" });
     expect(reactionSpeech({ type: "project-created", projectName: "Homepage" })).toEqual({
       kind: "just-created",

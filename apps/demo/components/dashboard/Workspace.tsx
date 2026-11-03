@@ -39,13 +39,19 @@ interface ReadyStore {
   persistent: boolean;
 }
 
+interface WorkspaceProps {
+  children: ReactNode;
+  /** Who is signed in, and Sign out, for the foot of the sidebar. */
+  account?: ReactNode;
+}
+
 /**
  * Persistent shell for the Overview and folder pages: the sidebar stays
  * mounted across them (so its active indicator glides between items), and
  * search, New project and the folder dialogs live here so every page shares them.
  * Pages read the data through `useWorkspace()`, which is null while loading.
  */
-export function Workspace({ children }: { children: ReactNode }) {
+export function Workspace({ children, account }: WorkspaceProps) {
   const state = useSquint();
   if (state.status === "corrupt") return <DataRecovery reason={state.reason} raw={state.raw} />;
   return (
@@ -53,13 +59,21 @@ export function Workspace({ children }: { children: ReactNode }) {
       <Revocations />
       <LocalExpiry />
       <SearchQueryProvider>
-        <WorkspaceShell store={state.status === "ready" ? state : null}>{children}</WorkspaceShell>
+        <WorkspaceShell store={state.status === "ready" ? state : null} account={account}>
+          {children}
+        </WorkspaceShell>
       </SearchQueryProvider>
     </>
   );
 }
 
-function WorkspaceShell({ store, children }: { store: ReadyStore | null; children: ReactNode }) {
+interface WorkspaceShellProps {
+  store: ReadyStore | null;
+  account: ReactNode;
+  children: ReactNode;
+}
+
+function WorkspaceShell({ store, account, children }: WorkspaceShellProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { id: routeFolderId } = useParams<{ id?: string }>();
@@ -228,6 +242,7 @@ function WorkspaceShell({ store, children }: { store: ReadyStore | null; childre
             onNewFolderHere={newFolderHere}
             newFolderIn={hereFolder?.name ?? null}
             search={wide ? null : search}
+            account={account}
           />
         ) : (
           <SidebarSkeleton />
