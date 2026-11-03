@@ -19,7 +19,7 @@
     "test:e2e": {
       "dependsOn": ["^build"],
       "cache": false,
-      "passThroughEnv": ["CI", "PLAYWRIGHT_*"]
+      "passThroughEnv": ["CI", "PLAYWRIGHT_*", "E2E_DATABASE_URL"]
     },
     "dev": {
       "dependsOn": ["^build"],
@@ -33,7 +33,10 @@
         "GITHUB_REPO",
         "DATABASE_URL",
         "SQUINT_CAPTURE_URL",
-        "BLOB_READ_WRITE_TOKEN"
+        "BLOB_READ_WRITE_TOKEN",
+        "AUTH_URL",
+        "RESEND_API_KEY",
+        "EMAIL_FROM"
       ]
     }
   }
