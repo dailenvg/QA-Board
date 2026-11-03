@@ -1,7 +1,6 @@
-import { Pool } from "pg";
+import { database } from "../db/database";
 import { inlineBackend, vercelBackend, type BlobBackend } from "./blob-backend";
 import { createMemoryStore } from "./memory-store";
-import { migrate } from "./migrate";
 import { createPostgresStore } from "./postgres-store";
 import type { ShareStore } from "./store";
 
@@ -30,11 +29,9 @@ const holder = globalThis as typeof globalThis & { squintShares?: Promise<ShareS
 async function connect(): Promise<ShareServices> {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
   const blobs = token ? vercelBackend(token) : inlineBackend;
-  const url = process.env.DATABASE_URL;
-  if (!url) return { store: createMemoryStore(), blobs };
-  const pool = new Pool({ connectionString: url, max: 3 });
-  await migrate(pool);
-  return { store: createPostgresStore(pool), blobs };
+  const db = database();
+  if (!db) return { store: createMemoryStore(), blobs };
+  return { store: createPostgresStore(await db), blobs };
 }
 
 /**
