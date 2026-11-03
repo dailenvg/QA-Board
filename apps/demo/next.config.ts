@@ -23,7 +23,8 @@ const config: NextConfig = {
     "/s/opengraph-image": ["./assets/fonts/**"],
     "/s/twitter-image": ["./assets/fonts/**"],
   },
-  // Shared review links: never indexed, never leak the token through Referer.
+  // Shared review links and password reset links: never indexed, never leak the token through
+  // Referer.
   async headers() {
     const privateLink = [
       { key: "Referrer-Policy", value: "no-referrer" },
@@ -33,6 +34,7 @@ const config: NextConfig = {
       { source: "/s/:path*", headers: privateLink },
       { source: "/api/s/:path*", headers: privateLink },
       { source: "/api/shares/:path*", headers: privateLink },
+      { source: "/reset/:path*", headers: privateLink },
     ];
   },
   // Migrations under migrations/ are imported as text.
