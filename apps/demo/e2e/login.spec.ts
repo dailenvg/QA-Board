@@ -111,6 +111,29 @@ test.describe("signed out", () => {
     await api.dispose();
   });
 
+  test("capture checks the session itself, not just that a cookie is there", async ({
+    playwright,
+  }, testInfo) => {
+    const baseURL = testInfo.project.use.baseURL;
+    const forged = await playwright.request.newContext({
+      baseURL,
+      extraHTTPHeaders: { cookie: `squint_session=${"x".repeat(43)}` },
+    });
+    const response = await forged.post("/api/capture", {
+      data: { url: "https://example.com/", width: 1280 },
+    });
+    expect(response.status()).toBe(401);
+    expect(await response.json()).toEqual({ error: "unauthenticated" });
+    await forged.dispose();
+
+    // Guests capture through their share's own route, which needs no session: an unknown link
+    // gets the share's 404, never the 401.
+    const guest = await playwright.request.newContext({ baseURL });
+    const shared = await guest.post(`/api/s/${"y".repeat(43)}/capture`, { data: { width: 1280 } });
+    expect(shared.status()).toBe(404);
+    await guest.dispose();
+  });
+
   test("signing out ends the session and protects the dashboard again", async ({ page }) => {
     await page.goto("/login");
     await signIn(page, E2E_COMPANY);
@@ -204,6 +227,13 @@ test.describe("submitted before hydration (JavaScript off)", () => {
     const leaked = urls.filter((url) => url.includes(fresh) || url.includes(E2E_ADMIN.email));
     expect(leaked).toEqual([]);
   });
+});
+
+test("signed in, capture gets past the session check", async ({ page }) => {
+  // An empty body: refused for its input (400), so the session itself was accepted.
+  const response = await page.request.post("/api/capture", { data: {} });
+  expect(response.status()).toBe(400);
+  expect(await response.json()).toEqual({ error: "invalid-request" });
 });
 
 test("signed in, /login goes straight on to the Overview", async ({ page }) => {

@@ -22,6 +22,24 @@ export const getSession = cache(async (): Promise<SessionUser | null> => {
   return readSession(await db, token, Date.now());
 });
 
+/**
+ * For route handlers: the signed-in user, or the 401 to answer with. Middleware
+ * only checks that a cookie is there; this checks the session behind it.
+ */
+export async function apiSession(): Promise<
+  { ok: true; user: SessionUser } | { ok: false; response: Response }
+> {
+  const user = await getSession();
+  if (user) return { ok: true, user };
+  return {
+    ok: false,
+    response: Response.json(
+      { error: "unauthenticated" },
+      { status: 401, headers: { "cache-control": "no-store" } },
+    ),
+  };
+}
+
 /** The signed-in user; otherwise redirects to /login, back to the page asked for after. */
 export async function requireSession(): Promise<SessionUser> {
   const user = await getSession();
