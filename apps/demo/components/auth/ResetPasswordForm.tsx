@@ -28,13 +28,15 @@ interface FieldErrors {
 
 const BACK = <TextLink href="/login">Back to sign in</TextLink>;
 
-function ExpiredLink() {
+/** `afterSubmit`: it replaced the form just submitted, so focus moves to its title. */
+function ExpiredLink({ afterSubmit }: { afterSubmit: boolean }) {
   return (
     <AuthPanel
       title="This link has expired"
       description="Reset links work once, for one hour. Ask for a new one and use it from the newest email."
       mood="thinking"
       footer={BACK}
+      focusTitle={afterSubmit}
     >
       <ButtonLink href="/reset" testId="reset-again">
         Send a new link
@@ -55,7 +57,7 @@ export function ResetPasswordForm({ token, usable }: ResetPasswordFormProps) {
   const passwordRef = useRef<HTMLInputElement>(null);
   const confirmRef = useRef<HTMLInputElement>(null);
 
-  if (expired) return <ExpiredLink />;
+  if (expired) return <ExpiredLink afterSubmit={usable} />;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();

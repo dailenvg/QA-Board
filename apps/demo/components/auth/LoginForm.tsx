@@ -101,7 +101,13 @@ export function LoginForm({ next, passwordChanged }: LoginFormProps) {
             setEmail(value);
             if (errors.email) setErrors((current) => ({ ...current, email: emailError(value) }));
           }}
-          onBlur={() => setErrors((current) => ({ ...current, email: emailError(email) }))}
+          onBlur={() =>
+            setErrors((current) => ({
+              ...current,
+              // Leaving it empty (say, for Forgot your password?) isn't a mistake yet.
+              email: email ? emailError(email) : current.email,
+            }))
+          }
           testId="login-email"
         />
         <AuthField

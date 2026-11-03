@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 
@@ -15,6 +15,17 @@ interface SignOutButtonProps {
  */
 export function SignOutButton({ email }: SignOutButtonProps) {
   const [pending, setPending] = useState(false);
+
+  // Back from /login, the browser may restore this page from its cache with the button still
+  // "Signing out…" and inert. Reset it so it works again.
+  useEffect(() => {
+    const restore = (event: PageTransitionEvent) => {
+      if (event.persisted) setPending(false);
+    };
+    window.addEventListener("pageshow", restore);
+    return () => window.removeEventListener("pageshow", restore);
+  }, []);
+
   const submit = (event: FormEvent) => {
     if (pending) event.preventDefault();
     else setPending(true);

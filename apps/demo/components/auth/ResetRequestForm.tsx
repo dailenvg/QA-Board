@@ -55,6 +55,7 @@ export function ResetRequestForm() {
         }
         mood="happy"
         footer={BACK}
+        focusTitle
       >
         <Button variant="secondary" onClick={() => setStatus("idle")}>
           Use a different email
@@ -89,7 +90,8 @@ export function ResetRequestForm() {
             setEmail(value);
             if (error) setError(emailError(value));
           }}
-          onBlur={() => setError(emailError(email))}
+          // Leaving it empty (say, for Back to sign in) isn't a mistake yet; submit still checks.
+          onBlur={() => setError((current) => (email ? emailError(email) : current))}
           testId="reset-email"
         />
         <FormAlert message={formError} />
