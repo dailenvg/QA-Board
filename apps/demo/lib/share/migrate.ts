@@ -19,6 +19,7 @@ import comments from "../../migrations/018_comments.sql";
 import workspaceBlobs from "../../migrations/019_workspace_blobs.sql";
 import storageUsage from "../../migrations/020_storage_usage.sql";
 import auditLog from "../../migrations/021_audit_log.sql";
+import sharesWorkspace from "../../migrations/022_squint_shares_workspace.sql";
 
 /** The slice of `pg.Pool` the stores use (PGlite matches it in tests). */
 export interface Queryable {
@@ -48,6 +49,7 @@ export const MIGRATIONS: ReadonlyArray<{ id: string; sql: string }> = [
   { id: "019_workspace_blobs", sql: workspaceBlobs },
   { id: "020_storage_usage", sql: storageUsage },
   { id: "021_audit_log", sql: auditLog },
+  { id: "022_squint_shares_workspace", sql: sharesWorkspace },
 ];
 
 type Migration = (typeof MIGRATIONS)[number];

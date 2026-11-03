@@ -462,6 +462,84 @@ describe("migrate", () => {
   });
 });
 
+describe("migration 022 (workspace shares)", () => {
+  /** A database as it was before 022: every migration up to 021. */
+  async function before022(): Promise<Queryable> {
+    const db = adapt(new PGlite());
+    await migrate(db, MIGRATIONS.slice(0, 21));
+    return db;
+  }
+
+  async function workspaceShare(db: Queryable, id: string, expiresAt: number | null) {
+    await db.query(
+      `INSERT INTO squint_shares
+         (id, token_hash, owner_key_hash, project, created_at, updated_at, expires_at, workspace_id)
+       VALUES ($1, $2, $2, '{}', 1, 1, $3, (SELECT id FROM workspaces WHERE slug = 'acme'))`,
+      [id, digest(id), expiresAt],
+    );
+  }
+
+  it("keeps a share written before it working, and expires anonymous shares only", async () => {
+    const db = await before022();
+    const store = createPostgresStore(db);
+    await store.create(RECORD);
+    await store.upsertComment(RECORD.id, COMMENT, "owner");
+    await store.putBlob(RECORD.id, {
+      key: "page:p1",
+      contentType: "image/png",
+      size: PNG.length,
+      location: { kind: "inline", bytes: PNG },
+    });
+
+    expect(await migrate(db)).toEqual(["022_squint_shares_workspace"]);
+    expect(await store.byId(RECORD.id)).toEqual(RECORD);
+    expect(await store.byTokenHash(RECORD.tokenHash)).toEqual(RECORD);
+    expect((await store.comments(RECORD.id)).map((row) => row.item)).toEqual([COMMENT]);
+    expect(await store.blobSizes(RECORD.id)).toEqual([{ key: "page:p1", size: PNG.length }]);
+    const updated = { name: "Renamed", source: RECORD.project.source };
+    await store.setProject(RECORD.id, updated, 5, RECORD.expiresAt + 1);
+    expect(await store.byId(RECORD.id)).toMatchObject({ project: updated, updatedAt: 5 });
+
+    await db.query("INSERT INTO workspaces (slug, name) VALUES ('acme', 'Acme')");
+    await workspaceShare(db, "kept", null);
+    await workspaceShare(db, "dated", 1);
+    const later = RECORD.expiresAt + 10;
+    expect(await store.expiredIds(later, 100)).toEqual([RECORD.id]);
+
+    // The daily expiry's query reads the partial index.
+    await db.query("SET enable_seqscan = off");
+    const plan = await db.query<{ "QUERY PLAN": string }>(
+      `EXPLAIN SELECT id FROM squint_shares WHERE workspace_id IS NULL AND expires_at <= 5
+       ORDER BY expires_at, id LIMIT 100`,
+    );
+    expect(plan.rows.map((row) => row["QUERY PLAN"]).join("\n")).toContain(
+      "squint_shares_anonymous_expires_at_idx",
+    );
+    await db.query("SET enable_seqscan = on");
+
+    // Running it again changes nothing.
+    const sql = MIGRATIONS.find((migration) => migration.id === "022_squint_shares_workspace")?.sql;
+    await db.query(sql ?? "");
+    expect(await store.byId(RECORD.id)).toMatchObject({ project: updated });
+    expect(await store.expiredIds(later, 100)).toEqual([RECORD.id]);
+  });
+
+  it("still requires a deletion date on anonymous shares, and a workspace for a project", async () => {
+    const db = adapt(new PGlite());
+    await migrate(db);
+    await expect(
+      db.query(
+        "INSERT INTO squint_shares (id, token_hash, owner_key_hash, project, created_at, updated_at) VALUES ('bare', 'x', 'y', '{}', 1, 1)",
+      ),
+    ).rejects.toThrow(/squint_shares_anonymous_expire/);
+    await expect(
+      db.query(
+        "INSERT INTO squint_shares (id, token_hash, owner_key_hash, project, created_at, updated_at, expires_at, project_id) VALUES ('p', 'x', 'y', '{}', 1, 1, 2, 'p1')",
+      ),
+    ).rejects.toThrow(/squint_shares_project_in_workspace/);
+  });
+});
+
 describe.each(stores)("%s store: two posts with the same id at once", (_name, make) => {
   it("lets exactly one win, stores its crop, and leaves nothing of the other", async () => {
     const services: ShareServices = { store: await make(), blobs: inlineBackend };
