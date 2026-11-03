@@ -5,8 +5,14 @@ import commentClaims from "../../migrations/004_squint_share_comment_claims.sql"
 import pendingSnapshots from "../../migrations/005_squint_share_pending_snapshots.sql";
 import pages from "../../migrations/006_squint_share_pages.sql";
 import expiresAt from "../../migrations/007_squint_shares_expires_at.sql";
+import users from "../../migrations/008_users.sql";
+import workspaces from "../../migrations/009_workspaces.sql";
+import memberships from "../../migrations/010_memberships.sql";
+import sessions from "../../migrations/011_sessions.sql";
+import passwordResets from "../../migrations/012_password_resets.sql";
+import loginAttempts from "../../migrations/013_login_attempts.sql";
 
-/** The slice of `pg.Pool` the share store uses (PGlite matches it in tests). */
+/** The slice of `pg.Pool` the stores use (PGlite matches it in tests). */
 export interface Queryable {
   query<Row = Record<string, unknown>>(text: string, params?: unknown[]): Promise<{ rows: Row[] }>;
 }
@@ -20,15 +26,27 @@ export const MIGRATIONS: ReadonlyArray<{ id: string; sql: string }> = [
   { id: "005_squint_share_pending_snapshots", sql: pendingSnapshots },
   { id: "006_squint_share_pages", sql: pages },
   { id: "007_squint_shares_expires_at", sql: expiresAt },
+  { id: "008_users", sql: users },
+  { id: "009_workspaces", sql: workspaces },
+  { id: "010_memberships", sql: memberships },
+  { id: "011_sessions", sql: sessions },
+  { id: "012_password_resets", sql: passwordResets },
+  { id: "013_login_attempts", sql: loginAttempts },
 ];
+
+type Migration = (typeof MIGRATIONS)[number];
 
 /**
  * Applies pending migrations and returns the ids it ran. Safe on every cold
  * start: applied ids are recorded in `squint_migrations`, and the SQL itself
  * only uses `IF NOT EXISTS` or touches rows still in an old shape, so
- * concurrent runs are harmless.
+ * concurrent runs are harmless. Tests pass a prefix of `MIGRATIONS` to stop
+ * at an older schema.
  */
-export async function migrate(db: Queryable): Promise<string[]> {
+export async function migrate(
+  db: Queryable,
+  migrations: ReadonlyArray<Migration> = MIGRATIONS,
+): Promise<string[]> {
   await db.query(`CREATE TABLE IF NOT EXISTS squint_migrations (
     id text PRIMARY KEY,
     applied_at timestamptz NOT NULL DEFAULT now()
@@ -36,7 +54,7 @@ export async function migrate(db: Queryable): Promise<string[]> {
   const { rows } = await db.query<{ id: string }>("SELECT id FROM squint_migrations");
   const applied = new Set(rows.map((row) => row.id));
   const ran: string[] = [];
-  for (const migration of MIGRATIONS) {
+  for (const migration of migrations) {
     if (applied.has(migration.id)) continue;
     await db.query(migration.sql);
     await db.query("INSERT INTO squint_migrations (id) VALUES ($1) ON CONFLICT (id) DO NOTHING", [

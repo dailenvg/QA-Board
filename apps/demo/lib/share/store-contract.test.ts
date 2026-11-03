@@ -1,6 +1,8 @@
 import { PGlite } from "@electric-sql/pglite";
 import { describe, expect, it } from "vitest";
+import { readdirSync } from "node:fs";
 import { COMMENT, JPEG, PNG, RECORD, SNAPSHOT, STATE } from "@/test/share-fixture";
+import { adaptPglite, migratedPglite } from "@/test/pglite";
 import { toShareState } from "../share-client/share-state";
 import { parseData } from "../store/persist";
 import { digest } from "./digest";
@@ -21,25 +23,7 @@ import {
 } from "./service";
 import type { ShareStore } from "./store";
 
-/**
- * PGlite is Postgres compiled to WebAssembly: the real SQL, no server. Like
- * `pg`, parameterless queries use the simple protocol (several statements allowed).
- */
-function adapt(db: PGlite): Queryable {
-  return {
-    async query<Row>(text: string, params?: unknown[]) {
-      if (params?.length) return db.query<Row>(text, params);
-      const results = await db.exec(text);
-      return { rows: (results.at(-1)?.rows ?? []) as Row[] };
-    },
-  };
-}
-
-async function pglite(): Promise<Queryable> {
-  const db = adapt(new PGlite());
-  await migrate(db);
-  return db;
-}
+const adapt = adaptPglite;
 
 /** Stored blobs, with each per-claim crop key's random nonce masked as `<claim>`. */
 async function storedBlobs(store: ShareStore) {
@@ -52,7 +36,7 @@ async function storedBlobs(store: ShareStore) {
 
 const stores: Array<[string, () => Promise<ShareStore>]> = [
   ["memory", () => Promise.resolve(createMemoryStore())],
-  ["postgres", async () => createPostgresStore(await pglite())],
+  ["postgres", async () => createPostgresStore(await migratedPglite())],
 ];
 
 describe.each(stores)("%s share store", (_name, make) => {
@@ -238,16 +222,16 @@ describe.each(stores)("%s share store", (_name, make) => {
 describe("migrate", () => {
   it("is idempotent", async () => {
     const db = adapt(new PGlite());
-    expect(await migrate(db)).toEqual([
-      "001_squint_shares",
-      "002_squint_share_blob_parts",
-      "003_squint_share_pending_comments",
-      "004_squint_share_comment_claims",
-      "005_squint_share_pending_snapshots",
-      "006_squint_share_pages",
-      "007_squint_shares_expires_at",
-    ]);
+    expect(await migrate(db)).toEqual(MIGRATIONS.map((migration) => migration.id));
     expect(await migrate(db)).toEqual([]);
+  });
+
+  it("lists every file in migrations/, in order", () => {
+    const files = readdirSync(new URL("../../migrations", import.meta.url))
+      .filter((name) => name.endsWith(".sql"))
+      .sort()
+      .map((name) => name.replace(/\.sql$/, ""));
+    expect(MIGRATIONS.map((migration) => migration.id)).toEqual(files);
   });
 
   it("006 turns shared image projects into one-page projects the owner's browser agrees with", async () => {
@@ -289,7 +273,7 @@ describe("migrate", () => {
       [PNG],
     );
 
-    expect(await migrate(db)).toEqual(["006_squint_share_pages", "007_squint_shares_expires_at"]);
+    expect(await migrate(db)).toEqual(MIGRATIONS.slice(5).map((migration) => migration.id));
     const store = createPostgresStore(db);
     const project = (await store.byId("old"))?.project;
     expect(project).toEqual({
@@ -345,6 +329,9 @@ describe("migrate", () => {
     expect((await store.comments("old")).map((row) => row.item)).toEqual(comments);
   });
 
+  /** The migrations as they were when 007 shipped: its tests stop there. */
+  const UP_TO_007 = MIGRATIONS.slice(0, 7);
+
   /** A database migrated up to 006, as one was before 007 shipped. */
   async function before007(): Promise<Queryable> {
     const db = adapt(new PGlite());
@@ -391,7 +378,7 @@ describe("migrate", () => {
       await legacyShare(db, id, createdAt, SHARED);
     }
 
-    expect(await migrate(db)).toEqual(["007_squint_shares_expires_at"]);
+    expect(await migrate(db, UP_TO_007)).toEqual(["007_squint_shares_expires_at"]);
     const store = createPostgresStore(db);
     const stored: Record<string, number | undefined> = {};
     const expected: Record<string, number> = {};
@@ -439,7 +426,7 @@ describe("migrate", () => {
     await legacyShare(db, "recent", now - 2 * DAY, now - DAY);
 
     const from = Date.now();
-    expect(await migrate(db)).toEqual(["007_squint_shares_expires_at"]);
+    expect(await migrate(db, UP_TO_007)).toEqual(["007_squint_shares_expires_at"]);
     // Postgres rounds its clock to the nearest ms, so up to 1 ms past `Date.now()`.
     const to = Date.now() + 1;
 
@@ -457,7 +444,7 @@ describe("migrate", () => {
 
   it("007 lets a deployment that doesn't send expires_at still create shares", async () => {
     const db = await before007();
-    await migrate(db);
+    await migrate(db, UP_TO_007);
 
     const from = Date.now();
     await db.query(
