@@ -11,6 +11,14 @@ import memberships from "../../migrations/010_memberships.sql";
 import sessions from "../../migrations/011_sessions.sql";
 import passwordResets from "../../migrations/012_password_resets.sql";
 import loginAttempts from "../../migrations/013_login_attempts.sql";
+import folders from "../../migrations/014_folders.sql";
+import projects from "../../migrations/015_projects.sql";
+import projectPages from "../../migrations/016_pages.sql";
+import snapshots from "../../migrations/017_snapshots.sql";
+import comments from "../../migrations/018_comments.sql";
+import workspaceBlobs from "../../migrations/019_workspace_blobs.sql";
+import storageUsage from "../../migrations/020_storage_usage.sql";
+import auditLog from "../../migrations/021_audit_log.sql";
 
 /** The slice of `pg.Pool` the stores use (PGlite matches it in tests). */
 export interface Queryable {
@@ -32,6 +40,14 @@ export const MIGRATIONS: ReadonlyArray<{ id: string; sql: string }> = [
   { id: "011_sessions", sql: sessions },
   { id: "012_password_resets", sql: passwordResets },
   { id: "013_login_attempts", sql: loginAttempts },
+  { id: "014_folders", sql: folders },
+  { id: "015_projects", sql: projects },
+  { id: "016_pages", sql: projectPages },
+  { id: "017_snapshots", sql: snapshots },
+  { id: "018_comments", sql: comments },
+  { id: "019_workspace_blobs", sql: workspaceBlobs },
+  { id: "020_storage_usage", sql: storageUsage },
+  { id: "021_audit_log", sql: auditLog },
 ];
 
 type Migration = (typeof MIGRATIONS)[number];
