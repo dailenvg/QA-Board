@@ -17,11 +17,18 @@ const BACK = <TextLink href="/login">Back to sign in</TextLink>;
  * Asks for a reset link. Says the same thing whether or not the email has an
  * account, so the form can't be used to find out who has one.
  */
-export function ResetRequestForm() {
+interface ResetRequestFormProps {
+  /** Posted before the page hydrated, and accepted (from `?sent=1`). */
+  initialSent: boolean;
+  /** Posted before the page hydrated, and refused (from `?error=`). */
+  initialError: string | null;
+}
+
+export function ResetRequestForm({ initialSent, initialError }: ResetRequestFormProps) {
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [status, setStatus] = useState<Status>("idle");
+  const [formError, setFormError] = useState<string | null>(initialError);
+  const [status, setStatus] = useState<Status>(initialSent ? "sent" : "idle");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const submit = async (event: FormEvent) => {
@@ -49,8 +56,14 @@ export function ResetRequestForm() {
         title="Check your email"
         description={
           <p data-testid="reset-sent">
-            If <strong className="font-semibold text-ink">{email.trim()}</strong> has a Squint
-            account, a link to choose a new password is on its way. It works once, for one hour.
+            If{" "}
+            {email.trim() ? (
+              <strong className="font-semibold text-ink">{email.trim()}</strong>
+            ) : (
+              "that email"
+            )}{" "}
+            has a Squint account, a link to choose a new password is on its way. It works once, for
+            one hour.
           </p>
         }
         mood="happy"
@@ -71,7 +84,10 @@ export function ResetRequestForm() {
       mood={status === "sending" ? "thinking" : formError ? "surprised" : "idle"}
       footer={BACK}
     >
+      {/* method and action: a submit before hydration posts the email, never into the address. */}
       <form
+        method="post"
+        action="/api/auth/reset"
         onSubmit={(event) => void submit(event)}
         noValidate
         aria-busy={status === "sending"}

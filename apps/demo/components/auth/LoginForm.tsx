@@ -17,6 +17,8 @@ interface LoginFormProps {
   next: string;
   /** Arrived from a completed password reset. */
   passwordChanged: boolean;
+  /** A failed sign-in that was posted before the page hydrated (from `?error=`). */
+  initialError: string | null;
 }
 
 type Status = "idle" | "submitting" | "signed-in";
@@ -35,12 +37,12 @@ function moodFor(status: Status, failed: boolean): Mood {
 }
 
 /** Email and password, checked on blur and on submit; the server's answer shows above the button. */
-export function LoginForm({ next, passwordChanged }: LoginFormProps) {
+export function LoginForm({ next, passwordChanged, initialError }: LoginFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<FieldErrors>(NO_ERRORS);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(initialError);
   const [status, setStatus] = useState<Status>("idle");
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
@@ -78,13 +80,20 @@ export function LoginForm({ next, passwordChanged }: LoginFormProps) {
       mood={moodFor(status, formError !== null)}
       footer={<TextLink href="/reset">Forgot your password?</TextLink>}
     >
+      {/*
+        method and action: submitted before hydration, the browser posts the fields to the route
+        (never into the address); once hydrated, submit sends JSON instead.
+      */}
       <form
+        method="post"
+        action="/api/auth/login"
         onSubmit={(event) => void submit(event)}
         noValidate
         aria-busy={busy}
         className="flex flex-col gap-5"
         data-testid="login-form"
       >
+        <input type="hidden" name="next" value={next} />
         <FormAlert
           tone="info"
           message={passwordChanged ? "Password changed. Sign in with your new password." : null}

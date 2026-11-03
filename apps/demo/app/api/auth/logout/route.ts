@@ -1,4 +1,5 @@
-import { NextResponse, type NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
+import { seeOther } from "@/lib/auth/form-post";
 import { crossSiteRefusal, describeError, isCrossSite } from "@/lib/auth/http";
 import { SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth/session-cookie";
 import { deleteSession } from "@/lib/auth/sessions";
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
       console.error(`squint auth: sign-out storage failed (${describeError(error)})`);
     }
   }
-  const response = NextResponse.redirect(new URL("/login", request.url), 303);
+  const response = seeOther("/login");
   response.cookies.set(SESSION_COOKIE, "", { ...sessionCookieOptions(request.nextUrl), maxAge: 0 });
   return response;
 }

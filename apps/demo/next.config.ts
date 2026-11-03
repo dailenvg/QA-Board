@@ -23,8 +23,7 @@ const config: NextConfig = {
     "/s/opengraph-image": ["./assets/fonts/**"],
     "/s/twitter-image": ["./assets/fonts/**"],
   },
-  // Shared review links and password reset links: never indexed, never leak the token through
-  // Referer.
+  // Shared review links: never indexed, never leak the token through Referer.
   async headers() {
     const privateLink = [
       { key: "Referrer-Policy", value: "no-referrer" },
@@ -34,7 +33,16 @@ const config: NextConfig = {
       { source: "/s/:path*", headers: privateLink },
       { source: "/api/s/:path*", headers: privateLink },
       { source: "/api/shares/:path*", headers: privateLink },
-      { source: "/reset/:path*", headers: privateLink },
+      // Password reset links: same-origin rather than no-referrer, so the token still never
+      // leaves in a Referer but the form's posts keep their Origin (no-referrer makes it "null",
+      // which the auth routes refuse as cross-site).
+      {
+        source: "/reset/:path*",
+        headers: [
+          { key: "Referrer-Policy", value: "same-origin" },
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+        ],
+      },
     ];
   },
   // Migrations under migrations/ are imported as text.

@@ -10,6 +10,11 @@ interface AuthFieldProps {
   label: string;
   type: "email" | "password";
   autoComplete: "username" | "email" | "current-password" | "new-password";
+  /**
+   * The field's name in a plain form post (before hydration). Defaults to its kind (`email`,
+   * `password`); new-password fields name themselves, since a form may have two.
+   */
+  name?: string;
   value: string;
   error: string | null;
   onChange: (value: string) => void;
@@ -26,6 +31,7 @@ export function AuthField({
   label,
   type,
   autoComplete,
+  name,
   value,
   error,
   onChange,
@@ -52,7 +58,7 @@ export function AuthField({
           id={inputId}
           type={isPassword && revealed ? "text" : type}
           // From the field's kind, not the rendered type, so showing the password keeps its name.
-          name={autoComplete === "new-password" ? undefined : type}
+          name={name ?? (autoComplete === "new-password" ? undefined : type)}
           autoComplete={autoComplete}
           autoCapitalize="none"
           autoCorrect="off"

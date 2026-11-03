@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { ResetPasswordForm } from "@/components/auth/ResetPasswordForm";
 import { isResetTokenUsable } from "@/lib/auth/password-reset";
+import { resetPasswordFlagMessage } from "@/lib/auth/form-flags";
 import { database } from "@/lib/db/database";
+import { single, type SearchParams } from "@/lib/search-params";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +14,7 @@ export const metadata: Metadata = {
 
 interface ResetTokenPageProps {
   params: Promise<{ token: string }>;
+  searchParams: Promise<SearchParams>;
 }
 
 async function linkUsable(token: string): Promise<boolean> {
@@ -20,7 +23,14 @@ async function linkUsable(token: string): Promise<boolean> {
 }
 
 /** The emailed link. An unusable one shows the expired state straight away. */
-export default async function ResetTokenPage({ params }: ResetTokenPageProps) {
+export default async function ResetTokenPage({ params, searchParams }: ResetTokenPageProps) {
   const { token } = await params;
-  return <ResetPasswordForm token={token} usable={await linkUsable(token)} />;
+  const { error } = await searchParams;
+  return (
+    <ResetPasswordForm
+      token={token}
+      usable={await linkUsable(token)}
+      initialError={resetPasswordFlagMessage(single(error))}
+    />
+  );
 }

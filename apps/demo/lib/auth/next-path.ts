@@ -38,9 +38,14 @@ export function loginHref(next?: string | null): string {
   return path === "/" ? "/login" : `/login?next=${encodeURIComponent(path)}`;
 }
 
+/** `path` (already safe) with `params` added to its query. */
+export function withParams(path: string, params: Record<string, string>): string {
+  const url = new URL(path, BASE);
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
 /** `path` (already safe) with the one-shot welcome flag. */
 export function withWelcome(path: string): string {
-  const url = new URL(path, BASE);
-  url.searchParams.set(WELCOME_PARAM, "1");
-  return `${url.pathname}${url.search}${url.hash}`;
+  return withParams(path, { [WELCOME_PARAM]: "1" });
 }

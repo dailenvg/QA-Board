@@ -17,6 +17,8 @@ import { TextLink } from "./TextLink";
 
 interface ResetPasswordFormProps {
   token: string;
+  /** A refused submit posted before the page hydrated (from `?error=`). */
+  initialError: string | null;
   /** Whether the link could still be used when the page loaded. */
   usable: boolean;
 }
@@ -46,12 +48,12 @@ function ExpiredLink({ afterSubmit }: { afterSubmit: boolean }) {
 }
 
 /** Choose a new password from an emailed link; then on to sign in with it. */
-export function ResetPasswordForm({ token, usable }: ResetPasswordFormProps) {
+export function ResetPasswordForm({ token, usable, initialError }: ResetPasswordFormProps) {
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({ password: null, confirm: null });
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(initialError);
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [expired, setExpired] = useState(!usable);
   const passwordRef = useRef<HTMLInputElement>(null);
@@ -91,17 +93,22 @@ export function ResetPasswordForm({ token, usable }: ResetPasswordFormProps) {
       mood={status === "idle" ? (formError ? "surprised" : "idle") : "thinking"}
       footer={BACK}
     >
+      {/* method and action: a submit before hydration posts the passwords, never into the address. */}
       <form
+        method="post"
+        action="/api/auth/reset/complete"
         onSubmit={(event) => void submit(event)}
         noValidate
         aria-busy={status !== "idle"}
         className="flex flex-col gap-5"
         data-testid="reset-password-form"
       >
+        <input type="hidden" name="token" value={token} />
         <AuthField
           label="New password"
           type="password"
           autoComplete="new-password"
+          name="password"
           autoFocus
           inputRef={passwordRef}
           hint={`At least ${PASSWORD_MIN_LENGTH} characters.`}
@@ -121,6 +128,7 @@ export function ResetPasswordForm({ token, usable }: ResetPasswordFormProps) {
           label="New password, again"
           type="password"
           autoComplete="new-password"
+          name="confirm"
           inputRef={confirmRef}
           value={confirm}
           error={errors.confirm}
