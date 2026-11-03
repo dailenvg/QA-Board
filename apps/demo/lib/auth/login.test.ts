@@ -78,4 +78,33 @@ describe("logIn", () => {
       await logIn(db, { email: "ana@acme.test", password: PASSWORD, ip: "198.51.100.1" }, NOW + 1),
     ).toMatchObject({ ok: true });
   });
+
+  it("holds both limits when many wrong passwords arrive at once", async () => {
+    const db = await migratedPglite();
+    await insertUser(db, "ana@acme.test");
+    const byEmail = await Promise.all(
+      Array.from({ length: 30 }, (_, index) =>
+        logIn(db, { email: "ana@acme.test", password: "wrong", ip: `198.51.100.${index}` }, NOW),
+      ),
+    );
+    expect(byEmail.filter((result) => !result.ok && result.reason === "invalid")).toHaveLength(
+      MAX_FAILURES_PER_EMAIL,
+    );
+    const byIp = await Promise.all(
+      Array.from({ length: 40 }, (_, index) =>
+        logIn(db, { email: `guess${index}@acme.test`, password: "x", ip: IP }, NOW),
+      ),
+    );
+    expect(byIp.filter((result) => !result.ok && result.reason === "invalid")).toHaveLength(
+      MAX_FAILURES_PER_IP,
+    );
+  });
+
+  it("doesn't count a successful sign-in as an attempt", async () => {
+    const db = await migratedPglite();
+    await insertUser(db, "ana@acme.test");
+    await logIn(db, { email: "ana@acme.test", password: PASSWORD, ip: IP }, NOW);
+    const { rows } = await db.query("SELECT 1 FROM login_attempts");
+    expect(rows).toEqual([]);
+  });
 });

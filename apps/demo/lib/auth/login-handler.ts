@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { clientAddress } from "../capture/rate-limit";
-import type { Queryable } from "../share/migrate";
+import type { Database } from "../db/database";
 import { json, readJson } from "../share/http";
 import type { LoginError } from "./auth-client";
 import { isFormPost, readForm, seeOther } from "./form-post";
@@ -12,7 +12,7 @@ import { SESSION_COOKIE, sessionCookieOptions } from "./session-cookie";
 
 export interface AuthRouteDeps {
   /** The database, or null without `DATABASE_URL`. */
-  db: Promise<Queryable> | null;
+  db: Promise<Database> | null;
   now: number;
 }
 

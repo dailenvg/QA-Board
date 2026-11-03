@@ -75,6 +75,35 @@ test.describe("signed out", () => {
     );
   });
 
+  test("the limits hold when wrong passwords arrive all at once", async ({
+    playwright,
+  }, testInfo) => {
+    const api = await playwright.request.newContext({ baseURL: testInfo.project.use.baseURL });
+    const run = testInfo.project.name;
+    const attempt = (email: string, ip: string) =>
+      api
+        .post("/api/auth/login", {
+          data: { email, password: "wrong" },
+          headers: { "x-forwarded-for": ip },
+        })
+        .then((response) => response.status());
+
+    // 30 at once for one email, each from its own address: 5 get checked, the rest wait.
+    const email = `race-${run}@e2e.test`;
+    const byEmail = await Promise.all(
+      Array.from({ length: 30 }, (_, index) => attempt(email, `203.0.113.${index + 1}`)),
+    );
+    expect(byEmail.filter((status) => status !== 429)).toEqual(Array(5).fill(401));
+
+    // 40 at once from one address, each for its own email: 20 get checked.
+    const ip = `192.0.2.${run === "mobile" ? 2 : 1}`;
+    const byIp = await Promise.all(
+      Array.from({ length: 40 }, (_, index) => attempt(`race-${run}-${index}@e2e.test`, ip)),
+    );
+    expect(byIp.filter((status) => status !== 429)).toEqual(Array(20).fill(401));
+    await api.dispose();
+  });
+
   test("API routes answer 401 instead of redirecting", async ({ playwright }, testInfo) => {
     const api = await playwright.request.newContext({ baseURL: testInfo.project.use.baseURL });
     const response = await api.post("/api/capture", { data: {}, maxRedirects: 0 });

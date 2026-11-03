@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { describe, expect, it, vi } from "vitest";
 import { insertUser, NOW, PASSWORD } from "@/test/accounts-fixture";
 import { migratedPglite } from "@/test/pglite";
-import type { Queryable } from "../share/migrate";
+import type { Database } from "../db/database";
 import { handleLogin } from "./login-handler";
 import { RESET_TTL_MS, type ResetEmail } from "./password-reset";
 import { handleResetComplete } from "./reset-complete-handler";
@@ -49,7 +49,7 @@ function expectNoCredentials(response: Response, ...secrets: string[]) {
   for (const secret of secrets) expect(target).not.toContain(secret);
 }
 
-async function setup(): Promise<Queryable> {
+async function setup(): Promise<Database> {
   const db = await migratedPglite();
   await insertUser(db, EMAIL);
   return db;
@@ -132,7 +132,7 @@ describe("login form posts (before hydration)", () => {
 });
 
 describe("reset request form posts (before hydration)", () => {
-  function deps(db: Queryable, sent: ResetEmail[]) {
+  function deps(db: Database, sent: ResetEmail[]) {
     const tasks: Array<() => Promise<void>> = [];
     return {
       tasks,
@@ -183,7 +183,7 @@ describe("reset request form posts (before hydration)", () => {
 
 describe("reset complete form posts (before hydration)", () => {
   /** A real reset link's token for `EMAIL`. */
-  async function linkToken(db: Queryable): Promise<string> {
+  async function linkToken(db: Database): Promise<string> {
     const sent: ResetEmail[] = [];
     const { requestPasswordReset } = await import("./password-reset");
     await requestPasswordReset(db, EMAIL, {
