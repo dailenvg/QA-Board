@@ -24,7 +24,8 @@ export interface ShareStore {
   remove(id: string): Promise<BlobLocation[]>;
   /**
    * Shares whose `expiresAt` is at or before `now` (epoch ms), soonest first,
-   * at most `limit`: what the daily expiry deletes.
+   * at most `limit`: what the daily expiry deletes. Anonymous shares only:
+   * shares made from a workspace (migration 022) never expire on their own.
    */
   expiredIds(now: number, limit: number): Promise<string[]>;
 

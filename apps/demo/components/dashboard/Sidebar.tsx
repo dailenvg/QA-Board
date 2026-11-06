@@ -30,6 +30,8 @@ interface SidebarProps {
    * is the top right of the page there.
    */
   search?: ReactNode;
+  /** Who is signed in, and Sign out: at the foot of the panel. */
+  account?: ReactNode;
 }
 
 /**
@@ -47,6 +49,7 @@ export function Sidebar({
   onNewFolderHere,
   newFolderIn = null,
   search = null,
+  account = null,
 }: SidebarProps) {
   const attention = useAttentionReporter("sidebar-button");
   // Inside a folder, the name and tooltip say where it goes (phones see only the icon).
@@ -108,9 +111,12 @@ export function Sidebar({
         onCreate={onNewFolder}
       />
 
-      <div className="mt-auto hidden items-center justify-between gap-3 rounded-card bg-card p-4 lg:flex">
-        <span className="text-body font-medium">Appearance</span>
-        <ThemeToggle />
+      <div className="mt-auto flex flex-col gap-2">
+        <div className="hidden items-center justify-between gap-3 rounded-card bg-card p-4 lg:flex">
+          <span className="text-body font-medium">Appearance</span>
+          <ThemeToggle />
+        </div>
+        {account}
       </div>
     </aside>
   );

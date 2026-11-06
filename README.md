@@ -235,9 +235,9 @@ pnpm test             # unit tests (Vitest), no browser needed
 pnpm test:e2e         # Playwright against a production build of the demo
 ```
 
-Before the first e2e run, install the browser: `pnpm --filter @pinpoint/demo exec playwright install chromium`.
+Before the first e2e run, install the browser: `pnpm --filter @pinpoint/demo exec playwright install chromium`. The e2e suite also needs `E2E_DATABASE_URL`, a throwaway Postgres on `127.0.0.1` or `localhost` that it empties and seeds with test accounts (see [the demo's Tests section](apps/demo/README.md#tests)).
 
-For local development of the demo, copy `apps/demo/.env.example` to `apps/demo/.env.local`, set `PINPOINT_REVIEW_TOKEN` and `NEXT_PUBLIC_PINPOINT_ENABLED=1`, then open `http://localhost:3000/?review=<token>`. Without GitHub or Postgres variables the demo uses in-memory storage.
+For local development of the demo, copy `apps/demo/.env.example` to `apps/demo/.env.local`, set `PINPOINT_REVIEW_TOKEN` and `NEXT_PUBLIC_PINPOINT_ENABLED=1`, then open `http://localhost:3000/sandbox?review=<token>`. Squint's dashboard needs an account: set `DATABASE_URL` and run the seed script ([Accounts](apps/demo/README.md#accounts)). Without GitHub or Postgres variables the pinpoint widget uses in-memory storage.
 
 Repository layout:
 

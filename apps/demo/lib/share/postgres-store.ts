@@ -122,7 +122,8 @@ export function createPostgresStore(db: Queryable): ShareStore {
     },
     async expiredIds(now, limit) {
       const { rows } = await db.query<{ id: string }>(
-        "SELECT id FROM squint_shares WHERE expires_at <= $1 ORDER BY expires_at, id LIMIT $2",
+        `SELECT id FROM squint_shares WHERE workspace_id IS NULL AND expires_at <= $1
+         ORDER BY expires_at, id LIMIT $2`,
         [now, limit],
       );
       return rows.map((row) => row.id);

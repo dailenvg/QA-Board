@@ -29,6 +29,7 @@ export const ATTENTION_RELEASE_MS = 400;
 export const BUSY_COMMENTS = 10;
 
 export const REACTION_MOOD: Record<SquiggyEventType, Mood> = {
+  "signed-in": "happy",
   "comment-resolved": "resolved",
   "project-created": "happy",
   "item-deleted": "surprised",

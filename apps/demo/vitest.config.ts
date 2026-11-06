@@ -16,5 +16,8 @@ export default defineConfig({
     environment: "node",
     include: ["lib/**/*.test.ts", "components/**/*.test.ts"],
     restoreMocks: true,
+    // PGlite boots Postgres in WebAssembly and every database runs all migrations; with Argon2
+    // hashing on top, a cold test can pass 5s while turbo runs the packages in parallel.
+    testTimeout: 20_000,
   },
 });

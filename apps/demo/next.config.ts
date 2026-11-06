@@ -13,8 +13,9 @@ const config: NextConfig = {
   // Always defined at build time, so production builds fold away the e2e-only hooks it gates.
   env: { NEXT_PUBLIC_SQUINT_E2E: process.env.NEXT_PUBLIC_SQUINT_E2E ?? "0" },
   // @sparticuz/chromium-min must stay unbundled (its docs require it). It downloads Chromium at
-  // runtime, so there are no binaries to add to the trace.
-  serverExternalPackages: ["@sparticuz/chromium-min"],
+  // runtime, so there are no binaries to add to the trace. @node-rs/argon2 loads a native
+  // binding per platform, which webpack can't bundle.
+  serverExternalPackages: ["@sparticuz/chromium-min", "@node-rs/argon2"],
   outputFileTracingIncludes: {
     // Link preview cards read Figtree with fs at render time; tracing misses it on some builds.
     "/opengraph-image": ["./assets/fonts/**"],
@@ -32,6 +33,16 @@ const config: NextConfig = {
       { source: "/s/:path*", headers: privateLink },
       { source: "/api/s/:path*", headers: privateLink },
       { source: "/api/shares/:path*", headers: privateLink },
+      // Password reset links: same-origin rather than no-referrer, so the token still never
+      // leaves in a Referer but the form's posts keep their Origin (no-referrer makes it "null",
+      // which the auth routes refuse as cross-site).
+      {
+        source: "/reset/:path*",
+        headers: [
+          { key: "Referrer-Policy", value: "same-origin" },
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+        ],
+      },
     ];
   },
   // Migrations under migrations/ are imported as text.

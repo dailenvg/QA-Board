@@ -1,9 +1,11 @@
 /**
  * Things Squiggy reacts to, emitted by the store's action layer
- * (`lib/store/actions.ts`) after a change is saved, or when a save is refused.
- * Undo restores emit nothing.
+ * (`lib/store/actions.ts`) after a change is saved, or when a save is refused,
+ * and by `WelcomeSignal` on the first page after signing in. Undo restores
+ * emit nothing.
  */
 export type SquiggyEvent =
+  | { type: "signed-in" }
   | { type: "comment-resolved" }
   | { type: "project-created"; projectName: string }
   | { type: "item-deleted"; item: "project" | "folder" | "comment" }

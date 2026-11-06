@@ -169,6 +169,7 @@ describe("reactionMood", () => {
   it("maps each event to its mood", () => {
     expect(reactionMood({ type: "comment-resolved" })).toBe("resolved");
     expect(reactionMood({ type: "project-created", projectName: "Site" })).toBe("happy");
+    expect(reactionMood({ type: "signed-in" })).toBe("happy");
     expect(reactionMood({ type: "item-deleted", item: "comment" })).toBe("surprised");
     expect(reactionMood({ type: "save-failed" })).toBe("surprised");
   });

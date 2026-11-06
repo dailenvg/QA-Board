@@ -30,6 +30,8 @@ function waitingLabel(active: number, folderName: string, total: number): string
 
 function reactionLine(speech: ReactionSpeech): string {
   switch (speech.kind) {
+    case "signed-in":
+      return "Welcome back. Good to see you.";
     case "just-resolved":
       return "One down. Nice.";
     case "just-created":

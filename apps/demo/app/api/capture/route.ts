@@ -1,3 +1,4 @@
+import { apiSession } from "@/lib/auth/guards";
 import { capture } from "@/lib/capture/capture";
 import { CaptureError } from "@/lib/capture/capture-error";
 import { captureFailure } from "@/lib/capture/http";
@@ -28,9 +29,13 @@ async function readBody(request: Request): Promise<unknown> {
 /**
  * `POST /api/capture` `{ url, width }`: a full-page JPEG of a public website,
  * with its page size in CSS px in the `x-capture-width` / `x-capture-height`
- * headers. Errors are `{ error: <code> }`.
+ * headers. Errors are `{ error: <code> }`. Signed-in users only: 401
+ * `{ error: "unauthenticated" }` without a valid session, whatever the cookie
+ * says. Guests capture through their share's own route (`/api/s/[token]/capture`).
  */
 export async function POST(request: Request) {
+  const session = await apiSession();
+  if (!session.ok) return session.response;
   const decision = limit(clientAddress(request.headers), Date.now());
   if (!decision.ok) {
     return captureFailure("rate-limited", { "retry-after": String(decision.retryAfterSeconds) });

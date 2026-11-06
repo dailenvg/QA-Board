@@ -31,3 +31,6 @@ test-results/
 # pdf.js fonts, CMaps and decoders, copied from pdfjs-dist before dev and build
 apps/demo/public/pdfjs/
 next-env.d.ts
+
+# e2e session state (signed-in cookie for the local e2e server)
+apps/demo/e2e/.auth/
