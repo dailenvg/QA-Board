@@ -30,5 +30,7 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
+  // Vercel services (vercel.json) can't deploy Edge functions, so middleware runs on Node.
+  runtime: "nodejs",
   matcher: ["/((?!_next/static|_next/image).*)"],
 };
