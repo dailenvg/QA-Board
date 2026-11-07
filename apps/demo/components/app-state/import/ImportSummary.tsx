@@ -6,7 +6,7 @@ import { staggerGroup, useRevealVariants } from "@/lib/motion";
 import type { ImportReport } from "@/lib/workspace-client/import-local";
 import { Button } from "../../ui/Button";
 import { Icon } from "../../ui/Icon";
-import { ImportActions } from "./ImportActions";
+import { DiscardButton, ImportActions } from "./ImportActions";
 import { ImportStep } from "./ImportStep";
 import { keptLine, skippedLines } from "./import-copy";
 
@@ -30,17 +30,20 @@ export function ImportSummary({ report, onDone, onDiscard }: ImportSummaryProps)
           <h3 id={titleId} className="text-heading font-semibold">
             Left out
           </h3>
+          {/* Focusable, so the list can be scrolled from the keyboard once it passes 12rem. */}
           <motion.ul
             variants={LIST}
             initial="hidden"
             animate="visible"
-            className="mt-2 flex max-h-48 flex-col gap-1.5 overflow-y-auto text-body text-ink-2"
+            tabIndex={0}
+            aria-labelledby={titleId}
+            className="mt-2 flex max-h-48 flex-col gap-2 overflow-y-auto rounded-field text-body text-ink-2"
             data-testid="import-skipped"
           >
             {lines.map((line) => (
               <motion.li key={line} variants={variants} className="flex items-start gap-2">
                 <Icon name="alert" className="mt-0.5 size-4 shrink-0 text-muted" />
-                {line}
+                <span className="min-w-0 wrap-anywhere">{line}</span>
               </motion.li>
             ))}
           </motion.ul>
@@ -50,15 +53,7 @@ export function ImportSummary({ report, onDone, onDiscard }: ImportSummaryProps)
         <Icon name={report.cleared ? "check" : "history"} className="mt-0.5 size-4 shrink-0" />
         {keptLine(report)}
       </p>
-      <ImportActions
-        aside={
-          report.cleared ? null : (
-            <Button variant="ghost" size="sm" onClick={onDiscard} data-testid="import-discard">
-              Discard local data
-            </Button>
-          )
-        }
-      >
+      <ImportActions aside={report.cleared ? null : <DiscardButton onClick={onDiscard} />}>
         <Button onClick={onDone} data-autofocus data-testid="import-finish">
           Done
         </Button>

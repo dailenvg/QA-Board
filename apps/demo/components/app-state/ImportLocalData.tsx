@@ -50,6 +50,11 @@ function closeAction(state: Shown): (() => void) | null {
 /** The key AnimatePresence swaps views by: the discarding view is the confirm view, busy. */
 const stepKey = (state: Shown) => (state.view === "discarding" ? "confirm-discard" : state.view);
 
+/** A view's title and description as one sentence pair for the live region. */
+function spoken({ title, description }: { title: string; description: string }): string {
+  return /[.?!…]$/.test(title) ? `${title} ${description}` : `${title}. ${description}`;
+}
+
 /**
  * Offers, once per sign-in, to import the projects an earlier build kept in
  * this browser into the signed-in workspace; never imports or clears without
@@ -63,6 +68,18 @@ export function ImportLocalData({ workspaceId, workspaceName }: ImportLocalDataP
   // The last view shown, so the dialog keeps its content while it animates out.
   const [shown, setShown] = useState<Shown | null>(null);
   if (state.view !== "hidden" && state !== shown) setShown(state);
+  // The first view is read as the dialog opens. Each later one replaces the focused control and
+  // moves focus to its own, which is all a screen reader would say: announce its title and
+  // description too, so a failure's reason or the summary isn't missed.
+  const key = state.view === "hidden" ? null : stepKey(state);
+  const [lastKey, setLastKey] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  if (key !== lastKey) {
+    setLastKey(key);
+    setAnnouncement(
+      lastKey !== null && state.view !== "hidden" ? spoken(dialogText(state, workspaceName)) : "",
+    );
+  }
 
   useEffect(() => {
     checkLocalData();
@@ -85,6 +102,10 @@ export function ImportLocalData({ workspaceId, workspaceName }: ImportLocalDataP
       description={description}
       testId="import-dialog"
     >
+      {/* Always present, so each change is announced. */}
+      <p role="status" className="sr-only">
+        {announcement}
+      </p>
       <AnimatePresence mode="wait" initial={false}>
         {shown.view === "offer" ? (
           <ImportOffer

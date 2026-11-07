@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "motion/react";
+import { motion, useIsPresent } from "motion/react";
 import { useEffect, useRef, type ReactNode } from "react";
 import { useRevealVariants } from "@/lib/motion";
 
@@ -12,11 +12,13 @@ interface ImportStepProps {
 /**
  * One view of the import dialog, swapped in and out with a short reveal. On
  * mount it takes focus (its `data-autofocus` control, else itself), since the
- * control focused in the view before it is gone.
+ * control focused in the view before it is gone. Inert while it animates out,
+ * so a second click can't land on a button that has already been pressed.
  */
 export function ImportStep({ children, testId }: ImportStepProps) {
   const variants = useRevealVariants();
   const root = useRef<HTMLDivElement>(null);
+  const present = useIsPresent();
 
   useEffect(() => {
     const node = root.current;
@@ -28,6 +30,7 @@ export function ImportStep({ children, testId }: ImportStepProps) {
     <motion.div
       ref={root}
       tabIndex={-1}
+      inert={!present}
       variants={variants}
       initial="hidden"
       animate="visible"

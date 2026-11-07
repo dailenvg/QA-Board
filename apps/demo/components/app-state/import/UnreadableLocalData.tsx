@@ -2,7 +2,7 @@
 
 import { Button } from "../../ui/Button";
 import { Icon } from "../../ui/Icon";
-import { ImportActions } from "./ImportActions";
+import { DiscardButton, ImportActions } from "./ImportActions";
 import { ImportStep } from "./ImportStep";
 
 interface UnreadableLocalDataProps {
@@ -32,13 +32,7 @@ export function UnreadableLocalData({ raw, onLater, onDiscard }: UnreadableLocal
       <p className="text-body text-ink-2">
         Keep it for now and try again later, or download a copy before you discard it.
       </p>
-      <ImportActions
-        aside={
-          <Button variant="ghost" size="sm" onClick={onDiscard} data-testid="import-discard">
-            Discard local data
-          </Button>
-        }
-      >
+      <ImportActions aside={<DiscardButton onClick={onDiscard} />}>
         <Button variant="secondary" onClick={() => download(raw)} data-testid="import-download">
           <Icon name="download" className="size-4" />
           Download a copy

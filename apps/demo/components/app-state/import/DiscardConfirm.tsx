@@ -18,7 +18,7 @@ export function DiscardConfirm({ busy, onCancel, onConfirm }: DiscardConfirmProp
       <ImportActions>
         <Button
           variant="secondary"
-          onClick={onCancel}
+          onClick={busy ? undefined : onCancel}
           aria-disabled={busy || undefined}
           data-autofocus
           data-testid="import-discard-cancel"
