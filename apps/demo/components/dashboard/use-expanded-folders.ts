@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 /** Which sidebar folders are open, remembered in this browser apart from the workspace data. */
 const KEY = "squint:folder-tree";
+
+const NONE: ReadonlySet<string> = new Set();
 
 function readExpanded(): ReadonlySet<string> {
   try {
@@ -14,27 +16,38 @@ function readExpanded(): ReadonlySet<string> {
   }
 }
 
-/** The sidebar tree's open folders, kept across visits. Only rendered in the browser. */
+/** This tab's open folders, read from storage on first use in the browser. */
+let expanded: ReadonlySet<string> | null = null;
+const listeners = new Set<() => void>();
+
+const snapshot = (): ReadonlySet<string> => (expanded ??= readExpanded());
+const serverSnapshot = (): ReadonlySet<string> => NONE;
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function setOpen(folderId: string, open: boolean): void {
+  const current = snapshot();
+  if (current.has(folderId) === open) return;
+  const next = new Set(current);
+  if (open) next.add(folderId);
+  else next.delete(folderId);
+  expanded = next;
+  try {
+    localStorage.setItem(KEY, JSON.stringify([...next]));
+  } catch {
+    // Not remembered; the tree still works for this visit.
+  }
+  for (const listener of listeners) listener();
+}
+
+/**
+ * The sidebar tree's open folders, kept across visits. None on the server
+ * and in hydration (the sidebar renders there too), the remembered ones
+ * right after.
+ */
 export function useExpandedFolders() {
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(readExpanded);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(KEY, JSON.stringify([...expanded]));
-    } catch {
-      // Not remembered; the tree still works for this visit.
-    }
-  }, [expanded]);
-
-  const setOpen = useCallback((folderId: string, open: boolean) => {
-    setExpanded((current) => {
-      if (current.has(folderId) === open) return current;
-      const next = new Set(current);
-      if (open) next.add(folderId);
-      else next.delete(folderId);
-      return next;
-    });
-  }, []);
-
-  return { expanded, setOpen };
+  return { expanded: useSyncExternalStore(subscribe, snapshot, serverSnapshot), setOpen };
 }

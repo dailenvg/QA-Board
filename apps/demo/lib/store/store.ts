@@ -25,7 +25,10 @@ export const subscribe = subscribeWorkspace;
 
 export const getSnapshot = getWorkspaceState;
 
-/** The server render and hydration show the loading state; the workspace arrives right after. */
+/**
+ * Loading, outside `WorkspaceProvider`; inside it, `useSquint` shows the
+ * server's render of the workspace instead.
+ */
 export function getServerSnapshot(): StoreState {
   return LOADING;
 }
