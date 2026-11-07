@@ -1,10 +1,10 @@
 import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
-import { database } from "../db/database";
+import { database, type Database } from "../db/database";
 import { findMembership, type Membership } from "./memberships";
 import { loginHref, PATH_HEADER } from "./next-path";
-import { SESSION_COOKIE } from "./session-cookie";
+import { SESSION_COOKIE, sessionTokenOf } from "./session-cookie";
 import { readSession } from "./sessions";
 import type { SessionUser } from "./users";
 
@@ -38,6 +38,42 @@ export async function apiSession(): Promise<
       { status: 401, headers: { "cache-control": "no-store" } },
     ),
   };
+}
+
+const NO_STORE = { "cache-control": "no-store" };
+
+export type ApiMember =
+  | { ok: true; db: Database; user: SessionUser; membership: Membership }
+  | { ok: false; response: Response };
+
+/**
+ * For workspace route handlers: the signed-in user's membership of
+ * `workspaceId`, and the database it was read from. No session (or no
+ * database) is a JSON 401; a workspace the session isn't a member of is a
+ * JSON 404, whether or not it exists, admins included. Never a 403, which
+ * would say there's something there. The session decides: use the
+ * membership's `workspaceId` from here on, not the one in the URL. Reads the
+ * cookie from `request`, so it needs no request scope.
+ */
+export async function apiMember(request: Request, workspaceId: string): Promise<ApiMember> {
+  const token = sessionTokenOf(request.headers.get("cookie"));
+  const pending = database();
+  const db = pending && (await pending);
+  const user = token && db ? await readSession(db, token, Date.now()) : null;
+  if (!db || !user) {
+    return {
+      ok: false,
+      response: Response.json({ error: "unauthenticated" }, { status: 401, headers: NO_STORE }),
+    };
+  }
+  const membership = await findMembership(db, user.id, workspaceId);
+  if (!membership) {
+    return {
+      ok: false,
+      response: Response.json({ error: "not-found" }, { status: 404, headers: NO_STORE }),
+    };
+  }
+  return { ok: true, db, user, membership };
 }
 
 /** The signed-in user; otherwise redirects to /login, back to the page asked for after. */
