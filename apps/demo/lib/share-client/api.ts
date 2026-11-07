@@ -15,7 +15,8 @@ import { fetchInRanges, uploadParts } from "./transfer";
 /** `status` 0 means the request never got an answer (offline, aborted). */
 export type ApiResult<T> = { ok: true; value: T } | { ok: false; status: number; error: string };
 
-async function call<T>(input: string, init: RequestInit = {}): Promise<ApiResult<T>> {
+/** A JSON API call; never throws. */
+export async function call<T>(input: string, init: RequestInit = {}): Promise<ApiResult<T>> {
   let response: Response;
   try {
     response = await fetch(input, { cache: "no-store", ...init });
@@ -31,7 +32,7 @@ async function call<T>(input: string, init: RequestInit = {}): Promise<ApiResult
   return { ok: false, status: response.status, error };
 }
 
-const jsonInit = (method: string, body: unknown, headers: Record<string, string> = {}) => ({
+export const jsonInit = (method: string, body: unknown, headers: Record<string, string> = {}) => ({
   method,
   headers: { "content-type": "application/json", ...headers },
   body: JSON.stringify(body),
