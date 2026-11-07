@@ -16,8 +16,8 @@ import type { ClientUploadDriver, ListedFile } from "./blob-driver";
 import { blobPath } from "./blob-paths";
 import { storageSummary } from "./blobs";
 import { TRASH_GRACE_MS, UNCOMMITTED_BLOB_MS } from "./limits";
-import { createProject, listTrash, trashProject } from "./projects";
-import { purgeTrash, sweepWorkspaceBlobs, type PurgeServices } from "./purge";
+import { createProject, getProject, listTrash, restoreProject, trashProject } from "./projects";
+import { purgeProject, purgeTrash, sweepWorkspaceBlobs, type PurgeServices } from "./purge";
 import { attachShare } from "./share-links";
 import { storeInline } from "./uploads";
 
@@ -42,8 +42,8 @@ function fakeStore(files: ListedFile[] = []) {
   return { driver, discarded };
 }
 
-function services(db: Database, blobs: PurgeServices["blobs"]): PurgeServices {
-  return { shares: { store: createPostgresStore(db), blobs: inlineBackend }, blobs };
+function services(blobs: PurgeServices["blobs"]): PurgeServices {
+  return { shareBlobs: inlineBackend, blobs };
 }
 
 describe("purgeTrash", () => {
@@ -70,7 +70,7 @@ describe("purgeTrash", () => {
     await trashProject(db, a.workspaceId, "recent", NOW - 1);
 
     const { driver, discarded } = fakeStore();
-    expect(await purgeTrash(db, services(db, driver), NOW, DEADLINE)).toEqual({
+    expect(await purgeTrash(db, services(driver), NOW, DEADLINE)).toEqual({
       count: 1,
       done: true,
     });
@@ -90,7 +90,54 @@ describe("purgeTrash", () => {
     await createProject(db, a.workspaceId, URL_PROJECT("old"), NOW);
     await trashProject(db, a.workspaceId, "old", NOW - TRASH_GRACE_MS - 1);
     const { driver } = fakeStore();
-    expect(await purgeTrash(db, services(db, driver), NOW, 0)).toEqual({ count: 0, done: false });
+    expect(await purgeTrash(db, services(driver), NOW, 0)).toEqual({ count: 0, done: false });
+  });
+});
+
+describe("purge and restore racing", () => {
+  async function trashedLongAgo() {
+    const fixture = await twoWorkspaces();
+    await addFolder(fixture.db, fixture.a.workspaceId);
+    await createProject(fixture.db, fixture.a.workspaceId, URL_PROJECT("p1"), NOW);
+    await storeInline(fixture.db, fixture.a.workspaceId, { projectId: "p1", key: "crop:c1" }, PNG);
+    await trashProject(fixture.db, fixture.a.workspaceId, "p1", NOW - TRASH_GRACE_MS - 1);
+    return fixture;
+  }
+
+  it("keeps a project restored after the cron listed it", async () => {
+    const { db, a } = await trashedLongAgo();
+    // The restore lands between the cron's list of candidates and its delete.
+    const racing: Database = {
+      async query(text, params) {
+        const result = await db.query(text, params);
+        if (text.includes("ORDER BY deleted_at, id LIMIT")) {
+          await restoreProject(db, a.workspaceId, "p1");
+        }
+        return result as never;
+      },
+      transaction: (run) => db.transaction(run),
+    };
+    const { driver, discarded } = fakeStore();
+    expect(await purgeTrash(racing, services(driver), NOW, DEADLINE)).toEqual({
+      count: 0,
+      done: true,
+    });
+    expect(await getProject(db, a.workspaceId, "p1")).toMatchObject({ id: "p1" });
+    expect(await storageSummary(db, a.workspaceId)).toMatchObject({ blobCount: 1 });
+    expect(discarded).toEqual([]);
+  });
+
+  it("deletes nothing that's no longer trashed, or was trashed again since the cutoff", async () => {
+    const { db, a } = await trashedLongAgo();
+    const { driver } = fakeStore();
+    await restoreProject(db, a.workspaceId, "p1");
+    expect(await purgeProject(db, services(driver), a.workspaceId, "p1")).toBe(false);
+    await trashProject(db, a.workspaceId, "p1", NOW);
+    const cutoff = NOW - TRASH_GRACE_MS;
+    expect(await purgeProject(db, services(driver), a.workspaceId, "p1", cutoff)).toBe(false);
+    expect((await listTrash(db, a.workspaceId)).map((project) => project.id)).toEqual(["p1"]);
+    expect(await purgeProject(db, services(driver), a.workspaceId, "p1")).toBe(true);
+    expect(await listTrash(db, a.workspaceId)).toEqual([]);
   });
 });
 

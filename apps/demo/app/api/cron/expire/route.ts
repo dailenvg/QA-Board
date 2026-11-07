@@ -79,7 +79,7 @@ async function workspaceSteps(now: number, deadline: number): Promise<[StepResul
   const pending = database();
   const trash = await step("trash", async () => {
     if (!pending) return null;
-    const services = { shares: await shareServices(), blobs: blobDriverFromEnv() };
+    const services = { shareBlobs: (await shareServices()).blobs, blobs: blobDriverFromEnv() };
     return purgeTrash(await pending, services, now, deadline);
   });
   const files = await step("workspaceBlobs", async () =>

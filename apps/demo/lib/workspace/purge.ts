@@ -1,6 +1,7 @@
+import type { Database } from "../db/database";
+import type { BlobBackend } from "../share/blob-backend";
 import type { Queryable } from "../share/migrate";
-import type { ShareServices } from "../share/server";
-import { revokeShare } from "../share/service";
+import { createPostgresStore } from "../share/postgres-store";
 import type { AnyBlobDriver } from "./blob-driver";
 import { parseBlobPath, projectBlobPrefix, WORKSPACE_BLOB_PREFIX } from "./blob-paths";
 import { blobRowExists, deleteBlobRows, orphanedBlobRows, toLocation } from "./blobs";
@@ -11,7 +12,8 @@ import { toDate } from "./times";
 /** Deleting projects for good, and the files nothing points at any more. */
 
 export interface PurgeServices {
-  shares: ShareServices;
+  /** Where share files live (`ShareServices.blobs`). */
+  shareBlobs: BlobBackend;
   blobs: AnyBlobDriver;
 }
 
@@ -25,58 +27,74 @@ export interface PurgeResult {
 const BATCH = 50;
 
 /**
- * Deletes one project of the workspace for good: its shares first (revoked
- * like the owner's Revoke, so their files go too), then its rows (pages,
- * snapshots, comments, review link), then its files.
+ * Deletes one trashed project of the workspace for good, if it's still in
+ * the trash (and was trashed at or before `trashedBy`, when given): its
+ * shares, its rows (pages, snapshots, comments, review link, file rows), then
+ * its files. The trash state is confirmed under a lock on the project's row,
+ * in the same transaction as the deletes, so a restore that lands first
+ * wins and one that comes later waits and finds nothing. False when it was
+ * no longer there to delete. Files go only after the rows are committed; one
+ * a failed delete leaves behind has no row, so the daily sweep removes it.
  */
 export async function purgeProject(
-  db: Queryable,
+  db: Database,
   services: PurgeServices,
   workspaceId: string,
   projectId: string,
-): Promise<void> {
-  for (const id of await projectShareIds(db, workspaceId, projectId)) {
-    await revokeShare(services.shares, { id });
-  }
-  await db.query("DELETE FROM projects WHERE workspace_id = $1 AND id = $2", [
-    workspaceId,
-    projectId,
-  ]);
-  // 019's foreign key kept the file rows, without their project.
-  const { rows } = await db.query<{
-    key: string;
-    bytes: Uint8Array | null;
-    blob_url: string | null;
-  }>(
-    `SELECT key, bytes, blob_url FROM workspace_blobs
-     WHERE workspace_id = $1 AND project_id IS NULL AND starts_with(key, $2)`,
-    [workspaceId, projectBlobPrefix(workspaceId, projectId)],
-  );
-  await services.blobs.discard(rows.map(toLocation));
-  await deleteBlobRows(
-    db,
-    rows.map((row) => ({ workspaceId, path: row.key })),
-  );
+  trashedBy?: number,
+): Promise<boolean> {
+  const removed = await db.transaction(async (tx) => {
+    const { rows: trashed } = await tx.query(
+      `SELECT 1 FROM projects
+       WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NOT NULL
+         AND ($3::timestamptz IS NULL OR deleted_at <= $3)
+       FOR UPDATE`,
+      [workspaceId, projectId, trashedBy === undefined ? null : toDate(trashedBy)],
+    );
+    if (trashed.length === 0) return null;
+    const shares = createPostgresStore(tx);
+    const shareFiles = [];
+    for (const id of await projectShareIds(tx, workspaceId, projectId)) {
+      shareFiles.push(...(await shares.remove(id)));
+    }
+    await tx.query("DELETE FROM projects WHERE workspace_id = $1 AND id = $2", [
+      workspaceId,
+      projectId,
+    ]);
+    // 019's foreign key kept the file rows, without their project.
+    const { rows: files } = await tx.query<{ bytes: Uint8Array | null; blob_url: string | null }>(
+      `DELETE FROM workspace_blobs
+       WHERE workspace_id = $1 AND project_id IS NULL AND starts_with(key, $2)
+       RETURNING bytes, blob_url`,
+      [workspaceId, projectBlobPrefix(workspaceId, projectId)],
+    );
+    return { shareFiles, files: files.map(toLocation) };
+  });
+  if (!removed) return false;
+  await services.shareBlobs.discard(removed.shareFiles);
+  await services.blobs.discard(removed.files);
+  return true;
 }
 
 /** Deletes projects trashed more than `TRASH_GRACE_MS` before `now`, oldest first, until `deadline`. */
 export async function purgeTrash(
-  db: Queryable,
+  db: Database,
   services: PurgeServices,
   now: number,
   deadline: number,
 ): Promise<PurgeResult> {
   let count = 0;
   for (;;) {
+    const cutoff = now - TRASH_GRACE_MS;
     const { rows } = await db.query<{ workspace_id: string; id: string }>(
       `SELECT workspace_id, id FROM projects WHERE deleted_at IS NOT NULL AND deleted_at <= $1
        ORDER BY deleted_at, id LIMIT $2`,
-      [toDate(now - TRASH_GRACE_MS), BATCH],
+      [toDate(cutoff), BATCH],
     );
     for (const row of rows) {
       if (Date.now() >= deadline) return { count, done: false };
-      await purgeProject(db, services, row.workspace_id, row.id);
-      count += 1;
+      // Restored (or trashed again) since the list was read: purgeProject skips it.
+      if (await purgeProject(db, services, row.workspace_id, row.id, cutoff)) count += 1;
     }
     if (rows.length < BATCH) return { count, done: true };
   }
