@@ -62,3 +62,12 @@ export interface WorkspaceData {
   /** The signed-in user's name for new comments; null until they give one. */
   authorName: string | null;
 }
+
+/**
+ * What a signed-in page starts from: the workspace, and its projects' review
+ * links with their secrets (the member's own, as `share-link` answers them).
+ */
+export interface WorkspaceStart {
+  data: WorkspaceData;
+  links: ShareLink[];
+}
