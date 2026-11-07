@@ -26,8 +26,8 @@ describe("the import dialog's copy", () => {
       ]),
     ).toEqual([
       "Site already belongs to another workspace, so it wasn't imported.",
-      "Deck: 2 images no longer saved in this browser.",
-      "Deck: 1 comment on a page or snapshot that no longer exists.",
+      "Deck: 2 images are no longer saved in this browser.",
+      "Deck: 1 comment was on a page or snapshot that no longer exists.",
     ]);
   });
 

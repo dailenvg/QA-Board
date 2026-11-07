@@ -30,7 +30,7 @@ export function UnreadableLocalData({ raw, onLater, onDiscard }: UnreadableLocal
   return (
     <ImportStep testId="import-unreadable">
       <p className="text-body text-ink-2">
-        Keep it for now and try again later, or download a copy before you discard it.
+        Keep this data for now and try again later, or download a copy before you discard it.
       </p>
       <ImportActions aside={<DiscardButton onClick={onDiscard} />}>
         <Button variant="secondary" onClick={() => download(raw)} data-testid="import-download">

@@ -21,7 +21,7 @@ import { ImportOffer } from "./import/ImportOffer";
 import { ImportProgressView } from "./import/ImportProgressView";
 import { ImportSummary } from "./import/ImportSummary";
 import { UnreadableLocalData } from "./import/UnreadableLocalData";
-import { dialogText } from "./import/import-copy";
+import { DISCARDED_TOAST, dialogText } from "./import/import-copy";
 
 interface ImportLocalDataProps {
   workspaceId: string;
@@ -89,7 +89,7 @@ export function ImportLocalData({ workspaceId, workspaceName }: ImportLocalDataP
   const close = closeAction(shown);
   const discard = async () => {
     await discardLocalData();
-    toast({ message: "Removed the projects saved in this browser." });
+    toast({ message: DISCARDED_TOAST });
   };
   const { title, description } = dialogText(shown, workspaceName);
 

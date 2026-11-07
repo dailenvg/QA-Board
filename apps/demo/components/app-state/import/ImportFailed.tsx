@@ -10,6 +10,7 @@ import { buttonClass } from "../../ui/button-styles";
 import { Icon } from "../../ui/Icon";
 import { DiscardButton, ImportActions } from "./ImportActions";
 import { ImportStep } from "./ImportStep";
+import { failureNote } from "./import-copy";
 
 interface ImportFailedProps {
   failure: ImportFailure;
@@ -34,10 +35,7 @@ export function ImportFailed({
       {/* Not an alert: ImportLocalData announces the title and reason as this view opens. */}
       <p className="flex items-start gap-2 text-body text-ink-2">
         <Icon name="alert" className="mt-0.5 size-4 shrink-0 text-danger" />
-        <span className="min-w-0 wrap-anywhere">
-          Nothing was removed from this browser. Anything already imported stays in {workspace}, and
-          Retry picks up where it stopped.
-        </span>
+        <span className="min-w-0 wrap-anywhere">{failureNote(failure, workspace)}</span>
       </p>
       <ImportActions aside={<DiscardButton onClick={onDiscard} />}>
         <Button variant="secondary" onClick={onLater} data-testid="import-later">

@@ -320,7 +320,7 @@ test("Discard asks first, then clears this browser and imports nothing", async (
   await dialog.getByTestId("import-discard").click();
   await dialog.getByTestId("import-discard-confirm-button").click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByText("Removed the projects saved in this browser.")).toBeVisible();
+  await expect(page.getByText("Local data discarded from this browser.")).toBeVisible();
   expect(await localState(page)).toEqual({ data: null, images: 0 });
   expect(await workspaceRows("projects")).toBe(0);
   await page.reload();
@@ -376,7 +376,7 @@ test("a project another workspace has is skipped and named; the rest come in", a
   await expect(dialog.getByTestId("import-skipped")).toHaveText(
     "Their homepage already belongs to another workspace, so it wasn't imported.",
   );
-  await expect(dialog.getByTestId("import-kept")).toContainText("This browser keeps its copy");
+  await expect(dialog.getByTestId("import-kept")).toContainText("This browser still has its copy");
   expect((await serverWorkspace(page)).projects.map((project) => project.id).sort()).toEqual([
     "deck",
     "hero",

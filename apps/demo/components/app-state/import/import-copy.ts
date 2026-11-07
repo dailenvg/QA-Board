@@ -34,27 +34,46 @@ function offerSubject(counts: LocalCounts): string {
 }
 
 export function offerDetail(counts: LocalCounts): string {
-  const parts = [count(counts.projects, "project"), count(counts.folders, "folder")];
-  if (counts.comments > 0) parts.push(count(counts.comments, "comment"));
-  return `This browser has ${listed(parts)}.`;
+  // Zero counts are left out ("2 folders", not "0 projects and 2 folders").
+  const parts = [
+    counts.projects > 0 ? count(counts.projects, "project") : "",
+    counts.folders > 0 ? count(counts.folders, "folder") : "",
+    counts.comments > 0 ? count(counts.comments, "comment") : "",
+  ].filter(Boolean);
+  return `This browser has ${listed(parts.length > 0 ? parts : [count(0, "project")])}.`;
 }
 
 export const FAILURE_COPY: Record<ImportFailure, string> = {
-  offline: "We couldn't reach Squint. Check your connection, then retry.",
-  "signed-out": "You've been signed out. Sign in again and we'll offer the import again.",
-  "storage-full": "Your workspace is out of storage. Free up some space, then retry.",
-  server: "Something went wrong on our side. Retry in a moment.",
+  offline: "We couldn't reach Squint. Check your connection, then try again.",
+  "signed-out": "You've been signed out. Sign in again and we'll offer to import again.",
+  "storage-full": "Your workspace is out of storage. Free up some space, then try again.",
+  server: "Something went wrong on our side. Try again in a moment.",
   "local-files":
-    "This browser's saved images couldn't be read. Close other Squint tabs, then retry.",
-  folders: "Some folders saved in this browser are damaged, so the server couldn't accept them.",
+    "This browser's saved images couldn't be read. Close other Squint tabs, then try again.",
+  folders:
+    "Some folders saved in this browser are damaged, so Squint couldn't accept them. Trying again won't fix this. Discard the local data, or ask a workspace admin for help.",
 };
 
+/** The reassurance under a failure: what was kept, and how to carry on. */
+export function failureNote(failure: ImportFailure, workspace: string): string {
+  const kept = `Nothing has been removed from this browser. Anything already imported stays in ${workspace}`;
+  return failure === "signed-out"
+    ? `${kept}. Sign in again to pick up where it stopped.`
+    : `${kept}, and Retry picks up where it stopped.`;
+}
+
+export const DISCARDED_TOAST = "Local data discarded from this browser.";
+
+/** A stage's first line (nothing done yet) names the whole job; later lines count. */
 export function progressLine(progress: ImportProgress | null): string {
   if (!progress) return "Getting started…";
   const { stage, done, total } = progress;
-  return stage === "projects"
-    ? `Saving projects: ${done} of ${total}`
-    : `Uploading images: ${done} of ${total}`;
+  if (stage === "projects") {
+    if (done > 0) return `Saved ${done} of ${total}`;
+    return total > 0 ? `Saving ${count(total, "project")}…` : "Saving projects…";
+  }
+  if (done > 0) return `Uploaded ${done} of ${total}`;
+  return total > 0 ? `Uploading ${count(total, "image")}…` : "Uploading images…";
 }
 
 export function progressFraction(progress: ImportProgress | null): number {
@@ -75,14 +94,17 @@ export function summaryLine(report: ImportReport, workspace: string): string {
 
 const REASONS: Record<SkipReason, (n: number) => string> = {
   "other-workspace": () => "already belongs to another workspace, so it wasn't imported",
-  refused: () => "has damaged details, so the server couldn't accept it",
+  refused: () => "has damaged details, so Squint couldn't accept it",
   "too-large": () => "is too large to import",
-  "no-folder": () => "wasn't imported because its folder couldn't be",
+  "no-folder": () => "wasn't imported because its folder couldn't be imported",
   "in-trash": () => "is in the trash. Restore it, then import again",
-  "link-lost": () => "came in without its review link, which had expired",
-  "file-missing": (n) => `${count(n, "image")} no longer saved in this browser`,
-  "file-refused": (n) => `${count(n, "image")} too large or not a supported type`,
-  "no-surface": (n) => `${count(n, "comment")} on a page or snapshot that no longer exists`,
+  "link-lost": () => "was imported without its review link, which had expired",
+  "file-missing": (n) =>
+    `${count(n, "image")} ${n === 1 ? "is" : "are"} no longer saved in this browser`,
+  "file-refused": (n) =>
+    `${count(n, "image")} ${n === 1 ? "was" : "were"} too large or not a supported type`,
+  "no-surface": (n) =>
+    `${count(n, "comment")} ${n === 1 ? "was" : "were"} on a page or snapshot that no longer exists`,
 };
 
 /** One line per project and reason, with repeated files and comments counted together. */
@@ -105,14 +127,14 @@ export function skippedLines(skipped: readonly SkippedItem[]): string[] {
 export function keptLine(report: ImportReport): string {
   return report.cleared
     ? "This browser's copy has been removed."
-    : "This browser keeps its copy, so nothing is lost. Discard it once you've moved what you need.";
+    : "This browser still has its copy, so nothing is lost. Discard it when you no longer need it.";
 }
 
 export function discardDetail(counts: LocalCounts | null): string {
   const what = counts
-    ? `${count(counts.projects, "project")} and their comments and images`
+    ? `${offerSubject(counts)} and their comments and images`
     : "everything Squint saved in this browser, including what couldn't be read";
-  return `This deletes ${what} from this browser. They won't be imported, and this can't be undone.`;
+  return `This deletes ${what} from this browser. Nothing will be imported, and this can't be undone.`;
 }
 
 /** The dialog's title and description for each view. */
