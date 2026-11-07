@@ -25,6 +25,8 @@ describe("isPublicPath", () => {
     "/api/cron/expire",
     "/api/auth/login",
     "/api/auth/reset/complete",
+    // Vercel Blob's signed upload callback; the route checks the session for token requests.
+    "/api/w/123/blobs/token",
     "/pdfjs/cmaps/x.bcmap",
     "/_next/static/chunks/app.js",
   ])("lets anyone open %s", (path) => {
@@ -39,6 +41,9 @@ describe("isPublicPath", () => {
     "/account",
     "/api/capture",
     "/api/w/123/projects",
+    "/api/w/123/blobs/commit",
+    "/api/w/123/blobs/token/x",
+    "/api/w/123/projects/p/blobs/token",
     "/loginx",
     "/sx",
     "/sandboxed",
