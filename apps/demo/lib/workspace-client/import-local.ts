@@ -73,6 +73,11 @@ export interface ImportReport {
   skipped: SkippedItem[];
   /** True once this browser's copy was cleared: nothing it holds is missing from the workspace. */
   cleared: boolean;
+  /**
+   * True when this run brought something new into the workspace (a folder, a
+   * project or an image); false when an earlier run had already moved it all.
+   */
+  moved: boolean;
 }
 
 /** Why an import stopped; this browser's copy is untouched, and running it again picks up from here. */
@@ -278,6 +283,8 @@ class Tally {
   readonly uploads = new Map<string, { projectId: string; key: string }>();
   readonly missing = new Set<string>();
   readonly refused = new Set<string>();
+  /** Whether anything new reached the workspace in this run. */
+  moved = false;
 
   constructor(private readonly names: ReadonlyMap<string, string>) {}
 
@@ -296,6 +303,7 @@ class Tally {
 
   took(batch: readonly Bundle[], result: ImportResult): void {
     const { imported, existing, trashed, unlinked } = result.projects;
+    if (imported.length > 0) this.moved = true;
     for (const id of [...imported, ...existing]) this.present.add(id);
     for (const id of trashed) this.skipProject(id, "in-trash");
     for (const { project } of batch)
@@ -366,7 +374,10 @@ async function sendFiles(local: LocalImport, deps: ImportDeps, tally: Tally) {
     const image = await asImage(stored);
     if (!image) return tally.skipFile(projectId, key, "file-refused");
     const result = await deps.upload(projectId, key, image);
-    if (result.ok) return;
+    if (result.ok) {
+      tally.moved = true;
+      return;
+    }
     if (fileRefused(result)) return tally.skipFile(projectId, key, "file-refused");
     failure ??= failureOf(result);
   };
@@ -387,7 +398,7 @@ async function sendFiles(local: LocalImport, deps: ImportDeps, tally: Tally) {
 }
 
 /** Counts what's now in the workspace, from this browser's side, and the comments that couldn't come. */
-function report(local: LocalImport, tally: Tally): Omit<ImportReport, "cleared"> {
+function report(local: LocalImport, tally: Tally): Omit<ImportReport, "cleared" | "moved"> {
   const { data } = local;
   const snapshotIds = new Set(data.snapshots.map((s) => `${s.projectId}/${s.id}`));
   let comments = 0;
@@ -432,6 +443,7 @@ export async function importLocalData(
         folders.status === 400 || (folders.status === 413 && folders.error !== "quota");
       return { ok: false, failure: refused ? "folders" : failureOf(folders) };
     }
+    if (folders.value.imported.folders > 0) tally.moved = true;
   }
   const { batches, oversized } = planBatches(bundleProjects(data));
   for (const { project } of oversized) tally.skipProject(project.id, "too-large");
@@ -443,5 +455,5 @@ export async function importLocalData(
   const counts = report(local, tally);
   const cleared = !counts.skipped.some(keepsLocalCopy);
   if (cleared) await deps.clear();
-  return { ok: true, report: { ...counts, cleared } };
+  return { ok: true, report: { ...counts, cleared, moved: tally.moved } };
 }

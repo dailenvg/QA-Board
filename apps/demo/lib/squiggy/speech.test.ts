@@ -42,6 +42,7 @@ describe("reactionSpeech", () => {
       projectName: "Homepage",
     });
     expect(reactionSpeech({ type: "save-failed" })).toEqual({ kind: "save-failed" });
+    expect(reactionSpeech({ type: "imported" })).toEqual({ kind: "just-imported" });
   });
 
   it("mentions Undo only for deletes that have one", () => {

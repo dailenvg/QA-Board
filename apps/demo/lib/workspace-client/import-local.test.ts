@@ -164,8 +164,15 @@ describe("importing this browser's data", () => {
       files: 4,
       skipped: [{ kind: "comments", projectName: "Pages deck", reason: "no-surface", count: 1 }],
       cleared: true,
+      moved: true,
     });
     expect(h.cleared()).toBe(1);
+    // Run again on the same copy (another tab's): everything is there, nothing new moves.
+    expect(ok(await h.run({ data: browserData(), pendingImages: [] }))).toMatchObject({
+      projects: 2,
+      cleared: true,
+      moved: false,
+    });
     expect(h.uploads.sort()).toEqual([...FILES].sort());
     expect(await countRows(h.db, "projects")).toBe(2);
     expect(await countRows(h.db, "comments")).toBe(2);

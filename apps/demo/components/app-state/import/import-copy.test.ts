@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { dialogText, progressFraction, skippedLines, summaryLine } from "./import-copy";
 
-const REPORT = { projects: 1, comments: 3, files: 2, skipped: [], cleared: true };
+const REPORT = { projects: 1, comments: 3, files: 2, skipped: [], cleared: true, moved: true };
 
 describe("the import dialog's copy", () => {
   it("asks about projects, or about folders when there are only folders", () => {

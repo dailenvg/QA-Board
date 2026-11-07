@@ -67,7 +67,7 @@ afterEach(() => {
 
 const load = () => import("./use-local-import");
 
-const REPORT = { projects: 0, comments: 0, files: 0, skipped: [], cleared: false };
+const REPORT = { projects: 0, comments: 0, files: 0, skipped: [], cleared: false, moved: false };
 
 describe("the import offer", () => {
   it("offers found data; Not now keeps it and holds the offer until the next sign-in", async () => {
@@ -116,6 +116,22 @@ describe("the import offer", () => {
     const { importDeferred } = await import("./import-deferral");
     expect(importDeferred()).toBe(true);
     expect(local.clears).toBe(0);
+  });
+
+  it("has Squiggy cheer only when the import moved something in", async () => {
+    const store = await load();
+    const { onSquiggy } = await import("../squiggy/events");
+    const heard: string[] = [];
+    onSquiggy(({ event }) => heard.push(event.type));
+    store.checkLocalData();
+    local.outcome = { ok: true, report: { ...REPORT, cleared: true } };
+    await store.startImport("w");
+    expect(heard).toEqual([]);
+    store.finishImport();
+    store.checkLocalData();
+    local.outcome = { ok: true, report: { ...REPORT, projects: 2, cleared: true, moved: true } };
+    await store.startImport("w");
+    expect(heard).toEqual(["imported"]);
   });
 
   it("runs one import at a time, however often Import is pressed", async () => {

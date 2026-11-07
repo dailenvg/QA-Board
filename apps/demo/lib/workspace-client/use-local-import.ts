@@ -117,8 +117,8 @@ async function run(workspaceId: string): Promise<void> {
     set({ view: "failed", failure: outcome.failure });
     return;
   }
-  // Squiggy has no import reaction of its own: the welcome is the happy one that fits.
-  if (outcome.report.projects > 0) emitSquiggy({ type: "signed-in" });
+  // Only when something new arrived: a retry that found it all there already says nothing.
+  if (outcome.report.moved) emitSquiggy({ type: "imported" });
   set({ view: "done", report: outcome.report });
 }
 
