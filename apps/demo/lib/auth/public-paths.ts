@@ -35,8 +35,16 @@ const PUBLIC_TREES = [
   "/__nextjs",
 ];
 
+/**
+ * Single routes inside a private tree. Vercel Blob's upload callback carries
+ * no cookie: the route checks its signature, and a member's session for
+ * everything else it does.
+ */
+const PUBLIC_PATTERNS = [/^\/api\/w\/[^/]+\/blobs\/token$/];
+
 export function isPublicPath(pathname: string): boolean {
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
   if (PUBLIC_PATHS.has(path)) return true;
+  if (PUBLIC_PATTERNS.some((pattern) => pattern.test(path))) return true;
   return PUBLIC_TREES.some((tree) => path === tree || path.startsWith(`${tree}/`));
 }

@@ -349,6 +349,16 @@ describe("migrate", () => {
   const DAY = 86_400_000;
   const insertShare = "INSERT INTO squint_shares VALUES ($1, $2, $3, $4, $5, $5)";
 
+  /** The stored deletion date, read from the table: the store itself needs the current schema. */
+  async function storedExpiry(db: Queryable, id: string): Promise<number | null> {
+    const { rows } = await db.query<{ expires_at: string | null }>(
+      "SELECT expires_at FROM squint_shares WHERE id = $1",
+      [id],
+    );
+    const value = rows[0]?.expires_at;
+    return value === undefined || value === null ? null : Number(value);
+  }
+
   /** Saves a share made at `sharedAt` whose project says it was created at `createdAt`. */
   async function legacyShare(db: Queryable, id: string, createdAt: unknown, sharedAt: number) {
     const project = { ...STATE.project, createdAt };
@@ -379,11 +389,10 @@ describe("migrate", () => {
     }
 
     expect(await migrate(db, UP_TO_007)).toEqual(["007_squint_shares_expires_at"]);
-    const store = createPostgresStore(db);
-    const stored: Record<string, number | undefined> = {};
+    const stored: Record<string, number | null> = {};
     const expected: Record<string, number> = {};
     for (const [id, createdAt] of Object.entries(cases)) {
-      stored[id] = (await store.byId(id))?.expiresAt;
+      stored[id] = await storedExpiry(db, id);
       expected[id] = shareExpiresAt({ createdAt } as { createdAt?: number }, SHARED);
     }
     expect(stored).toEqual(expected);
@@ -414,7 +423,7 @@ describe("migrate", () => {
       (migration) => migration.id === "007_squint_shares_expires_at",
     )?.sql;
     await db.query(sql ?? "");
-    expect((await store.byId("ms"))?.expiresAt).toBe(CREATED + 30 * DAY);
+    expect(await storedExpiry(db, "ms")).toBe(CREATED + 30 * DAY);
   });
 
   it("007 gives shares already old when it runs 5 days' notice from then", async () => {
@@ -430,14 +439,13 @@ describe("migrate", () => {
     // Postgres rounds its clock to the nearest ms, so up to 1 ms past `Date.now()`.
     const to = Date.now() + 1;
 
-    const store = createPostgresStore(db);
     for (const id of ["stale", "nearly"]) {
-      const expiresAt = (await store.byId(id))?.expiresAt ?? 0;
+      const expiresAt = (await storedExpiry(db, id)) ?? 0;
       expect(expiresAt).toBeGreaterThanOrEqual(from + 5 * DAY);
       expect(expiresAt).toBeLessThanOrEqual(to + 5 * DAY);
     }
     // A share with more than 5 days left keeps the server's own date.
-    expect((await store.byId("recent"))?.expiresAt).toBe(
+    expect(await storedExpiry(db, "recent")).toBe(
       shareExpiresAt({ createdAt: now - 2 * DAY }, now - DAY),
     );
   });
@@ -453,7 +461,7 @@ describe("migrate", () => {
     const to = Date.now() + 1;
 
     // 30 days from the insert, like a share the current code makes.
-    const expiresAt = (await createPostgresStore(db).byId("bare"))?.expiresAt ?? 0;
+    const expiresAt = (await storedExpiry(db, "bare")) ?? 0;
     expect(expiresAt).toBeGreaterThanOrEqual(from + 30 * DAY);
     expect(expiresAt).toBeLessThanOrEqual(to + 30 * DAY);
     await expect(
@@ -491,7 +499,7 @@ describe("migration 022 (workspace shares)", () => {
       location: { kind: "inline", bytes: PNG },
     });
 
-    expect(await migrate(db)).toEqual(["022_squint_shares_workspace"]);
+    expect(await migrate(db)).toEqual(MIGRATIONS.slice(21).map((migration) => migration.id));
     expect(await store.byId(RECORD.id)).toEqual(RECORD);
     expect(await store.byTokenHash(RECORD.tokenHash)).toEqual(RECORD);
     expect((await store.comments(RECORD.id)).map((row) => row.item)).toEqual([COMMENT]);

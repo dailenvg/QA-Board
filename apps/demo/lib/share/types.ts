@@ -94,9 +94,10 @@ export interface ShareRecord {
   /**
    * When the share is deleted for good (epoch ms): `shareExpiresAt(project,
    * createdAt)`, held back by `rescheduledExpiry` when a push moves it sooner.
-   * From then on it answers like a revoked share.
+   * From then on it answers like a revoked share. Null on a workspace's share
+   * (migration 022), which never expires on its own.
    */
-  expiresAt: number;
+  expiresAt: number | null;
 }
 
 export type BlobLocation = { kind: "inline"; bytes: Uint8Array } | { kind: "vercel"; url: string };
@@ -115,8 +116,8 @@ export interface ClientView {
   comments: SharedComment[];
   /** When the review window closes (epoch ms): after it, clients can only read. */
   reviewEndsAt: number;
-  /** When the share is deleted for good (epoch ms). */
-  expiresAt: number;
+  /** When the share is deleted for good (epoch ms); null when it never expires on its own. */
+  expiresAt: number | null;
 }
 
 /** The owner's pull: client additions after `since`, and the new cursor. */
@@ -124,8 +125,8 @@ export interface ShareChanges {
   snapshots: SharedSnapshot[];
   comments: SharedComment[];
   cursor: number;
-  /** When the share is deleted for good (epoch ms). */
-  expiresAt: number;
+  /** When the share is deleted for good (epoch ms); null when it never expires on its own. */
+  expiresAt: number | null;
 }
 
 /** The owner's answer to creating a share. Token and owner key are shown this once. */
@@ -146,8 +147,8 @@ export interface ShareManifest {
   snapshots: Array<{ id: string; digest: string }>;
   comments: Array<{ id: string; digest: string }>;
   missingBlobs: string[];
-  /** When the share is deleted for good (epoch ms). */
-  expiresAt: number;
+  /** When the share is deleted for good (epoch ms); null when it never expires on its own. */
+  expiresAt: number | null;
 }
 
 /** One batch of owner changes (see `changeSchema`). */

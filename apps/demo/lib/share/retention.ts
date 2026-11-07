@@ -84,8 +84,9 @@ export function retentionCutoff(now: number): number {
   return now - RETENTION_MS;
 }
 
-export function isExpired(expiresAt: number, now: number): boolean {
-  return now >= expiresAt;
+/** Never for null: a workspace's share has no deletion date (see `ShareRecord`). */
+export function isExpired(expiresAt: number | null, now: number): boolean {
+  return expiresAt !== null && now >= expiresAt;
 }
 
 /** When the "deletes on" notice starts for a share deleted at `expiresAt`. */

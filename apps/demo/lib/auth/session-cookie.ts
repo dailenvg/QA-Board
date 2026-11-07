@@ -25,3 +25,12 @@ export function sessionCookieOptions(url: URL) {
     maxAge: SESSION_TTL_MS / 1000,
   } as const;
 }
+
+/** The session token in a `Cookie` header, or null. */
+export function sessionTokenOf(cookieHeader: string | null): string | null {
+  for (const pair of cookieHeader?.split(";") ?? []) {
+    const [name, ...value] = pair.trim().split("=");
+    if (name === SESSION_COOKIE) return value.join("=") || null;
+  }
+  return null;
+}

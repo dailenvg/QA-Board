@@ -17,7 +17,8 @@ interface ShareRow {
   project: SharedProject;
   created_at: string | number;
   updated_at: string | number;
-  expires_at: string | number;
+  /** Null on a workspace's share, which only goes when revoked or with its project. */
+  expires_at: string | number | null;
 }
 
 interface ItemRow<T> {
@@ -37,6 +38,17 @@ interface BlobRow {
 
 const SHARE_COLUMNS = "id, token_hash, owner_key_hash, project, created_at, updated_at, expires_at";
 
+/**
+ * A share whose workspace project is in the trash (migration 024) answers like
+ * a revoked one until the project is restored. Anonymous shares have no project.
+ */
+const NOT_TRASHED = `NOT EXISTS (
+  SELECT 1 FROM projects AS project
+  WHERE project.id = squint_shares.project_id
+    AND project.workspace_id = squint_shares.workspace_id
+    AND project.deleted_at IS NOT NULL
+)`;
+
 function toRecord(row: ShareRow): ShareRecord {
   return {
     id: row.id,
@@ -45,7 +57,7 @@ function toRecord(row: ShareRow): ShareRecord {
     project: row.project,
     createdAt: Number(row.created_at),
     updatedAt: Number(row.updated_at),
-    expiresAt: Number(row.expires_at),
+    expiresAt: row.expires_at === null ? null : Number(row.expires_at),
   };
 }
 
@@ -69,7 +81,7 @@ const upsertSql = (table: string) => `INSERT INTO ${table} (share_id, id, data, 
 export function createPostgresStore(db: Queryable): ShareStore {
   const one = async (where: string, value: string) => {
     const { rows } = await db.query<ShareRow>(
-      `SELECT ${SHARE_COLUMNS} FROM squint_shares WHERE ${where} = $1`,
+      `SELECT ${SHARE_COLUMNS} FROM squint_shares WHERE ${where} = $1 AND ${NOT_TRASHED}`,
       [value],
     );
     return rows[0] ? toRecord(rows[0]) : null;
@@ -109,8 +121,10 @@ export function createPostgresStore(db: Queryable): ShareStore {
     byId: (id) => one("id", id),
     byTokenHash: (tokenHash) => one("token_hash", tokenHash),
     async setProject(id, project, at, expiresAt) {
+      // A share moved into a workspace since the caller read it keeps no deletion date.
       await db.query(
-        `UPDATE squint_shares SET project = $2::jsonb, updated_at = $3, expires_at = $4
+        `UPDATE squint_shares SET project = $2::jsonb, updated_at = $3,
+           expires_at = CASE WHEN workspace_id IS NULL THEN $4::bigint END
          WHERE id = $1`,
         [id, JSON.stringify(project), at, expiresAt],
       );

@@ -18,8 +18,16 @@ export interface ShareStore {
   create(record: ShareRecord): Promise<void>;
   byId(id: string): Promise<ShareRecord | null>;
   byTokenHash(tokenHash: string): Promise<ShareRecord | null>;
-  /** Replaces the project, and the share's deletion date (`expiresAt`) with it. */
-  setProject(id: string, project: SharedProject, at: number, expiresAt: number): Promise<void>;
+  /**
+   * Replaces the project, and the share's deletion date (`expiresAt`) with it.
+   * A workspace's share keeps none (null), whatever `expiresAt` says.
+   */
+  setProject(
+    id: string,
+    project: SharedProject,
+    at: number,
+    expiresAt: number | null,
+  ): Promise<void>;
   /** Deletes the share and everything under it; returns where its blobs lived. */
   remove(id: string): Promise<BlobLocation[]>;
   /**

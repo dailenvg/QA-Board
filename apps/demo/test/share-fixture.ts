@@ -35,7 +35,8 @@ export const STATE: ShareState = {
   comments: [COMMENT],
 };
 
-export const RECORD: ShareRecord = {
+/** An anonymous share, so it always has a deletion date. */
+export const RECORD = {
   id: "share-1",
   tokenHash: "a".repeat(64),
   ownerKeyHash: "b".repeat(64),
@@ -43,7 +44,7 @@ export const RECORD: ShareRecord = {
   createdAt: 1,
   updatedAt: 1,
   expiresAt: shareExpiresAt(STATE.project, 1),
-};
+} satisfies ShareRecord;
 
 /** What a client of `RECORD` sees. */
 export const VIEW: ClientView = {
