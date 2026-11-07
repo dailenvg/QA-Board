@@ -1,5 +1,6 @@
 import type { Database } from "../db/database";
 import type { Queryable } from "../share/migrate";
+import { blobPath } from "./blob-paths";
 import { storedSource } from "./projects";
 import type { ImportData, ImportProject } from "./schemas";
 import { attachShare } from "./share-links";
@@ -12,7 +13,9 @@ import { done, refuse, type QueryResult } from "./query-result";
  * overwritten, so importing twice changes nothing the second time. A project
  * id that another workspace already has refuses the whole import (`exists`,
  * a 409 that doesn't say whose). A project comes in whole (with its pages,
- * snapshots and comments) or not at all.
+ * snapshots and comments) or not at all. Every answer lists the files the
+ * workspace still lacks for the request's projects, so a browser whose
+ * uploads stopped part way finds the rest by importing again.
  */
 
 type Kind = "folders" | "projects" | "snapshots" | "comments" | "shares";
@@ -21,7 +24,17 @@ type Counts = Record<Kind, number>;
 export interface ImportResult {
   imported: Counts;
   skipped: Counts;
-  /** Files the browser should upload next, by logical key: every file of the imported projects. */
+  /**
+   * The request's projects by outcome: made by this import, or already in this
+   * workspace (an earlier import). Any other is skipped: its folder isn't here.
+   * `unlinked` are imported projects whose review link couldn't be proven
+   * (expired, revoked, or not this browser's), so they came in without it.
+   */
+  projects: { imported: string[]; existing: string[]; unlinked: string[] };
+  /**
+   * Files the browser should upload next, by logical key: every file the
+   * request's live projects point at that the workspace doesn't have yet.
+   */
   uploads: Array<{ projectId: string; key: string }>;
 }
 
@@ -237,22 +250,39 @@ async function importComments(
   );
 }
 
-/** Every file an imported project points at. */
-function uploadsOf(projects: ImportProject[], data: ImportData, imported: Set<string>) {
-  const keys = new Set<string>();
+/**
+ * Every file the workspace's live projects `ids` point at (pages, snapshots,
+ * then crops, in `ids` order) that it has no row for yet.
+ */
+async function missingFiles(tx: Queryable, workspaceId: string, ids: string[]) {
+  if (ids.length === 0) return [];
+  const { rows } = await tx.query<{ project_id: string; key: string }>(
+    `SELECT file.project_id, file.key FROM (
+       SELECT project_id, blob_key AS key, 0 AS kind, position AS rank, id FROM pages
+       WHERE project_id = ANY($2)
+       UNION ALL
+       SELECT project_id, blob_key, 1, 0, id FROM snapshots WHERE project_id = ANY($2)
+       UNION ALL
+       SELECT project_id, crop->>'blobKey', 2, 0, id FROM comments
+       WHERE project_id = ANY($2) AND crop->>'blobKey' IS NOT NULL
+     ) AS file
+     JOIN projects AS project ON project.id = file.project_id
+       AND project.workspace_id = $1 AND project.deleted_at IS NULL
+     ORDER BY file.kind, array_position($2::text[], file.project_id), file.rank, file.id`,
+    [workspaceId, ids],
+  );
+  const { rows: stored } = await tx.query<{ key: string }>(
+    "SELECT key FROM workspace_blobs WHERE workspace_id = $1 AND project_id = ANY($2)",
+    [workspaceId, ids],
+  );
+  const have = new Set(stored.map((row) => row.key));
   const uploads: ImportResult["uploads"] = [];
-  const add = (projectId: string, key: string) => {
-    if (!imported.has(projectId) || keys.has(`${projectId}/${key}`)) return;
-    keys.add(`${projectId}/${key}`);
+  for (const { project_id: projectId, key } of rows) {
+    const path = blobPath(workspaceId, projectId, key);
+    if (have.has(path)) continue;
+    have.add(path);
     uploads.push({ projectId, key });
-  };
-  for (const project of projects) {
-    if (project.source.kind !== "pages") continue;
-    for (const page of project.source.pages) add(project.id, page.blobKey);
   }
-  for (const snapshot of data.snapshots) add(snapshot.projectId, snapshot.blobKey);
-  for (const comment of data.comments)
-    if (comment.crop) add(comment.projectId, comment.crop.blobKey);
   return uploads;
 }
 
@@ -308,6 +338,7 @@ async function importInto(
   imported.comments = await importComments(tx, workspaceId, data, surfaces, userId, madeIds);
   skipped.comments = data.comments.length - imported.comments;
 
+  const unlinked: string[] = [];
   for (const project of made) {
     if (!project.share) continue;
     const { id: shareId, ...share } = project.share;
@@ -320,11 +351,21 @@ async function importInto(
       secret,
     );
     if (attached.ok) imported.shares += 1;
-    else skipped.shares += 1;
+    else {
+      skipped.shares += 1;
+      unlinked.push(project.id);
+    }
   }
   skipped.shares += projects.filter((project) => project.share && !ids.has(project.id)).length;
 
-  return done({ imported, skipped, uploads: uploadsOf(made, data, ids) });
+  const existing = projects.filter((project) => had.has(project.id)).map((project) => project.id);
+  const present = projects.map((project) => project.id).filter((id) => ids.has(id) || had.has(id));
+  return done({
+    imported,
+    skipped,
+    projects: { imported: made.map((project) => project.id), existing, unlinked },
+    uploads: await missingFiles(tx, workspaceId, present),
+  });
 }
 
 export async function importData(
