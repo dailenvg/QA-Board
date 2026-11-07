@@ -34,6 +34,7 @@ export const REACTION_MOOD: Record<SquiggyEventType, Mood> = {
   "project-created": "happy",
   "item-deleted": "surprised",
   "save-failed": "surprised",
+  imported: "happy",
 };
 
 /** The folder holding the most active comments (directly, not in its subfolders). */

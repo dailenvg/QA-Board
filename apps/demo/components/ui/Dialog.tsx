@@ -18,6 +18,11 @@ interface DialogProps {
   children: ReactNode;
   size?: "sm" | "md" | "lg";
   testId?: string;
+  /**
+   * False while the dialog must stay up (work in progress that can't be left
+   * half done): no close button, and Escape and the backdrop do nothing.
+   */
+  dismissible?: boolean;
 }
 
 /** Tab stops only: roving-tabindex items (such as unselected radios) are skipped. */
@@ -41,16 +46,29 @@ function fallbackFocus(): void {
 }
 
 /** Traps Tab inside the panel and closes on Escape; on close, focus goes back. */
-function useFocusTrap(open: boolean, panel: RefObject<HTMLDivElement | null>, onClose: () => void) {
+function useFocusTrap(
+  open: boolean,
+  panel: RefObject<HTMLDivElement | null>,
+  onClose: () => void,
+  dismissible: boolean,
+) {
   const onCloseRef = useRef(onClose);
+  const dismissibleRef = useRef(dismissible);
   useEffect(() => {
     onCloseRef.current = onClose;
+    dismissibleRef.current = dismissible;
   });
 
   useEffect(() => {
     if (!open) return;
-    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const node = panel.current;
+    const active = document.activeElement;
+    // The opener, if any: not the body (a dialog that opened itself), nor a control inside the
+    // panel that focused itself before this ran. Without one, focus goes to the page's heading.
+    const previous =
+      active instanceof HTMLElement && active !== document.body && !node?.contains(active)
+        ? active
+        : null;
     const initial =
       node?.querySelector<HTMLElement>("[data-autofocus]") ?? (node ? focusables(node)[0] : null);
     initial?.focus();
@@ -60,14 +78,19 @@ function useFocusTrap(open: boolean, panel: RefObject<HTMLDivElement | null>, on
         // An open list or popup inside the dialog closes first; the next Escape closes the dialog.
         if (event.target instanceof Element && event.target.closest("[data-popup-open]")) return;
         event.stopPropagation();
-        onCloseRef.current();
+        if (dismissibleRef.current) onCloseRef.current();
         return;
       }
       if (event.key !== "Tab" || !node) return;
       const items = focusables(node);
       const first = items[0];
       const last = items[items.length - 1];
-      if (!first || !last) return;
+      // Nothing to tab to (a view that only shows progress): Tab stays put rather than
+      // reaching the page behind the modal.
+      if (!first || !last) {
+        event.preventDefault();
+        return;
+      }
       // Focus fell out of the panel (its element was removed or disabled): bring it back
       // instead of letting Tab reach the page behind the modal.
       if (!node.contains(document.activeElement)) {
@@ -107,13 +130,14 @@ export function Dialog({
   children,
   size = "md",
   testId,
+  dismissible = true,
 }: DialogProps) {
   const panel = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const descriptionId = useId();
   const variants = usePopVariants();
   const isClient = useIsClient();
-  useFocusTrap(open, panel, onClose);
+  useFocusTrap(open, panel, onClose, dismissible);
 
   if (!isClient) return null;
   return createPortal(
@@ -126,7 +150,7 @@ export function Dialog({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: duration.micro }}
-            onClick={onClose}
+            onClick={dismissible ? onClose : undefined}
           />
           <motion.div
             ref={panel}
@@ -143,23 +167,25 @@ export function Dialog({
           >
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <h2 id={titleId} className="text-title font-bold">
+                <h2 id={titleId} className="text-title font-bold wrap-break-word">
                   {title}
                 </h2>
                 {description ? (
-                  <div id={descriptionId} className="mt-1 text-body text-muted">
+                  <div id={descriptionId} className="mt-1 text-body text-muted wrap-break-word">
                     {description}
                   </div>
                 ) : null}
               </div>
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Close"
-                className="-mt-2 -mr-2 grid size-11 shrink-0 place-items-center rounded-pill text-muted transition-colors hover:bg-hover hover:text-ink active:bg-seg"
-              >
-                <Icon name="close" />
-              </button>
+              {dismissible ? (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Close"
+                  className="-mt-2 -mr-2 grid size-11 shrink-0 place-items-center rounded-pill text-muted transition-colors hover:bg-hover hover:text-ink active:bg-seg"
+                >
+                  <Icon name="close" />
+                </button>
+              ) : null}
             </div>
             <div className="mt-5">{children}</div>
           </motion.div>
