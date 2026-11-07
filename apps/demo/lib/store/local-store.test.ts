@@ -100,7 +100,6 @@ describe("reading what an earlier build left in this browser", () => {
       projects: [],
       comments: [],
       snapshots: [],
-      revocations: [],
       authorName: null,
     };
     expect(await read({ "squint:v3": JSON.stringify(leftover) })).toEqual({ status: "none" });

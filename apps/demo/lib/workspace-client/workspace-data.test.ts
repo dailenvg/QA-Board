@@ -61,7 +61,7 @@ describe("toSquintData", () => {
       lastSyncedAt: 5,
     });
     expect(projectsMissingLinks(data, links)).toEqual([]);
-    expect(toSquintData(data, links)).toMatchObject({ revocations: [], authorName: "Ana" });
+    expect(toSquintData(data, links)).toMatchObject({ authorName: "Ana" });
   });
 });
 

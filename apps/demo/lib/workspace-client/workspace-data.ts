@@ -39,8 +39,7 @@ function toProject(project: WorkspaceProject, links: ReadonlyMap<string, ShareLi
 
 /**
  * The workspace as the browser store holds it. A review link shows only
- * once its secrets are in `links` (by share id). Pending revocations are a
- * browser-only idea: the server revokes a trashed project's link itself.
+ * once its secrets are in `links` (by share id).
  */
 export function toSquintData(
   workspace: WorkspaceData,
@@ -52,7 +51,6 @@ export function toSquintData(
     projects: workspace.projects.map((project) => toProject(project, links)),
     comments: workspace.comments,
     snapshots: workspace.snapshots,
-    revocations: [],
     authorName: workspace.authorName,
   };
 }

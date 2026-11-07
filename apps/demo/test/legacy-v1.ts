@@ -86,5 +86,4 @@ export const LEGACY_V2 = {
       sourceUrl: "https://example.com/checkout",
     },
   ],
-  revocations: [],
 } as const;

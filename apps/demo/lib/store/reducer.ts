@@ -44,10 +44,6 @@ export type Action =
   | { type: "author/set"; name: string }
   | { type: "project/share"; id: string; share: ProjectShare }
   | { type: "project/unshare"; id: string }
-  /** The project's delete is final (its Undo is gone): revoke its share now. */
-  | { type: "revocation/due"; projectId: string; at: number }
-  /** The server revoked it (or no longer had it). */
-  | { type: "revocation/done"; shareId: string }
   /** A push or pull succeeded. */
   | { type: "share/synced"; id: string; at: number }
   /**
@@ -98,26 +94,6 @@ function mergeShared(data: SquintData, action: Extract<Action, { type: "share/me
     snapshots: [...merged.snapshots, ...snapshots],
     projects: touchProject(merged.projects, action.id, action.at),
   };
-}
-
-/** Undo window fallback, in case the page closes before the Undo toast does. */
-export const REVOKE_GRACE_MS = 60_000;
-
-/** Shares of `projects`, queued for revocation at `dueAt`. */
-function revoke(data: SquintData, projects: readonly Project[], dueAt: number): SquintData {
-  const queued = projects.flatMap((project) =>
-    project.share
-      ? [
-          {
-            shareId: project.share.id,
-            ownerKey: project.share.ownerKey,
-            projectId: project.id,
-            dueAt,
-          },
-        ]
-      : [],
-  );
-  return queued.length ? { ...data, revocations: [...data.revocations, ...queued] } : data;
 }
 
 /** Adds a comment where its project can show it (see `placeComment`); unknown projects are a no-op. */
@@ -192,9 +168,8 @@ export function reduce(data: SquintData, action: Action): SquintData {
       if (folderIds.size >= data.folders.length) return data;
       const removedProjects = data.projects.filter((project) => folderIds.has(project.folderId));
       const removed = new Set(removedProjects.map((p) => p.id));
-      // Folder deletes can't be undone, so their links are revoked right away.
       return {
-        ...revoke(data, removedProjects, action.at),
+        ...data,
         folders: data.folders.filter((folder) => !folderIds.has(folder.id)),
         projects: data.projects.filter((project) => !removed.has(project.id)),
         comments: data.comments.filter((comment) => !removed.has(comment.projectId)),
@@ -230,11 +205,7 @@ export function reduce(data: SquintData, action: Action): SquintData {
       return replaceSource(data, action);
     case "project/delete":
       return {
-        ...revoke(
-          data,
-          data.projects.filter((project) => project.id === action.id),
-          action.at + REVOKE_GRACE_MS,
-        ),
+        ...data,
         projects: data.projects.filter((project) => project.id !== action.id),
         comments: data.comments.filter((comment) => comment.projectId !== action.id),
         snapshots: data.snapshots.filter((snapshot) => snapshot.projectId !== action.id),
@@ -247,8 +218,6 @@ export function reduce(data: SquintData, action: Action): SquintData {
         projects: [...data.projects, action.project],
         comments: [...data.comments, ...action.comments],
         snapshots: [...data.snapshots, ...action.snapshots],
-        // Undone in time: the link keeps working.
-        revocations: data.revocations.filter((entry) => entry.projectId !== action.project.id),
       };
     case "comment/restore":
       if (data.comments.some((comment) => comment.id === action.comment.id)) return data;
@@ -313,22 +282,6 @@ export function reduce(data: SquintData, action: Action): SquintData {
           const { share: _revoked, ...rest } = project;
           return rest;
         }),
-      };
-    case "revocation/due":
-      if (!data.revocations.some((entry) => entry.projectId === action.projectId)) return data;
-      return {
-        ...data,
-        revocations: data.revocations.map((entry) =>
-          entry.projectId === action.projectId
-            ? { ...entry, dueAt: Math.min(entry.dueAt, action.at) }
-            : entry,
-        ),
-      };
-    case "revocation/done":
-      if (!data.revocations.some((entry) => entry.shareId === action.shareId)) return data;
-      return {
-        ...data,
-        revocations: data.revocations.filter((entry) => entry.shareId !== action.shareId),
       };
     case "share/synced":
       return updateShare(data, action.id, (share) => ({ ...share, lastSyncedAt: action.at }));

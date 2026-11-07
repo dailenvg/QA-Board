@@ -48,7 +48,6 @@ function workspace(overrides: Record<string, unknown> = {}): Record<string, unkn
     projects: [],
     comments: [],
     snapshots: [],
-    revocations: [],
     authorName: null,
     ...overrides,
   };

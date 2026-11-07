@@ -309,7 +309,6 @@ test("website pins from before snapshots load from the workspace, labelled Live 
       ],
       comments: [onSite, { ...onImage, pageId: "page-1" }],
       snapshots: [],
-      revocations: [],
       authorName: "Ana",
     },
     "/sandbox",

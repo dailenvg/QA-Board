@@ -41,7 +41,6 @@ const DATA: SquintData = {
   ],
   comments: [comment],
   snapshots: [],
-  revocations: [],
   authorName: null,
 };
 
@@ -113,11 +112,6 @@ describe("writesFor", () => {
     expect(writes({ type: "project/unshare", id: "p3" })).toEqual([
       { method: "DELETE", path: "/projects/p3/share-link", body: {}, tolerate: [404] },
     ]);
-  });
-
-  it("sends nothing for browser-only bookkeeping", () => {
-    expect(writes({ type: "revocation/done", shareId: "s1" })).toEqual([]);
-    expect(writes({ type: "revocation/due", projectId: "p3", at: 1 })).toEqual([]);
   });
 });
 

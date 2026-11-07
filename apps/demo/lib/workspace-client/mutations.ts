@@ -171,9 +171,6 @@ export function writesFor(action: Action, before: SquintData, after: SquintData)
     }
     case "share/merge":
       return mergeWrites(before, after, action.id);
-    case "revocation/due":
-    case "revocation/done":
-      return [];
   }
 }
 
