@@ -1,3 +1,4 @@
+import { BlobStoreUnavailable } from "../blob-store/blob-store";
 import { MB } from "../share/limits";
 import { sniffImageType } from "../share/sniff";
 import type { ApiResult } from "../share-client/api";
@@ -82,7 +83,19 @@ export interface ImportReport {
 
 /** Why an import stopped; this browser's copy is untouched, and running it again picks up from here. */
 export type ImportFailure =
-  "offline" | "signed-out" | "storage-full" | "server" | "local-files" | "folders";
+  | "offline"
+  | "signed-out"
+  | "storage-full"
+  | "server"
+  /** An image couldn't be read from this browser's image store. */
+  | "local-files"
+  /** The browser won't open its image store at all (a private window): retrying here can't help. */
+  | "images-blocked"
+  /** The server can't accept the folders: retrying can't help. */
+  | "folders";
+
+/** Failures a Retry in this same window can't get past. */
+export const RETRY_WONT_HELP: ReadonlySet<ImportFailure> = new Set(["images-blocked", "folders"]);
 
 export interface ImportProgress {
   stage: "projects" | "files";
@@ -366,8 +379,8 @@ async function sendFiles(local: LocalImport, deps: ImportDeps, tally: Tally) {
     let stored: Blob | null;
     try {
       stored = await read(key);
-    } catch {
-      failure ??= "local-files";
+    } catch (error) {
+      failure ??= error instanceof BlobStoreUnavailable ? "images-blocked" : "local-files";
       return;
     }
     if (!stored) return tally.skipFile(projectId, key, "file-missing");

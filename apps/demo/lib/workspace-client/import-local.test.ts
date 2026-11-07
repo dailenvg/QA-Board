@@ -278,6 +278,17 @@ describe("importing this browser's data", () => {
     expect(h.cleared()).toBe(0);
   });
 
+  it("says when the browser won't open its image store at all, without clearing", async () => {
+    const h = await harness();
+    const { BlobStoreUnavailable } = await import("../blob-store/blob-store");
+    const outcome = await h.run(
+      { data: browserData(), pendingImages: [] },
+      { readFile: () => Promise.reject(new BlobStoreUnavailable()) },
+    );
+    expect(outcome).toEqual({ ok: false, failure: "images-blocked" });
+    expect(h.cleared()).toBe(0);
+  });
+
   it("stops without clearing when signed out", async () => {
     const h = await harness();
     intercept = () => Promise.resolve(Response.json({ error: "unauthenticated" }, { status: 401 }));

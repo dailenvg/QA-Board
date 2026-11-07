@@ -14,6 +14,14 @@ interface BlobRecord {
   blob: Blob;
 }
 
+/** This browser won't open its image store at all (a private window, or storage turned off). */
+export class BlobStoreUnavailable extends Error {
+  constructor() {
+    super("This browser's image store can't be opened.");
+    this.name = "BlobStoreUnavailable";
+  }
+}
+
 let database: Promise<IDBDatabase | null> | null = null;
 
 function open(): Promise<IDBDatabase | null> {
@@ -61,12 +69,12 @@ function isRecord(value: unknown): value is BlobRecord {
 
 /**
  * The image saved under `key`, or null when this browser has none. Throws
- * when IndexedDB can't be opened or read, so a failed read is never taken
- * for a missing image.
+ * when IndexedDB can't be opened (`BlobStoreUnavailable`) or read, so a failed
+ * read is never taken for a missing image.
  */
 export async function getBlob(key: string): Promise<Blob | null> {
   const db = await open();
-  if (!db) throw new Error("This browser's image store can't be opened.");
+  if (!db) throw new BlobStoreUnavailable();
   const value: unknown = await run(db, "readonly", (store) => store.get(key));
   return isRecord(value) ? value.blob : null;
 }

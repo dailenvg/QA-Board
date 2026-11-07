@@ -1,9 +1,10 @@
-import type {
-  ImportFailure,
-  ImportProgress,
-  ImportReport,
-  SkippedItem,
-  SkipReason,
+import {
+  RETRY_WONT_HELP,
+  type ImportFailure,
+  type ImportProgress,
+  type ImportReport,
+  type SkippedItem,
+  type SkipReason,
 } from "@/lib/workspace-client/import-local";
 import type { LocalCounts, LocalImportState } from "@/lib/workspace-client/use-local-import";
 
@@ -50,15 +51,18 @@ export const FAILURE_COPY: Record<ImportFailure, string> = {
   server: "Something went wrong on our side. Try again in a moment.",
   "local-files":
     "This browser's saved images couldn't be read. Close other Squint tabs, then try again.",
+  "images-blocked":
+    "This browser blocks access to its saved images, as private windows do. Open Squint in a normal window to import them, or discard the local data.",
   folders:
-    "Some folders saved in this browser are damaged, so Squint couldn't accept them. Trying again won't fix this. Discard the local data, or ask a workspace admin for help.",
+    "Some folders saved in this browser are damaged, so Squint couldn't accept them. Trying again won't fix this. Keep it for now and ask the Squint team for help, or discard it.",
 };
 
 /** The reassurance under a failure: what was kept, and how to carry on. */
 export function failureNote(failure: ImportFailure, workspace: string): string {
   const kept = `Nothing has been removed from this browser. Anything already imported stays in ${workspace}`;
-  return failure === "signed-out"
-    ? `${kept}. Sign in again to pick up where it stopped.`
+  if (failure === "signed-out") return `${kept}. Sign in again to pick up where it stopped.`;
+  return RETRY_WONT_HELP.has(failure)
+    ? `${kept}.`
     : `${kept}, and Retry picks up where it stopped.`;
 }
 

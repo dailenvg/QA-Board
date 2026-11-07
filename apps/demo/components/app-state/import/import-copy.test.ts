@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { dialogText, progressFraction, skippedLines, summaryLine } from "./import-copy";
+import {
+  dialogText,
+  failureNote,
+  progressFraction,
+  skippedLines,
+  summaryLine,
+} from "./import-copy";
 
 const REPORT = { projects: 1, comments: 3, files: 2, skipped: [], cleared: true, moved: true };
 
@@ -29,6 +35,21 @@ describe("the import dialog's copy", () => {
       "Deck: 2 images are no longer saved in this browser.",
       "Deck: 1 comment was on a page or snapshot that no longer exists.",
     ]);
+  });
+
+  it("offers Retry only where retrying here can help", () => {
+    expect(failureNote("offline", "Acme")).toContain("Retry picks up where it stopped");
+    for (const failure of ["folders", "images-blocked"] as const) {
+      expect(failureNote(failure, "Acme")).toBe(
+        "Nothing has been removed from this browser. Anything already imported stays in Acme.",
+      );
+    }
+    const failed = (failure: "folders" | "images-blocked") =>
+      dialogText({ view: "failed", failure }, "Acme").description;
+    expect(failed("folders")).toMatch(
+      /Keep it for now and ask the Squint team for help, or discard it\.$/,
+    );
+    expect(failed("images-blocked")).toContain("Open Squint in a normal window");
   });
 
   it("fills the bar with projects first, then images", () => {

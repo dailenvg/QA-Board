@@ -4,7 +4,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { usePathname } from "next/navigation";
 import { loginHref } from "@/lib/auth/next-path";
 import { press } from "@/lib/motion";
-import type { ImportFailure } from "@/lib/workspace-client/import-local";
+import { RETRY_WONT_HELP, type ImportFailure } from "@/lib/workspace-client/import-local";
 import { Button } from "../../ui/Button";
 import { buttonClass } from "../../ui/button-styles";
 import { Icon } from "../../ui/Icon";
@@ -20,7 +20,11 @@ interface ImportFailedProps {
   onDiscard: () => void;
 }
 
-/** The import stopped: nothing local was removed. Retry (or sign in again), Not now, or Discard. */
+/**
+ * The import stopped: nothing local was removed. Retry (or sign in again),
+ * Not now, or Discard. Where a retry here can't help (damaged folders, a
+ * browser that blocks its image store), there's no Retry: Not now leads.
+ */
 export function ImportFailed({
   failure,
   workspace,
@@ -30,6 +34,7 @@ export function ImportFailed({
 }: ImportFailedProps) {
   const pathname = usePathname();
   const reduce = useReducedMotion();
+  const retryable = !RETRY_WONT_HELP.has(failure);
   return (
     <ImportStep testId="import-failed">
       {/* Not an alert: ImportLocalData announces the title and reason as this view opens. */}
@@ -38,10 +43,15 @@ export function ImportFailed({
         <span className="min-w-0 wrap-anywhere">{failureNote(failure, workspace)}</span>
       </p>
       <ImportActions aside={<DiscardButton onClick={onDiscard} />}>
-        <Button variant="secondary" onClick={onLater} data-testid="import-later">
+        <Button
+          variant={retryable ? "secondary" : "primary"}
+          onClick={onLater}
+          data-autofocus={retryable ? undefined : true}
+          data-testid="import-later"
+        >
           Not now
         </Button>
-        {failure === "signed-out" ? (
+        {!retryable ? null : failure === "signed-out" ? (
           // A full page load: nothing of the ended session carries over.
           <motion.a
             href={loginHref(pathname)}
