@@ -27,7 +27,7 @@ const COPY: Record<WorkspaceErrorReason, { title: string; body: string }> = {
   },
   gone: {
     title: "This workspace isn't available",
-    body: "This account no longer has access to it. Reload to see what you can open now.",
+    body: "This account no longer has access to it. Try again to see what you can open now.",
   },
 };
 

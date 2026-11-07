@@ -22,8 +22,7 @@ export function ViewerNotFound() {
         <div>
           <h1 className="text-title font-bold">We can&apos;t find that project</h1>
           <p className="mt-2 text-body text-muted">
-            It may have been deleted, or it was made in a different browser. Projects are saved only
-            in the browser where they were created.
+            It may have been deleted, or your account may not have access to it.
           </p>
         </div>
         <ButtonLink href="/">

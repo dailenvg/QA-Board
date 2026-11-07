@@ -74,7 +74,7 @@ describe("the workspace store", () => {
 
     expect(data().folders[0]?.name).toBe("f1");
     expect(notices).toEqual([
-      "Your change couldn't be saved. Check your connection and try again.",
+      "That change didn't save and was undone. Check your connection and try again.",
     ]);
   });
 

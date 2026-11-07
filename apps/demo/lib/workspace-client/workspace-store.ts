@@ -47,7 +47,7 @@ interface Job {
 
 const LOADING: WorkspaceState = { status: "loading" };
 const OK: Result = { ok: true, value: undefined };
-const UNAVAILABLE = "Your projects aren't available right now. Reload the page and try again.";
+const UNAVAILABLE = "That change didn't save. Reload the page and try again.";
 /** The same notice again within this long is shown once. */
 const NOTICE_REPEAT_MS = 3_000;
 
