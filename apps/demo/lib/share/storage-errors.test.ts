@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import * as clientCommentsRoute from "@/app/api/s/[token]/comments/route";
 import * as shareRoute from "@/app/api/shares/[shareId]/route";
 import * as createRoute from "@/app/api/shares/route";
@@ -8,6 +8,8 @@ import { createMemoryStore } from "./memory-store";
 import type { ShareServices } from "./server";
 import { createShare } from "./service";
 import type { ShareStore } from "./store";
+
+vi.mock("@/lib/auth/guards", () => import("@/test/signed-in").then((m) => m.signedInGuards));
 
 const holder = globalThis as typeof globalThis & { squintShares?: Promise<ShareServices> };
 afterEach(() => {
