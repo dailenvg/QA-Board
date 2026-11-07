@@ -18,6 +18,11 @@ interface DialogProps {
   children: ReactNode;
   size?: "sm" | "md" | "lg";
   testId?: string;
+  /**
+   * False while the dialog must stay up (work in progress that can't be left
+   * half done): no close button, and Escape and the backdrop do nothing.
+   */
+  dismissible?: boolean;
 }
 
 /** Tab stops only: roving-tabindex items (such as unselected radios) are skipped. */
@@ -41,10 +46,17 @@ function fallbackFocus(): void {
 }
 
 /** Traps Tab inside the panel and closes on Escape; on close, focus goes back. */
-function useFocusTrap(open: boolean, panel: RefObject<HTMLDivElement | null>, onClose: () => void) {
+function useFocusTrap(
+  open: boolean,
+  panel: RefObject<HTMLDivElement | null>,
+  onClose: () => void,
+  dismissible: boolean,
+) {
   const onCloseRef = useRef(onClose);
+  const dismissibleRef = useRef(dismissible);
   useEffect(() => {
     onCloseRef.current = onClose;
+    dismissibleRef.current = dismissible;
   });
 
   useEffect(() => {
@@ -60,7 +72,7 @@ function useFocusTrap(open: boolean, panel: RefObject<HTMLDivElement | null>, on
         // An open list or popup inside the dialog closes first; the next Escape closes the dialog.
         if (event.target instanceof Element && event.target.closest("[data-popup-open]")) return;
         event.stopPropagation();
-        onCloseRef.current();
+        if (dismissibleRef.current) onCloseRef.current();
         return;
       }
       if (event.key !== "Tab" || !node) return;
@@ -107,13 +119,14 @@ export function Dialog({
   children,
   size = "md",
   testId,
+  dismissible = true,
 }: DialogProps) {
   const panel = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const descriptionId = useId();
   const variants = usePopVariants();
   const isClient = useIsClient();
-  useFocusTrap(open, panel, onClose);
+  useFocusTrap(open, panel, onClose, dismissible);
 
   if (!isClient) return null;
   return createPortal(
@@ -126,7 +139,7 @@ export function Dialog({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: duration.micro }}
-            onClick={onClose}
+            onClick={dismissible ? onClose : undefined}
           />
           <motion.div
             ref={panel}
@@ -152,14 +165,16 @@ export function Dialog({
                   </div>
                 ) : null}
               </div>
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Close"
-                className="-mt-2 -mr-2 grid size-11 shrink-0 place-items-center rounded-pill text-muted transition-colors hover:bg-hover hover:text-ink active:bg-seg"
-              >
-                <Icon name="close" />
-              </button>
+              {dismissible ? (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Close"
+                  className="-mt-2 -mr-2 grid size-11 shrink-0 place-items-center rounded-pill text-muted transition-colors hover:bg-hover hover:text-ink active:bg-seg"
+                >
+                  <Icon name="close" />
+                </button>
+              ) : null}
             </div>
             <div className="mt-5">{children}</div>
           </motion.div>
