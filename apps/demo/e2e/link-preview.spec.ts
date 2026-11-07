@@ -1,4 +1,5 @@
-import { expect, test, type APIRequestContext } from "@playwright/test";
+import type { APIRequestContext } from "@playwright/test";
+import { expect, test } from "./test";
 import { MAIN_PREVIEW, SHARED_REVIEW_PREVIEW } from "../lib/link-preview";
 
 /** Unfurlers get metadata in <head> (Next streams it to other user agents). */

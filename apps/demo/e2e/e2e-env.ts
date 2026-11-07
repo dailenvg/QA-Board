@@ -39,5 +39,5 @@ export const E2E_COMPANY = {
   password: "e2e owner password",
 } as const;
 
-/** The signed-in browser state every project starts from (cookies only, no localStorage). */
+/** The signed-in browser state every project starts from (cookies only). */
 export const SESSION_STATE = "e2e/.auth/session.json";

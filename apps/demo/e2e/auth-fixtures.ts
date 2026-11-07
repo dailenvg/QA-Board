@@ -36,6 +36,29 @@ export async function createResetLink(email: string): Promise<string> {
   return `/reset/${token}`;
 }
 
+/**
+ * A session cookie for `email`, written straight into the e2e database, for a
+ * context that must be signed in as an account other specs change the password of.
+ */
+export async function sessionCookie(
+  email: string,
+  baseURL: string,
+): Promise<{ name: string; value: string; url: string }> {
+  const token = randomBytes(32).toString("base64url");
+  const client = new Client({ connectionString: e2eDatabaseUrl() });
+  await client.connect();
+  try {
+    await client.query(
+      `INSERT INTO sessions (token_hash, user_id, expires_at)
+       SELECT $1, id, now() + interval '1 hour' FROM users WHERE email = $2`,
+      [createHash("sha256").update(token).digest("hex"), email],
+    );
+  } finally {
+    await client.end();
+  }
+  return { name: "squint_session", value: token, url: baseURL };
+}
+
 /** Every URL a page asks for or navigates to, to prove what never appears in one. */
 export function recordUrls(page: Page): string[] {
   const urls: string[] = [];

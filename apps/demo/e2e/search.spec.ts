@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
+import { expect, test } from "./test";
 import { seedWorkspace, settled } from "./squint-fixtures";
 import { WORKSPACE_SEED } from "./workspace-seed";
 

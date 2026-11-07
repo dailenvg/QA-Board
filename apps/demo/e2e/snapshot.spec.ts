@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./test";
 import { CLIENT_CAPTURE_TIMEOUT_MS } from "../lib/capture/use-capture";
 import { LEGACY_V1 } from "../test/legacy-v1";
 import { snapshotPng } from "./sample-snapshot";
@@ -12,6 +13,8 @@ import {
   openFolder,
   postComment,
   samplePng,
+  seedFile,
+  seedWorkspace,
   showComments,
 } from "./squint-fixtures";
 
@@ -83,7 +86,7 @@ test("a website comment pins to a snapshot, scrolls with it and keeps a screensh
   await expect(page.getByTestId("preview-frame")).toBeVisible();
   await expect(page.getByTestId("pin")).toHaveCount(0);
 
-  // The snapshot and crop come back from this browser's storage, without a new capture.
+  // The snapshot and crop come back from the workspace, without a new capture.
   await page.reload();
   await page.getByTestId("mode-comment").click();
   await expect(snapshotImage(page)).toBeVisible();
@@ -274,28 +277,46 @@ test("undoing a delete doesn't reopen the comment's popover", async ({ page }) =
   await expect(popover).not.toBeVisible();
 });
 
-test("projects saved before snapshots still load, with website pins labelled Live page", async ({
+test("website pins from before snapshots load from the workspace, labelled Live page", async ({
   page,
   baseURL,
 }) => {
-  const image = `data:image/png;base64,${snapshotPng(600, 400).toString("base64")}`;
-  const legacy = {
-    ...LEGACY_V1,
-    projects: [
-      { ...LEGACY_V1.projects[0], source: { kind: "url", url: `${baseURL}/sandbox` } },
-      { ...LEGACY_V1.projects[1], source: { ...LEGACY_V1.projects[1].source, dataUrl: image } },
-    ],
-  };
+  const [folder] = LEGACY_V1.folders;
+  const [site, mock] = LEGACY_V1.projects;
+  const [onSite, onImage] = LEGACY_V1.comments;
   await mockFrameCheck(page, {
     verdict: "embeddable",
     finalUrl: `${baseURL}/sandbox`,
     status: 200,
   });
   await mockCapture(page);
-  await page.goto("/sandbox");
-  await page.evaluate((data) => localStorage.setItem("squint:v1", JSON.stringify(data)), legacy);
-
+  await seedWorkspace(
+    page,
+    {
+      version: 3,
+      folders: [{ ...folder, parentId: null }],
+      projects: [
+        { ...site, source: { kind: "url", url: `${baseURL}/sandbox` } },
+        {
+          ...mock,
+          source: {
+            kind: "pages",
+            origin: "image",
+            fileName: "checkout.png",
+            pages: [{ id: "page-1", blobKey: "image:mock", name: "checkout.png" }],
+          },
+        },
+      ],
+      comments: [onSite, { ...onImage, pageId: "page-1" }],
+      snapshots: [],
+      revocations: [],
+      authorName: "Ana",
+    },
+    "/sandbox",
+  );
+  await seedFile(page, "mock", "image:mock", snapshotPng(600, 400));
   await page.goto("/p/site");
+
   await expect(page.getByTestId("preview-frame")).toBeVisible();
   const legacyPin = page.getByRole("button", { name: "Comment 1 by Ana", exact: true });
   await expect(legacyPin).toBeVisible();
@@ -318,34 +339,12 @@ test("projects saved before snapshots still load, with website pins labelled Liv
   await expect(
     page.getByRole("button", { name: "Comment 1 by Leo, resolved", exact: true }),
   ).toBeVisible();
-
-  // Version 1 was migrated to version 3: its image moved to IndexedDB as the project's one
-  // page, and comments carried over as they were, the image's now on that page.
-  const stored = await page.evaluate(() => ({
-    v1: localStorage.getItem("squint:v1"),
-    v3: JSON.parse(localStorage.getItem("squint:v3") ?? "{}") as {
-      comments: unknown[];
-      projects: Array<{ source: Record<string, unknown> }>;
-    },
-  }));
-  expect(stored.v1).toBeNull();
-  const [onSite, onImage] = LEGACY_V1.comments;
-  expect(stored.v3.comments).toEqual([onSite, { ...onImage, pageId: "page-1" }]);
-  expect(stored.v3.projects[1]?.source).toMatchObject({
-    kind: "pages",
-    pages: [{ id: "page-1", blobKey: "image:mock", name: "checkout.png" }],
-  });
-  expect(stored.v3.projects[1]?.source).not.toHaveProperty("dataUrl");
 });
 
 test("undoing a delete keeps the earlier snapshot it was on, however long Undo waits", async ({
   page,
   baseURL,
 }) => {
-  // The sweep (and snapshot pruning) runs after 300 ms here instead of a minute.
-  await page.addInitScript(() => {
-    (window as Window & { __squintBlobGraceMs?: number }).__squintBlobGraceMs = 300;
-  });
   await mockCapture(page);
   await sandboxProject(page, baseURL, "Undo keeper");
   await page.getByTestId("mode-comment").click();
@@ -363,7 +362,7 @@ test("undoing a delete keeps the earlier snapshot it was on, however long Undo w
     .getByRole("button", { name: "Delete comment" })
     .click();
 
-  // Hold the Undo toast open well past the (shortened) grace, so the sweep runs meanwhile.
+  // Hold the Undo toast open a while: the earlier snapshot must still be there after.
   const toast = page.getByTestId("toast").filter({ hasText: "Comment deleted" });
   await toast.hover();
   await page.waitForTimeout(1_500);

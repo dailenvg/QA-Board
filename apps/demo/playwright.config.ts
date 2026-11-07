@@ -50,7 +50,6 @@ export default defineConfig({
       NEXT_DIST_DIR: ".next-e2e",
       NEXT_TELEMETRY_DISABLED: "1",
       NEXT_PUBLIC_VERCEL_ENV: "preview",
-      NEXT_PUBLIC_SQUINT_E2E: "1",
       PINPOINT_REVIEW_TOKEN: "e2e-token",
       PINPOINT_ENABLE_REVIEW_LINK: "1",
       PINPOINT_RATE_LIMIT: "1000",
@@ -63,6 +62,8 @@ export default defineConfig({
       RESEND_API_KEY: "",
       EMAIL_FROM: "",
       AUTH_URL: "",
+      // Seals review link secrets in the e2e database; a test value, never a real one.
+      AUTH_SECRET: "e2e-auth-secret-not-for-production-0123456789",
     },
   },
 });

@@ -1,4 +1,5 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
+import { expect, test } from "./test";
 import { EYE_LEFT_PATH, EYE_RIGHT_PATH } from "../components/brand/mascot/paths";
 import { openOverview } from "./squint-fixtures";
 

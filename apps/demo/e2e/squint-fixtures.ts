@@ -3,6 +3,7 @@ import type { CaptureErrorCode } from "../lib/capture/types";
 import type { FrameCheckResult } from "../lib/frame-check/types";
 import type { SquintData } from "../lib/store/types";
 import { snapshotPng } from "./sample-snapshot";
+import { e2eWorkspaceId } from "./workspace-db";
 
 /** Answers /api/frame-check locally so tests never depend on the network. */
 export async function mockFrameCheck(page: Page, result: FrameCheckResult): Promise<void> {
@@ -40,38 +41,26 @@ export async function mockCapture(
 }
 
 /**
- * The folder most specs work in. A fresh browser has no folders (the person creates
- * the first one), so `addDefaultFolder` stores it, and `openFolder` does by default.
+ * The folder most specs work in. A fresh workspace has no folders (the person creates
+ * the first one), so `addDefaultFolder` makes it, and `openFolder` does by default.
  */
 export const DEFAULT_FOLDER = { id: "default", name: "My projects" } as const;
 
+/** `path` below this test's workspace API (`/api/w/<id>`). */
+async function workspaceApi(path: string): Promise<string> {
+  return `/api/w/${await e2eWorkspaceId()}${path}`;
+}
+
 /**
- * Adds DEFAULT_FOLDER to this browser's stored workspace (an empty workspace when
- * there's none yet), keeping everything else. Takes effect on the next page load.
- * Alone and empty, it looks like the old seeded folder that load removes once
- * (`lib/store/legacy-folder.ts`), so this also marks that check done.
+ * Adds DEFAULT_FOLDER to the signed-in workspace through the server, oldest so it comes
+ * first, keeping everything else. Takes effect on the next page load.
  */
 export async function addDefaultFolder(page: Page): Promise<void> {
-  if (!page.url().startsWith("http")) await page.goto("/sandbox");
-  await page.evaluate((folder) => {
-    const raw = localStorage.getItem("squint:v3");
-    const data: SquintData = raw
-      ? (JSON.parse(raw) as SquintData)
-      : {
-          version: 3,
-          folders: [],
-          projects: [],
-          comments: [],
-          snapshots: [],
-          revocations: [],
-          authorName: null,
-        };
-    localStorage.setItem("squint:legacy-folder-cleanup", "1");
-    if (data.folders.some((entry) => entry.id === folder.id)) return;
-    // Oldest, so it comes first, as the seeded folder used to.
-    data.folders.unshift({ ...folder, createdAt: 0, parentId: null });
-    localStorage.setItem("squint:v3", JSON.stringify(data));
-  }, DEFAULT_FOLDER);
+  const response = await page.request.post(await workspaceApi("/folders"), {
+    data: { ...DEFAULT_FOLDER, parentId: null, createdAt: 0 },
+  });
+  // 409: it's already there.
+  expect([201, 409]).toContain(response.status());
 }
 
 /** Opens a folder's page (adding DEFAULT_FOLDER first). Creating a project there opens it in the viewer. */
@@ -253,11 +242,32 @@ export async function sheetLift(sheet: Locator): Promise<number> {
   return sheet.evaluate((node) => new DOMMatrixReadOnly(getComputedStyle(node).transform).m42);
 }
 
-/** Replaces this browser's workspace with `data`, then opens `path`. Pictures aren't stored. */
+/**
+ * Puts `data` into the signed-in workspace through the server's import (the test starts
+ * from an empty one), then opens `path`. Pictures aren't uploaded.
+ */
 export async function seedWorkspace(page: Page, data: SquintData, path = "/"): Promise<void> {
-  await page.goto("/sandbox");
-  await page.evaluate((seed) => localStorage.setItem("squint:v3", JSON.stringify(seed)), data);
+  const { folders, projects, comments, snapshots, authorName } = data;
+  const response = await page.request.post(await workspaceApi("/import"), {
+    data: { folders, projects, comments, snapshots, authorName },
+  });
+  expect(response.status()).toBe(200);
   await page.goto(path);
+}
+
+/** Uploads a picture into the signed-in workspace as `key` of `projectId`, as the browser does. */
+export async function seedFile(
+  page: Page,
+  projectId: string,
+  key: string,
+  png: Buffer,
+): Promise<void> {
+  const path = `/projects/${projectId}/blobs/${encodeURIComponent(key)}`;
+  const response = await page.request.put(await workspaceApi(path), {
+    data: png,
+    headers: { "content-type": "image/png" },
+  });
+  expect(response.status()).toBe(201);
 }
 
 /** Waits until `locator` and everything above it are fully faded in, so axe sees real colors. */
