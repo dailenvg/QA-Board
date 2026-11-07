@@ -343,7 +343,7 @@ test("an upload that fails part way keeps the data, and Retry finishes without d
   await dialog.getByTestId("import-start").click();
   await expect(dialog.getByTestId("import-failed")).toBeVisible();
   await expect(dialog).toHaveAccessibleName("The import didn't finish");
-  await expect(dialog).toContainText("Check your connection, then retry.");
+  await expect(dialog).toContainText("Check your connection, then try again.");
   await expect(dialog.getByTestId("import-retry")).toBeFocused();
   expect((await localState(page)).data).not.toBeNull();
   expect(await workspaceRows("workspace_blobs")).toBeLessThan(FILES.length);
