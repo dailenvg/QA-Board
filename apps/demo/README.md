@@ -110,7 +110,8 @@ Projects are deleted 30 days after they were created: shared copies on the serve
 - **In the browser.** The owner's expired projects are deleted when the workspace loads and each time the tab comes back into view, and a toast says so (`lib/store/expiry.ts`). This doesn't revoke a shared link: the link keeps working until the server's own deletion date (the "Deletes on" date reviewers were shown), which can be later than the browser's, and the daily cleanup then deletes it. Deleting a project yourself still revokes its link once Undo is no longer offered.
 - **Shared links.** An expired link stops working right away and answers 404, even before the cleanup deletes it.
 - **Rolling deploys.** Every deployment since migration 007 sends `expires_at`; migration 022 dropped its default, and a CHECK still requires it on anonymous shares.
-- **Daily cleanup.** Vercel Cron calls `GET /api/cron/expire` once a day (`vercel.json`). It deletes expired shares, deletes Blob files a failed delete left behind once they're 31 days old, and deletes pinpoint pins 30 days old in Postgres or GitHub storage (pins get no notice). Each step runs on its own, so one failing doesn't stop the others. When a run hits its time limit, the next one carries on.
+- **Workspace trash.** Deleting a workspace project moves it to the trash (`projects.deleted_at`, migration 024): it leaves every list and its share answers 404 until it's restored. The daily cleanup deletes it for good 30 days later, with its share, pages, snapshots, comments and files.
+- **Daily cleanup.** Vercel Cron calls `GET /api/cron/expire` once a day (`vercel.json`). It deletes expired shares, deletes Blob files a failed delete left behind once they're 31 days old, deletes workspace projects 30 days in the trash, deletes workspace files whose project is gone and uploads never committed (a day old), and deletes pinpoint pins 30 days old in Postgres or GitHub storage (pins get no notice). Each step runs on its own, so one failing doesn't stop the others. When a run hits its time limit, the next one carries on.
 - **`CRON_SECRET`.** The route only runs with `Authorization: Bearer $CRON_SECRET`, which Vercel Cron sends. Without `CRON_SECRET` it answers 503 and nothing expires; with a missing or wrong header it answers 401.
 - **Previews.** Vercel Cron only runs on production deployments. To run the cleanup on a preview, call it yourself:
 
@@ -124,17 +125,21 @@ Projects are deleted 30 days after they were created: shared copies on the serve
   {
     "shares": 2,
     "blobs": 0,
+    "trash": 1,
+    "workspaceBlobs": 3,
     "pins": null,
     "done": true,
     "failed": {
       "shares": false,
       "blobs": false,
+      "trash": false,
+      "workspaceBlobs": false,
       "pins": false
     }
   }
   ```
 
-  Each count is how many it deleted, or `null` when the step was skipped (no Blob store, or pin storage that can't expire) or failed. `done` is false when time ran out or a step failed. Any failed step makes the response a 500.
+  Each count is how many it deleted, or `null` when the step was skipped (no Blob store or database, or pin storage that can't expire) or failed. `done` is false when time ran out or a step failed. Any failed step makes the response a 500.
 
 ## Environment
 
@@ -145,12 +150,13 @@ Copy `.env.example` to `.env.local` to set these locally.
 | `DATABASE_URL`                 | Accounts, sessions and shares are stored in Postgres (migrated on first use).                          | Nobody can sign in. Shares live in the server's memory, per instance, lost on restart; on Vercel production and preview, creating a link fails with 503. |
 | `AUTH_URL`                     | Password reset links point at this canonical URL (production).                                         | They point at `NEXT_PUBLIC_SITE_URL`, else the deployment's own URL, else `http://localhost:3000`.                                                       |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Password reset emails are sent through Resend, from `EMAIL_FROM` (`Squint <hello@squintreview.com>`).  | No email is sent; the server logs "reset email skipped".                                                                                                 |
-| `BLOB_READ_WRITE_TOKEN`        | Shared images go to Vercel Blob as private blobs.                                                      | Shared images are stored with the share's data.                                                                                                          |
+| `BLOB_READ_WRITE_TOKEN`        | Shared images go to Vercel Blob as private blobs; workspace files upload straight to it.               | Shared images are stored with the share's data; workspace files go into Postgres, off Vercel only (on Vercel, workspace file requests fail).             |
+| `AUTH_SECRET`                  | A workspace project's review link token and owner key are encrypted with a key derived from it.        | Attaching or reading a workspace project's review link fails (500).                                                                                      |
 | `SQUINT_CAPTURE_URL`           | Captures go to this external service (same contract as `POST /api/capture`).                           | Captures run on this server in headless Chromium.                                                                                                        |
 | `SQUINT_CHROMIUM_PACK_URL`     | On Vercel, Chromium's pack tar is downloaded from this https URL, such as a mirror near the functions. | The pack comes from the matching Sparticuz/chromium GitHub release.                                                                                      |
 | `CRON_SECRET`                  | The daily cleanup (`/api/cron/expire`) runs when called with `Authorization: Bearer <secret>`.         | The cleanup route refuses every call, so nothing expires.                                                                                                |
 
-Seed script only, never read by the app: `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `COMPANY_SLUG`, `COMPANY_NAME`, `COMPANY_EMAIL`, `COMPANY_PASSWORD` (passwords 12 to 256 characters), with `DATABASE_URL`. Playwright only: `E2E_DATABASE_URL` ([Tests](#tests)). Not read yet: `AUTH_SECRET` (sessions are random tokens checked against Postgres, so nothing is signed) and `PROJECT_AUTH_KEY` (Milestone 5).
+Seed script only, never read by the app: `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `COMPANY_SLUG`, `COMPANY_NAME`, `COMPANY_EMAIL`, `COMPANY_PASSWORD` (passwords 12 to 256 characters), with `DATABASE_URL`. Playwright only: `E2E_DATABASE_URL` ([Tests](#tests)). Not read yet: `PROJECT_AUTH_KEY` (Milestone 5). Sessions don't use `AUTH_SECRET`: they're random tokens checked against Postgres.
 
 Blob URLs never reach a browser: images are served through token-gated routes either way. `DATABASE_URL` is shared with the pinpoint server, which uses it for its own storage when the GitHub variables aren't set. With `SQUINT_CAPTURE_URL`, Squint still checks the top-level address, but the external service has to refuse private addresses for redirects and subresources itself.
 
