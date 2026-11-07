@@ -41,6 +41,8 @@ export type SkipReason =
   | "too-large"
   /** The project's folder didn't come in. */
   | "no-folder"
+  /** An earlier import brought it in, and it's in the trash now: its images can't be added. */
+  | "in-trash"
   /** Imported without its review link: the link expired or was revoked. */
   | "link-lost"
   /** This browser no longer has the image. */
@@ -293,10 +295,12 @@ class Tally {
   }
 
   took(batch: readonly Bundle[], result: ImportResult): void {
-    const { imported, existing, unlinked } = result.projects;
+    const { imported, existing, trashed, unlinked } = result.projects;
     for (const id of [...imported, ...existing]) this.present.add(id);
+    for (const id of trashed) this.skipProject(id, "in-trash");
     for (const { project } of batch)
-      if (!this.present.has(project.id)) this.skipProject(project.id, "no-folder");
+      if (!this.present.has(project.id) && !trashed.includes(project.id))
+        this.skipProject(project.id, "no-folder");
     for (const id of unlinked) this.skipProject(id, "link-lost");
     for (const upload of result.uploads)
       this.uploads.set(`${upload.projectId}/${upload.key}`, upload);

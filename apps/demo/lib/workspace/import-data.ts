@@ -25,12 +25,14 @@ export interface ImportResult {
   imported: Counts;
   skipped: Counts;
   /**
-   * The request's projects by outcome: made by this import, or already in this
-   * workspace (an earlier import). Any other is skipped: its folder isn't here.
-   * `unlinked` are imported projects whose review link couldn't be proven
-   * (expired, revoked, or not this browser's), so they came in without it.
+   * The request's projects by outcome: made by this import, already in this
+   * workspace (an earlier import), or already here but in the trash (its
+   * files can't be uploaded until it's restored). Any other is skipped: its
+   * folder isn't here. `unlinked` are imported projects whose review link
+   * couldn't be proven (expired, revoked, or not this browser's), so they
+   * came in without it.
    */
-  projects: { imported: string[]; existing: string[]; unlinked: string[] };
+  projects: { imported: string[]; existing: string[]; trashed: string[]; unlinked: string[] };
   /**
    * Files the browser should upload next, by logical key: every file the
    * request's live projects point at that the workspace doesn't have yet.
@@ -250,6 +252,16 @@ async function importComments(
   );
 }
 
+/** Which of the workspace's projects `ids` are in the trash. */
+async function trashedIds(tx: Queryable, workspaceId: string, ids: string[]) {
+  if (ids.length === 0) return new Set<string>();
+  const { rows } = await tx.query<{ id: string }>(
+    "SELECT id FROM projects WHERE workspace_id = $1 AND id = ANY($2) AND deleted_at IS NOT NULL",
+    [workspaceId, ids],
+  );
+  return new Set(rows.map((row) => row.id));
+}
+
 /**
  * Every file the workspace's live projects `ids` point at (pages, snapshots,
  * then crops, in `ids` order) that it has no row for yet.
@@ -358,13 +370,22 @@ async function importInto(
   }
   skipped.shares += projects.filter((project) => project.share && !ids.has(project.id)).length;
 
-  const existing = projects.filter((project) => had.has(project.id)).map((project) => project.id);
-  const present = projects.map((project) => project.id).filter((id) => ids.has(id) || had.has(id));
+  const earlier = projects.filter((project) => had.has(project.id)).map((project) => project.id);
+  const binned = await trashedIds(tx, workspaceId, earlier);
+  const existing = earlier.filter((id) => !binned.has(id));
+  const live = projects
+    .map((project) => project.id)
+    .filter((id) => ids.has(id) || existing.includes(id));
   return done({
     imported,
     skipped,
-    projects: { imported: made.map((project) => project.id), existing, unlinked },
-    uploads: await missingFiles(tx, workspaceId, present),
+    projects: {
+      imported: made.map((project) => project.id),
+      existing,
+      trashed: earlier.filter((id) => binned.has(id)),
+      unlinked,
+    },
+    uploads: await missingFiles(tx, workspaceId, live),
   });
 }
 

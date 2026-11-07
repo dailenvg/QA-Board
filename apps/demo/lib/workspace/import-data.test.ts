@@ -130,7 +130,7 @@ describe("import", () => {
       value: {
         imported: { folders: 5, projects: 2, snapshots: 1, comments: 2, shares: 0 },
         skipped: { folders: 0, projects: 0, snapshots: 0, comments: 1, shares: 0 },
-        projects: { imported: ["web", "deck"], existing: [], unlinked: [] },
+        projects: { imported: ["web", "deck"], existing: [], trashed: [], unlinked: [] },
         uploads: [
           { projectId: "deck", key: "image:deck" },
           { projectId: "deck", key: "page:p2" },
@@ -188,7 +188,7 @@ describe("import", () => {
     expect(again.ok && again.value).toMatchObject({
       imported: { folders: 0, projects: 0, snapshots: 0, comments: 0, shares: 0 },
       skipped: { folders: 5, projects: 2, snapshots: 1, comments: 3, shares: 0 },
-      projects: { imported: [], existing: ["web", "deck"], unlinked: [] },
+      projects: { imported: [], existing: ["web", "deck"], trashed: [], unlinked: [] },
     });
     const comments = await listComments(db, a.workspaceId);
     expect(comments.find((comment) => comment.id === "c1")?.body).toBe("Edited on the server");
@@ -213,7 +213,7 @@ describe("import", () => {
     ]);
   });
 
-  it("lists no files for a project already in the trash", async () => {
+  it("says which projects are in the trash, and lists no files for them", async () => {
     const { db, a } = await twoWorkspaces();
     await importData(db, a.workspaceId, a.userId, browserData(), NOW, TEST_AUTH_SECRET);
     await trashProject(db, a.workspaceId, "deck", NOW);
@@ -225,7 +225,10 @@ describe("import", () => {
       NOW,
       TEST_AUTH_SECRET,
     );
-    expect(again.ok && again.value.projects.existing).toEqual(["web", "deck"]);
+    expect(again.ok && again.value.projects).toMatchObject({
+      existing: ["web"],
+      trashed: ["deck"],
+    });
     expect(again.ok && again.value.uploads.map((upload) => upload.projectId)).toEqual([
       "web",
       "web",
@@ -266,6 +269,7 @@ describe("import", () => {
     expect(result.ok && result.value.projects).toEqual({
       imported: [],
       existing: [],
+      trashed: [],
       unlinked: [],
     });
     expect(result.ok && result.value.uploads).toEqual([]);

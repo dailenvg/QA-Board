@@ -225,6 +225,25 @@ describe("importing this browser's data", () => {
     expect(rows.map((row) => row.id)).toEqual(["deck"]);
   });
 
+  it("keeps the copy of a project an earlier import brought in that's in the trash now", async () => {
+    const h = await harness();
+    const local = { data: browserData(), pendingImages: [] };
+    intercept = (request) =>
+      request.method === "PUT" ? Promise.resolve(Response.json({}, { status: 503 })) : null;
+    expect(await h.run(local)).toEqual({ ok: false, failure: "server" });
+    intercept = null;
+    const { trashProject } = await import("../workspace/projects");
+    await trashProject(h.db, h.workspaceId, "deck", Date.now());
+    const report = ok(await h.run(local));
+    expect(report.skipped).toContainEqual({
+      kind: "project",
+      projectName: "Pages deck",
+      reason: "in-trash",
+    });
+    expect(report).toMatchObject({ projects: 1, cleared: false });
+    expect(h.cleared()).toBe(0);
+  });
+
   it("reports an image this browser no longer has, and still clears", async () => {
     const h = await harness();
     const report = ok(

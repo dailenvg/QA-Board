@@ -78,6 +78,7 @@ const REASONS: Record<SkipReason, (n: number) => string> = {
   refused: () => "has damaged details, so the server couldn't accept it",
   "too-large": () => "is too large to import",
   "no-folder": () => "wasn't imported because its folder couldn't be",
+  "in-trash": () => "is in the trash. Restore it, then import again",
   "link-lost": () => "came in without its review link, which had expired",
   "file-missing": (n) => `${count(n, "image")} no longer saved in this browser`,
   "file-refused": (n) => `${count(n, "image")} too large or not a supported type`,
