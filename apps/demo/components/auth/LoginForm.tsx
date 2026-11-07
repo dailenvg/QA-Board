@@ -5,6 +5,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { loginErrorMessage, requestLogin } from "@/lib/auth/auth-client";
 import { emailError, passwordError } from "@/lib/auth/field-rules";
 import { withWelcome } from "@/lib/auth/next-path";
+import { forgetImportDeferral } from "@/lib/workspace-client/import-deferral";
 import type { Mood } from "../brand/mascot/moods";
 import { Button } from "../ui/Button";
 import { AuthField } from "./AuthField";
@@ -62,6 +63,8 @@ export function LoginForm({ next, passwordChanged, initialError }: LoginFormProp
     const outcome = await requestLogin(email, password);
     if (outcome.ok) {
       setStatus("signed-in");
+      // A new sign-in asks again about importing this browser's local data.
+      forgetImportDeferral();
       router.replace(withWelcome(next));
       return;
     }

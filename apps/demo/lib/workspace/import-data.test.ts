@@ -3,6 +3,7 @@ import { STATE } from "@/test/share-fixture";
 import {
   addFolder,
   NOW,
+  PNG,
   TEST_AUTH_SECRET,
   twoWorkspaces,
   URL_PROJECT,
@@ -13,11 +14,12 @@ import { createShare } from "../share/service";
 import { listComments } from "./comments";
 import { listFolders } from "./folders";
 import { importData } from "./import-data";
-import { createProject, listProjects } from "./projects";
+import { createProject, listProjects, trashProject } from "./projects";
 import type { ImportData } from "./schemas";
 import { importSchema } from "./schemas";
 import { getShareLink } from "./share-links";
 import { listSnapshots } from "./snapshots";
+import { storeInline } from "./uploads";
 
 /** A browser's local data: nested folders, a website with a snapshot, a page project. */
 function browserData(overrides: Partial<ImportData> = {}): ImportData {
@@ -128,6 +130,7 @@ describe("import", () => {
       value: {
         imported: { folders: 5, projects: 2, snapshots: 1, comments: 2, shares: 0 },
         skipped: { folders: 0, projects: 0, snapshots: 0, comments: 1, shares: 0 },
+        projects: { imported: ["web", "deck"], existing: [], trashed: [], unlinked: [] },
         uploads: [
           { projectId: "deck", key: "image:deck" },
           { projectId: "deck", key: "page:p2" },
@@ -182,16 +185,54 @@ describe("import", () => {
       NOW,
       TEST_AUTH_SECRET,
     );
-    expect(again).toEqual({
-      ok: true,
-      value: {
-        imported: { folders: 0, projects: 0, snapshots: 0, comments: 0, shares: 0 },
-        skipped: { folders: 5, projects: 2, snapshots: 1, comments: 3, shares: 0 },
-        uploads: [],
-      },
+    expect(again.ok && again.value).toMatchObject({
+      imported: { folders: 0, projects: 0, snapshots: 0, comments: 0, shares: 0 },
+      skipped: { folders: 5, projects: 2, snapshots: 1, comments: 3, shares: 0 },
+      projects: { imported: [], existing: ["web", "deck"], trashed: [], unlinked: [] },
     });
     const comments = await listComments(db, a.workspaceId);
     expect(comments.find((comment) => comment.id === "c1")?.body).toBe("Edited on the server");
+  });
+
+  it("lists again the files an earlier import's uploads never delivered, and only those", async () => {
+    const { db, a } = await twoWorkspaces();
+    await importData(db, a.workspaceId, a.userId, browserData(), NOW, TEST_AUTH_SECRET);
+    await storeInline(db, a.workspaceId, { projectId: "deck", key: "image:deck" }, PNG);
+    await storeInline(db, a.workspaceId, { projectId: "web", key: "crop:c1" }, PNG);
+    const again = await importData(
+      db,
+      a.workspaceId,
+      a.userId,
+      browserData(),
+      NOW,
+      TEST_AUTH_SECRET,
+    );
+    expect(again.ok && again.value.uploads).toEqual([
+      { projectId: "deck", key: "page:p2" },
+      { projectId: "web", key: "snapshot:s1" },
+    ]);
+  });
+
+  it("says which projects are in the trash, and lists no files for them", async () => {
+    const { db, a } = await twoWorkspaces();
+    await importData(db, a.workspaceId, a.userId, browserData(), NOW, TEST_AUTH_SECRET);
+    await trashProject(db, a.workspaceId, "deck", NOW);
+    const again = await importData(
+      db,
+      a.workspaceId,
+      a.userId,
+      browserData(),
+      NOW,
+      TEST_AUTH_SECRET,
+    );
+    expect(again.ok && again.value.projects).toMatchObject({
+      existing: ["web"],
+      trashed: ["deck"],
+    });
+    expect(again.ok && again.value.uploads.map((upload) => upload.projectId)).toEqual([
+      "web",
+      "web",
+    ]);
   });
 
   it("refuses the whole import (409) when a project id is another workspace's, writing nothing", async () => {
@@ -225,6 +266,13 @@ describe("import", () => {
       comments: 0,
       shares: 0,
     });
+    expect(result.ok && result.value.projects).toEqual({
+      imported: [],
+      existing: [],
+      trashed: [],
+      unlinked: [],
+    });
+    expect(result.ok && result.value.uploads).toEqual([]);
   });
 
   it("attaches a share it can prove, and skips one it can't", async () => {
@@ -253,6 +301,7 @@ describe("import", () => {
     expect(result.ok && [result.value.imported.shares, result.value.skipped.shares]).toEqual([
       1, 1,
     ]);
+    expect(result.ok && result.value.projects.unlinked).toEqual(["deck"]);
     expect(await getShareLink(db, a.workspaceId, "web", TEST_AUTH_SECRET)).toMatchObject({
       id: good.shareId,
       token: good.token,

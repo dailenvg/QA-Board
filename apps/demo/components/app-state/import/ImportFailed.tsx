@@ -1,0 +1,73 @@
+"use client";
+
+import { motion, useReducedMotion } from "motion/react";
+import { usePathname } from "next/navigation";
+import { loginHref } from "@/lib/auth/next-path";
+import { press } from "@/lib/motion";
+import { RETRY_WONT_HELP, type ImportFailure } from "@/lib/workspace-client/import-local";
+import { Button } from "../../ui/Button";
+import { buttonClass } from "../../ui/button-styles";
+import { Icon } from "../../ui/Icon";
+import { DiscardButton, ImportActions } from "./ImportActions";
+import { ImportStep } from "./ImportStep";
+import { failureNote } from "./import-copy";
+
+interface ImportFailedProps {
+  failure: ImportFailure;
+  workspace: string;
+  onRetry: () => void;
+  onLater: () => void;
+  onDiscard: () => void;
+}
+
+/**
+ * The import stopped: nothing local was removed. Retry (or sign in again),
+ * Not now, or Discard. Where a retry here can't help (damaged folders, a
+ * browser that blocks its image store), there's no Retry: Not now leads.
+ */
+export function ImportFailed({
+  failure,
+  workspace,
+  onRetry,
+  onLater,
+  onDiscard,
+}: ImportFailedProps) {
+  const pathname = usePathname();
+  const reduce = useReducedMotion();
+  const retryable = !RETRY_WONT_HELP.has(failure);
+  return (
+    <ImportStep testId="import-failed">
+      {/* Not an alert: ImportLocalData announces the title and reason as this view opens. */}
+      <p className="flex items-start gap-2 text-body text-ink-2">
+        <Icon name="alert" className="mt-0.5 size-4 shrink-0 text-danger" />
+        <span className="min-w-0 wrap-anywhere">{failureNote(failure, workspace)}</span>
+      </p>
+      <ImportActions aside={<DiscardButton onClick={onDiscard} />}>
+        <Button
+          variant={retryable ? "secondary" : "primary"}
+          onClick={onLater}
+          data-autofocus={retryable ? undefined : true}
+          data-testid="import-later"
+        >
+          Not now
+        </Button>
+        {!retryable ? null : failure === "signed-out" ? (
+          // A full page load: nothing of the ended session carries over.
+          <motion.a
+            href={loginHref(pathname)}
+            className={buttonClass()}
+            {...(reduce ? {} : press)}
+            data-autofocus
+          >
+            Sign in again
+          </motion.a>
+        ) : (
+          <Button onClick={onRetry} data-autofocus data-testid="import-retry">
+            <Icon name="refresh" className="size-4" />
+            Retry
+          </Button>
+        )}
+      </ImportActions>
+    </ImportStep>
+  );
+}

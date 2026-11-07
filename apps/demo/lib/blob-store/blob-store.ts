@@ -14,10 +14,18 @@ interface BlobRecord {
   blob: Blob;
 }
 
+/** This browser won't open its image store at all (a private window, or storage turned off). */
+export class BlobStoreUnavailable extends Error {
+  constructor() {
+    super("This browser's image store can't be opened.");
+    this.name = "BlobStoreUnavailable";
+  }
+}
+
 let database: Promise<IDBDatabase | null> | null = null;
 
 function open(): Promise<IDBDatabase | null> {
-  database ??= new Promise((resolve) => {
+  database ??= new Promise<IDBDatabase | null>((resolve) => {
     try {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
       request.onupgradeneeded = () => request.result.createObjectStore(STORE, { keyPath: "key" });
@@ -27,6 +35,10 @@ function open(): Promise<IDBDatabase | null> {
     } catch {
       resolve(null);
     }
+  }).then((db) => {
+    // Not cached when it failed, so a later try opens it again.
+    if (!db) database = null;
+    return db;
   });
   return database;
 }
@@ -55,16 +67,16 @@ function isRecord(value: unknown): value is BlobRecord {
   );
 }
 
-/** The image saved under `key`, or null (none, or IndexedDB unavailable). */
+/**
+ * The image saved under `key`, or null when this browser has none. Throws
+ * when IndexedDB can't be opened (`BlobStoreUnavailable`) or read, so a failed
+ * read is never taken for a missing image.
+ */
 export async function getBlob(key: string): Promise<Blob | null> {
   const db = await open();
-  if (!db) return null;
-  try {
-    const value: unknown = await run(db, "readonly", (store) => store.get(key));
-    return isRecord(value) ? value.blob : null;
-  } catch {
-    return null;
-  }
+  if (!db) throw new BlobStoreUnavailable();
+  const value: unknown = await run(db, "readonly", (store) => store.get(key));
+  return isRecord(value) ? value.blob : null;
 }
 
 /** Deletes every image this browser kept. Best effort: a failure leaves them for a later try. */
