@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { addFolder, NOW, twoWorkspaces, URL_PROJECT } from "@/test/workspace-fixture";
-import { createFolder, deleteFolder, listFolders, projectsInFolder, updateFolder } from "./folders";
-import { createProject, trashProject } from "./projects";
+import { createFolder, deleteFolder, listFolders, updateFolder } from "./folders";
+import { createProject, listTrash, restoreProject, trashProject } from "./projects";
 
 describe("folders", () => {
   it("creates folders, never replacing one, and lists them oldest first", async () => {
@@ -58,19 +58,37 @@ describe("folders", () => {
       ok: false,
       reason: "not-empty",
     });
-    await trashProject(db, a.workspaceId, "p1", NOW);
-    expect(await projectsInFolder(db, a.workspaceId, "top")).toEqual([{ id: "p1", trashed: true }]);
-    // The route purges trashed projects first; the query alone still refuses.
-    expect(await deleteFolder(db, a.workspaceId, "top")).toEqual({
-      ok: false,
-      reason: "not-empty",
-    });
-    await db.query("DELETE FROM projects WHERE id = 'p1'");
-    expect(await deleteFolder(db, a.workspaceId, "top")).toEqual({ ok: true, value: null });
-    expect(await listFolders(db, a.workspaceId)).toEqual([]);
-    expect(await deleteFolder(db, a.workspaceId, "top")).toEqual({
+    expect(await listFolders(db, a.workspaceId)).toHaveLength(2);
+    expect(await deleteFolder(db, a.workspaceId, "nope")).toEqual({
       ok: false,
       reason: "not-found",
     });
+  });
+
+  it("moves trashed projects inside to the root, still trashed, so they stay restorable", async () => {
+    const { db, a } = await twoWorkspaces();
+    await addFolder(db, a.workspaceId, "top");
+    await addFolder(db, a.workspaceId, "sub", "top");
+    await createProject(db, a.workspaceId, URL_PROJECT("p1", "sub"), NOW);
+    await trashProject(db, a.workspaceId, "p1", NOW + 1);
+    expect(await deleteFolder(db, a.workspaceId, "top")).toEqual({ ok: true, value: ["p1"] });
+    expect(await listFolders(db, a.workspaceId)).toEqual([]);
+    expect(await listTrash(db, a.workspaceId)).toMatchObject([
+      { id: "p1", folderId: null, deletedAt: NOW + 1 },
+    ]);
+    expect(await restoreProject(db, a.workspaceId, "p1")).toMatchObject({
+      id: "p1",
+      folderId: null,
+    });
+  });
+
+  it("leaves everything as it was when it refuses", async () => {
+    const { db, a } = await twoWorkspaces();
+    await addFolder(db, a.workspaceId, "top");
+    await createProject(db, a.workspaceId, URL_PROJECT("live", "top"), NOW);
+    await createProject(db, a.workspaceId, URL_PROJECT("gone", "top"), NOW);
+    await trashProject(db, a.workspaceId, "gone", NOW);
+    expect((await deleteFolder(db, a.workspaceId, "top")).ok).toBe(false);
+    expect((await listTrash(db, a.workspaceId))[0]?.folderId).toBe("top");
   });
 });

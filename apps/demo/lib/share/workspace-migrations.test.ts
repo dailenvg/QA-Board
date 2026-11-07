@@ -11,7 +11,12 @@ import { clientShare, clientView, createShare } from "./service";
 
 /** Every migration before 023: the schema production had when Milestone 1b shipped. */
 const UP_TO_022 = MIGRATIONS.slice(0, 22);
-const NEW = ["023_project_share_links", "024_projects_deleted_at", "025_workspace_blobs_inline"];
+const NEW = [
+  "023_project_share_links",
+  "024_projects_deleted_at",
+  "025_workspace_blobs_inline",
+  "026_projects_folder_optional",
+];
 
 const closers: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -74,7 +79,7 @@ async function at022(make: () => Promise<Database>) {
   return { db, store, anonymous, workspaceId };
 }
 
-describe.each(databases)("migrations 023 to 025 (%s)", (_name, make) => {
+describe.each(databases)("migrations 023 to 026 (%s)", (_name, make) => {
   it("apply over existing shares, which keep working", async () => {
     const { db, store, anonymous, workspaceId } = await at022(make);
     expect(await migrate(db)).toEqual(NEW);
@@ -108,6 +113,9 @@ describe.each(databases)("migrations 023 to 025 (%s)", (_name, make) => {
     await expect(db.query(insert, [workspaceId, "ws/none", null, null])).rejects.toThrow(
       /workspace_blobs_one_location/,
     );
+
+    // A project can now sit at the root, with no folder.
+    await db.query("UPDATE projects SET folder_id = NULL WHERE id = 'p1'");
 
     // A trashed project's share closes; the anonymous one is untouched.
     await db.query("UPDATE projects SET deleted_at = now() WHERE id = 'p1'");

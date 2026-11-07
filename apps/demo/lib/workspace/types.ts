@@ -16,7 +16,11 @@ export interface WorkspaceShareSummary {
 
 export interface WorkspaceProject {
   id: string;
-  folderId: string;
+  /**
+   * Null at the workspace root: only a project whose folder was deleted while
+   * it was in the trash, and restored since (the browser store files it).
+   */
+  folderId: string | null;
   name: string;
   source: ProjectSource;
   createdAt: number;

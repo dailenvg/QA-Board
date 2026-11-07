@@ -230,6 +230,39 @@ describe("happy paths", () => {
     expect(text.status).toBe(415);
   });
 
+  it("deletes a folder, keeping a trashed project inside restorable at the root", async () => {
+    const cookie = a.cookie;
+    const at = (route: string) => `/api/w/${a.workspaceId}${route}`;
+    await call("POST", at("/folders"), { cookie, body: { id: "old", name: "Old work" } });
+    const site = { kind: "url", url: "https://a.test/" };
+    for (const id of ["kept", "binned"]) {
+      await call("POST", at("/projects"), {
+        cookie,
+        body: { id, folderId: "old", name: id, source: site },
+      });
+    }
+    expect((await call("DELETE", at("/projects/binned"), { cookie })).status).toBe(204);
+    const refused = await call("DELETE", at("/folders/old"), { cookie });
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toEqual({ error: "not-empty" });
+
+    expect(
+      (await call("PATCH", at("/projects/kept"), { cookie, body: { folderId: "f1" } })).status,
+    ).toBe(200);
+    expect((await call("DELETE", at("/folders/old"), { cookie })).status).toBe(204);
+    const folders = (await (await call("GET", at("/folders"), { cookie })).json()) as Array<{
+      id: string;
+    }>;
+    expect(folders.map((folder) => folder.id)).toEqual(["f1"]);
+    const trash = (await (await call("GET", at("/projects?trash=1"), { cookie })).json()) as Array<{
+      id: string;
+      folderId: string | null;
+    }>;
+    expect(trash).toMatchObject([{ id: "binned", folderId: null }]);
+    const restored = await call("POST", at("/projects/binned/restore"), { cookie, body: {} });
+    expect(await restored.json()).toMatchObject({ id: "binned", folderId: null });
+  });
+
   it("sets and reads the member's author name", async () => {
     const at = `/api/w/${a.workspaceId}/author`;
     expect(await (await call("GET", at, { cookie: a.cookie })).json()).toEqual({ name: null });

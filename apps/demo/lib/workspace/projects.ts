@@ -9,7 +9,7 @@ import type { TrashedProject, WorkspaceProject } from "./types";
 
 interface ProjectRow {
   id: string;
-  folder_id: string;
+  folder_id: string | null;
   name: string;
   source: StoredSource;
   label: string | null;

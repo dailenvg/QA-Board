@@ -23,6 +23,7 @@ import sharesWorkspace from "../../migrations/022_squint_shares_workspace.sql";
 import projectShareLinks from "../../migrations/023_project_share_links.sql";
 import projectsDeletedAt from "../../migrations/024_projects_deleted_at.sql";
 import workspaceBlobsInline from "../../migrations/025_workspace_blobs_inline.sql";
+import projectsFolderOptional from "../../migrations/026_projects_folder_optional.sql";
 
 /** The slice of `pg.Pool` the stores use (PGlite matches it in tests). */
 export interface Queryable {
@@ -56,6 +57,7 @@ export const MIGRATIONS: ReadonlyArray<{ id: string; sql: string }> = [
   { id: "023_project_share_links", sql: projectShareLinks },
   { id: "024_projects_deleted_at", sql: projectsDeletedAt },
   { id: "025_workspace_blobs_inline", sql: workspaceBlobsInline },
+  { id: "026_projects_folder_optional", sql: projectsFolderOptional },
 ];
 
 type Migration = (typeof MIGRATIONS)[number];

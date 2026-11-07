@@ -1,3 +1,4 @@
+import type { Database } from "../db/database";
 import type { Queryable } from "../share/migrate";
 import type { Folder } from "../store/types";
 import type { FolderCreate, FolderPatch } from "./schemas";
@@ -97,37 +98,51 @@ const SUBTREE = `WITH RECURSIVE subtree AS (
   JOIN subtree ON folder.workspace_id = $1 AND folder.parent_id = subtree.id
 )`;
 
-/** Projects anywhere inside the folder, live and trashed. */
-export async function projectsInFolder(
-  db: Queryable,
-  workspaceId: string,
-  id: string,
-): Promise<Array<{ id: string; trashed: boolean }>> {
-  const { rows } = await db.query<{ id: string; trashed: boolean }>(
-    `${SUBTREE}
-     SELECT project.id, project.deleted_at IS NOT NULL AS trashed FROM projects AS project
-     WHERE project.workspace_id = $1 AND project.folder_id IN (SELECT id FROM subtree)`,
-    [workspaceId, id],
-  );
-  return rows;
-}
+/** Thrown inside the delete's transaction to undo it: a live project is in the folder. */
+class NotEmpty extends Error {}
 
 /**
- * Deletes the folder and its subfolders, which must hold no live project (the
- * caller deletes trashed ones for good first, files and links included).
+ * Deletes the folder and its subfolders, while no live project is in them
+ * (`not-empty`). Trashed projects inside move to the workspace root, still
+ * trashed, so they stay restorable for the rest of their grace period (and a
+ * restore brings them back at the root). The folders are locked first, so a
+ * project can't be created in or moved into them meanwhile. Returns the ids
+ * of the projects it moved.
  */
 export async function deleteFolder(
-  db: Queryable,
+  db: Database,
   workspaceId: string,
   id: string,
-): Promise<QueryResult<null>> {
-  const { rows } = await db.query(
-    `${SUBTREE}
-     DELETE FROM folders WHERE workspace_id = $1 AND id = $2 AND NOT EXISTS (
-       SELECT 1 FROM projects WHERE workspace_id = $1 AND folder_id IN (SELECT id FROM subtree)
-     ) RETURNING id`,
-    [workspaceId, id],
-  );
-  if (rows.length === 1) return done(null);
-  return (await folderExists(db, workspaceId, id)) ? refuse("not-empty") : refuse("not-found");
+): Promise<QueryResult<string[]>> {
+  try {
+    return await db.transaction(async (tx) => {
+      const { rows: locked } = await tx.query(
+        `${SUBTREE}
+         SELECT id FROM folders WHERE workspace_id = $1 AND id IN (SELECT id FROM subtree)
+         FOR UPDATE`,
+        [workspaceId, id],
+      );
+      if (locked.length === 0) return refuse("not-found");
+      const { rows: moved } = await tx.query<{ id: string }>(
+        `${SUBTREE}
+         UPDATE projects SET folder_id = NULL
+         WHERE workspace_id = $1 AND deleted_at IS NOT NULL
+           AND folder_id IN (SELECT id FROM subtree)
+         RETURNING id`,
+        [workspaceId, id],
+      );
+      const { rows: deleted } = await tx.query(
+        `${SUBTREE}
+         DELETE FROM folders WHERE workspace_id = $1 AND id = $2 AND NOT EXISTS (
+           SELECT 1 FROM projects WHERE workspace_id = $1 AND folder_id IN (SELECT id FROM subtree)
+         ) RETURNING id`,
+        [workspaceId, id],
+      );
+      if (deleted.length === 0) throw new NotEmpty();
+      return done(moved.map((row) => row.id));
+    });
+  } catch (error) {
+    if (error instanceof NotEmpty) return refuse("not-empty");
+    throw error;
+  }
 }
