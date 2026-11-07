@@ -59,6 +59,19 @@ export async function sessionCookie(
   return { name: "squint_session", value: token, url: baseURL };
 }
 
+/** Ends a session server-side, as a sign-out elsewhere or an expiry would. */
+export async function endSession(token: string): Promise<void> {
+  const client = new Client({ connectionString: e2eDatabaseUrl() });
+  await client.connect();
+  try {
+    await client.query("DELETE FROM sessions WHERE token_hash = $1", [
+      createHash("sha256").update(token).digest("hex"),
+    ]);
+  } finally {
+    await client.end();
+  }
+}
+
 /** Every URL a page asks for or navigates to, to prove what never appears in one. */
 export function recordUrls(page: Page): string[] {
   const urls: string[] = [];
