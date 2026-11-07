@@ -41,7 +41,7 @@ function reactionLine(speech: ReactionSpeech): string {
     case "just-deleted":
       return speech.undoable ? "Gone. You can still undo it." : "Gone. That one can't be undone.";
     case "save-failed":
-      return "That didn't save and was undone. Check your connection and try again.";
+      return "That didn't save. Check your connection and try again.";
   }
 }
 
