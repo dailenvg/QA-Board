@@ -166,9 +166,12 @@ describe("expiry cron: what it deletes", () => {
 });
 
 describe("expiry cron: each step on its own", () => {
-  const failed = (steps: Partial<Record<"shares" | "blobs" | "pins", boolean>>) => ({
+  type Step = "shares" | "blobs" | "trash" | "workspaceBlobs" | "pins";
+  const failed = (steps: Partial<Record<Step, boolean>>) => ({
     shares: false,
     blobs: false,
+    trash: false,
+    workspaceBlobs: false,
     pins: false,
     ...steps,
   });
@@ -198,6 +201,9 @@ describe("expiry cron: each step on its own", () => {
     expect(await response.json()).toEqual({
       shares: null,
       blobs: 2,
+      // No DATABASE_URL: the workspace steps are skipped.
+      trash: null,
+      workspaceBlobs: null,
       pins: 0,
       done: false,
       failed: failed({ shares: true }),
@@ -221,6 +227,8 @@ describe("expiry cron: each step on its own", () => {
     expect(await response.json()).toEqual({
       shares: 2,
       blobs: null,
+      trash: null,
+      workspaceBlobs: null,
       pins: null,
       done: false,
       failed: failed({ pins: true }),

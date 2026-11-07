@@ -1,9 +1,12 @@
 import { tokensMatch, type StorageAdapter } from "@pinpoint/server";
+import { database } from "@/lib/db/database";
 import { storageFromEnv } from "@/lib/pinpoint-storage";
 import { expireShares, sweepOrphanedBlobs } from "@/lib/share/expiry";
 import { json } from "@/lib/share/http";
 import { retentionCutoff } from "@/lib/share/retention";
 import { shareServices } from "@/lib/share/server";
+import { blobDriverFromEnv } from "@/lib/workspace/blob-driver";
+import { purgeTrash, sweepWorkspaceBlobs } from "@/lib/workspace/purge";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +17,7 @@ const BUDGET_MS = 45_000;
 
 let pins: StorageAdapter | undefined;
 
-type StepName = "shares" | "blobs" | "pins";
+type StepName = "shares" | "blobs" | "trash" | "workspaceBlobs" | "pins";
 
 /** What one step did: how many it deleted (null when skipped or failed), and whether it finished. */
 interface StepResult {
@@ -68,6 +71,23 @@ async function shareSteps(now: number, deadline: number): Promise<[StepResult, S
   return [shares, blobs];
 }
 
+/**
+ * Workspace projects trashed more than 30 days ago, deleted for good; then
+ * workspace files nothing records any more. Skipped without a database.
+ */
+async function workspaceSteps(now: number, deadline: number): Promise<[StepResult, StepResult]> {
+  const pending = database();
+  const trash = await step("trash", async () => {
+    if (!pending) return null;
+    const services = { shares: await shareServices(), blobs: blobDriverFromEnv() };
+    return purgeTrash(await pending, services, now, deadline);
+  });
+  const files = await step("workspaceBlobs", async () =>
+    pending ? sweepWorkspaceBlobs(await pending, blobDriverFromEnv(), now, deadline) : null,
+  );
+  return [trash, files];
+}
+
 function pinSteps(now: number, deadline: number): Promise<StepResult> {
   return step("pins", async () => {
     pins ??= storageFromEnv().storage;
@@ -77,10 +97,11 @@ function pinSteps(now: number, deadline: number): Promise<StepResult> {
 }
 
 /**
- * `GET /api/cron/expire`, daily. Three independent steps, each with its own
- * error handling: shares past their `expiresAt`, then Blob files a failed
- * delete left behind; and, alongside them, pinpoint pins 30 days old (when
- * their storage can expire them). Answers each step's count (null when
+ * `GET /api/cron/expire`, daily. Independent steps, each with its own error
+ * handling: shares past their `expiresAt`, then Blob files a failed delete
+ * left behind; workspace projects past their time in the trash, then
+ * workspace files nothing records; and, alongside them, pinpoint pins 30 days
+ * old (when their storage can expire them). Answers each step's count (null when
  * skipped or failed), `done` (false when the time budget ran out or a step
  * failed; the next run continues) and `failed` per step, with a 500 when any
  * step failed.
@@ -90,17 +111,26 @@ export async function GET(request: Request) {
   if (refused) return refused;
   const now = Date.now();
   const deadline = now + BUDGET_MS;
-  const [[shares, blobs], pinned] = await Promise.all([
+  const [[shares, blobs], [trash, workspaceBlobs], pinned] = await Promise.all([
     shareSteps(now, deadline),
+    workspaceSteps(now, deadline),
     pinSteps(now, deadline),
   ]);
-  const steps = { shares, blobs, pins: pinned };
+  const steps = { shares, blobs, trash, workspaceBlobs, pins: pinned };
   const report = {
     shares: shares.count,
     blobs: blobs.count,
+    trash: trash.count,
+    workspaceBlobs: workspaceBlobs.count,
     pins: pinned.count,
     done: Object.values(steps).every((result) => result.done),
-    failed: { shares: shares.failed, blobs: blobs.failed, pins: pinned.failed },
+    failed: {
+      shares: shares.failed,
+      blobs: blobs.failed,
+      trash: trash.failed,
+      workspaceBlobs: workspaceBlobs.failed,
+      pins: pinned.failed,
+    },
   };
   // eslint-disable-next-line no-console -- counts only (never ids or URLs), for the function logs
   console.info(`squint expiry: ${JSON.stringify(report)}`);
