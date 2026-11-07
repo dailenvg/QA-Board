@@ -122,6 +122,27 @@ describe("the workspace store", () => {
     expect((await listProjects(db, owner.workspaceId))[0]?.folderId).toBe(folder?.id);
   });
 
+  it("files the same way in two tabs at once, making one folder", async () => {
+    const { db, owner, store, notices, start } = await connected(async (db, id) => {
+      await createProject(db, id, URL_PROJECT("p1"), 1);
+      await trashProject(db, id, "p1", 2);
+      await deleteFolder(db, id, "f1");
+      await restoreProject(db, id, "p1");
+    });
+    // A second tab, on the same server render, files too before the first one's saves land.
+    vi.resetModules();
+    const other = await import("./workspace-store");
+    const otherNotices: string[] = [];
+    other.subscribeNotices((message) => otherNotices.push(message));
+    other.connectWorkspace(start);
+    await Promise.all([store.whenSaved(), other.whenSaved()]);
+
+    expect((await listFolders(db, owner.workspaceId)).map((folder) => folder.name)).toEqual([
+      "Restored projects",
+    ]);
+    expect([...notices, ...otherNotices]).toEqual([]);
+  });
+
   it("uploads a file once its project is saved, and reads it back by its logical key", async () => {
     const { store, actions } = await connected();
     const project = actions.createProject({

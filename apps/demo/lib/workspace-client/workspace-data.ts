@@ -5,6 +5,11 @@ import type { ShareLink, WorkspaceData, WorkspaceProject } from "../workspace/ty
 
 /** Where a project without a folder goes when the workspace has no folder at all. */
 export const RESTORED_FOLDER_NAME = "Restored projects";
+/**
+ * That folder's id, the same in every tab, so tabs filing the same projects
+ * at once make one folder: the second create finds it there (409, done).
+ */
+export const RESTORED_FOLDER_ID = "restored-projects";
 
 /**
  * Stands in for a null `folderId` (a trashed project restored after its
@@ -68,15 +73,16 @@ export function projectsMissingLinks(
 /**
  * Files projects that sit in no folder: into the oldest folder, or into a new
  * "Restored projects" folder when there is none. Empty when every project
- * has a folder.
+ * has a folder. Idempotent across tabs: the same data files the same way, and
+ * moving a project where it already is changes nothing.
  */
-export function fileOrphans(data: SquintData, now: number, newId: () => string): Action[] {
+export function fileOrphans(data: SquintData, now: number): Action[] {
   const folderIds = new Set(data.folders.map((folder) => folder.id));
   const orphans = data.projects.filter((project) => !folderIds.has(project.folderId));
   if (orphans.length === 0) return [];
   const existing = sortedFolders(data)[0];
   const home: Folder = existing ?? {
-    id: newId(),
+    id: RESTORED_FOLDER_ID,
     name: RESTORED_FOLDER_NAME,
     createdAt: now,
     parentId: null,

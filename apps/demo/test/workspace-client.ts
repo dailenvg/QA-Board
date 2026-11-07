@@ -44,11 +44,12 @@ export async function connectedWorkspace(
   const actions = await import("@/lib/store/actions");
   const notices: string[] = [];
   store.subscribeNotices((message) => notices.push(message));
-  store.connectWorkspace({ data: (await snapshot.json()) as WorkspaceData, links: [] });
+  const start = { data: (await snapshot.json()) as WorkspaceData, links: [] };
+  store.connectWorkspace(start);
   const data = () => {
     const state = store.getWorkspaceState();
     if (state.status !== "ready") throw new Error(`workspace ${state.status}`);
     return state.data;
   };
-  return { db, owner, store, actions, notices, data };
+  return { db, owner, store, actions, notices, data, start };
 }

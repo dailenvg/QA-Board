@@ -99,7 +99,8 @@ export function writesFor(action: Action, before: SquintData, after: SquintData)
   switch (action.type) {
     case "folder/create": {
       const { id, name, parentId, createdAt } = action.folder;
-      return [write("POST", "/folders", { id, name, parentId, createdAt })];
+      // A 409 is this very folder (ids are unique): made by a retry, or another tab filing.
+      return [write("POST", "/folders", { id, name, parentId, createdAt }, [409])];
     }
     case "folder/rename":
       return [write("PATCH", folderPath(action.id), { name: action.name })];

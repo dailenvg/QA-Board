@@ -4,6 +4,7 @@ import type { WorkspaceData, WorkspaceProject } from "../workspace/types";
 import {
   fileOrphans,
   projectsMissingLinks,
+  RESTORED_FOLDER_ID,
   RESTORED_FOLDER_NAME,
   toSquintData,
 } from "./workspace-data";
@@ -68,7 +69,7 @@ describe("toSquintData", () => {
 describe("fileOrphans", () => {
   it("files a project without a folder into the oldest folder", () => {
     const data = toSquintData(workspace([project("p1", null)]), new Map());
-    const actions = fileOrphans(data, 50, () => "unused");
+    const actions = fileOrphans(data, 50);
     expect(actions).toEqual([{ type: "project/move", id: "p1", folderId: "older", at: 50 }]);
     const filed = actions.reduce(reduce, data);
     expect(filed.projects[0]?.folderId).toBe("older");
@@ -76,15 +77,15 @@ describe("fileOrphans", () => {
 
   it("makes a folder for them when the workspace has none", () => {
     const data = toSquintData(workspace([project("p1", null)], false), new Map());
-    const filed = fileOrphans(data, 50, () => "made").reduce(reduce, data);
+    const filed = fileOrphans(data, 50).reduce(reduce, data);
     expect(filed.folders).toEqual([
-      { id: "made", name: RESTORED_FOLDER_NAME, createdAt: 50, parentId: null },
+      { id: RESTORED_FOLDER_ID, name: RESTORED_FOLDER_NAME, createdAt: 50, parentId: null },
     ]);
-    expect(filed.projects[0]?.folderId).toBe("made");
+    expect(filed.projects[0]?.folderId).toBe(RESTORED_FOLDER_ID);
   });
 
   it("does nothing when every project has a folder", () => {
     const data = toSquintData(workspace([project("p1", "newer")]), new Map());
-    expect(fileOrphans(data, 50, () => "unused")).toEqual([]);
+    expect(fileOrphans(data, 50)).toEqual([]);
   });
 });

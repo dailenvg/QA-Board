@@ -1,6 +1,5 @@
 import { emitSquiggy } from "../squiggy/events";
 import { call, jsonInit } from "../share-client/api";
-import { newId } from "../store/id";
 import { reduce, type Action } from "../store/reducer";
 import type { SquintData } from "../store/types";
 import type { ShareLink, WorkspaceData, WorkspaceStart } from "../workspace/types";
@@ -179,7 +178,7 @@ export function whenSaved(): Promise<void> {
 
 function fileProjects(): void {
   if (state.status !== "ready") return;
-  for (const action of fileOrphans(state.data, Date.now(), newId)) dispatchToWorkspace(action);
+  for (const action of fileOrphans(state.data, Date.now())) dispatchToWorkspace(action);
 }
 
 /** Fetches the secrets of review links this tab hasn't seen (made in another tab). */
