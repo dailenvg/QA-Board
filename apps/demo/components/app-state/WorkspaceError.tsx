@@ -1,13 +1,13 @@
 "use client";
 
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { loginHref } from "@/lib/auth/next-path";
-import { useRevealVariants } from "@/lib/motion";
+import { press, useRevealVariants } from "@/lib/motion";
 import { Squiggy } from "../brand/mascot/Squiggy";
 import { Button } from "../ui/Button";
-import { ButtonLink } from "../ui/ButtonLink";
+import { buttonClass } from "../ui/button-styles";
 import { Icon } from "../ui/Icon";
 
 /**
@@ -34,12 +34,19 @@ const COPY: Record<WorkspaceErrorReason, { title: string; body: string }> = {
 /** The way back: sign in again, or reload the page (with a busy state while it does). */
 function Recovery({ reason }: { reason: WorkspaceErrorReason }) {
   const pathname = usePathname();
+  const reduce = useReducedMotion();
   const [reloading, setReloading] = useState(false);
   if (reason === "signed-out") {
+    // A full page load, not a client navigation: nothing of the ended session carries over.
     return (
-      <ButtonLink href={loginHref(pathname)} testId="workspace-sign-in">
+      <motion.a
+        href={loginHref(pathname)}
+        className={buttonClass()}
+        {...(reduce ? {} : press)}
+        data-testid="workspace-sign-in"
+      >
         Sign in again
-      </ButtonLink>
+      </motion.a>
     );
   }
   return (

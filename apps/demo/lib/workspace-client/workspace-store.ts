@@ -49,6 +49,11 @@ const OK: Result = { ok: true, value: undefined };
 const UNAVAILABLE = "That change didn't save. Reload the page and try again.";
 /** The same notice again within this long is shown once. */
 const NOTICE_REPEAT_MS = 3_000;
+/**
+ * A server render this soon after one of this tab's saves may predate it:
+ * read the server again rather than show the render.
+ */
+const RECENT_SAVE_MS = 10_000;
 
 let connection: Connection | null = null;
 let state: WorkspaceState = LOADING;
@@ -63,6 +68,17 @@ let pending = 0;
 let changes = 0;
 let reading: Promise<void> | null = null;
 let readAgain = false;
+/** When this tab last finished saving something. */
+let lastSavedAt = 0;
+/** Each server render's state, made once: the same object on the server, in hydration and after. */
+const startStates = new WeakMap<WorkspaceStart, WorkspaceState>();
+/** Server renders this tab has shown; the router can hand an old one in again (back and forward). */
+const shown = new WeakSet<WorkspaceStart>();
+/** Settles once this tab first connects: images asked for in hydration wait for it. */
+let markConnected: () => void = () => {};
+const firstConnection = new Promise<void>((resolve) => {
+  markConnected = resolve;
+});
 
 function emit(): void {
   for (const listener of listeners) listener();
@@ -128,7 +144,10 @@ async function run(target: Connection, job: Job): Promise<Result> {
     if (!job.quiet) notice(error);
     return { ok: false, error };
   }
-  if (job.writes.length > 0) target.tabs.announce();
+  if (job.writes.length > 0) {
+    lastSavedAt = Date.now();
+    target.tabs.announce();
+  }
   return OK;
 }
 
@@ -205,8 +224,9 @@ async function read(target: Connection): Promise<void> {
     return;
   }
   await fetchLinks(target, result.value);
-  if (connection !== target || state.status === "error") return;
-  if (pending > 0 || changes !== seen) {
+  if (connection !== target) return;
+  // A read that works after an error means the session is back (signed in again): show it.
+  if (state.status !== "error" && (pending > 0 || changes !== seen)) {
     // A change of this tab's is newer than what was read: read again once it's saved.
     readAgain = true;
     return;
@@ -239,27 +259,58 @@ export function refreshWorkspace(): Promise<void> {
 }
 
 /**
- * Starts this tab on the workspace the server rendered. Already on it (moving
- * between the dashboard and the viewer): keeps what's here, which may hold
- * changes still on their way, and reads the server again instead.
+ * The state a server render shows, before any tab has connected: what the
+ * server and the first client render show (`useSquint`), so neither waits
+ * on a loading state. The same object every time for the same render.
+ */
+export function startState(start: WorkspaceStart): WorkspaceState {
+  let found = startStates.get(start);
+  if (!found) {
+    const links = new Map(start.links.map((link) => [link.id, link]));
+    found = { status: "ready", data: toSquintData(start.data, links) };
+    startStates.set(start, found);
+  }
+  return found;
+}
+
+/** Shows a server render on `target`, taking in its review links. */
+function adopt(target: Connection, start: WorkspaceStart): void {
+  for (const link of start.links) target.links.set(link.id, link);
+  changes += 1;
+  state = startState(start);
+  emit();
+  target.blobs.retryMissing();
+  fileProjects();
+}
+
+/**
+ * Starts this tab on the workspace the server rendered, or moves it on to a
+ * newer render of it (the dashboard to the viewer, or back from signing in
+ * again), so the page doesn't read it a second time. Keeps what's here
+ * instead, and reads the server again, when the render may be older: one
+ * shown before (restored by back or forward), or one rendered while this
+ * tab's changes were on their way. After an error, a new render always wins.
  */
 export function connectWorkspace(start: WorkspaceStart): void {
   const { workspace } = start.data;
+  const fresh = !shown.has(start);
+  shown.add(start);
   if (connection?.workspaceId === workspace.id) {
-    void refreshWorkspace();
+    const saving = pending > 0 || Date.now() - lastSavedAt < RECENT_SAVE_MS;
+    if (!fresh) void refreshWorkspace();
+    else if (state.status !== "error" && saving) void whenSaved().then(refreshWorkspace);
+    else adopt(connection, start);
     return;
   }
   connection?.tabs.close();
-  const links = new Map(start.links.map((link) => [link.id, link]));
   connection = {
     workspaceId: workspace.id,
     blobs: createWorkspaceBlobs(workspace.id, locate),
     tabs: openTabSync(workspace.id, () => void refreshWorkspace()),
-    links,
+    links: new Map(),
   };
-  changes += 1;
-  setData(toSquintData(start.data, links));
-  fileProjects();
+  adopt(connection, start);
+  markConnected();
 }
 
 export function getWorkspaceState(): WorkspaceState {
@@ -285,4 +336,12 @@ export function connectedWorkspaceId(): string | null {
 /** The connected workspace's images; null before the first signed-in page. */
 export function workspaceBlobs(): WorkspaceBlobs | null {
   return connection?.blobs ?? null;
+}
+
+/** The connected workspace's images, once this tab has connected. */
+export async function connectedBlobs(): Promise<WorkspaceBlobs> {
+  await firstConnection;
+  const blobs = workspaceBlobs();
+  if (!blobs) throw new Error("Connected without images.");
+  return blobs;
 }

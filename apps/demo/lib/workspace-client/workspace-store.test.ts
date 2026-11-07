@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type * as DatabaseModule from "@/lib/db/database";
 import { connectedWorkspace, type Intercept } from "@/test/workspace-client";
-import { PNG, URL_PROJECT } from "@/test/workspace-fixture";
+import { PNG, URL_PROJECT, type Seat } from "@/test/workspace-fixture";
+import { call } from "@/test/workspace-routes";
 import type { Database } from "../db/database";
 import { deleteFolder, listFolders } from "../workspace/folders";
 import { addComment } from "../workspace/comments";
 import { createProject, listProjects, restoreProject, trashProject } from "../workspace/projects";
-import type { WorkspaceData } from "../workspace/types";
+import type { WorkspaceData, WorkspaceStart } from "../workspace/types";
 
 const holder = vi.hoisted(() => ({ db: null as Database | null }));
 
@@ -23,6 +24,14 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
 });
+
+/** The workspace as the server renders a page of it now, for `owner`. */
+async function render(owner: Seat): Promise<WorkspaceStart> {
+  const response = await call("GET", `/api/w/${owner.workspaceId}/snapshot`, {
+    cookie: owner.cookie,
+  });
+  return { data: (await response.json()) as WorkspaceData, links: [] };
+}
 
 /** A connected store; requests go through `intercept` while it's set. */
 const connected = (setUp?: (db: Database, workspaceId: string) => Promise<void>) =>
@@ -195,11 +204,65 @@ describe("the workspace store", () => {
     expect(data().comments[0]).toMatchObject({ pageId: page?.id, x: 12, y: 40 });
   });
 
-  it("shows the signed-out state once the session is gone", async () => {
-    const { db, store, actions } = await connected();
+  it("shows the signed-out state once the session is gone, and the workspace once back", async () => {
+    const { db, owner, store, actions, data } = await connected();
+    const { rows } = await db.query<Record<string, unknown>>("SELECT * FROM sessions");
     await db.query("DELETE FROM sessions");
     actions.renameFolder("f1", "Late");
     await store.whenSaved();
     expect(store.getWorkspaceState()).toEqual({ status: "error", reason: "signed-out" });
+
+    // Signed in again (the session is back) and the page renders the workspace anew.
+    const [session] = rows;
+    await db.query("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ($1, $2, $3)", [
+      session?.token_hash,
+      session?.user_id,
+      session?.expires_at,
+    ]);
+    store.connectWorkspace(await render(owner));
+    expect(store.getWorkspaceState().status).toBe("ready");
+    expect(data().folders[0]?.name).toBe("f1");
+  });
+
+  it("recovers from the signed-out state on a read that works", async () => {
+    const { store } = await connected();
+    intercept = (request) =>
+      request.url.endsWith("/snapshot")
+        ? Promise.resolve(Response.json({ error: "unauthenticated" }, { status: 401 }))
+        : null;
+    await store.refreshWorkspace();
+    expect(store.getWorkspaceState()).toEqual({ status: "error", reason: "signed-out" });
+    intercept = null;
+    await store.refreshWorkspace();
+    expect(store.getWorkspaceState().status).toBe("ready");
+  });
+
+  it("moves on to a newer server render without reading the workspace again", async () => {
+    const { db, owner, store, data } = await connected();
+    await createProject(db, owner.workspaceId, URL_PROJECT("p9"), 1);
+    const next = await render(owner);
+    const reads: string[] = [];
+    intercept = (request) => {
+      reads.push(new URL(request.url).pathname);
+      return null;
+    };
+    store.connectWorkspace(next);
+    expect(data().projects.map((project) => project.id)).toEqual(["p9"]);
+    expect(store.getWorkspaceState()).toBe(store.startState(next));
+    await store.whenSaved();
+    expect(reads).toEqual([]);
+  });
+
+  it("never lets an older server render undo this tab's changes", async () => {
+    const { owner, store, actions, data, start } = await connected();
+    const before = await render(owner);
+    actions.renameFolder("f1", "Mine");
+    // A render from before the rename, handed in while it's being saved, and one shown already.
+    store.connectWorkspace(before);
+    store.connectWorkspace(start);
+    expect(data().folders[0]?.name).toBe("Mine");
+    await store.whenSaved();
+    await store.refreshWorkspace();
+    expect(data().folders[0]?.name).toBe("Mine");
   });
 });
