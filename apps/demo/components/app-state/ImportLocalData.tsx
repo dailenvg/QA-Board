@@ -21,7 +21,7 @@ import { ImportOffer } from "./import/ImportOffer";
 import { ImportProgressView } from "./import/ImportProgressView";
 import { ImportSummary } from "./import/ImportSummary";
 import { UnreadableLocalData } from "./import/UnreadableLocalData";
-import { DISCARDED_TOAST, dialogText } from "./import/import-copy";
+import { DISCARDED_TOAST, dialogText, progressLine } from "./import/import-copy";
 
 interface ImportLocalDataProps {
   workspaceId: string;
@@ -50,6 +50,17 @@ function closeAction(state: Shown): (() => void) | null {
 /** The key AnimatePresence swaps views by: the discarding view is the confirm view, busy. */
 const stepKey = (state: Shown) => (state.view === "discarding" ? "confirm-discard" : state.view);
 
+/**
+ * What the status region tracks: the view, and while importing, its stage
+ * (projects, then images). Before the first progress report counts as the
+ * projects stage, so starting an import is announced once.
+ */
+function announcedKey(state: LocalImportState): string | null {
+  if (state.view === "hidden") return null;
+  const key = stepKey(state);
+  return state.view === "importing" ? `${key}:${state.progress?.stage ?? "projects"}` : key;
+}
+
 /** A view's title and description as one sentence pair for the live region. */
 function spoken({ title, description }: { title: string; description: string }): string {
   return /[.?!…]$/.test(title) ? `${title} ${description}` : `${title}. ${description}`;
@@ -70,14 +81,20 @@ export function ImportLocalData({ workspaceId, workspaceName }: ImportLocalDataP
   if (state.view !== "hidden" && state !== shown) setShown(state);
   // The first view is read as the dialog opens. Each later one replaces the focused control and
   // moves focus to its own, which is all a screen reader would say: announce its title and
-  // description too, so a failure's reason or the summary isn't missed.
-  const key = state.view === "hidden" ? null : stepKey(state);
+  // description too, so a failure's reason or the summary isn't missed. While importing, each
+  // new stage is announced by its first line ("Uploading 6 images…"), never each file.
+  const key = announcedKey(state);
   const [lastKey, setLastKey] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
   if (key !== lastKey) {
     setLastKey(key);
+    const sameView = lastKey?.split(":")[0] === key?.split(":")[0];
     setAnnouncement(
-      lastKey !== null && state.view !== "hidden" ? spoken(dialogText(state, workspaceName)) : "",
+      lastKey === null || state.view === "hidden"
+        ? ""
+        : sameView && state.view === "importing"
+          ? progressLine(state.progress)
+          : spoken(dialogText(state, workspaceName)),
     );
   }
 
