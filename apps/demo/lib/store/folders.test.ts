@@ -7,7 +7,7 @@ import {
   folderMoveProblem,
   subtreeIds,
 } from "./folders";
-import { reduce, REVOKE_GRACE_MS } from "./reducer";
+import { reduce } from "./reducer";
 import type { Comment, Folder, Project, SquintData } from "./types";
 
 const folder = (id: string, parentId: string | null, createdAt: number): Folder => ({
@@ -61,7 +61,6 @@ const DATA: SquintData = {
   ],
   comments: [comment("1", "p-b"), comment("2", "p-c"), comment("3", "p-c"), comment("4", "p-d")],
   snapshots: [],
-  revocations: [],
   authorName: null,
 };
 
@@ -127,17 +126,11 @@ describe("folders in the reducer", () => {
     expect(reduce(DATA, { type: "folder/move", id: "a", parentId: "a" })).toBe(DATA);
   });
 
-  it("deletes a folder with everything inside it, revoking shared links at once", () => {
+  it("deletes a folder with everything inside it", () => {
     const deleted = reduce(DATA, { type: "folder/delete", id: "a", at: 7 });
     expect(deleted.folders.map((entry) => entry.id).sort()).toEqual(["d", "e"]);
     expect(deleted.projects.map((entry) => entry.id)).toEqual(["p-d"]);
     expect(deleted.comments.map((entry) => entry.id)).toEqual(["4"]);
-    expect(deleted.revocations).toEqual([
-      { shareId: "s-p-b", ownerKey: "k", projectId: "p-b", dueAt: 7 },
-      { shareId: "s-p-c", ownerKey: "k", projectId: "p-c", dueAt: 7 },
-    ]);
-    // Due now, not after the grace a project delete's Undo gets.
-    expect(deleted.revocations[0]?.dueAt).toBeLessThan(7 + REVOKE_GRACE_MS);
   });
 
   it("never deletes the last folders", () => {

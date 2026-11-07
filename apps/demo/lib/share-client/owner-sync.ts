@@ -1,9 +1,10 @@
-import { getBlob, putBlob } from "../blob-store/blob-store";
 import { snapshotBlobKey } from "../blob-store/keys";
 import { commentsFor } from "../store/selectors";
 import { snapshotsFor } from "../store/snapshots";
 import { dispatch, getSnapshot } from "../store/store";
 import type { Comment, Project, ProjectShare, Snapshot } from "../store/types";
+import { storeWorkspaceBlob } from "../workspace-client/blob-upload";
+import { workspaceBlobs } from "../workspace-client/workspace-store";
 import { ownerApi } from "./api";
 import type { ShareChanges, ShareState } from "../share/types";
 import { batchChange, diffState } from "./diff";
@@ -86,14 +87,14 @@ function stateOf(project: Project) {
   );
 }
 
-/** Uploads the images the server asked for, from this browser's blob store. */
+/** Uploads the images the share asked for, read from the workspace. */
 async function uploadMissing(project: Project, share: ProjectShare, keys: readonly string[]) {
   let done = 0;
   update(project.id, { uploading: keys.length ? { done, total: keys.length } : null });
   for (const key of keys) {
     const local = localBlobKey(key, project);
-    const blob = local ? await getBlob(local) : null;
-    // A missing local image stays missing for clients too; nothing to retry.
+    const blob = local ? await workspaceBlobs()?.get(local) : null;
+    // An image the workspace doesn't have stays missing for clients too; nothing to retry.
     if (blob) {
       const uploaded = await ownerApi.upload(share, key, blob);
       if (!uploaded.ok && uploaded.status !== 413 && uploaded.status !== 422) return false;
@@ -173,14 +174,14 @@ async function sendChanges(
 type Copied = "copied" | "missing" | "retry";
 
 /**
- * Copies a client image into this browser's blob store: "missing" when the
- * server can never send it (a 404 or another permanent answer), "retry" when
- * the failure is temporary (network, server error) or this browser couldn't save it.
+ * Copies a client image into the workspace: "missing" when the share can
+ * never send it (a 404 or another permanent answer), "retry" when the failure
+ * is temporary (network, server error) or the workspace couldn't take it.
  */
-async function copyBlob(share: ProjectShare, key: string): Promise<Copied> {
+async function copyBlob(share: ProjectShare, projectId: string, key: string): Promise<Copied> {
   const fetched = await ownerApi.download(share, key);
   if (!fetched.ok) return fetched.permanent ? "missing" : "retry";
-  return (await putBlob(key, fetched.blob)) ? "copied" : "retry";
+  return (await storeWorkspaceBlob(projectId, key, fetched.blob)).ok ? "copied" : "retry";
 }
 
 /** Merges what arrived. A comment whose crop is gone for good comes without it. */
@@ -188,14 +189,14 @@ async function collect(share: ProjectShare, projectId: string, changes: ShareCha
   let held = false;
   const snapshots: Snapshot[] = [];
   for (const snapshot of changes.snapshots) {
-    const copied = await copyBlob(share, snapshotBlobKey(snapshot.id));
+    const copied = await copyBlob(share, projectId, snapshotBlobKey(snapshot.id));
     if (copied === "retry") held = true;
     // A missing image still merges: the snapshot shows its "not available" state.
     else snapshots.push(fromSharedSnapshot(snapshot, projectId));
   }
   const comments: Comment[] = [];
   for (const comment of changes.comments) {
-    const copied = comment.crop ? await copyBlob(share, `crop:${comment.id}`) : "copied";
+    const copied = comment.crop ? await copyBlob(share, projectId, `crop:${comment.id}`) : "copied";
     if (copied === "retry") {
       held = true;
       continue;
@@ -208,7 +209,8 @@ async function collect(share: ProjectShare, projectId: string, changes: ShareCha
 
 /**
  * Pulls client comments and snapshots added since the last pull, copies their
- * images here, then merges them (idempotent by id). Only a temporary failure
+ * images into the workspace, then merges them (idempotent by id), which saves
+ * them and the new pull position to the workspace too. Only a temporary failure
  * holds the cursor back, so the next pull asks again; an image that can never
  * arrive doesn't stall anything. While anything is held, sync isn't shown as done.
  */

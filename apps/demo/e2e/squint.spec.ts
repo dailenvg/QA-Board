@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test";
 import {
   createImageProject,
   createUrlProject,
@@ -188,21 +188,6 @@ test("an unknown project id shows a way back", async ({ page }) => {
   await expect(page.getByTestId("project-not-found")).toBeVisible();
   await page.getByRole("link", { name: "Back to Overview" }).click();
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(OVERVIEW_HEADLINE.empty);
-});
-
-test("unreadable saved data can be reset without crashing", async ({ page }) => {
-  await page.goto("/sandbox");
-  await page.evaluate(() => localStorage.setItem("squint:v1", "{not json"));
-  await page.goto("/");
-  await expect(
-    page.getByRole("heading", { name: "We couldn't read your saved projects" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Start fresh" }).click();
-  await page
-    .getByRole("dialog", { name: "Start fresh?" })
-    .getByRole("button", { name: "Start fresh" })
-    .click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(OVERVIEW_HEADLINE.empty);
 });
 

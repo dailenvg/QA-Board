@@ -75,7 +75,9 @@ export function ShareDialog({
   // A check only once something has synced; "Not synced yet" keeps the neutral refresh icon.
   const syncIcon: IconName = failing ? "alert" : busy || !synced ? "refresh" : "check";
   const syncTone = failing ? "text-danger" : "text-muted";
-  const linked = Boolean(share && url && !gone);
+  // The store shows a new link before the server has kept it. Hold the link view until it has, so
+  // a refused save doesn't flash a link (and announce "Link created.") and then take it back.
+  const linked = Boolean(share && url && !gone && !creating);
   // Disabled while checking or too big; aria-disabled keeps it focusable, so the reason is read.
   const blocked = creating || fit.status !== "fits";
   const createLabel =
@@ -87,13 +89,18 @@ export function ShareDialog({
           ? "Create a new link"
           : "Create link";
   const linkedView = useRef<HTMLDivElement>(null);
+  const createView = useRef<HTMLDivElement>(null);
   const wasLinked = useRef(linked);
 
-  // Creating the link replaces the focused Create button with the link view. Carry focus
-  // to Copy, so it doesn't fall to the page behind the modal.
+  // Creating the link replaces the focused Create button with the link view; the link going
+  // away (revoked, or gone in another tab) does the reverse. Carry focus to the first button of
+  // whichever view is now shown, so it doesn't fall to the page behind the modal.
   useEffect(() => {
-    if (open && linked && !wasLinked.current) {
-      linkedView.current?.querySelector<HTMLElement>("button")?.focus();
+    if (open && linked !== wasLinked.current) {
+      const view = linked ? linkedView.current : createView.current;
+      if (view && !view.contains(document.activeElement)) {
+        view.querySelector<HTMLElement>("button")?.focus();
+      }
     }
     wasLinked.current = linked;
   }, [open, linked]);
@@ -110,7 +117,7 @@ export function ShareDialog({
       <p role="status" className="sr-only">
         {linked ? "Link created." : ""}
       </p>
-      {share && url && !gone ? (
+      {linked && share && url ? (
         <div ref={linkedView} className="flex flex-col gap-4">
           <CopyLinkField
             url={url}
@@ -151,7 +158,7 @@ export function ShareDialog({
           </div>
         </div>
       ) : (
-        <div className="flex flex-col items-start gap-3">
+        <div ref={createView} className="flex flex-col items-start gap-3">
           {gone ? (
             <p role="alert" className="text-body text-muted">
               This project&apos;s share link no longer works. It was revoked, or the server no

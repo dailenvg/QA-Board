@@ -22,7 +22,7 @@ export interface EncodedPicture {
 export type ImageResult =
   { ok: true; blob: Blob; width: number; height: number } | { ok: false; error: string };
 
-const TOO_DETAILED = "That image is too detailed to store in this browser. Try a smaller one.";
+const TOO_DETAILED = "That image is too detailed to save. Try a smaller one.";
 const UNREADABLE = "That image couldn't be read. Try another file.";
 const NO_CANVAS = "This browser couldn't process the image. Try again in a different browser.";
 

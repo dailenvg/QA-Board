@@ -1,4 +1,5 @@
 import { useReducedMotion } from "motion/react";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import { pagesOf } from "@/lib/store/pages";
 import type { Page, Project } from "@/lib/store/types";
@@ -18,8 +19,8 @@ export interface ViewerPage {
 const PAGE_PARAM = "page";
 
 /** The page a `?page=<n>` deep link asks for, if it's one of `pages`. */
-function linkedPage(pages: readonly Page[]): string | null {
-  const wanted = Number(new URLSearchParams(window.location.search).get(PAGE_PARAM));
+function linkedPage(pages: readonly Page[], search: URLSearchParams): string | null {
+  const wanted = Number(search.get(PAGE_PARAM));
   return Number.isInteger(wanted) ? (pages[wanted - 1]?.id ?? null) : null;
 }
 
@@ -47,8 +48,12 @@ export function useViewerPage(
   scroller: () => HTMLElement | null,
 ): ViewerPage {
   const reduce = useReducedMotion();
+  const search = useSearchParams();
   const pages = pagesOf(project);
-  const [pageId, setPageId] = useState<string | null>(() => initialPageId ?? linkedPage(pages));
+  // From the router, not `window`: the server renders the viewer too.
+  const [pageId, setPageId] = useState<string | null>(
+    () => initialPageId ?? linkedPage(pages, new URLSearchParams(search.toString())),
+  );
   const index = Math.max(
     0,
     pages.findIndex((page) => page.id === pageId),

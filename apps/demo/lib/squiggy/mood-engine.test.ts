@@ -48,7 +48,6 @@ const data = (projects: Project[], comments: Comment[]): SquintData => ({
   projects,
   comments,
   snapshots: [],
-  revocations: [],
   authorName: null,
 });
 

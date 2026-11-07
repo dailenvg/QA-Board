@@ -148,19 +148,6 @@ export interface Comment {
   crop?: CommentCrop;
 }
 
-/**
- * A deleted project's share, still to be revoked on the server. Kept until
- * the server confirms, so a failed revoke is retried on the next load.
- */
-export interface PendingRevocation {
-  shareId: string;
-  ownerKey: string;
-  /** The deleted project; an Undo cancels this. */
-  projectId: string;
-  /** When the delete is final: when its Undo is no longer offered (or a fallback a minute later). */
-  dueAt: number;
-}
-
 export interface SquintData {
   /**
    * 3 since image projects hold pages and folders nest. Version 2 (images in
@@ -172,8 +159,6 @@ export interface SquintData {
   comments: Comment[];
   /** Added after version 1 shipped; saved data without it loads with none. */
   snapshots: Snapshot[];
-  /** Shares of deleted projects still to revoke. Missing in older data. */
-  revocations: PendingRevocation[];
   /** Name used for new comments; asked once, then remembered. */
   authorName: string | null;
 }

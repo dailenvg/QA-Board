@@ -6,8 +6,8 @@ import { signIn } from "./auth-fixtures";
 
 /**
  * Signs in once through /login as the e2e workspace owner and saves the
- * session cookie for every project. Cookies only: each test still starts with
- * empty localStorage, as the dashboard specs expect.
+ * session cookie for every project. Cookies only; each test empties the
+ * workspace itself first (`e2e/test.ts`).
  */
 setup("sign in as the e2e workspace owner", async ({ page }) => {
   await page.goto("/login");

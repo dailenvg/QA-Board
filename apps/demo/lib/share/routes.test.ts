@@ -8,9 +8,12 @@ import * as ownerBlobRoute from "@/app/api/shares/[shareId]/blobs/[key]/route";
 import * as changesRoute from "@/app/api/shares/[shareId]/changes/route";
 import * as createRoute from "@/app/api/shares/route";
 import { PNG, STATE } from "@/test/share-fixture";
+import { session } from "@/test/signed-in";
 import { OWNER_KEY_HEADER } from "./http";
 import { REVIEW_WINDOW_MS } from "./review-window";
 import type { CreatedShare } from "./service";
+
+vi.mock("@/lib/auth/guards", () => import("@/test/signed-in").then((m) => m.signedInGuards));
 
 let ip = 0;
 /** Each request from its own address, so the per-IP limits don't interfere. */
@@ -99,6 +102,28 @@ async function statuses(calls: Record<string, () => Promise<Response>>) {
 }
 
 describe("share routes: permissions", () => {
+  it("creating a link needs a session, from this site; existing links keep working", async () => {
+    const share = await create();
+    session.signedIn = false;
+    try {
+      const anonymous = await createRoute.POST(
+        request("/api/shares", { method: "POST", body: JSON.stringify(STATE) }),
+      );
+      expect(anonymous.status).toBe(401);
+      expect((await clientCalls(share.token).view()).status).toBe(200);
+    } finally {
+      session.signedIn = true;
+    }
+    const crossSite = await createRoute.POST(
+      request("/api/shares", {
+        method: "POST",
+        headers: { origin: "https://evil.example", host: "localhost" },
+        body: JSON.stringify(STATE),
+      }),
+    );
+    expect(crossSite.status).toBe(403);
+  });
+
   it("owner routes need the owner key; the share token or nothing gets a plain 404", async () => {
     const share = await create();
     const notFound = { push: 404, pull: 404, upload: 404, download: 404, revoke: 404 };

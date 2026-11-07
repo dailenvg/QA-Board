@@ -1,6 +1,6 @@
 import { Skeleton } from "../ui/Skeleton";
 
-/** Sidebar placeholder while browser storage is read. The page beside it announces the loading. */
+/** Sidebar placeholder while the workspace loads. The page beside it announces the loading. */
 export function SidebarSkeleton() {
   return (
     <div

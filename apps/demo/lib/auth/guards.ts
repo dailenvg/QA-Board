@@ -42,6 +42,23 @@ export async function apiSession(): Promise<
 
 const NO_STORE = { "cache-control": "no-store" };
 
+const unauthenticated = () =>
+  Response.json({ error: "unauthenticated" }, { status: 401, headers: NO_STORE });
+
+/**
+ * For route handlers outside a workspace: the signed-in user, read from
+ * `request`'s cookie (no request scope needed), or the JSON 401 to answer with.
+ */
+export async function apiSignedIn(
+  request: Request,
+): Promise<{ ok: true; user: SessionUser } | { ok: false; response: Response }> {
+  const token = sessionTokenOf(request.headers.get("cookie"));
+  const pending = database();
+  const db = pending && (await pending);
+  const user = token && db ? await readSession(db, token, Date.now()) : null;
+  return user ? { ok: true, user } : { ok: false, response: unauthenticated() };
+}
+
 export type ApiMember =
   | { ok: true; db: Database; user: SessionUser; membership: Membership }
   | { ok: false; response: Response };
@@ -60,12 +77,7 @@ export async function apiMember(request: Request, workspaceId: string): Promise<
   const pending = database();
   const db = pending && (await pending);
   const user = token && db ? await readSession(db, token, Date.now()) : null;
-  if (!db || !user) {
-    return {
-      ok: false,
-      response: Response.json({ error: "unauthenticated" }, { status: 401, headers: NO_STORE }),
-    };
-  }
+  if (!db || !user) return { ok: false, response: unauthenticated() };
   const membership = await findMembership(db, user.id, workspaceId);
   if (!membership) {
     return {

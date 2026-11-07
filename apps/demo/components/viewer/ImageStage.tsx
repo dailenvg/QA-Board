@@ -26,8 +26,8 @@ function ImageUnavailable({ onReplace }: { onReplace: ScreenshotHandler | null }
         {/* No onReplace: a shared link, where the image comes from the server. */}
         {onReplace ? (
           <p className="text-body text-muted">
-            It may be damaged, or it was removed from this browser&apos;s storage. Upload it again
-            to keep reviewing.
+            It may be damaged, or the server couldn&apos;t send it. Upload it again to keep
+            reviewing.
           </p>
         ) : (
           <p className="text-body text-muted">

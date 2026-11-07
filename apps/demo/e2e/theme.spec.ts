@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test";
 
 test("the theme toggle switches to dark and persists across reloads", async ({ page }) => {
   await page.goto("/");

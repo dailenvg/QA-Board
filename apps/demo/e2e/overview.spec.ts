@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
+import { expect, test } from "./test";
 import {
   addDefaultFolder,
   DEFAULT_FOLDER,
@@ -11,6 +12,7 @@ import {
   seedWorkspace,
   sheetLift,
 } from "./squint-fixtures";
+import type { Project, ProjectSource, SquintData } from "../lib/store/types";
 import { WORKSPACE_SEED } from "./workspace-seed";
 
 function overviewLink(page: Page): Locator {
@@ -330,7 +332,7 @@ test("folder sheets are previews, never tiny targets, at rest or fanned", async 
 }) => {
   // Four picture projects in one folder and two in a subfolder: the stacks axe used to flag.
   const now = Date.now();
-  const pages = (id: string) => ({
+  const pages = (id: string): ProjectSource => ({
     kind: "pages",
     origin: "image",
     fileName: `${id}.png`,
@@ -338,7 +340,7 @@ test("folder sheets are previews, never tiny targets, at rest or fanned", async 
       { id: `${id}-p`, blobKey: `page:${id}-p`, name: `${id}.png`, width: 1600, height: 1000 },
     ],
   });
-  const project = (id: string, folderId: string, index: number) => ({
+  const project = (id: string, folderId: string, index: number): Project => ({
     id,
     folderId,
     name: `Project ${id}`,
@@ -346,7 +348,7 @@ test("folder sheets are previews, never tiny targets, at rest or fanned", async 
     createdAt: now + index,
     updatedAt: now + index,
   });
-  const data = {
+  const data: SquintData = {
     version: 3,
     folders: [
       { id: DEFAULT_FOLDER.id, name: DEFAULT_FOLDER.name, createdAt: now - 10, parentId: null },
@@ -359,11 +361,9 @@ test("folder sheets are previews, never tiny targets, at rest or fanned", async 
     ],
     comments: [],
     snapshots: [],
-    revocations: [],
     authorName: null,
   };
-  await page.goto("/sandbox");
-  await page.evaluate((seed) => localStorage.setItem("squint:v3", JSON.stringify(seed)), data);
+  await seedWorkspace(page, data);
 
   for (const path of ["/", "/f/fa"]) {
     await page.goto(path);

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test";
 import { TOKEN } from "./fixtures";
 
 test("/review-link shows the shareable URL and copies it", async ({ page, context, baseURL }) => {

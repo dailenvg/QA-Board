@@ -170,3 +170,25 @@ export async function projectShareIds(
   );
   return rows.map((row) => row.id);
 }
+
+/**
+ * Whether a guest posted comment `commentId` on the review link of the
+ * workspace's project: the only comments a member may save as a guest's
+ * (without an author account), so nobody can pass their own, or another
+ * member's, off as one.
+ */
+export async function isGuestComment(
+  db: Queryable,
+  workspaceId: string,
+  projectId: string,
+  commentId: string,
+): Promise<boolean> {
+  const { rows } = await db.query(
+    `SELECT 1 FROM project_share_links AS link
+     JOIN squint_share_comments AS comment ON comment.share_id = link.share_id
+     WHERE link.workspace_id = $1 AND link.project_id = $2
+       AND comment.id = $3 AND comment.origin = 'client'`,
+    [workspaceId, projectId, commentId],
+  );
+  return rows.length === 1;
+}

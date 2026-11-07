@@ -4,8 +4,6 @@ import type { MenuItem } from "../ui/Menu";
 
 export interface Workspace {
   data: SquintData;
-  /** False when the browser blocks storage; changes then last for this visit only. */
-  persistent: boolean;
   /** Oldest first, as in the sidebar. Empty until the person creates their first folder. */
   folders: readonly Folder[];
   /**
@@ -31,7 +29,7 @@ export interface Workspace {
   leavingFolderId: string | null;
 }
 
-/** Null until browser storage has been read. */
+/** Null until the workspace has loaded. */
 export const WorkspaceContext = createContext<Workspace | null>(null);
 
 /** The workspace's data and shared actions; null while the store is still loading. */

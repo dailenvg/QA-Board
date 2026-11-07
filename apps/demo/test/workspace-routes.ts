@@ -66,8 +66,8 @@ export interface CallInit {
   headers?: Record<string, string>;
 }
 
-/** Calls the handler for `method path` (`/api/w/<id>/…`) as Next.js would, from a same-site browser. */
-export async function call(method: string, path: string, init: CallInit = {}): Promise<Response> {
+/** The handler for `method` at `path` (`/api/w/<id>/…`), with its params; null when there's none. */
+function resolve(method: string, path: string) {
   const segments = path
     .replace(/^\/api\/w\//, "")
     .replace(/\?.*$/, "")
@@ -83,25 +83,64 @@ export async function call(method: string, path: string, init: CallInit = {}): P
       return part.startsWith(":") || part === value;
     });
     const handler = module[method] as Handler | undefined;
-    if (!matches || !handler) continue;
-    const { body } = init;
-    const encoded =
-      body === undefined || body instanceof Uint8Array || typeof body === "string"
-        ? (body as BodyInit | undefined)
-        : JSON.stringify(body);
-    const request = new Request(`${ORIGIN}${path}`, {
-      method,
-      headers: {
-        host: "localhost:3000",
-        ...(method === "GET" ? {} : { origin: ORIGIN, "content-type": "application/json" }),
-        ...(init.cookie ? { cookie: init.cookie } : {}),
-        ...init.headers,
-      },
-      body: method === "GET" ? undefined : encoded,
-    });
-    return handler(request, { params: Promise.resolve(params) });
+    if (matches && handler) return { handler, params };
   }
-  throw new Error(`No route for ${method} ${path}`);
+  return null;
+}
+
+/** Calls the handler for `method path` (`/api/w/<id>/…`) as Next.js would, from a same-site browser. */
+export async function call(method: string, path: string, init: CallInit = {}): Promise<Response> {
+  const found = resolve(method, path);
+  if (!found) throw new Error(`No route for ${method} ${path}`);
+  const { body } = init;
+  const encoded =
+    body === undefined || body instanceof Uint8Array || typeof body === "string"
+      ? (body as BodyInit | undefined)
+      : JSON.stringify(body);
+  const request = new Request(`${ORIGIN}${path}`, {
+    method,
+    headers: {
+      host: "localhost:3000",
+      ...(method === "GET" ? {} : { origin: ORIGIN, "content-type": "application/json" }),
+      ...(init.cookie ? { cookie: init.cookie } : {}),
+      ...init.headers,
+    },
+    body: method === "GET" ? undefined : encoded,
+  });
+  return found.handler(request, { params: Promise.resolve(found.params) });
+}
+
+/**
+ * A `fetch` for browser code under test: `/api/w/…` requests go to the
+ * workspace route handlers as a same-site browser signed in with `cookie`
+ * would send them; anything else goes to `others`, with the cookie too.
+ */
+export function workspaceFetch(cookie: string, others: typeof fetch): typeof fetch {
+  return async (input, init) => {
+    const source = new Request(
+      new URL(input instanceof Request ? input.url : input.toString(), ORIGIN),
+      init,
+    );
+    const { pathname, search } = new URL(source.url);
+    const found = pathname.startsWith("/api/w/") ? resolve(source.method, pathname) : null;
+    if (!found) {
+      // Same origin: the browser sends the session cookie to every route.
+      const headers = new Headers(init?.headers);
+      headers.set("cookie", cookie);
+      return others(input, { ...init, headers });
+    }
+    const headers = new Headers(source.headers);
+    headers.set("host", "localhost:3000");
+    headers.set("cookie", cookie);
+    if (source.method !== "GET") headers.set("origin", ORIGIN);
+    const body = source.method === "GET" ? undefined : await source.arrayBuffer();
+    const request = new Request(`${ORIGIN}${pathname}${search}`, {
+      method: source.method,
+      headers,
+      body,
+    });
+    return found.handler(request, { params: Promise.resolve(found.params) });
+  };
 }
 
 /** `route` with its `:name` segments filled in. */

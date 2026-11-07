@@ -261,11 +261,8 @@ describe("parseData", () => {
     expect(broken.data.projects[0]).not.toHaveProperty("share");
   });
 
-  it("reads pending revocations leniently", () => {
+  it("drops the pending revocations older builds kept: the server revokes now", () => {
     const entry = { shareId: "s", ownerKey: "k", projectId: "p", dueAt: 5 };
-    expect(parse({ ...LEGACY_V1, revocations: [entry, { shareId: 1 }] }).data.revocations).toEqual([
-      entry,
-    ]);
-    expect(parse(LEGACY_V1).data.revocations).toEqual([]);
+    expect(parse({ ...LEGACY_V1, revocations: [entry] }).data).not.toHaveProperty("revocations");
   });
 });

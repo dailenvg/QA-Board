@@ -55,6 +55,5 @@ export const WORKSPACE_SEED: SquintData = {
   ],
   comments: [],
   snapshots: [],
-  revocations: [],
   authorName: null,
 };

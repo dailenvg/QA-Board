@@ -1,11 +1,12 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
+import { expect, test } from "./test";
+import { SIGNED_OUT } from "./auth-fixtures";
 import {
   createImageProject,
   createUrlProject,
   hideComments,
   mockCapture,
   mockFrameCheck,
-  OVERVIEW_HEADLINE,
   openFolder,
   postComment,
   showComments,
@@ -66,7 +67,7 @@ test("an owner shares a project, a client comments, and the owner resolves and r
   await page.keyboard.press("Escape");
 
   // Client: a separate browser (its own storage) opens the link.
-  const clientContext = await browser.newContext();
+  const clientContext = await browser.newContext({ storageState: SIGNED_OUT });
   const client = await clientContext.newPage();
   await skipReviewGuide(client);
   await mockFrameCheck(client, frame);
@@ -133,12 +134,13 @@ test("an owner shares a project, a client comments, and the owner resolves and r
   await expect(resolved).toBeVisible();
   await expect(resolved.getByRole("button", { name: /Reopen|Delete comment/ })).toHaveCount(0);
 
-  // The client's own workspace is untouched: a fresh, empty Overview.
+  // The link is all a guest has: the workspace itself asks them to sign in.
   await client.goto("/");
-  await expect(client.getByRole("heading", { level: 1 })).toHaveText(OVERVIEW_HEADLINE.empty);
+  await expect(client).toHaveURL(/\/login/);
 
-  // Owner revokes. A failure says so assertively and offers Retry; then the link is gone.
-  await page.route("**/api/shares/*", (route) =>
+  // Owner revokes (through the workspace). A failure says so assertively and offers Retry;
+  // then the link is gone.
+  await page.route("**/api/w/*/projects/*/share-link", (route) =>
     route.request().method() === "DELETE"
       ? route.fulfill({ status: 500, json: { error: "x" } })
       : route.fallback(),
@@ -154,7 +156,7 @@ test("an owner shares a project, a client comments, and the owner resolves and r
     .getByTestId("toast")
     .filter({ hasText: "couldn't be revoked" });
   await expect(failed).toBeVisible();
-  await page.unroute("**/api/shares/*");
+  await page.unroute("**/api/w/*/projects/*/share-link");
   await failed.getByRole("button", { name: "Retry" }).click();
   await expect(page.getByTestId("toast").filter({ hasText: "Link revoked" })).toBeVisible();
 
@@ -203,7 +205,10 @@ async function sharedProject(
   return link;
 }
 
-test("deleting a shared project revokes its link once Undo is gone", async ({ page, baseURL }) => {
+test("deleting a shared project stops its link, and Undo brings it back", async ({
+  page,
+  baseURL,
+}) => {
   const link = await sharedProject(page, baseURL, "Short-lived");
   expect((await page.request.get(link)).status()).toBe(200);
 
@@ -215,23 +220,13 @@ test("deleting a shared project revokes its link once Undo is gone", async ({ pa
   await expect(confirm).toContainText("share link will stop working");
   await confirm.getByRole("button", { name: "Delete project" }).click();
 
-  // While Undo is offered the link still works; once the toast is gone, it doesn't.
+  // The project is in the workspace's trash: its link answers 404 until it's restored.
   const toast = page.getByTestId("toast").filter({ hasText: "Deleted Short-lived" });
   await expect(toast).toBeVisible();
-  expect((await page.request.get(link)).status()).toBe(200);
-  await expect(toast).toHaveCount(0, { timeout: 10_000 });
-  await expect
-    .poll(async () => (await page.request.get(link)).status(), { timeout: 10_000 })
-    .toBe(404);
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () =>
-          (JSON.parse(localStorage.getItem("squint:v3") ?? "{}") as { revocations: unknown[] })
-            .revocations.length,
-      ),
-    )
-    .toBe(0);
+  await expect.poll(async () => (await page.request.get(link)).status()).toBe(404);
+  await toast.getByRole("button", { name: "Undo" }).click();
+  await expect(card).toBeVisible();
+  await expect.poll(async () => (await page.request.get(link)).status()).toBe(200);
 });
 
 test("a client comment that fails to send keeps its text until Retry gets it through", async ({
@@ -240,7 +235,7 @@ test("a client comment that fails to send keeps its text until Retry gets it thr
   baseURL,
 }) => {
   const link = await sharedProject(page, baseURL, "Flaky network");
-  const clientContext = await browser.newContext();
+  const clientContext = await browser.newContext({ storageState: SIGNED_OUT });
   const client = await clientContext.newPage();
   await skipReviewGuide(client);
   await mockFrameCheck(client, {
@@ -308,7 +303,7 @@ test("an unsent client comment survives a reload, with a warning before leaving"
   baseURL,
 }) => {
   const link = await sharedProject(page, baseURL, "Draft keeper");
-  const clientContext = await browser.newContext();
+  const clientContext = await browser.newContext({ storageState: SIGNED_OUT });
   const client = await clientContext.newPage();
   await skipReviewGuide(client);
   await mockFrameCheck(client, {
@@ -380,7 +375,7 @@ test("an image project is shared as its page, and a client's comment comes back 
   await expect(dialog.getByTestId("sync-status")).toContainText("Synced");
   await page.keyboard.press("Escape");
 
-  const clientContext = await browser.newContext();
+  const clientContext = await browser.newContext({ storageState: SIGNED_OUT });
   const client = await clientContext.newPage();
   await skipReviewGuide(client);
   await client.goto(link);
@@ -407,7 +402,7 @@ test("a client's first visit opens How it works once, and its button opens it ag
   baseURL,
 }) => {
   const link = await sharedProject(page, baseURL, "Guided review");
-  const clientContext = await browser.newContext();
+  const clientContext = await browser.newContext({ storageState: SIGNED_OUT });
   const client = await clientContext.newPage();
   await mockFrameCheck(client, {
     verdict: "embeddable",
@@ -447,7 +442,7 @@ test("once the review window has closed, the link is read-only", async ({
   isMobile,
 }) => {
   const link = await sharedProject(page, baseURL, "Closed review");
-  const clientContext = await browser.newContext();
+  const clientContext = await browser.newContext({ storageState: SIGNED_OUT });
   const client = await clientContext.newPage();
   await skipReviewGuide(client);
   await mockFrameCheck(client, {

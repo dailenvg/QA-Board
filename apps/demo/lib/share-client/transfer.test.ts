@@ -8,6 +8,8 @@ import type { CreatedShare } from "../share/types";
 import { ownerApi } from "./api";
 import { fetchInRanges, isPermanent, type Fetched } from "./transfer";
 
+vi.mock("@/lib/auth/guards", () => import("@/test/signed-in").then((m) => m.signedInGuards));
+
 /** Every body that crossed the "network", to prove none was over the per-request limit. */
 const bodies: number[] = [];
 

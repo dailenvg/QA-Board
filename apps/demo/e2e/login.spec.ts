@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test";
 import { createResetLink, recordUrls, signIn, SIGNED_OUT } from "./auth-fixtures";
 import { E2E_ADMIN, E2E_COMPANY } from "./e2e-env";
 

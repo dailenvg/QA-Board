@@ -131,6 +131,11 @@ export const commentCreateSchema = z.object({
   snapshotId: idSchema.optional(),
   pageId: idSchema.optional(),
   crop: cropSchema.optional(),
+  /**
+   * A guest's comment, pulled from the project's review link: saved without
+   * an author account. Only accepted for a comment a guest posted on that link.
+   */
+  fromShare: z.literal(true).optional(),
 });
 
 export const commentPatchSchema = z
