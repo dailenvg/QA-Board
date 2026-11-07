@@ -4,7 +4,7 @@ import { pagesOf } from "../store/pages";
 import { snapshotsFor } from "../store/snapshots";
 import type { Project, SquintData } from "../store/types";
 
-/** One image the share would hold, as found in this browser. */
+/** One image the share would hold, as the page's blob source has it. */
 export interface ShareImage {
   kind: "page" | "snapshot" | "crop";
   size: number;
@@ -34,7 +34,7 @@ export function shareSizeProblem(images: readonly ShareImage[]): string | null {
   return `This project is too big to share: its images add up to ${megabytes(total)}, and a share link holds up to ${megabytes(SHARE_LIMITS.totalBytes)}. Comment screenshots and earlier snapshots count too: delete comments you no longer need, then try again.`;
 }
 
-/** Every image a share of `project` would upload, by its size in this browser (missing ones skipped). */
+/** Every image a share of `project` would upload, by its size as read (missing ones skipped). */
 export async function shareImages(
   data: SquintData,
   project: Project,

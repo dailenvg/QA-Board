@@ -1,16 +1,29 @@
 import { Suspense, type ReactNode } from "react";
+import { NoWorkspace } from "@/components/app-state/NoWorkspace";
+import { WorkspaceError } from "@/components/app-state/WorkspaceError";
+import { WorkspaceProvider } from "@/components/app-state/WorkspaceProvider";
+import { SignOutButton } from "@/components/auth/SignOutButton";
 import { WelcomeSignal } from "@/components/auth/WelcomeSignal";
-import { requireSession } from "@/lib/auth/guards";
+import { loadSessionWorkspace } from "@/lib/workspace/session-workspace";
 
-/** The project viewer: signed-in users only (the session is checked here, not just its cookie). */
+/**
+ * The project viewer: signed-in members only. The session and the membership are checked here,
+ * and the workspace is read on the server.
+ */
 export default async function ViewerLayout({ children }: { children: ReactNode }) {
-  await requireSession();
+  const session = await loadSessionWorkspace();
   return (
     <>
       <Suspense fallback={null}>
         <WelcomeSignal />
       </Suspense>
-      {children}
+      {session.kind === "ready" ? (
+        <WorkspaceProvider start={session.start}>{children}</WorkspaceProvider>
+      ) : session.kind === "none" ? (
+        <NoWorkspace account={<SignOutButton email={session.user.email} />} />
+      ) : (
+        <WorkspaceError reason="unavailable" />
+      )}
     </>
   );
 }

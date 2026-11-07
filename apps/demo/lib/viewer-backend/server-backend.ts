@@ -1,4 +1,3 @@
-import { deleteBlobs, putBlob } from "../blob-store/blob-store";
 import { cropBlobKey, snapshotBlobKey } from "../blob-store/keys";
 import { CAPTURE_MESSAGES } from "../capture/messages";
 import { requestCapture } from "../capture/request-capture";
@@ -15,17 +14,22 @@ import {
   setCommentStatus,
 } from "../store/actions";
 import { newId } from "../store/id";
+import { storeWorkspaceBlob } from "../workspace-client/blob-upload";
 import type { CaptureOutcome, PendingCrop, ViewerBackend } from "./backend";
 
-/** Stores the crop once it's encoded, then attaches it. Best effort; the sweep tidies orphans. */
-async function saveCrop(commentId: string, crop: PendingCrop): Promise<void> {
+/**
+ * Uploads the crop once it's encoded, then attaches it. Best effort: a
+ * comment whose crop never arrives just shows without one.
+ */
+async function saveCrop(projectId: string, commentId: string, crop: PendingCrop): Promise<void> {
   const blob = await crop.blob;
   if (!blob) return;
   const blobKey = cropBlobKey(commentId);
-  if (await putBlob(blobKey, blob)) attachCrop(commentId, { blobKey, rect: crop.rect });
+  const uploaded = await storeWorkspaceBlob(projectId, blobKey, blob);
+  if (uploaded.ok) attachCrop(commentId, { blobKey, rect: crop.rect });
 }
 
-/** Captures server-side, stores the image, then records the snapshot. */
+/** Captures server-side, uploads the image to the workspace, then records the snapshot. */
 async function captureSnapshot(
   projectId: string,
   url: string,
@@ -37,7 +41,8 @@ async function captureSnapshot(
   if (!result.ok) return { ok: false, message: CAPTURE_MESSAGES[result.failure] };
   const id = newId();
   const blobKey = snapshotBlobKey(id);
-  if (!(await putBlob(blobKey, result.blob))) {
+  const uploaded = await storeWorkspaceBlob(projectId, blobKey, result.blob);
+  if (!uploaded.ok) {
     emitSquiggy({ type: "save-failed" });
     return { ok: false, message: CAPTURE_MESSAGES.storage };
   }
@@ -51,18 +56,19 @@ async function captureSnapshot(
     sourceUrl: url,
     ...(scale < 1 ? { scale } : {}),
   });
-  if (saved.ok) return { ok: true, snapshot: saved.value };
-  await deleteBlobs([blobKey]);
-  return { ok: false, message: saved.error };
+  return saved.ok ? { ok: true, snapshot: saved.value } : { ok: false, message: saved.error };
 }
 
-/** The owner's viewer: everything goes to this browser's store. */
-export const localBackend: ViewerBackend = {
+/**
+ * The signed-in owner's viewer: every change goes to the workspace store,
+ * which shows it at once and saves it to the server (`lib/workspace-client`).
+ */
+export const serverBackend: ViewerBackend = {
   role: "owner",
-  addComment(input, crop) {
-    const result = addComment(input);
-    if (result.ok && crop) void saveCrop(result.value.id, crop);
-    return Promise.resolve(result);
+  async addComment(input, crop) {
+    const result = await addComment(input);
+    if (result.ok && crop) void saveCrop(input.projectId, result.value.id, crop);
+    return result;
   },
   setAuthorName: (name) => void setAuthorName(name),
   setCommentStatus,

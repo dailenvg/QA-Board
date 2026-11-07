@@ -4,7 +4,7 @@ import { useBlobSource } from "./blob-source";
 export type BlobUrlState =
   | { status: "loading" }
   | { status: "ready"; url: string }
-  /** Not in this browser's storage (cleared, or saved by another browser). */
+  /** Not available from the page's blob source (never uploaded, or gone). */
   | { status: "missing" };
 
 /**

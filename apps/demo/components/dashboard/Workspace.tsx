@@ -19,7 +19,7 @@ import { useSquint } from "@/lib/store/use-squint";
 import { useDialogState } from "@/lib/use-dialog-state";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { useShortcut } from "@/lib/use-shortcut";
-import { DataRecovery } from "../app-state/DataRecovery";
+import { WorkspaceError } from "../app-state/WorkspaceError";
 import { NEW_FOLDER } from "../new-project/FolderPicker";
 import { NewProjectDialog } from "../new-project/NewProjectDialog";
 import { SearchQueryProvider } from "../search/SearchQueryProvider";
@@ -31,13 +31,6 @@ import { Sidebar } from "./Sidebar";
 import { SidebarSkeleton } from "./SidebarSkeleton";
 import { WorkspaceToolbar } from "./WorkspaceToolbar";
 import { WorkspaceContext, type Workspace as WorkspaceValue } from "./workspace-context";
-import { LocalExpiry } from "../app-state/LocalExpiry";
-import { Revocations } from "../app-state/Revocations";
-
-interface ReadyStore {
-  data: SquintData;
-  persistent: boolean;
-}
 
 interface WorkspaceProps {
   children: ReactNode;
@@ -50,30 +43,28 @@ interface WorkspaceProps {
  * mounted across them (so its active indicator glides between items), and
  * search, New project and the folder dialogs live here so every page shares them.
  * Pages read the data through `useWorkspace()`, which is null while loading.
+ * Render it inside `WorkspaceProvider`, which connects it to the server.
  */
 export function Workspace({ children, account }: WorkspaceProps) {
   const state = useSquint();
-  if (state.status === "corrupt") return <DataRecovery reason={state.reason} raw={state.raw} />;
+  if (state.status === "error") return <WorkspaceError reason={state.reason} />;
   return (
-    <>
-      <Revocations />
-      <LocalExpiry />
-      <SearchQueryProvider>
-        <WorkspaceShell store={state.status === "ready" ? state : null} account={account}>
-          {children}
-        </WorkspaceShell>
-      </SearchQueryProvider>
-    </>
+    <SearchQueryProvider>
+      <WorkspaceShell data={state.status === "ready" ? state.data : null} account={account}>
+        {children}
+      </WorkspaceShell>
+    </SearchQueryProvider>
   );
 }
 
 interface WorkspaceShellProps {
-  store: ReadyStore | null;
+  /** Null while the workspace loads: skeletons stand in for the sidebar and page. */
+  data: SquintData | null;
   account: ReactNode;
   children: ReactNode;
 }
 
-function WorkspaceShell({ store, account, children }: WorkspaceShellProps) {
+function WorkspaceShell({ data, account, children }: WorkspaceShellProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { id: routeFolderId } = useParams<{ id?: string }>();
@@ -81,8 +72,6 @@ function WorkspaceShell({ store, account, children }: WorkspaceShellProps) {
   const onOverview = pathname === OVERVIEW_HREF;
   /** Tailwind's `lg`, in rem like the CSS: sidebar beside the page rather than above it. */
   const wide = useMediaQuery("(min-width: 64rem)");
-  const data = store?.data ?? null;
-  const persistent = store?.persistent ?? true;
 
   // The folder page being left after deleting its folder. The store updates at once but the
   // navigation doesn't, so this keeps that page from flashing "not found" meanwhile.
@@ -118,7 +107,7 @@ function WorkspaceShell({ store, account, children }: WorkspaceShellProps) {
   const hereFolder = folders.find((folder) => folder.id === routeFolderId) ?? null;
   const newFolderHere = () => showNewFolder({ parentId: hereFolder?.id ?? null });
 
-  useShortcut("n", () => showNewProject({}), store !== null);
+  useShortcut("n", () => showNewProject({}), data !== null);
   useAttentionWhile("new-project-dialog", newProject.open);
 
   const report = useCallback(
@@ -143,7 +132,6 @@ function WorkspaceShell({ store, account, children }: WorkspaceShellProps) {
       );
     return {
       data,
-      persistent,
       folders,
       openNewProject: (folderId) => showNewProject({ folderId }),
       newFolder: (parentId) => showNewFolder({ parentId }),
@@ -181,7 +169,6 @@ function WorkspaceShell({ store, account, children }: WorkspaceShellProps) {
     };
   }, [
     data,
-    persistent,
     folders,
     showNewProject,
     showNewFolder,

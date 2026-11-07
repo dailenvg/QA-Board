@@ -19,5 +19,5 @@ export const CAPTURE_MESSAGES: Record<CaptureFailure, string> = {
   unavailable: "Snapshots aren't available on this server right now. Try again later.",
   failed: "The snapshot didn't work. Try again.",
   offline: "Squint couldn't reach its server. Check your connection, then try again.",
-  storage: "This browser couldn't save the snapshot. Free up some space, then try again.",
+  storage: "The snapshot couldn't be uploaded. Check your connection, then try again.",
 };

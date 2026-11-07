@@ -1,6 +1,6 @@
 import { Skeleton } from "../ui/Skeleton";
 
-/** Placeholder viewer layout shown until browser storage has been read. */
+/** Placeholder viewer layout shown until the workspace has loaded. */
 export function ViewerSkeleton() {
   return (
     <div role="status" aria-busy="true" className="flex h-dvh flex-col gap-3 p-3 sm:gap-4 sm:p-4">

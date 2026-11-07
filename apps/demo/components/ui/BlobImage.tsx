@@ -7,7 +7,7 @@ import { useBlobUrl } from "@/lib/blob-store/use-blob-url";
 interface BlobImageProps extends Omit<ImageProps, "src" | "unoptimized"> {
   blobKey: string;
   /**
-   * Shown if the image isn't in this browser's storage or won't decode; also
+   * Shown if the image can't be read (never uploaded, or gone) or won't decode; also
    * while it loads, unless `pending` is set.
    */
   fallback?: ReactNode;

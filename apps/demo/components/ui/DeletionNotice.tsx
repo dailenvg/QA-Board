@@ -91,27 +91,3 @@ export function DeletionNotice({ when, explanation, onExport }: DeletionNoticePr
     </motion.section>
   );
 }
-
-/** Pill tones: neutral until the last day, then the review countdown's warning tint. */
-const PILL_TONE = {
-  upcoming: "bg-card text-ink",
-  urgent: "bg-comments-soft text-comments-text",
-} as const;
-
-/** Compact "Deletes Nov 3" for project cards; the full date and time is its tooltip. */
-export function DeletionPill({ when }: { when: DeletionWhen }) {
-  return (
-    <span
-      data-testid="deletion-pill"
-      data-state={stateOf(when)}
-      title={when.full}
-      className={`inline-flex shrink-0 items-center gap-2 rounded-pill px-3 py-1 text-label font-semibold whitespace-nowrap ${
-        when.urgent ? PILL_TONE.urgent : PILL_TONE.upcoming
-      }`}
-    >
-      {/* Same icon and size as the review countdown chip this mirrors. */}
-      <Icon name="clock" className="size-4" />
-      {when.short}
-    </span>
-  );
-}

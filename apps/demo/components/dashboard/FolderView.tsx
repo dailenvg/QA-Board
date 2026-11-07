@@ -1,15 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { holdBlobs } from "@/lib/store/blob-sweep";
-import { referencedBlobKeys } from "@/lib/store/snapshots";
-import {
-  deleteProject,
-  finalizeProjectDelete,
-  moveProject,
-  renameProject,
-  restoreProject,
-} from "@/lib/store/actions";
+import { deleteProject, moveProject, renameProject, restoreProject } from "@/lib/store/actions";
 import { ancestorsOf, childFolders } from "@/lib/store/folders";
 import { folderSummaries } from "@/lib/store/selectors";
 import type { Folder, Project } from "@/lib/store/types";
@@ -47,7 +39,7 @@ export function FolderView({ folderId }: { folderId: string }) {
  * folder cards, then the status filter's projects in the chosen order, and the project dialogs.
  */
 function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Folder }) {
-  const { data, persistent, folders, report } = workspace;
+  const { data, folders, report } = workspace;
   const toast = useToast();
   const now = useNow();
   const [filter, setFilter] = useState<StatusFilterValue>("all");
@@ -75,7 +67,6 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
     plural(summaries.length, "project"),
     ...(subfolders.length ? [plural(subfolders.length, "subfolder")] : []),
     ...(withComments > 0 ? [`${withComments} with active comments`] : []),
-    ...(persistent ? [] : ["Not saved: storage is blocked"]),
   ];
 
   return (
@@ -148,29 +139,17 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
           projectDelete.close();
           const comments = data.comments.filter((comment) => comment.projectId === project.id);
           const snapshots = data.snapshots.filter((snapshot) => snapshot.projectId === project.id);
-          // Its images stay while Undo is offered, however long the toast is held open.
-          const release = holdBlobs(
-            referencedBlobKeys({ ...data, projects: [project], comments, snapshots }),
-          );
-          const result = deleteProject(project.id);
-          if (!result.ok) {
-            release();
-            report(result);
-            return;
-          }
+          // The project goes to the workspace's trash, so Undo brings it back whole.
+          if (!report(deleteProject(project.id))) return;
           toast({
             message: `Deleted ${project.name}`,
             action: {
               label: "Undo",
-              onAction: () => {
-                report(restoreProject(project, comments, snapshots), `Restored ${project.name}`);
-                release();
-              },
-            },
-            // Undo is gone, so the delete is final: a shared link is revoked now.
-            onDismiss: () => {
-              release();
-              finalizeProjectDelete(project.id);
+              onAction: () =>
+                void report(
+                  restoreProject(project, comments, snapshots),
+                  `Restored ${project.name}`,
+                ),
             },
           });
         }}

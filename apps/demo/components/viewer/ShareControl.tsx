@@ -10,7 +10,7 @@ import { reviewClosed } from "@/lib/share/review-window";
 import { shareProject, unshareProject } from "@/lib/store/actions";
 import { commentsFor } from "@/lib/store/selectors";
 import { snapshotsFor } from "@/lib/store/snapshots";
-import type { Project, ProjectShare, SquintData } from "@/lib/store/types";
+import type { Project, SquintData } from "@/lib/store/types";
 import { useIsClient } from "@/lib/use-is-client";
 import { useNow } from "@/lib/use-now";
 import { Button } from "../ui/Button";
@@ -25,22 +25,22 @@ interface ShareControlProps {
 }
 
 interface RevokeJob {
-  share: ProjectShare;
   projectId: string;
   toast: (toast: ToastInput) => void;
   setRevoking: (revoking: boolean) => void;
 }
 
 /**
- * Revokes the link (a 404 means it's already gone). Module-level, so the
- * failure toast's Retry can run it again without a self-referencing closure.
+ * Revokes the link through the workspace (one already gone counts as done).
+ * Module-level, so the failure toast's Retry can run it again without a
+ * self-referencing closure.
  */
 async function revokeLink(job: RevokeJob): Promise<void> {
-  const { share, projectId, toast, setRevoking } = job;
+  const { projectId, toast, setRevoking } = job;
   setRevoking(true);
-  const result = await ownerApi.revoke(share);
+  const result = await unshareProject(projectId);
   setRevoking(false);
-  if (!result.ok && result.status !== 404) {
+  if (!result.ok) {
     toast({
       tone: "error",
       message: "The link couldn't be revoked.",
@@ -48,7 +48,6 @@ async function revokeLink(job: RevokeJob): Promise<void> {
     });
     return;
   }
-  unshareProject(projectId);
   resetSync(projectId);
   toast({ message: "Link revoked. It no longer opens this project." });
 }
@@ -83,24 +82,25 @@ export function ShareControl({ data, project }: ShareControlProps) {
     setCreating(true);
     setError(null);
     if (status.phase === "gone") {
-      unshareProject(project.id);
+      await unshareProject(project.id);
       resetSync(project.id);
     }
     // Just the project: the sync that follows sends everything else in batches.
     const created = await ownerApi.create({ project: state.project, snapshots: [], comments: [] });
-    setCreating(false);
     if (!created.ok) {
+      setCreating(false);
       setError(created.error === "storage-unavailable" ? STORAGE_UNAVAILABLE : CREATE_FAILED);
       return;
     }
     const { shareId, token, ownerKey } = created.value;
-    const saved = shareProject(project.id, {
+    const saved = await shareProject(project.id, {
       id: shareId,
       token,
       ownerKey,
       createdAt: Date.now(),
       cursor: 0,
     });
+    setCreating(false);
     if (!saved.ok) {
       setError(saved.error);
       return;
@@ -110,7 +110,7 @@ export function ShareControl({ data, project }: ShareControlProps) {
 
   const revoke = () => {
     setConfirming(false);
-    if (share) void revokeLink({ share, projectId: project.id, toast, setRevoking });
+    if (share) void revokeLink({ projectId: project.id, toast, setRevoking });
   };
 
   const failing = share && (status.phase === "error" || status.pullHeld);

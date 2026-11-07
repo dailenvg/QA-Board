@@ -78,11 +78,3 @@ export function legacyFolderChecked(): boolean {
     return false;
   }
 }
-
-export function markLegacyFolderChecked(): void {
-  try {
-    localStorage.setItem(LEGACY_FOLDER_CHECK_KEY, "1");
-  } catch {
-    // Not remembered: the next load checks again, and the rules above keep that safe.
-  }
-}
