@@ -61,8 +61,14 @@ function useFocusTrap(
 
   useEffect(() => {
     if (!open) return;
-    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const node = panel.current;
+    const active = document.activeElement;
+    // The opener, if any: not the body (a dialog that opened itself), nor a control inside the
+    // panel that focused itself before this ran. Without one, focus goes to the page's heading.
+    const previous =
+      active instanceof HTMLElement && active !== document.body && !node?.contains(active)
+        ? active
+        : null;
     const initial =
       node?.querySelector<HTMLElement>("[data-autofocus]") ?? (node ? focusables(node)[0] : null);
     initial?.focus();
@@ -79,7 +85,12 @@ function useFocusTrap(
       const items = focusables(node);
       const first = items[0];
       const last = items[items.length - 1];
-      if (!first || !last) return;
+      // Nothing to tab to (a view that only shows progress): Tab stays put rather than
+      // reaching the page behind the modal.
+      if (!first || !last) {
+        event.preventDefault();
+        return;
+      }
       // Focus fell out of the panel (its element was removed or disabled): bring it back
       // instead of letting Tab reach the page behind the modal.
       if (!node.contains(document.activeElement)) {
@@ -156,11 +167,11 @@ export function Dialog({
           >
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <h2 id={titleId} className="text-title font-bold">
+                <h2 id={titleId} className="text-title font-bold wrap-break-word">
                   {title}
                 </h2>
                 {description ? (
-                  <div id={descriptionId} className="mt-1 text-body text-muted">
+                  <div id={descriptionId} className="mt-1 text-body text-muted wrap-break-word">
                     {description}
                   </div>
                 ) : null}
