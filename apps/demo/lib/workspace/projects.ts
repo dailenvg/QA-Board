@@ -1,6 +1,7 @@
 import type { Database } from "../db/database";
 import type { Queryable } from "../share/migrate";
 import type { Page, PagesSource, ProjectSource } from "../store/types";
+import { placeFrameComments } from "./comments";
 import { pagesByProject, replacePages } from "./pages";
 import type { ProjectCreate, ProjectPatch, SourceInput } from "./schemas";
 import { toDate, toMs, toMsOrNull } from "./times";
@@ -189,7 +190,8 @@ export async function createProject(
 
 /**
  * Renames, moves and/or changes the source of a live project. A new source
- * replaces its pages (a website becoming a screenshot, a page replaced).
+ * replaces its pages (a website becoming a screenshot, a page replaced), and
+ * comments on no surface move onto the first page, as in the browser.
  */
 export async function updateProject(
   db: Database,
@@ -215,6 +217,8 @@ export async function updateProject(
         id,
         patch.source.kind === "pages" ? patch.source.pages : [],
       );
+      const [first] = patch.source.kind === "pages" ? patch.source.pages : [];
+      if (first) await placeFrameComments(tx, id, first.id);
     }
     await tx.query(
       `UPDATE projects SET name = COALESCE($3, name), folder_id = COALESCE($4, folder_id),

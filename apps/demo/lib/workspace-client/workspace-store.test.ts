@@ -4,6 +4,7 @@ import { connectedWorkspace, type Intercept } from "@/test/workspace-client";
 import { PNG, URL_PROJECT } from "@/test/workspace-fixture";
 import type { Database } from "../db/database";
 import { deleteFolder, listFolders } from "../workspace/folders";
+import { addComment } from "../workspace/comments";
 import { createProject, listProjects, restoreProject, trashProject } from "../workspace/projects";
 import type { WorkspaceData } from "../workspace/types";
 
@@ -150,6 +151,27 @@ describe("the workspace store", () => {
     const read = await fresh.workspaceBlobs()?.get("snapshot:s1");
     expect(new Uint8Array((await read?.arrayBuffer()) ?? new ArrayBuffer(0))).toEqual(PNG);
     expect(await fresh.workspaceBlobs()?.get("snapshot:unknown")).toBeNull();
+  });
+
+  it("keeps live-frame pins on the screenshot's page after a refresh", async () => {
+    const { store, actions, data } = await connected(async (db, id) => {
+      await createProject(db, id, URL_PROJECT("p1"), 1);
+      const pin = { x: 12, y: 40, body: "Hero", author: "Ana", status: "active" as const };
+      await addComment(db, id, "p1", { id: "frame", ...pin }, null, 1);
+    });
+    const image = { blob: new Blob([PNG], { type: "image/png" }), fileName: "shot.png" };
+    const replaced = await actions.replaceWithImage(
+      "p1",
+      { ...image, width: 800, height: 600 },
+      { referenceUrl: "https://acme.example/", pageId: null },
+    );
+    expect(replaced.ok).toBe(true);
+    const project = data().projects[0];
+    const page = project?.source.kind === "pages" ? project.source.pages[0] : undefined;
+    expect(data().comments[0]).toMatchObject({ pageId: page?.id, x: 12, y: 40 });
+
+    await store.refreshWorkspace();
+    expect(data().comments[0]).toMatchObject({ pageId: page?.id, x: 12, y: 40 });
   });
 
   it("shows the signed-out state once the session is gone", async () => {

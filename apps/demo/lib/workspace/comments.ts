@@ -170,3 +170,21 @@ export async function deleteComment(
   );
   return rows.length === 1;
 }
+
+/**
+ * Puts the comments of a project that sit on no surface (a website's live
+ * frame, from before snapshots) on page `pageId`, as the browser does when a
+ * screenshot replaces the website (`placeComment`). Their position stays.
+ * Run inside the source change's transaction, once the project is checked.
+ */
+export async function placeFrameComments(
+  tx: Queryable,
+  projectId: string,
+  pageId: string,
+): Promise<void> {
+  await tx.query(
+    `UPDATE comments SET page_id = $2
+     WHERE project_id = $1 AND snapshot_id IS NULL AND page_id IS NULL`,
+    [projectId, pageId],
+  );
+}

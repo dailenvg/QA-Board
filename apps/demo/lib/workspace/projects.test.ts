@@ -17,6 +17,7 @@ import {
   trashProject,
   updateProject,
 } from "./projects";
+import { addComment, listComments } from "./comments";
 
 describe("projects", () => {
   it("creates a page project with its pages, in order, and reads it back as the browser's shape", async () => {
@@ -106,6 +107,24 @@ describe("projects", () => {
       ok: false,
       reason: "not-found",
     });
+  });
+
+  it("moves a website's live-frame pins onto the screenshot's page, where they were", async () => {
+    const { db, a } = await twoWorkspaces();
+    await addFolder(db, a.workspaceId, "f1");
+    await createProject(db, a.workspaceId, URL_PROJECT("p1"), NOW);
+    const pin = { x: 12, y: 40, body: "Hero", author: "Ana", status: "active" as const };
+    await addComment(db, a.workspaceId, "p1", { id: "frame", ...pin }, null, NOW);
+    const source = {
+      kind: "pages" as const,
+      origin: "image" as const,
+      fileName: "shot.png",
+      pages: [{ id: "page-9", blobKey: "page:page-9", name: "Shot" }],
+    };
+    await updateProject(db, a.workspaceId, "p1", { source }, NOW + 1);
+    expect(await listComments(db, a.workspaceId, "p1")).toMatchObject([
+      { id: "frame", pageId: "page-9", x: 12, y: 40 },
+    ]);
   });
 
   it("archives, labels, trashes and restores", async () => {
