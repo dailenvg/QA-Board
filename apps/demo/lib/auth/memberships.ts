@@ -30,3 +30,19 @@ export async function findMembership(
   );
   return rows[0] ?? null;
 }
+
+/**
+ * The workspace the user works in: their oldest membership of a workspace
+ * that isn't archived (Phase 1 has one per company user), or null, as for the
+ * admin, who belongs to none. Check it with `requireMember` before use.
+ */
+export async function findOwnWorkspace(db: Queryable, userId: string): Promise<Membership | null> {
+  const { rows } = await db.query<Membership>(
+    `SELECT w.id AS "workspaceId", w.slug, w.name, m.role
+     FROM memberships AS m JOIN workspaces AS w ON w.id = m.workspace_id
+     WHERE m.user_id = $1 AND w.archived_at IS NULL
+     ORDER BY m.created_at, w.id LIMIT 1`,
+    [userId],
+  );
+  return rows[0] ?? null;
+}
