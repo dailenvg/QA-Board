@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { LoggableError } from "./http";
 import type { SendResetEmail } from "./password-reset";
 
 /** Reads RESEND_API_KEY and EMAIL_FROM. */
@@ -32,6 +33,22 @@ export function resetEmailHtml(link: string): string {
 <p>If it wasn't you, ignore this email. Your password stays as it is.</p>`;
 }
 
+/** Resend's reason with links and addresses blanked, since it can quote the recipient. */
+export function redactResendMessage(message: string): string {
+  return message
+    .replace(/https?:\/\/\S+/g, "[link]")
+    .replace(/\S+@\S+/g, "[address]")
+    .slice(0, 200);
+}
+
+/** Resend refused to send: its error code and redacted reason, safe for the logs. */
+export class ResetEmailRefused extends LoggableError {
+  override name = "ResetEmailRefused";
+  constructor(code: string, message: string) {
+    super(`${code} ${redactResendMessage(message)}`);
+  }
+}
+
 /**
  * Sends reset emails through Resend. Without `RESEND_API_KEY` or `EMAIL_FROM`
  * (local development) it sends nothing and logs that it skipped, never the
@@ -55,6 +72,6 @@ export function resetEmailSender(env: EmailEnv = process.env): SendResetEmail {
       text: resetEmailText(link),
       html: resetEmailHtml(link),
     });
-    if (error) throw new Error(`Resend refused the reset email (${error.name})`);
+    if (error) throw new ResetEmailRefused(error.name, error.message);
   };
 }

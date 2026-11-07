@@ -17,25 +17,41 @@ export function poolDatabase(pool: Pool): Database {
     query: queries.query.bind(pool),
     async transaction(run) {
       const client = await pool.connect();
+      // A client that can't even roll back is broken: drop it instead of pooling it again.
+      let broken = false;
       try {
         await client.query("BEGIN");
         const result = await run(client);
         await client.query("COMMIT");
         return result;
       } catch (error) {
-        await client.query("ROLLBACK").catch(() => undefined);
+        await client.query("ROLLBACK").catch(() => {
+          broken = true;
+        });
         throw error;
       } finally {
-        client.release();
+        client.release(broken);
       }
     },
   };
 }
 
+/**
+ * Logs errors on idle pooled connections (Neon closes them when its compute
+ * sleeps). Without a listener, `pg` re-throws them and they crash the request
+ * in flight. The pool drops the dead connection and opens a new one on demand.
+ */
+export function watchPool(pool: Pool, label: string): Pool {
+  pool.on("error", (error) => {
+    console.warn(`squint ${label}: idle database connection closed (${error.message})`);
+  });
+  return pool;
+}
+
 const holder = globalThis as typeof globalThis & { squintDatabase?: Promise<Database> };
 
 async function connect(url: string): Promise<Database> {
-  const pool = new Pool({ connectionString: url, max: 3 });
+  const pool = watchPool(new Pool({ connectionString: url, max: 3 }), "db");
   await migrate(pool);
   return poolDatabase(pool);
 }

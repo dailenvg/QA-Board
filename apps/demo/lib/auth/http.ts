@@ -21,8 +21,17 @@ export function crossSiteRefusal(): Response {
   return json({ error: "cross-site" }, 403);
 }
 
-/** The error's kind and code only: pg messages can quote emails and values. */
+/** An error whose message was written to be logged: no emails, links or values. */
+export class LoggableError extends Error {
+  override name = "LoggableError";
+}
+
+/**
+ * The error's kind and code only: pg messages can quote emails and values.
+ * A `LoggableError` also gives its message.
+ */
 export function describeError(error: unknown): string {
+  if (error instanceof LoggableError) return `${error.name}: ${error.message}`;
   const name = error instanceof Error ? error.name : typeof error;
   const code = (error as { code?: unknown } | null)?.code;
   return typeof code === "string" ? `${name} ${code}` : name;
