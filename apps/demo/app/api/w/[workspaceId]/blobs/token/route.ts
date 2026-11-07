@@ -1,8 +1,8 @@
 import type { HandleUploadBody } from "@vercel/blob/client";
-import { describeError } from "@/lib/auth/http";
+import { describeError, LoggableError } from "@/lib/auth/http";
 import { database } from "@/lib/db/database";
 import { json, validate, type Parsed } from "@/lib/share/http";
-import { blobDriverFromEnv } from "@/lib/workspace/blob-driver";
+import { blobDriverFromEnv, type ClientUploadDriver } from "@/lib/workspace/blob-driver";
 import { readJsonValue, refusal } from "@/lib/workspace/http";
 import { uploadRequestSchema } from "@/lib/workspace/schemas";
 import {
@@ -58,30 +58,45 @@ const issueToken = withMember<Params>(async (request, { db, workspaceId, now }) 
   return json(issued);
 });
 
+/** The store's driver for the callback, or null when there isn't a usable one (logged). */
+function callbackDriver(): ClientUploadDriver | null {
+  try {
+    const driver = blobDriverFromEnv();
+    return driver.kind === "vercel" ? driver : null;
+  } catch (error) {
+    // No BLOB_READ_WRITE_TOKEN on Vercel: the inline driver refuses to run there.
+    console.error(`squint workspace: upload callback not configured (${describeError(error)})`);
+    return null;
+  }
+}
+
 /**
  * Vercel Blob's completion callback: no session, but signed with the store's
  * token, which `handleUpload` verifies before anything runs. Commits the
  * upload named in the token's payload (set by `issueToken`), exactly like
- * `blobs/commit`, so whichever arrives second changes nothing.
+ * `blobs/commit`, so whichever arrives second changes nothing. A payload for
+ * another workspace than the URL's is refused (400), committing nothing.
  */
 async function uploadCompleted(request: Request, workspaceId: string): Promise<Response> {
   const pending = database();
-  const driver = blobDriverFromEnv();
-  if (!pending || driver.kind !== "vercel") return json({ error: "not-configured" }, 503);
+  const driver = callbackDriver();
+  if (!pending || !driver) return json({ error: "not-configured" }, 503);
   const event = await readEvent(request);
   if (!event.ok) return event.response;
   if (event.value.type !== "blob.upload-completed") return json({ error: "invalid" }, 400);
-  const db = await pending;
   try {
+    const db = await pending;
     await driver.handleUpload(
       request,
       event.value,
       () => {
-        throw new Error("Not a token request.");
+        throw new LoggableError("Not a token request");
       },
       async (tokenPayload) => {
         const upload = tokenPayloadSchema.safeParse(parseJson(tokenPayload));
-        if (!upload.success || upload.data.workspaceId !== workspaceId) return;
+        if (!upload.success || upload.data.workspaceId !== workspaceId) {
+          throw new LoggableError("Upload callback for another workspace");
+        }
         await commitUpload(db, driver, workspaceId, upload.data);
       },
     );
