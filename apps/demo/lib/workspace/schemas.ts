@@ -69,17 +69,6 @@ export const sourceSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
-/** What `projects.source` holds: a page project's pages live in the `pages` table instead. */
-export const storedSourceSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("url"), url: httpUrl }),
-  z.object({
-    kind: z.literal("pages"),
-    origin: z.enum(["image", "pdf"]),
-    fileName: text(LIMITS.fileName),
-    referenceUrl: httpUrl.optional(),
-  }),
-]);
-
 export const folderCreateSchema = z.object({
   id: idSchema,
   name: text(LIMITS.folderName),
@@ -162,14 +151,12 @@ export const shareSyncSchema = z.object({
   lastSyncedAt: time,
 });
 
-export const blobContentTypeSchema = z.enum(BLOB_CONTENT_TYPES);
-
 /** What the browser sends with a client upload (`clientPayload`), as JSON. */
 export const uploadRequestSchema = z.object({
   projectId: idSchema,
   key: blobKeySchema,
   size: z.number().int().positive(),
-  contentType: blobContentTypeSchema,
+  contentType: z.enum(BLOB_CONTENT_TYPES),
 });
 
 export const blobCommitSchema = z.object({ projectId: idSchema, key: blobKeySchema });
@@ -238,7 +225,6 @@ export type ProjectCreate = z.infer<typeof projectCreateSchema>;
 export type ProjectPatch = z.infer<typeof projectPatchSchema>;
 export type PageInput = z.infer<typeof pageSchema>;
 export type SourceInput = z.infer<typeof sourceSchema>;
-export type StoredSource = z.infer<typeof storedSourceSchema>;
 export type SnapshotInput = z.infer<typeof snapshotSchema>;
 export type CommentCreate = z.infer<typeof commentCreateSchema>;
 export type CommentPatch = z.infer<typeof commentPatchSchema>;

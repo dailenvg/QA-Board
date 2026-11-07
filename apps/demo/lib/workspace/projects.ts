@@ -1,8 +1,8 @@
 import type { Database } from "../db/database";
 import type { Queryable } from "../share/migrate";
-import type { Page, ProjectSource } from "../store/types";
+import type { Page, PagesSource, ProjectSource } from "../store/types";
 import { pagesByProject, replacePages } from "./pages";
-import type { ProjectCreate, ProjectPatch, SourceInput, StoredSource } from "./schemas";
+import type { ProjectCreate, ProjectPatch, SourceInput } from "./schemas";
 import { toDate, toMs, toMsOrNull } from "./times";
 import { done, refuse, type QueryResult } from "./query-result";
 import type { TrashedProject, WorkspaceProject } from "./types";
@@ -34,6 +34,9 @@ const SELECT = `SELECT project.id, project.folder_id, project.name, project.sour
   LEFT JOIN squint_shares AS share ON share.id = link.share_id`;
 
 const LIVE = "project.deleted_at IS NULL";
+
+/** What `projects.source` holds: a page project's pages live in the `pages` table instead. */
+type StoredSource = Exclude<ProjectSource, PagesSource> | Omit<PagesSource, "pages">;
 
 /** What `projects.source` keeps: a page project's pages go to the `pages` table. */
 export function storedSource(source: SourceInput): StoredSource {
@@ -140,10 +143,10 @@ async function folderExists(db: Queryable, workspaceId: string, id: string) {
 
 /**
  * Inserts a project and its pages; never replaces a project. Its id is
- * unique across workspaces, so `exists` doesn't say whose it is. Run inside a
- * transaction (`createProject`, or the import's).
+ * unique across workspaces, so `exists` doesn't say whose it is. Run inside
+ * `createProject`'s transaction.
  */
-export async function insertProject(
+async function insertProject(
   tx: Queryable,
   workspaceId: string,
   input: ProjectCreate & { updatedAt?: number },
