@@ -79,8 +79,9 @@ function mergeWrites(before: SquintData, after: SquintData, projectId: string): 
     ...added(before.snapshots, after.snapshots).map((snapshot) =>
       write("POST", snapshotsPath(projectId), snapshotBody(snapshot), [409]),
     ),
+    // Guests' comments: saved without an author account (the server checks they're a guest's).
     ...added(before.comments, after.comments).map((comment) =>
-      write("POST", commentsPath(projectId), commentBody(comment), [409]),
+      write("POST", commentsPath(projectId), { ...commentBody(comment), fromShare: true }, [409]),
     ),
     write("PATCH", linkPath(projectId), {
       cursor: share.cursor,

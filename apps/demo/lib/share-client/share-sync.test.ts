@@ -187,6 +187,9 @@ describe("Qanto's scenario: a full share and a client crop", () => {
     await store.whenSaved();
     const saved = await listComments(db, owner.workspaceId, "p1");
     expect(saved.map((c) => c.id).sort()).toEqual(["k-orphan", "k-plain"]);
+    // Saved as guests' comments: without an author account.
+    const { rows } = await db.query("SELECT 1 FROM comments WHERE author_user_id IS NOT NULL");
+    expect(rows).toEqual([]);
   }, 60_000);
 });
 
