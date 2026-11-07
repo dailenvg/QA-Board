@@ -21,7 +21,7 @@ export function NoWorkspace({ account }: { account: ReactNode }) {
         animate="visible"
         data-testid="no-workspace"
         aria-labelledby="no-workspace-title"
-        className="flex w-full max-w-md flex-col items-center gap-5 rounded-panel bg-panel px-6 py-10 text-center"
+        className="flex w-full max-w-md flex-col items-center gap-4 rounded-panel bg-panel px-6 py-12 text-center"
       >
         <motion.div variants={variants}>
           <Squiggy mood="sleeping" size={120} followCursor={false} />

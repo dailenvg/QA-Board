@@ -2,7 +2,7 @@
 
 import { motion } from "motion/react";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { loginHref } from "@/lib/auth/next-path";
 import { useRevealVariants } from "@/lib/motion";
 import { Squiggy } from "../brand/mascot/Squiggy";
@@ -58,24 +58,41 @@ function Recovery({ reason }: { reason: WorkspaceErrorReason }) {
   );
 }
 
-/** Full-page state for a workspace that can't be shown, with a way to recover. */
+/**
+ * Full-page state for a workspace that can't be shown, with a way to recover.
+ * It can replace the page mid-session (the session ends on a save), taking the
+ * focused element with it: focus then moves to the heading, so keyboard and
+ * screen reader users start from the error rather than the top of the document.
+ */
 export function WorkspaceError({ reason }: { reason: WorkspaceErrorReason }) {
   const variants = useRevealVariants();
+  const titleId = useId();
+  const heading = useRef<HTMLHeadingElement>(null);
   const { title, body } = COPY[reason];
+
+  useEffect(() => {
+    const active = document.activeElement;
+    // Only when focus was lost; never pull it out of something still on screen (a toast's action).
+    if (!active || active === document.body) heading.current?.focus({ preventScroll: true });
+  }, []);
+
   return (
     <main id="main" className="grid min-h-dvh place-items-center p-4">
       <motion.section
         variants={variants}
         initial="hidden"
         animate="visible"
-        role="alert"
+        aria-labelledby={titleId}
         data-testid="workspace-error"
         data-reason={reason}
-        className="flex w-full max-w-md flex-col items-center gap-5 rounded-panel bg-panel px-6 py-10 text-center"
+        className="flex w-full max-w-md flex-col items-center gap-4 rounded-panel bg-panel px-6 py-12 text-center"
       >
         <Squiggy mood="surprised" size={120} followCursor={false} />
-        <div>
-          <h1 className="text-title font-bold">{title}</h1>
+        {/* The alert is the message alone: not the mascot's name, not the button. */}
+        <div role="alert">
+          <h1 id={titleId} ref={heading} tabIndex={-1} className="text-title font-bold">
+            {title}
+          </h1>
           <p className="mt-2 text-body text-muted">{body}</p>
         </div>
         <Recovery reason={reason} />
