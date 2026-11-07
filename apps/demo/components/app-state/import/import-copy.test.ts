@@ -29,11 +29,13 @@ describe("the import dialog's copy", () => {
         { kind: "file", projectName: "Deck", reason: "file-missing" },
         { kind: "file", projectName: "Deck", reason: "file-missing" },
         { kind: "comments", projectName: "Deck", reason: "no-surface", count: 1 },
+        { kind: "project", projectName: "Launch", reason: "link-lost" },
       ]),
     ).toEqual([
       "Site already belongs to another workspace, so it wasn't imported.",
       "Deck: 2 images are no longer saved in this browser.",
       "Deck: 1 comment was on a page or snapshot that no longer exists.",
+      "Launch was imported without its review link, which couldn't be moved over.",
     ]);
   });
 

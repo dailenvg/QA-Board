@@ -102,7 +102,7 @@ const REASONS: Record<SkipReason, (n: number) => string> = {
   "too-large": () => "is too large to import",
   "no-folder": () => "wasn't imported because its folder couldn't be imported",
   "in-trash": () => "is in the trash. Restore it, then import again",
-  "link-lost": () => "was imported without its review link, which had expired",
+  "link-lost": () => "was imported without its review link, which couldn't be moved over",
   "file-missing": (n) =>
     `${count(n, "image")} ${n === 1 ? "is" : "are"} no longer saved in this browser`,
   "file-refused": (n) =>
