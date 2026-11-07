@@ -170,6 +170,7 @@ export async function createShare(
   const { store } = services;
   const token = createSecret();
   const ownerKey = createSecret();
+  const expiresAt = shareExpiresAt(state.project, now);
   const share: ShareRecord = {
     id: createShareId(),
     tokenHash: hashSecret(token),
@@ -177,7 +178,7 @@ export async function createShare(
     project: state.project,
     createdAt: now,
     updatedAt: now,
-    expiresAt: shareExpiresAt(state.project, now),
+    expiresAt,
   };
   await store.create(share);
   for (const snapshot of state.snapshots) await store.upsertSnapshot(share.id, snapshot, "owner");
@@ -187,7 +188,7 @@ export async function createShare(
     token,
     ownerKey,
     missingBlobs: await missingBlobs(store, share),
-    expiresAt: share.expiresAt,
+    expiresAt,
   };
 }
 
@@ -258,7 +259,11 @@ export async function applyChanges(
   }
   if (change.project) {
     // Retention counts from the project's creation once it says when that was (see `retention.ts`).
-    const expiresAt = rescheduledExpiry(share.expiresAt, change.project, share.createdAt, now);
+    // A workspace's share has no deletion date to move.
+    const expiresAt =
+      share.expiresAt === null
+        ? null
+        : rescheduledExpiry(share.expiresAt, change.project, share.createdAt, now);
     await store.setProject(share.id, change.project, now, expiresAt);
   }
   for (const snapshot of change.snapshots) await store.upsertSnapshot(share.id, snapshot, "owner");

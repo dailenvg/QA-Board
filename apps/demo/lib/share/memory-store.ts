@@ -80,7 +80,11 @@ export function createMemoryStore(): ShareStore {
     expiredIds(now, limit) {
       const expired = [...shares.values()]
         .map((entry) => entry.record)
-        .filter((record) => record.expiresAt <= now)
+        .flatMap((record) =>
+          record.expiresAt !== null && record.expiresAt <= now
+            ? [{ id: record.id, expiresAt: record.expiresAt }]
+            : [],
+        )
         .sort((a, b) => a.expiresAt - b.expiresAt || a.id.localeCompare(b.id));
       return done(expired.slice(0, limit).map((record) => record.id));
     },
