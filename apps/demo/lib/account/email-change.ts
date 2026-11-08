@@ -84,6 +84,19 @@ export function requestEmailChange(
   });
 }
 
+/**
+ * Uses up every email change link the user still has pending. Securing an
+ * account (a new password, a reset, logging out everywhere) does this, so a
+ * change someone else asked for with the old password can't be confirmed
+ * after it. Used rows stay, so they still count toward the hourly cap.
+ */
+export async function voidEmailChanges(db: Queryable, userId: string, now: number): Promise<void> {
+  await db.query("UPDATE email_changes SET used_at = $2 WHERE user_id = $1 AND used_at IS NULL", [
+    userId,
+    new Date(now),
+  ]);
+}
+
 /** Whether a link can still be confirmed: known, unused, unexpired, its user not deleted. */
 export async function isEmailChangeUsable(
   db: Queryable,
@@ -130,10 +143,7 @@ async function applyChange(tx: Queryable, token: string, now: number): Promise<E
   const at = new Date(now);
   await tx.query("UPDATE users SET email = $2 WHERE id = $1", [change.user_id, change.new_email]);
   // This link, and every other one the user still had pending.
-  await tx.query("UPDATE email_changes SET used_at = $2 WHERE user_id = $1 AND used_at IS NULL", [
-    change.user_id,
-    at,
-  ]);
+  await voidEmailChanges(tx, change.user_id, now);
   await tx.query("UPDATE password_resets SET used_at = $2 WHERE user_id = $1 AND used_at IS NULL", [
     change.user_id,
     at,

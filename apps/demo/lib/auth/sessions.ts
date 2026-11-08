@@ -1,3 +1,4 @@
+import { voidEmailChanges } from "../account/email-change";
 import type { Queryable } from "../share/migrate";
 import { createSecret, hashSecret, isSecretShape } from "../share/tokens";
 import { SESSION_TTL_MS } from "./session-cookie";
@@ -77,8 +78,9 @@ export async function deleteUserSessions(db: Queryable, userId: string): Promise
 
 /**
  * After a password change: ends every session of the user, voids their unused
- * reset links (a link mailed before the change can't undo it), and returns a
- * fresh token for the browser that made the change, so it stays signed in.
+ * reset links and pending email changes (a link from before the change can't
+ * undo it or take the account), and returns a fresh token for the browser that
+ * made the change, so it stays signed in.
  */
 export async function rotateSessions(db: Queryable, userId: string, now: number): Promise<string> {
   await deleteUserSessions(db, userId);
@@ -86,5 +88,6 @@ export async function rotateSessions(db: Queryable, userId: string, now: number)
     userId,
     new Date(now),
   ]);
+  await voidEmailChanges(db, userId, now);
   return createSession(db, userId, now);
 }
