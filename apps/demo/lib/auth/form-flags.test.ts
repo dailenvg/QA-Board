@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { loginFlagMessage, resetPasswordFlagMessage, resetRequestFlagMessage } from "./form-flags";
+import {
+  emailChangeFlagMessage,
+  loginFlagMessage,
+  loginNotice,
+  resetPasswordFlagMessage,
+  resetRequestFlagMessage,
+} from "./form-flags";
 
 describe("form flags", () => {
   it("turns known codes into the forms' messages", () => {
@@ -11,6 +17,14 @@ describe("form flags", () => {
     );
     expect(resetRequestFlagMessage("invalid-email")).toMatch(/name@company.com/);
     expect(resetPasswordFlagMessage("mismatch")).toMatch(/didn't match/);
+    expect(emailChangeFlagMessage("taken")).toMatch(/Another account/);
+  });
+
+  it("says why the sign-in page was opened, after a reset, an email change or a sign-out", () => {
+    expect(loginNotice({ reset: "done" })).toMatch(/Password changed/);
+    expect(loginNotice({ email: "changed" })).toMatch(/Email changed/);
+    expect(loginNotice({ signedOut: "everywhere" })).toMatch(/every device/);
+    expect(loginNotice({ reset: "x", email: "y", signedOut: "z" })).toBeNull();
   });
 
   it("ignores anything else, so the address can't put words on the page", () => {
@@ -18,5 +32,6 @@ describe("form flags", () => {
     expect(loginFlagMessage("<script>")).toBeNull();
     expect(resetRequestFlagMessage("toString")).toBeNull();
     expect(resetPasswordFlagMessage("constructor")).toBeNull();
+    expect(emailChangeFlagMessage("hasOwnProperty")).toBeNull();
   });
 });

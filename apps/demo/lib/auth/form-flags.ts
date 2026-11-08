@@ -18,6 +18,7 @@ export const LOGIN_ERRORS: readonly LoginError[] = [
 
 export type ResetRequestFlag = "invalid-email" | "rate-limited" | "unavailable";
 export type ResetPasswordFlag = "weak" | "mismatch" | "unavailable";
+export type EmailChangeFlag = "taken" | "unavailable";
 
 const RESET_REQUEST_MESSAGES: Record<ResetRequestFlag, string> = {
   "invalid-email": "Enter an email address like name@company.com.",
@@ -29,6 +30,11 @@ const RESET_PASSWORD_MESSAGES: Record<ResetPasswordFlag, string> = {
   weak: `Use a new password of ${PASSWORD_MIN_LENGTH} to ${PASSWORD_MAX_LENGTH} characters.`,
   mismatch: "The two passwords didn't match. Type them again.",
   unavailable: "Couldn't save the new password. Try again in a moment.",
+};
+
+const EMAIL_CHANGE_MESSAGES: Record<EmailChangeFlag, string> = {
+  taken: "Another account uses this email address now, so the change can't be made.",
+  unavailable: "Couldn't confirm the change. Try again in a moment.",
 };
 
 function known<T extends string>(messages: Record<T, string>, code: string | undefined) {
@@ -47,4 +53,20 @@ export function resetRequestFlagMessage(error: string | undefined): string | nul
 
 export function resetPasswordFlagMessage(error: string | undefined): string | null {
   return known(RESET_PASSWORD_MESSAGES, error);
+}
+
+export function emailChangeFlagMessage(error: string | undefined): string | null {
+  return known(EMAIL_CHANGE_MESSAGES, error);
+}
+
+/** What the sign-in page says on arrival, from `?reset=done`, `?email=changed` or `?signed-out=everywhere`. */
+export function loginNotice(params: {
+  reset?: string;
+  email?: string;
+  signedOut?: string;
+}): string | null {
+  if (params.reset === "done") return "Password changed. Sign in with your new password.";
+  if (params.email === "changed") return "Email changed. Sign in with your new email address.";
+  if (params.signedOut === "everywhere") return "You're signed out on every device.";
+  return null;
 }

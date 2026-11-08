@@ -45,18 +45,28 @@ const NO_STORE = { "cache-control": "no-store" };
 const unauthenticated = () =>
   Response.json({ error: "unauthenticated" }, { status: 401, headers: NO_STORE });
 
+export type ApiAccount =
+  { ok: true; db: Database; user: SessionUser } | { ok: false; response: Response };
+
 /**
- * For route handlers outside a workspace: the signed-in user, read from
- * `request`'s cookie (no request scope needed), or the JSON 401 to answer with.
+ * For route handlers outside a workspace (the account routes): the signed-in
+ * user, read from `request`'s cookie (no request scope needed), and the
+ * database it was read from; or the JSON 401 to answer with.
  */
-export async function apiSignedIn(
-  request: Request,
-): Promise<{ ok: true; user: SessionUser } | { ok: false; response: Response }> {
+export async function apiAccount(request: Request): Promise<ApiAccount> {
   const token = sessionTokenOf(request.headers.get("cookie"));
   const pending = database();
   const db = pending && (await pending);
   const user = token && db ? await readSession(db, token, Date.now()) : null;
-  return user ? { ok: true, user } : { ok: false, response: unauthenticated() };
+  return db && user ? { ok: true, db, user } : { ok: false, response: unauthenticated() };
+}
+
+/** `apiAccount`'s user alone. */
+export async function apiSignedIn(
+  request: Request,
+): Promise<{ ok: true; user: SessionUser } | { ok: false; response: Response }> {
+  const account = await apiAccount(request);
+  return account.ok ? { ok: true, user: account.user } : account;
 }
 
 export type ApiMember =

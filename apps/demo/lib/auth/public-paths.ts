@@ -22,6 +22,8 @@ const PUBLIC_PATHS = new Set([
 /** A path and everything under it: `/s` covers `/s` and `/s/<token>`, not `/sx`. */
 const PUBLIC_TREES = [
   "/reset",
+  // Email change links: opened from the new address's inbox, often in another browser.
+  "/email-change",
   "/s",
   "/px/s",
   "/embed",

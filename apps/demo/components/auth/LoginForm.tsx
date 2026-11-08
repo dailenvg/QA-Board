@@ -16,8 +16,8 @@ import { TextLink } from "./TextLink";
 interface LoginFormProps {
   /** Where to go once signed in (already checked to be on this site). */
   next: string;
-  /** Arrived from a completed password reset. */
-  passwordChanged: boolean;
+  /** Why the page was opened: a completed password reset, an email change, a sign-out everywhere. */
+  notice: string | null;
   /** A failed sign-in that was posted before the page hydrated (from `?error=`). */
   initialError: string | null;
 }
@@ -38,7 +38,7 @@ function moodFor(status: Status, failed: boolean): Mood {
 }
 
 /** Email and password, checked on blur and on submit; the server's answer shows above the button. */
-export function LoginForm({ next, passwordChanged, initialError }: LoginFormProps) {
+export function LoginForm({ next, notice, initialError }: LoginFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -97,10 +97,7 @@ export function LoginForm({ next, passwordChanged, initialError }: LoginFormProp
         data-testid="login-form"
       >
         <input type="hidden" name="next" value={next} />
-        <FormAlert
-          tone="info"
-          message={passwordChanged ? "Password changed. Sign in with your new password." : null}
-        />
+        <FormAlert tone="info" message={notice} testId="login-notice" />
         <AuthField
           label="Email"
           type="email"
