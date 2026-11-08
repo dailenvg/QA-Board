@@ -1,7 +1,11 @@
 -- A user's name (shown on their comments, and set on /account/profile) is 1 to 80 characters
--- once trimmed, or none. Added NOT VALID: new and updated rows are checked, but rows written
--- before it aren't, so a longer name already in production can't stop migrate() on the first
--- request. Safe to run more than once.
+-- once trimmed, or none. A row that breaks the check would fail every later UPDATE of it (even a
+-- sign-in's last_login_at), so existing names are put right first: trimmed, cut to 80
+-- characters (and trimmed again, as the cut can end on a space), and a blank one cleared. Then
+-- every row passes and the constraint is added validated. Safe to run more than once.
+
+UPDATE users SET name = NULLIF(btrim(left(btrim(name), 80)), '')
+WHERE NOT (name IS NULL OR length(btrim(name)) BETWEEN 1 AND 80);
 
 DO $$
 BEGIN
@@ -11,7 +15,13 @@ BEGIN
     WHERE conname = 'users_name_length' AND conrelid = 'users'::regclass
   ) THEN
     ALTER TABLE users ADD CONSTRAINT users_name_length
-      CHECK (name IS NULL OR length(btrim(name)) BETWEEN 1 AND 80) NOT VALID;
+      CHECK (name IS NULL OR length(btrim(name)) BETWEEN 1 AND 80);
+  ELSIF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'users_name_length' AND conrelid = 'users'::regclass AND NOT convalidated
+  ) THEN
+    -- Added NOT VALID by an earlier draft of this migration: the rows are clean now.
+    ALTER TABLE users VALIDATE CONSTRAINT users_name_length;
   END IF;
 END;
 $$;
