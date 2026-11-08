@@ -1,9 +1,9 @@
 "use client";
 
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import { useState } from "react";
-import { duration } from "@/lib/motion";
+import { duration, fadeOnly } from "@/lib/motion";
 import { clientApi } from "@/lib/share-client/api";
 import type { ClientBrand } from "@/lib/share/types";
 import { SquintMark } from "../brand/SquintMark";
@@ -23,7 +23,21 @@ function CompanyLogo({ src }: { src: string }) {
   if (state === "broken") return <SquintMark className="size-7" />;
   return (
     <>
-      {state === "loading" ? <Skeleton className="absolute inset-0 rounded-pill" /> : null}
+      {/* Fades out as the logo fades in, so the frame never flashes empty between them. */}
+      <AnimatePresence initial={false}>
+        {state === "loading" ? (
+          <motion.span
+            key="skeleton"
+            variants={fadeOnly}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="absolute inset-0"
+          >
+            <Skeleton className="size-full rounded-pill" />
+          </motion.span>
+        ) : null}
+      </AnimatePresence>
       <motion.span
         className="size-full"
         initial={{ opacity: 0 }}
@@ -58,7 +72,7 @@ export function BrandMark({ token, brand }: BrandMarkProps) {
     <span
       style={accentStyle(brand.color)}
       data-testid="brand-mark"
-      className={`relative grid size-10 shrink-0 place-items-center overflow-hidden rounded-pill bg-card shadow-seg ${brand.color ? "ring-2 ring-guest-accent" : ""}`}
+      className={`relative grid size-10 shrink-0 place-items-center overflow-hidden rounded-pill bg-card shadow-seg ${brand.color ? "ring-2 ring-guest-accent dark:ring-guest-accent-dark" : ""}`}
     >
       {logo ? <CompanyLogo key={logo} src={logo} /> : <SquintMark className="size-7" />}
     </span>

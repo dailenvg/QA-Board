@@ -43,7 +43,7 @@ function CompanyLogo({ uri, accent }: { uri: string; accent: string }) {
         alignItems: "center",
         justifyContent: "center",
         flexShrink: 0,
-        padding: 14,
+        padding: 12,
         borderRadius: 32,
         background: PAPER,
         border: `4px solid ${accent}`,
@@ -51,7 +51,7 @@ function CompanyLogo({ uri, accent }: { uri: string; accent: string }) {
       }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- ImageResponse draws plain <img> only. */}
-      <img src={uri} alt="" width={76} height={76} style={{ objectFit: "contain" }} />
+      <img src={uri} alt="" width={80} height={80} style={{ objectFit: "contain" }} />
     </div>
   );
 }
@@ -84,6 +84,8 @@ export function InvitationPreview({ company, project, color, logoUri }: Invitati
               letterSpacing: -1,
               lineHeight: 1.1,
               color: PREVIEW_COLORS.ink,
+              // A name with no spaces breaks inside its column instead of running under Squiggy.
+              wordBreak: "break-word",
             }}
           >
             {clip(company, COMPANY_MAX)}
@@ -114,6 +116,8 @@ export function InvitationPreview({ company, project, color, logoUri }: Invitati
           letterSpacing: -size / 32,
           lineHeight: 1.04,
           color: PREVIEW_COLORS.ink,
+          // Project names are often URLs or slugs with no spaces.
+          wordBreak: "break-word",
         }}
       >
         {name}
