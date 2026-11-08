@@ -146,6 +146,13 @@
   --color-brand-text: var(--brand-text);
   --color-brand-soft: var(--brand-soft);
   --color-on-brand: var(--on-brand);
+  /*
+   * A shared link's company color (`--guest-accent`, set inline from its brand), else the app's
+   * own. An accent only: rules and frames, never behind text.
+   */
+  --color-guest-accent: var(--guest-accent, var(--brand));
+  /* The same, lifted to read on dark surfaces (brand-accent.ts); pair it with `dark:`. */
+  --color-guest-accent-dark: var(--guest-accent-dark, var(--guest-accent, var(--brand)));
   --color-highlight: var(--highlight);
   --color-on-highlight: var(--on-highlight);
   --color-focus: var(--focus);

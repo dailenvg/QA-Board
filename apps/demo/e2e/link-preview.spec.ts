@@ -1,6 +1,10 @@
 import type { APIRequestContext } from "@playwright/test";
 import { expect, test } from "./test";
-import { MAIN_PREVIEW, SHARED_REVIEW_PREVIEW } from "../lib/link-preview";
+import { invitationPreview, MAIN_PREVIEW, SHARED_REVIEW_PREVIEW } from "../lib/link-preview";
+import { E2E_COMPANY } from "./e2e-env";
+import { snapshotPng } from "./sample-snapshot";
+import { revokeWorkspaceLink, shareWorkspaceProject } from "./squint-fixtures";
+import { brandWorkspace } from "./workspace-db";
 
 /** Unfurlers get metadata in <head> (Next streams it to other user agents). */
 const SLACKBOT = "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)";
@@ -42,16 +46,43 @@ function tag(tags: Map<string, string>, key: string): string {
   return value ?? "";
 }
 
-/** Fetches an image by its absolute URL's path, against this server, and checks it is a card PNG. */
-async function expectCard(request: APIRequestContext, imageUrl: string): Promise<void> {
-  const url = new URL(imageUrl);
-  const response = await request.get(`${url.pathname}${url.search}`);
+/**
+ * Fetches an image by its absolute URL's path (or a path), against this server, checks it is
+ * a card PNG, and returns its bytes. `from` sets the caller's address.
+ */
+async function expectCard(
+  request: APIRequestContext,
+  imageUrl: string,
+  from?: string,
+): Promise<Buffer> {
+  const url = new URL(imageUrl, "http://localhost");
+  const response = await request.get(`${url.pathname}${url.search}`, {
+    ...(from ? { headers: { "x-forwarded-for": from } } : {}),
+  });
   expect(response.status()).toBe(200);
   expect(response.headers()["content-type"]).toBe("image/png");
   const png = await response.body();
   expect(png.subarray(1, 4).toString("ascii")).toBe("PNG");
   expect(png.subarray(12, 16).toString("ascii")).toBe("IHDR");
   expect({ width: png.readUInt32BE(16), height: png.readUInt32BE(20) }).toEqual(CARD);
+  return png;
+}
+
+/** The generic shared review cards' bytes (deterministic renders), for Open Graph and X. */
+async function genericCards(request: APIRequestContext) {
+  return {
+    og: await expectCard(request, "/s/opengraph-image"),
+    twitter: await expectCard(request, "/s/twitter-image"),
+  };
+}
+
+/** Whether `/s/<token>`'s own cards are byte for byte the generic ones. */
+async function expectGenericCards(request: APIRequestContext, token: string, from?: string) {
+  const generic = await genericCards(request);
+  const og = await expectCard(request, `/s/${token}/opengraph-image`, from);
+  const twitter = await expectCard(request, `/s/${token}/twitter-image`, from);
+  expect(og.equals(generic.og), `/s/${token}/opengraph-image is the generic card`).toBe(true);
+  expect(twitter.equals(generic.twitter), `/s/${token}/twitter-image is generic`).toBe(true);
 }
 
 function expectLargeCard(tags: Map<string, string>, imagePath: string): void {
@@ -90,6 +121,78 @@ test("other pages inherit the main card but don't claim / as their URL", async (
   }
 });
 
+test("a workspace's review link unfurls as its invitation, with a card of its own", async ({
+  page,
+  request,
+}) => {
+  const project = "Spring launch";
+  const { token } = await shareWorkspaceProject(page, project);
+  await brandWorkspace({ color: "#e03b9d", logo: snapshotPng(64, 64) });
+  const copy = invitationPreview({ company: E2E_COMPANY.name, project });
+
+  const tags = await unfurl(request, `/s/${token}`);
+  expect(tag(tags, "og:title")).toBe(copy.title);
+  expect(tag(tags, "og:description")).toBe(copy.description);
+  expect(tag(tags, "twitter:title")).toBe(copy.title);
+  expect(tag(tags, "twitter:description")).toBe(copy.description);
+  expect(tag(tags, "robots")).toContain("noindex");
+  expect(tag(tags, "referrer")).toBe("no-referrer");
+  // The card is this link's own, found by its token alone.
+  expectLargeCard(tags, `/s/${token}/opengraph-image`);
+  expect(new URL(tag(tags, "twitter:image")).pathname).toBe(`/s/${token}/twitter-image`);
+  expect(tags.has("og:url"), "no og:url").toBe(false);
+  const generic = await genericCards(request);
+  const ogCard = await expectCard(request, tag(tags, "og:image"));
+  const twitterCard = await expectCard(request, tag(tags, "twitter:image"));
+  expect(ogCard.equals(generic.og), "the og card is not the generic one").toBe(false);
+  expect(twitterCard.equals(generic.twitter), "the X card is not the generic one").toBe(false);
+  const card = await request.get(new URL(tag(tags, "og:image")).pathname);
+  expect(card.headers()["cache-control"]).toBe("private, max-age=300");
+
+  // Another link of the same workspace has a card of its own.
+  const fall = await shareWorkspaceProject(page, "Fall menu");
+  const other = await unfurl(request, `/s/${fall.token}`);
+  expect(tag(other, "og:title")).toBe(
+    invitationPreview({ company: E2E_COMPANY.name, project: "Fall menu" }).title,
+  );
+  expect(tag(other, "og:image")).not.toBe(tag(tags, "og:image"));
+  const otherCard = await expectCard(request, tag(other, "og:image"));
+  expect(otherCard.equals(ogCard), "each link draws its own project").toBe(false);
+});
+
+test("a revoked workspace link is a 404 with the generic card", async ({ page, request }) => {
+  const { token, projectId } = await shareWorkspaceProject(page, "Withdrawn");
+  expect(tag(await unfurl(request, `/s/${token}`), "og:title")).toContain("Withdrawn");
+  await revokeWorkspaceLink(page, projectId);
+
+  const tags = await unfurl(request, `/s/${token}`, 404);
+  expect(tag(tags, "og:title")).toBe(SHARED_REVIEW_PREVIEW.title);
+  expect(new URL(tag(tags, "og:image")).pathname).toBe("/s/opengraph-image");
+  for (const [key, value] of tags) expect(value, key).not.toContain("Withdrawn");
+  // Asked for directly, its own cards are now the generic ones: they say nothing about the link.
+  await expectGenericCards(request, token);
+});
+
+test("past its limit, a caller gets the generic card instead of a render", async ({
+  page,
+  request,
+}) => {
+  const { token } = await shareWorkspaceProject(page, "Rate limited");
+  // 60 per-link cards a minute per address; made-up tokens count, and never render.
+  const flood = "203.0.113.90";
+  for (let index = 0; index < 60; index += 1) {
+    const response = await request.get(`/s/${"f".repeat(43)}/opengraph-image`, {
+      headers: { "x-forwarded-for": flood },
+    });
+    expect(response.status()).toBe(200);
+  }
+  await expectGenericCards(request, token, flood);
+  // Another address still gets the link's own card.
+  const generic = await genericCards(request);
+  const own = await expectCard(request, `/s/${token}/opengraph-image`, "203.0.113.91");
+  expect(own.equals(generic.og)).toBe(false);
+});
+
 test("a shared review unfurls generically, without project, client or token", async ({
   request,
 }) => {
@@ -122,6 +225,8 @@ test("a shared review unfurls generically, without project, client or token", as
   }
   await expectCard(request, tag(tags, "og:image"));
   await expectCard(request, tag(tags, "twitter:image"));
+  // Its own card, asked for directly, is the generic one too.
+  await expectGenericCards(request, token);
 });
 
 test("an unknown share token is still a 404, and its card is the same generic image", async ({
@@ -135,4 +240,7 @@ test("an unknown share token is still a 404, and its card is the same generic im
   expect(new URL(image).pathname).toBe("/s/opengraph-image");
   expect(image).not.toContain(token);
   await expectCard(request, image);
+  // Made-up and malformed tokens' own cards are the generic bytes, never a render of their own.
+  await expectGenericCards(request, token);
+  await expectGenericCards(request, "not-a-token");
 });

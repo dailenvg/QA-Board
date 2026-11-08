@@ -78,6 +78,47 @@ export async function skipReviewGuide(page: Page): Promise<void> {
   await page.addInitScript(() => localStorage.setItem("squint:review-guide-seen", "1"));
 }
 
+/**
+ * A website project named `name` in DEFAULT_FOLDER with a review link, made
+ * through the server as the Share dialog makes it. Returns the link's token
+ * and the project's id.
+ */
+export async function shareWorkspaceProject(
+  page: Page,
+  name: string,
+): Promise<{ token: string; projectId: string }> {
+  await addDefaultFolder(page);
+  const id = `shared-${Date.now().toString(36)}`;
+  const source = { kind: "url", url: "https://example.com/" } as const;
+  const project = await page.request.post(await workspaceApi("/projects"), {
+    data: { id, folderId: DEFAULT_FOLDER.id, name, source },
+  });
+  expect(project.status()).toBe(201);
+  const created = await page.request.post("/api/shares", {
+    // Share creation is limited per client address (10 a minute); a documentation-range
+    // address of its own keeps these out of the budget the specs' browsers rely on.
+    headers: { "x-forwarded-for": `198.51.100.${Math.floor(Math.random() * 250) + 1}` },
+    data: { project: { name, source, createdAt: Date.now() }, snapshots: [], comments: [] },
+  });
+  expect(created.status()).toBe(201);
+  const { shareId, token, ownerKey } = (await created.json()) as Record<string, string>;
+  const linked = await page.request.put(await workspaceApi(`/projects/${id}/share-link`), {
+    data: { shareId, token, ownerKey },
+  });
+  expect(linked.status()).toBe(200);
+  return { token: token ?? "", projectId: id };
+}
+
+/** Revokes a project's review link, as its Share dialog does. */
+export async function revokeWorkspaceLink(page: Page, projectId: string): Promise<void> {
+  // Workspace writes must say they're JSON, even without a body (a plain form can't).
+  const response = await page.request.delete(
+    await workspaceApi(`/projects/${projectId}/share-link`),
+    { headers: { "content-type": "application/json" } },
+  );
+  expect(response.status()).toBe(204);
+}
+
 /** Opens the Overview and waits for the store to load. */
 export async function openOverview(page: Page): Promise<void> {
   await page.goto("/");

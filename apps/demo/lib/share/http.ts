@@ -15,6 +15,11 @@ const LIMITS = {
   clientComment: createRateLimiter({ limit: 20, windowMs: 60_000 }),
   clientCapture: createRateLimiter({ limit: 6, windowMs: 60_000 }),
   clientRead: createRateLimiter({ limit: 600, windowMs: 60_000 }),
+  /**
+   * Per-link preview cards: each one is a full render. Over it, the generic card's bytes
+   * (already rendered) answer instead, so an unfurl never breaks.
+   */
+  card: createRateLimiter({ limit: 60, windowMs: 60_000 }),
 };
 
 export type LimitName = keyof typeof LIMITS;

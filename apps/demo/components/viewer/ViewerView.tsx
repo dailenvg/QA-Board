@@ -66,6 +66,8 @@ interface ViewerViewProps {
   commentLocked?: string;
   /** When this project is deleted (epoch ms); a notice shows under the top bar for its last 5 days. */
   expiresAt?: number;
+  /** Draws the top bar's rule in `guest-accent`: a shared link's company color. */
+  accentRule?: boolean;
 }
 
 type ScrollRequest = { id: string; target: "pin" | "card"; nonce: number } | null;
@@ -87,6 +89,7 @@ export function ViewerView({
   draftStorage,
   commentLocked,
   expiresAt,
+  accentRule,
 }: ViewerViewProps) {
   const toast = useToast();
   const backend = useViewerBackend();
@@ -475,6 +478,8 @@ export function ViewerView({
         mode={mode}
         onMode={setMode}
         commentLocked={commentLocked}
+        accentRule={accentRule}
+        titleFirst={!owner}
         originalUrl={originalUrl}
         breakpoints={
           website ? (

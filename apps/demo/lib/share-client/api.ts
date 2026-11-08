@@ -84,6 +84,8 @@ export function clientApi(token: string) {
   return {
     view: () => call<ClientView>(base),
     blobUrl: (key: string) => `${base}/blobs/${blobPath(key)}`,
+    /** The company's logo at `version` (`ClientBrand.logoVersion`), so a new logo is a new URL. */
+    logoUrl: (version: string) => `${base}/brand/logo?v=${encodeURIComponent(version)}`,
     addComment: (form: FormData) =>
       call<SharedComment>(`${base}/comments`, { method: "POST", body: form }),
     capture: (width: number, signal: AbortSignal) =>

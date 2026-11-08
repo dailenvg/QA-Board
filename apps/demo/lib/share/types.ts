@@ -109,9 +109,26 @@ export interface StoredBlob {
   location: BlobLocation;
 }
 
+/**
+ * The company behind a share, as its guest sees it: a name, an accent and
+ * whether there's a logo (read through `/api/s/<token>/brand/logo`). Never an
+ * id, a storage key or a path: the token is the guest's only identifier.
+ */
+export interface ClientBrand {
+  /** False on an anonymous share: Squint's own name and look, and the generic copy. */
+  custom: boolean;
+  name: string;
+  /** `#rrggbb`, for accents only (a rule, a frame), never behind text; null keeps the app's own. */
+  color: string | null;
+  hasLogo: boolean;
+  /** Changes with the logo, so its URL (`?v=`) does too; null without a logo. */
+  logoVersion: string | null;
+}
+
 /** What a client sees: the share without its secrets or bookkeeping. */
 export interface ClientView {
   project: SharedProject;
+  brand: ClientBrand;
   snapshots: SharedSnapshot[];
   comments: SharedComment[];
   /** When the review window closes (epoch ms): after it, clients can only read. */

@@ -22,6 +22,9 @@ const config: NextConfig = {
     "/twitter-image": ["./assets/fonts/**"],
     "/s/opengraph-image": ["./assets/fonts/**"],
     "/s/twitter-image": ["./assets/fonts/**"],
+    // A workspace's review link card, per token (`*` is the [token] segment).
+    "/s/*/opengraph-image": ["./assets/fonts/**"],
+    "/s/*/twitter-image": ["./assets/fonts/**"],
   },
   // Shared review links: never indexed, never leak the token through Referer.
   async headers() {

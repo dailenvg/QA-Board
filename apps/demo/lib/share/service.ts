@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { CapturedImage } from "../capture/capture-page";
+import { toClientBrand } from "./brand";
 import type { ShareServices } from "./server";
 import { blobKind, SHARE_LIMITS, type BlobKind } from "./schemas";
 import { sniffImageType } from "./sniff";
@@ -378,12 +379,14 @@ export async function readBlob(
 }
 
 export async function clientView(store: ShareStore, share: ShareRecord): Promise<ClientView> {
-  const [snapshots, comments] = await Promise.all([
+  const [snapshots, comments, brand] = await Promise.all([
     store.snapshots(share.id),
     store.comments(share.id),
+    store.brandOf(share.id),
   ]);
   return {
     project: share.project,
+    brand: toClientBrand(brand),
     snapshots: items(snapshots),
     comments: items(comments),
     reviewEndsAt: reviewDeadline(share.createdAt),

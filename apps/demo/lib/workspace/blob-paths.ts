@@ -47,6 +47,19 @@ export function projectBlobPrefix(workspaceId: string, projectId: string): strin
   return `ws/${workspaceId}/project/${projectId}/`;
 }
 
+/**
+ * Where a workspace's logo is stored: `ws/<workspaceId>/brand/logo/<id>`, in a
+ * row with no project, named by `workspaces.logo_blob_key`. A new logo gets a
+ * new id, so its guests' `?v=` changes with it (`lib/share/brand.ts`).
+ */
+export function brandLogoPath(workspaceId: string, id: string): string {
+  const path = `ws/${workspaceId}/brand/logo/${id}`;
+  if (!new RegExp(`^ws/${UUID}/brand/logo/${SEGMENT}$`).test(path)) {
+    throw new Error("Not a workspace logo path.");
+  }
+  return path;
+}
+
 /** The largest file a key may hold. */
 export function blobLimit(key: string): number {
   const kind = parseBlobKey(key)?.kind ?? "crop";

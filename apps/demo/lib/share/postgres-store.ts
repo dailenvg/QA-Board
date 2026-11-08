@@ -1,3 +1,4 @@
+import { brandColor, SQUINT_BRAND } from "./brand";
 import type { Queryable } from "./migrate";
 import type { ShareStore } from "./store";
 import type {
@@ -8,6 +9,7 @@ import type {
   SharedProject,
   SharedSnapshot,
   ShareRecord,
+  StoredBlob,
 } from "./types";
 
 interface ShareRow {
@@ -49,6 +51,24 @@ const NOT_TRASHED = `NOT EXISTS (
     AND project.deleted_at IS NOT NULL
 )`;
 
+/**
+ * The share's workspace and its logo row, when the logo is stored where a
+ * workspace's logo goes (`ws/<workspaceId>/brand/logo/…`, no project): a key
+ * pointing anywhere else, such as at a project's page, is no logo.
+ */
+const BRAND_FROM = `squint_shares
+  JOIN workspaces AS workspace ON workspace.id = squint_shares.workspace_id
+  LEFT JOIN workspace_blobs AS logo
+    ON logo.workspace_id = workspace.id AND logo.key = workspace.logo_blob_key
+    AND logo.project_id IS NULL
+    AND starts_with(logo.key, 'ws/' || workspace.id::text || '/brand/logo/')`;
+
+interface BrandRow {
+  name: string;
+  brand_color: string | null;
+  logo_key: string | null;
+}
+
 function toRecord(row: ShareRow): ShareRecord {
   return {
     id: row.id,
@@ -70,6 +90,15 @@ function toLocation(row: Pick<BlobRow, "bytes" | "blob_url">): BlobLocation {
   return row.blob_url
     ? { kind: "vercel", url: row.blob_url }
     : { kind: "inline", bytes: new Uint8Array(row.bytes ?? []) };
+}
+
+function toStoredBlob(row: BlobRow): StoredBlob {
+  return {
+    key: row.key,
+    contentType: row.content_type,
+    size: Number(row.size),
+    location: toLocation(row),
+  };
 }
 
 /** Upsert that keeps an existing row's origin and seq, only replacing its data. */
@@ -141,6 +170,30 @@ export function createPostgresStore(db: Queryable): ShareStore {
         [now, limit],
       );
       return rows.map((row) => row.id);
+    },
+    async brandOf(id) {
+      const { rows } = await db.query<BrandRow>(
+        `SELECT workspace.name, workspace.brand_color, logo.key AS logo_key
+         FROM ${BRAND_FROM} WHERE squint_shares.id = $1 AND ${NOT_TRASHED}`,
+        [id],
+      );
+      const row = rows[0];
+      if (!row) return SQUINT_BRAND;
+      return {
+        custom: true,
+        name: row.name,
+        color: brandColor(row.brand_color),
+        logoKey: row.logo_key,
+      };
+    },
+    async brandLogo(id) {
+      const { rows } = await db.query<BlobRow>(
+        `SELECT logo.key, logo.content_type, logo.size, logo.bytes, logo.blob_url
+         FROM ${BRAND_FROM}
+         WHERE squint_shares.id = $1 AND logo.key IS NOT NULL AND ${NOT_TRASHED}`,
+        [id],
+      );
+      return rows[0] ? toStoredBlob(rows[0]) : null;
     },
     snapshots: (id, options) =>
       list<SharedSnapshot>(
@@ -277,14 +330,7 @@ export function createPostgresStore(db: Queryable): ShareStore {
         "SELECT key, content_type, size, bytes, blob_url FROM squint_share_blobs WHERE share_id = $1 AND key = $2",
         [id, key],
       );
-      const row = rows[0];
-      if (!row) return null;
-      return {
-        key: row.key,
-        contentType: row.content_type,
-        size: Number(row.size),
-        location: toLocation(row),
-      };
+      return rows[0] ? toStoredBlob(rows[0]) : null;
     },
     async putBlob(id, blob) {
       const inline = blob.location.kind === "inline" ? blob.location.bytes : null;

@@ -2,31 +2,49 @@
 
 import { motion } from "motion/react";
 import { staggerGroup, useRevealVariants } from "@/lib/motion";
+import type { ClientBrand } from "@/lib/share/types";
 import { PauseToggle } from "../overview/welcome/PauseToggle";
 import { REVIEWER_STORIES } from "../overview/welcome/reviewer-stories";
 import { useStoryPlayback } from "../overview/welcome/use-story-playback";
 import { WelcomeStories } from "../overview/welcome/WelcomeStories";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
+import { BrandMark } from "./BrandMark";
 
 const stagger = staggerGroup(0.07, 0.12);
 
 interface ReviewGuideProps {
   open: boolean;
   onClose: () => void;
+  token: string;
+  brand: ClientBrand;
+}
+
+/** Who invited the reviewer, beside the company's logo; the generic line on an anonymous link. */
+function Invitation({ token, brand }: Pick<ReviewGuideProps, "token" | "brand">) {
+  if (!brand.custom) return "Here's how to leave feedback on this project.";
+  return (
+    <span className="flex items-center gap-3 pt-2" data-testid="review-guide-invitation">
+      <BrandMark token={token} brand={brand} />
+      <span className="min-w-0">
+        {brand.name} invited you to leave feedback on this project. Here&apos;s how.
+      </span>
+    </span>
+  );
 }
 
 /**
  * How a shared review works, for the client: the welcome's looping stories,
  * told from the reviewer's side, with the same Pause and reduced-motion rules.
+ * It opens with who invited them (the company's name and logo).
  */
-export function ReviewGuide({ open, onClose }: ReviewGuideProps) {
+export function ReviewGuide({ open, onClose, token, brand }: ReviewGuideProps) {
   return (
     <Dialog
       open={open}
       onClose={onClose}
       title="How it works"
-      description="Here's how to leave feedback on this project."
+      description={<Invitation token={token} brand={brand} />}
       size="lg"
       testId="review-guide"
     >

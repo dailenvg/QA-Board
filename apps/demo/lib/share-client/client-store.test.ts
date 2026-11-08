@@ -36,6 +36,7 @@ describe("client store", () => {
       },
       snapshots: [],
       comments: [{ ...COMMENT, id: "k", snapshotId: undefined, pageId: "p2" }],
+      brand: VIEW.brand,
       reviewEndsAt: VIEW.reviewEndsAt,
       expiresAt: VIEW.expiresAt,
     };

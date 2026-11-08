@@ -34,6 +34,8 @@ export const PREVIEW_COLORS = {
   glowFade: alpha(COBALT, 0),
   panel: PAPER,
   ink: NAVY,
+  /** A company's accent when it hasn't chosen one: the wordmark cobalt. */
+  accent: COBALT,
   /** 5.4:1 on the panel (AA for body text). */
   muted: mix(NAVY, PAPER, 0.3),
   /** The Daily's lime: the highlighter swash under dark ink, as in the app (navy on it is 11.9:1). */

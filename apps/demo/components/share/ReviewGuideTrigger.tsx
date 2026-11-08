@@ -1,6 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from "react";
+import type { ClientBrand } from "@/lib/share/types";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { ReviewGuide } from "./ReviewGuide";
@@ -28,6 +29,8 @@ function markSeen(): void {
 interface ReviewGuideTriggerProps {
   /** The review window had closed on arrival: the guide's steps no longer apply, so it waits. */
   reviewClosed: boolean;
+  token: string;
+  brand: ClientBrand;
 }
 
 /**
@@ -36,7 +39,7 @@ interface ReviewGuideTriggerProps {
  * has closed, which doesn't count as that visit), and from the button any
  * time. Render it on the client only: it reads localStorage on mount.
  */
-export function ReviewGuideTrigger({ reviewClosed }: ReviewGuideTriggerProps) {
+export function ReviewGuideTrigger({ reviewClosed, token, brand }: ReviewGuideTriggerProps) {
   const [firstVisit] = useState(() => !reviewClosed && !seenBefore());
   const [open, setOpen] = useState(firstVisit);
   const button = useRef<HTMLButtonElement>(null);
@@ -63,7 +66,7 @@ export function ReviewGuideTrigger({ reviewClosed }: ReviewGuideTriggerProps) {
         {/* Named by its text (sr-only on phones), so the spoken name matches the visible one. */}
         <span className="max-sm:sr-only">How it works</span>
       </Button>
-      <ReviewGuide open={open} onClose={() => setOpen(false)} />
+      <ReviewGuide open={open} onClose={() => setOpen(false)} token={token} brand={brand} />
     </>
   );
 }
