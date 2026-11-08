@@ -34,7 +34,7 @@ export function LogOutEverywhere() {
   return (
     <SettingsCard
       title="Sessions"
-      description="Signed in somewhere you shouldn't be, or on a shared computer? Sign out of Squint on every browser and device, this one included."
+      description="Still signed in on a shared computer, or somewhere you don't expect? Sign out of Squint on every browser and device, this one included."
       icon="logOut"
       testId="sessions-settings"
     >
@@ -56,7 +56,7 @@ export function LogOutEverywhere() {
       <ConfirmDialog
         open={confirming}
         title="Log out everywhere?"
-        description="Every browser and device signed in to this account is signed out, this one too. You'll need your password to sign in again."
+        description="This signs you out on every browser and device, this one included. You'll need your password to sign in again."
         confirmLabel="Log out everywhere"
         onConfirm={() => void run()}
         onClose={() => setConfirming(false)}

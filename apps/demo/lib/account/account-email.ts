@@ -6,7 +6,7 @@ const NOTICE_SUBJECT = "Your Squint email changed";
 
 export function emailChangeLinkText(link: string): string {
   return [
-    "Someone asked to move a Squint account to this email address.",
+    "Someone asked to change a Squint account's email to this address.",
     "",
     "Confirm the change here (the link works once, for one hour):",
     link,
@@ -17,7 +17,7 @@ export function emailChangeLinkText(link: string): string {
 
 export function emailChangeLinkHtml(link: string): string {
   const href = escapeHtml(link);
-  return `<p>Someone asked to move a Squint account to this email address.</p>
+  return `<p>Someone asked to change a Squint account's email to this address.</p>
 <p><a href="${href}">Confirm the change</a>. The link works once, for one hour.</p>
 <p>If it wasn't you, ignore this email. Nothing changes until the link is used.</p>`;
 }
