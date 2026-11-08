@@ -1,10 +1,11 @@
 "use client";
 
 import { motion, useReducedMotion } from "motion/react";
-import { useId, useState, type Ref } from "react";
+import { useId, type Ref } from "react";
 import { press } from "@/lib/motion";
 import { FieldError } from "../ui/FieldError";
 import { FIELD_CLASS } from "../ui/field-styles";
+import { useReportedReveal } from "./password-reveal";
 
 interface AuthFieldProps {
   label: string;
@@ -45,7 +46,7 @@ export function AuthField({
   const hintId = useId();
   const errorId = useId();
   const reduce = useReducedMotion();
-  const [revealed, setRevealed] = useState(false);
+  const [revealed, setRevealed] = useReportedReveal();
   const isPassword = type === "password";
   return (
     <div>

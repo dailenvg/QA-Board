@@ -14,6 +14,7 @@ import {
 } from "motion/react";
 import { duration, instant, spring, springValue } from "@/lib/motion";
 import { MagnifiedEye, Magnifier } from "./Accessory";
+import { eyePose } from "./eye-pose";
 import { GAZE_RANGE, useBlink, useGaze } from "./hooks";
 import { MoodProps } from "./MoodProps";
 import { MOOD_SPECS, layerVariants, type Accessory, type EyeShape, type Mood } from "./moods";
@@ -48,6 +49,11 @@ export type SquiggyProps = {
   accessory?: Accessory;
   /** Perks up as if hovered, for a parent that owns the hover or focus. */
   perked?: boolean;
+  /**
+   * Shuts its eyes and looks aside, politely not looking (while a password is
+   * shown). Only the eyes: the body keeps the mood.
+   */
+  averted?: boolean;
   /**
    * Holds the mood's pose (and its props) instead of looping it: for a mascot
    * that stays on screen beside content, where endless motion distracts
@@ -91,6 +97,7 @@ export function Squiggy({
   ink = eyeColor,
   accessory,
   perked: perkedByParent = false,
+  averted = false,
   still = false,
   blinks = true,
   as = "div",
@@ -121,11 +128,9 @@ export function Squiggy({
     // `held` re-binds the squash and shadow layers to controls when a drag ends.
   }, [mood, reduce, still, held, controls, spec.loop]);
 
-  const blinking = useBlink(blinks && spec.blinks && !held);
-  const gaze = useGaze(rootRef, {
-    follow: followCursor && !reduce,
-    override: held ? { x: 0, y: -6 } : spec.gaze,
-  });
+  const eyes = eyePose(spec, { held, averted });
+  const blinking = useBlink(blinks && eyes.blinks);
+  const gaze = useGaze(rootRef, { follow: followCursor && !reduce, override: eyes.gaze });
 
   // Eyes face the side they look toward. The dead zone keeps them from
   // flickering while the gaze hovers near center.
@@ -175,6 +180,8 @@ export function Squiggy({
     <Root
       ref={rootRef as Ref<HTMLDivElement>}
       className={["squint-mascot", className].filter(Boolean).join(" ")}
+      data-mood={mood}
+      data-eyes={eyes.source}
       data-interactive={interactive || undefined}
       data-draggable={draggable || undefined}
       {...(interactive
@@ -258,7 +265,7 @@ export function Squiggy({
                         <Eye
                           d={EYE_LEFT_PATH}
                           color={eyeColor}
-                          shape={held ? OPEN : spec.leftEye}
+                          shape={eyes.left}
                           closed={blinking}
                           facing={facing}
                           reduce={reduce}
@@ -267,7 +274,7 @@ export function Squiggy({
                           <Eye
                             d={EYE_RIGHT_PATH}
                             color={eyeColor}
-                            shape={held ? OPEN : spec.rightEye}
+                            shape={eyes.right}
                             closed={blinking || winking}
                             facing={facing}
                             reduce={reduce}
@@ -292,8 +299,6 @@ export function Squiggy({
   );
 }
 
-const OPEN: EyeShape = { scaleY: 1 };
-
 type EyeProps = {
   d: string;
   color: string;
@@ -315,7 +320,13 @@ function Eye({ d, color, shape, closed, facing, reduce }: EyeProps) {
           scaleY: closed ? BLINK_SCALE : shape.scaleY,
           rotate: shape.rotate ?? 0,
         }}
-        transition={closed ? { duration: duration.micro / 2.5, ease: "easeIn" } : spring.eye}
+        transition={
+          closed
+            ? { duration: duration.micro / 2.5, ease: "easeIn" }
+            : reduce
+              ? instant
+              : spring.eye
+        }
       />
     </motion.g>
   );

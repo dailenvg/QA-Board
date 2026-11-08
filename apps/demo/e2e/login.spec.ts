@@ -54,6 +54,37 @@ test.describe("signed out", () => {
     await expect(page).toHaveURL(/\/reset$/);
   });
 
+  test("Squiggy shuts its eyes while the password is shown, and looks again once it's hidden", async ({
+    page,
+  }) => {
+    await page.goto("/login");
+    const squiggy = page.locator(".squint-mascot");
+    await expect(squiggy).toHaveAttribute("data-eyes", "mood");
+    await page.getByRole("button", { name: "Show password" }).click();
+    await expect(squiggy).toHaveAttribute("data-eyes", "averted");
+    // Only the eyes: the body keeps the form's mood, and the name stays Squiggy's.
+    await expect(squiggy).toHaveAttribute("data-mood", "idle");
+    await expect(squiggy).toHaveAccessibleName("Squiggy, relaxed");
+    await page.getByRole("button", { name: "Hide password" }).click();
+    await expect(squiggy).toHaveAttribute("data-eyes", "mood");
+  });
+
+  test("on a new password, Squiggy keeps its eyes shut while either field is shown", async ({
+    page,
+  }) => {
+    await page.goto(await createResetLink(E2E_ADMIN.email));
+    const squiggy = page.locator(".squint-mascot");
+    const show = page.getByRole("button", { name: "Show password" });
+    const hide = page.getByRole("button", { name: "Hide password" });
+    await show.first().click();
+    await show.first().click();
+    await expect(squiggy).toHaveAttribute("data-eyes", "averted");
+    await hide.first().click();
+    await expect(squiggy).toHaveAttribute("data-eyes", "averted");
+    await hide.first().click();
+    await expect(squiggy).toHaveAttribute("data-eyes", "mood");
+  });
+
   test("checks fields when you leave them", async ({ page }) => {
     await page.goto("/login");
     await page.getByLabel("Email").fill("not-an-email");
