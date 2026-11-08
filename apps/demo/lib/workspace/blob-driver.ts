@@ -60,6 +60,15 @@ export interface ClientUploadDriver extends BlobDriver {
   ): Promise<{ files: ListedFile[]; cursor?: string; hasMore: boolean }>;
 }
 
+/**
+ * Stores a small file the server already holds and has checked (a logo, an
+ * avatar), at a fixed pathname that's never overwritten; returns where it
+ * now lives, for its row.
+ */
+export interface BlobWriter {
+  put(pathname: string, bytes: Uint8Array, contentType: string): Promise<BlobLocation>;
+}
+
 export type AnyBlobDriver = ClientUploadDriver | (BlobDriver & { readonly kind: "inline" });
 
 /** Reads BLOB_READ_WRITE_TOKEN and VERCEL. */
@@ -69,7 +78,7 @@ type DriverEnv = Readonly<Record<string, string | undefined>>;
  * Vercel Blob when `BLOB_READ_WRITE_TOKEN` is set, else inline, which refuses
  * to run on a Vercel deployment (`inlineBlobDriver`).
  */
-export function blobDriverFromEnv(env: DriverEnv = process.env): AnyBlobDriver {
+export function blobDriverFromEnv(env: DriverEnv = process.env): AnyBlobDriver & BlobWriter {
   const token = env.BLOB_READ_WRITE_TOKEN?.trim();
   return token ? vercelBlobDriver(token) : inlineBlobDriver(env);
 }

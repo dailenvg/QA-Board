@@ -2,6 +2,7 @@ import { blobDriverFromEnv, type BlobDriver } from "../workspace/blob-driver";
 import { logoVersion } from "./brand";
 import { sniffImageType } from "./sniff";
 import type { ShareStore } from "./store";
+import type { StoredBlob } from "./types";
 
 export interface BrandLogo {
   bytes: Uint8Array;
@@ -31,7 +32,18 @@ export async function readBrandLogo(
   driver?: Pick<BlobDriver, "read">,
 ): Promise<BrandLogo | null> {
   const stored = await store.brandLogo(shareId);
-  if (!stored) return null;
+  return stored && readStoredImage(stored, driver);
+}
+
+/**
+ * A stored image row's file (a logo, an avatar), read through the workspace
+ * blob driver and versioned by its key. Null when the file is gone or isn't
+ * a bitmap image.
+ */
+export async function readStoredImage(
+  stored: Pick<StoredBlob, "key" | "location">,
+  driver?: Pick<BlobDriver, "read">,
+): Promise<BrandLogo | null> {
   const bytes = await (driver ?? blobDriverFromEnv()).read(stored.location);
   const contentType = bytes ? sniffImageType(bytes) : null;
   if (!bytes || !contentType) return null;
@@ -45,8 +57,9 @@ export function cardLogoUri(logo: BrandLogo): string | null {
 }
 
 /**
- * The logo for a browser: kept privately for a few minutes when asked for at
- * its current version, never cached otherwise, never sniffed, inert if opened.
+ * The logo (or a signed-in user's avatar) for a browser: kept privately for a
+ * few minutes when asked for at its current version, never cached otherwise,
+ * never sniffed, inert if opened.
  */
 export function brandLogoResponse(logo: BrandLogo, requestedVersion: string | null): Response {
   const current = requestedVersion === logo.version;

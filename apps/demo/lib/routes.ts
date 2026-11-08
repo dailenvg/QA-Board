@@ -12,6 +12,17 @@ export function projectHref(projectId: string): string {
 /** Account settings; it opens on its first section, the profile. */
 export const ACCOUNT_HREF = "/account";
 export const ACCOUNT_PROFILE_HREF = "/account/profile";
+export const ACCOUNT_WORKSPACE_HREF = "/account/workspace";
+
+/** The signed-in user's avatar, at a version (`?v=`) that changes with each new one. */
+export function avatarSrc(version: string): string {
+  return `/api/account/avatar?v=${encodeURIComponent(version)}`;
+}
+
+/** The logo of the signed-in user's workspace, at a version that changes with each new one. */
+export function workspaceLogoSrc(version: string): string {
+  return `/api/account/workspace/logo?v=${encodeURIComponent(version)}`;
+}
 
 /** Whether `pathname` is in the account settings. */
 export function isAccountPath(pathname: string): boolean {
