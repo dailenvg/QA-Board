@@ -36,13 +36,19 @@ export interface Invitation {
   project: string;
 }
 
+/**
+ * The alt text of a workspace link's card. The same for every link: the card's
+ * image file exports it as is, which keeps the card's URL to the token alone.
+ */
+export const INVITATION_CARD_ALT =
+  "An invitation to review: the company's name and logo, and the project's name. Squiggy, the blue Squint mascot, leans in among comment pins.";
+
 /** The preview of a workspace's review link. */
 export function invitationPreview({ company, project }: Invitation): LinkPreviewCopy {
-  const title = `${company} invited you to review ${project}`;
   return {
-    title,
+    title: `${company} invited you to review ${project}`,
     description: `Open the link, drop a pin and leave ${company} a comment. No account needed.`,
-    alt: `${title}. Squiggy, the blue Squint mascot, leans in among comment pins.`,
+    alt: INVITATION_CARD_ALT,
   };
 }
 

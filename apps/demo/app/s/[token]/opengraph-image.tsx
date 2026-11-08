@@ -3,10 +3,10 @@ import {
   LINK_PREVIEW_SIZE,
   LINK_PREVIEW_TYPE,
 } from "@/components/link-preview/render-link-preview";
+import { INVITATION_CARD_ALT } from "@/lib/link-preview";
 
 export const dynamic = "force-dynamic";
-export const alt =
-  "An invitation to review: the company's name and logo, and the project's name. Squiggy, the blue Squint mascot, leans in among comment pins.";
+export const alt = INVITATION_CARD_ALT;
 export const size = LINK_PREVIEW_SIZE;
 export const contentType = LINK_PREVIEW_TYPE;
 
