@@ -52,11 +52,15 @@ export function ViewerTopBar({
         <span
           aria-hidden="true"
           data-testid="accent-rule"
-          className="pointer-events-none absolute inset-x-6 top-0 h-1 rounded-b-pill bg-guest-accent"
+          className="pointer-events-none absolute inset-x-6 top-0 h-1 rounded-b-pill bg-guest-accent dark:bg-guest-accent-dark"
         />
       ) : null}
       {leading}
-      <div className="flex min-w-40 flex-1 items-center gap-2">
+      {/*
+       * The title outranks the controls: from tablets up it keeps about 20 characters beside
+       * its status, and when that doesn't fit, the controls wrap to the next row instead.
+       */}
+      <div className="flex min-w-40 flex-1 items-center gap-2 md:min-w-80">
         <h1 title={project.name} className="truncate text-heading font-bold">
           {project.name}
         </h1>

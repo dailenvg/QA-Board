@@ -151,6 +151,8 @@
    * own. An accent only: rules and frames, never behind text.
    */
   --color-guest-accent: var(--guest-accent, var(--brand));
+  /* The same, lifted to read on dark surfaces (brand-accent.ts); pair it with `dark:`. */
+  --color-guest-accent-dark: var(--guest-accent-dark, var(--guest-accent, var(--brand)));
   --color-highlight: var(--highlight);
   --color-on-highlight: var(--on-highlight);
   --color-focus: var(--focus);
