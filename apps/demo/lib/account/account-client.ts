@@ -12,12 +12,16 @@ export type AccountError =
   | "too-many-requests"
   | "invalid"
   | "signed-out"
+  /** The request never reached Squint (offline, or the connection dropped). */
+  | "offline"
+  /** Squint answered, but with an error of its own. */
   | "failed";
 
 export type AccountOutcome =
   { ok: true } | { ok: false; error: AccountError; retryAfterSeconds?: number };
 
-export type ConfirmOutcome = { ok: true } | { ok: false; error: "expired" | "taken" | "failed" };
+export type ConfirmOutcome =
+  { ok: true } | { ok: false; error: "expired" | "taken" | "offline" | "failed" };
 
 /** The lock's length, when a 429 somehow arrives without Retry-After. */
 const DEFAULT_RETRY_SECONDS = 15 * 60;
@@ -42,8 +46,9 @@ async function errorCode(response: Response): Promise<string | null> {
 }
 
 async function outcomeOf(response: Response | null): Promise<AccountOutcome> {
-  if (response?.ok) return { ok: true };
-  switch (response?.status) {
+  if (!response) return { ok: false, error: "offline" };
+  if (response.ok) return { ok: true };
+  switch (response.status) {
     case 400:
       return { ok: false, error: "invalid" };
     case 401:
@@ -93,9 +98,10 @@ export async function logOutEverywhere(): Promise<AccountOutcome> {
 
 export async function confirmEmailChange(token: string): Promise<ConfirmOutcome> {
   const response = await send("POST", "/api/auth/email-change/confirm", { token });
-  if (response?.ok) return { ok: true };
-  if (response?.status === 410) return { ok: false, error: "expired" };
-  if (response?.status === 409) return { ok: false, error: "taken" };
+  if (!response) return { ok: false, error: "offline" };
+  if (response.ok) return { ok: true };
+  if (response.status === 410) return { ok: false, error: "expired" };
+  if (response.status === 409) return { ok: false, error: "taken" };
   return { ok: false, error: "failed" };
 }
 
@@ -114,7 +120,9 @@ export function accountErrorMessage(error: AccountError, retryAfterSeconds = 0):
       return "Check the fields above and try again.";
     case "signed-out":
       return "You've been signed out. Sign in again to make changes.";
-    case "failed":
+    case "offline":
       return "Couldn't reach Squint. Check your connection and try again.";
+    case "failed":
+      return "Something went wrong on our side. Try again in a moment.";
   }
 }

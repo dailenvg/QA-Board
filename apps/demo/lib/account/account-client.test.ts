@@ -52,8 +52,26 @@ describe("account client", () => {
 
   it("treats a network failure as a failure, not a throw", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("offline"));
-    expect(await saveDisplayName("Ana")).toEqual({ ok: false, error: "failed" });
-    expect(await confirmEmailChange("t")).toEqual({ ok: false, error: "failed" });
+    expect(await saveDisplayName("Ana")).toEqual({ ok: false, error: "offline" });
+    expect(await confirmEmailChange("t")).toEqual({ ok: false, error: "offline" });
+    expect(accountErrorMessage("offline")).toBe(
+      "Couldn't reach Squint. Check your connection and try again.",
+    );
+  });
+
+  it("says a refusal or a server error is on Squint's side, not the connection", async () => {
+    for (const status of [403, 415, 500, 503]) {
+      answer(status, { error: "x" });
+      expect(await saveDisplayName("Ana"), String(status)).toEqual({ ok: false, error: "failed" });
+      answer(status);
+      expect(await confirmEmailChange("t"), String(status)).toEqual({
+        ok: false,
+        error: "failed",
+      });
+    }
+    expect(accountErrorMessage("failed")).toBe(
+      "Something went wrong on our side. Try again in a moment.",
+    );
   });
 
   it("reads the confirm's answers", async () => {
@@ -73,6 +91,7 @@ describe("account client", () => {
       "too-many-requests",
       "invalid",
       "signed-out",
+      "offline",
       "failed",
     ] as const;
     for (const error of errors) {

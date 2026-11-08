@@ -66,7 +66,9 @@ export function EmailChangeConfirm({ token, usable, initialError }: EmailChangeC
     setStatus("idle");
     if (outcome.error === "expired") setExpired(true);
     else if (outcome.error === "taken") setFormError(emailChangeFlagMessage("taken"));
-    else setFormError("Couldn't confirm the change. Check your connection and try again.");
+    else if (outcome.error === "offline") {
+      setFormError("Couldn't reach Squint. Check your connection and try again.");
+    } else setFormError(emailChangeFlagMessage("unavailable"));
   };
 
   return (
