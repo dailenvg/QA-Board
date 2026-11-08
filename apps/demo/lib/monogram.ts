@@ -41,6 +41,11 @@ export function monogramInitials(name: string): string {
   return initials || (Array.from(name.trim())[0] ?? "");
 }
 
+/** What a person's monogram is drawn from: their name, else (unnamed) their email. */
+export function personMonogramName(name: string | null, email: string): string {
+  return name?.trim() || email;
+}
+
 /** `name`'s monogram on `color` (a brand color), or on the neutral navy without one. */
 export function monogram(name: string, color: string | null): Monogram {
   const background = color ?? MONOGRAM_NEUTRAL;

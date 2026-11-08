@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { IMAGE_MAX_EDGE } from "@/lib/account/image-rules";
+import { personMonogramName } from "@/lib/monogram";
 import { avatarSrc } from "@/lib/routes";
 import { MonogramTile } from "../brand/MonogramTile";
 import { ImageUploader } from "./ImageUploader";
@@ -32,7 +33,7 @@ export function AvatarForm({ name, email, initialVersion }: AvatarFormProps) {
         src={version && avatarSrc(version)}
         fallback={
           <MonogramTile
-            name={name?.trim() || email}
+            name={personMonogramName(name, email)}
             color={null}
             className="size-full text-title"
           />

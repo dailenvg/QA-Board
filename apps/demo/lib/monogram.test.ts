@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NAVY, PAPER } from "./brand-palette";
 import { contrast } from "./color";
-import { monogram, monogramInitials, MONOGRAM_NEUTRAL } from "./monogram";
+import { monogram, monogramInitials, MONOGRAM_NEUTRAL, personMonogramName } from "./monogram";
 
 describe("monogramInitials", () => {
   afterEach(() => {
@@ -29,6 +29,14 @@ describe("monogramInitials", () => {
     });
     expect(monogramInitials("ivy studio")).toBe("IS");
     expect(monogramInitials("ılık iris")).toBe("II");
+  });
+});
+
+describe("personMonogramName", () => {
+  it("is the person's name, else their email when they have none", () => {
+    expect(personMonogramName(" Ana Lima ", "ana@acme.test")).toBe("Ana Lima");
+    expect(personMonogramName("   ", "ana@acme.test")).toBe("ana@acme.test");
+    expect(personMonogramName(null, "ana@acme.test")).toBe("ana@acme.test");
   });
 });
 
