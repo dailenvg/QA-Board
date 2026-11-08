@@ -1,4 +1,5 @@
 import { Client } from "pg";
+import { brandLogoPath } from "../lib/workspace/blob-paths";
 import { E2E_COMPANY, e2eDatabaseUrl } from "./e2e-env";
 
 /**
@@ -36,8 +37,9 @@ export async function e2eWorkspaceId(): Promise<string> {
 
 /**
  * Empties the workspace (folders, projects and everything in them, files,
- * share links) and forgets the owner's comment name, so each test starts as
- * a first visit did. Accounts and sessions stay.
+ * share links), forgets the owner's comment name and puts its brand back to
+ * the seed's (name only, no logo or color), so each test starts as a first
+ * visit did. Accounts and sessions stay.
  */
 export async function resetWorkspace(): Promise<void> {
   await withClient(async (client) => {
@@ -46,6 +48,48 @@ export async function resetWorkspace(): Promise<void> {
     );
     await client.query("UPDATE storage_usage SET bytes = 0, blob_count = 0");
     await client.query("UPDATE users SET name = NULL");
+    await client.query(
+      "UPDATE workspaces SET name = $2, logo_blob_key = NULL, brand_color = NULL WHERE slug = $1",
+      [E2E_COMPANY.slug, E2E_COMPANY.name],
+    );
+  });
+}
+
+/**
+ * Gives the e2e workspace a brand color and a logo, stored as the settings
+ * page will store it (a `workspace_blobs` row with no project, bytes inline
+ * on the e2e server), until the next `resetWorkspace`.
+ */
+export async function brandWorkspace({
+  color,
+  logo,
+  logoId = "e2e-logo",
+}: {
+  color: string;
+  logo: Buffer;
+  logoId?: string;
+}): Promise<void> {
+  const workspaceId = await e2eWorkspaceId();
+  const key = brandLogoPath(workspaceId, logoId);
+  await withClient(async (client) => {
+    await client.query(
+      `INSERT INTO workspace_blobs (workspace_id, key, project_id, content_type, size, bytes)
+       VALUES ($1, $2, NULL, 'image/png', $3, $4)`,
+      [workspaceId, key, logo.length, logo],
+    );
+    await client.query("UPDATE workspaces SET logo_blob_key = $2, brand_color = $3 WHERE id = $1", [
+      workspaceId,
+      key,
+      color,
+    ]);
+  });
+}
+
+/** Every account's id: none may reach a guest. */
+export async function userIds(): Promise<string[]> {
+  return withClient(async (client) => {
+    const { rows } = await client.query<{ id: string }>("SELECT id FROM users");
+    return rows.map((row) => row.id);
   });
 }
 

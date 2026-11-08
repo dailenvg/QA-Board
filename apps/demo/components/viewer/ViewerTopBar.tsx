@@ -25,6 +25,8 @@ interface ViewerTopBarProps {
   breakpoints?: ReactNode;
   /** Why Comment mode is off right now, such as a closed review window; it stays visible. */
   commentLocked?: string;
+  /** A rule along the top edge in `guest-accent`: a shared link's company color. */
+  accentRule?: boolean;
 }
 
 /**
@@ -41,10 +43,18 @@ export function ViewerTopBar({
   actions,
   breakpoints,
   commentLocked,
+  accentRule = false,
 }: ViewerTopBarProps) {
   return (
     // Its own layer, so the Export menu opens over the snapshot bar and pins below it.
     <header className="relative z-40 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-panel bg-panel p-2">
+      {accentRule ? (
+        <span
+          aria-hidden="true"
+          data-testid="accent-rule"
+          className="pointer-events-none absolute inset-x-6 top-0 h-1 rounded-b-pill bg-guest-accent"
+        />
+      ) : null}
       {leading}
       <div className="flex min-w-40 flex-1 items-center gap-2">
         <h1 title={project.name} className="truncate text-heading font-bold">
