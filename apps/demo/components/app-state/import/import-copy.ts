@@ -54,7 +54,7 @@ export const FAILURE_COPY: Record<ImportFailure, string> = {
   "images-blocked":
     "This browser blocks access to its saved images, as private windows do. Open Squint in a normal window to import them, or discard the local data.",
   folders:
-    "Some folders saved in this browser are damaged, so Squint couldn't accept them. Trying again won't fix this. Keep it for now and ask the Squint team for help, or discard it.",
+    "Some folders saved in this browser are damaged, so Squint couldn't accept them. Trying again won't fix this. Keep this data for now and ask the Squint team for help, or discard it.",
 };
 
 /** The reassurance under a failure: what was kept, and how to carry on. */
