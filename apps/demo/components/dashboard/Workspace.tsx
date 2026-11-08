@@ -70,6 +70,7 @@ function WorkspaceShell({ data, account, children }: WorkspaceShellProps) {
   const { id: routeFolderId } = useParams<{ id?: string }>();
   const toast = useToast();
   const onOverview = pathname === OVERVIEW_HREF;
+  const onAccount = isAccountPath(pathname);
   /** Tailwind's `lg`, in rem like the CSS: sidebar beside the page rather than above it. */
   const wide = useMediaQuery("(min-width: 64rem)");
 
@@ -224,7 +225,7 @@ function WorkspaceShell({ data, account, children }: WorkspaceShellProps) {
             actionsFor={workspace.folderActions}
             activeId={routeFolderId ?? null}
             overviewActive={onOverview}
-            accountActive={isAccountPath(pathname)}
+            accountActive={onAccount}
             onNewProject={() => showNewProject({})}
             onNewFolder={() => showNewFolder({ parentId: null })}
             onNewFolderHere={newFolderHere}
@@ -241,6 +242,7 @@ function WorkspaceShell({ data, account, children }: WorkspaceShellProps) {
             onNewProject={() => showNewProject({})}
             onNewFolder={newFolderHere}
             newFolderIn={hereFolder?.name ?? null}
+            createActions={!onAccount}
           />
           {children}
         </main>

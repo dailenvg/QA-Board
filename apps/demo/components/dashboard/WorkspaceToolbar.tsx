@@ -15,6 +15,11 @@ interface WorkspaceToolbarProps {
   onNewFolder: () => void;
   /** The open folder New folder creates in; null at the top level. */
   newFolderIn: string | null;
+  /**
+   * New folder and New project. Off on the account settings: they'd compete with the page's own
+   * Save buttons and "here" means nothing there. Search stays, with its / and ⌘K shortcuts.
+   */
+  createActions?: boolean;
 }
 
 /**
@@ -29,6 +34,7 @@ export function WorkspaceToolbar({
   onNewProject,
   onNewFolder,
   newFolderIn,
+  createActions = true,
 }: WorkspaceToolbarProps) {
   const attention = useAttentionReporter("toolbar-button");
   // Inside a folder, the name and tooltip say where it goes; the visible label stays short.
@@ -41,7 +47,7 @@ export function WorkspaceToolbar({
       <div className="flex max-w-xl min-w-0 flex-1">
         {search ?? <Skeleton className="h-11 w-full rounded-field" />}
       </div>
-      {search ? (
+      {!createActions ? null : search ? (
         <div className="flex shrink-0 items-center gap-2">
           <Button
             variant="secondary"

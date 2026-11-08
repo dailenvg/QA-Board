@@ -38,7 +38,8 @@ export function SettingsCard({ title, description, icon, children, testId }: Set
           <h2 id={titleId} className="text-heading font-semibold">
             {title}
           </h2>
-          <div className="text-body text-pretty text-muted">{description}</div>
+          {/* wrap-anywhere: a long sign-in email in the description can't push past a phone's edge. */}
+          <div className="text-body text-pretty text-muted wrap-anywhere">{description}</div>
         </div>
       </header>
       {children}

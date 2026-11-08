@@ -62,7 +62,8 @@ export function FormAlert({ message, tone = "error", link, testId, className }: 
             className={`flex items-start gap-2 rounded-tile px-4 py-3 text-body font-medium ${TONES[tone]}`}
           >
             <Icon name={tone === "error" ? "alert" : "check"} className="mt-0.5 size-4 shrink-0" />
-            <span>{linked(message, link)}</span>
+            {/* min-w-0 wrap-anywhere: messages can hold email addresses too long for a phone's line. */}
+            <span className="min-w-0 wrap-anywhere">{linked(message, link)}</span>
           </motion.p>
         ) : null}
       </AnimatePresence>
