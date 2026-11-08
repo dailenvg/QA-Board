@@ -1,6 +1,10 @@
 import type { APIRequestContext } from "@playwright/test";
 import { expect, test } from "./test";
-import { MAIN_PREVIEW, SHARED_REVIEW_PREVIEW } from "../lib/link-preview";
+import { invitationPreview, MAIN_PREVIEW, SHARED_REVIEW_PREVIEW } from "../lib/link-preview";
+import { E2E_COMPANY } from "./e2e-env";
+import { snapshotPng } from "./sample-snapshot";
+import { revokeWorkspaceLink, shareWorkspaceProject } from "./squint-fixtures";
+import { brandWorkspace } from "./workspace-db";
 
 /** Unfurlers get metadata in <head> (Next streams it to other user agents). */
 const SLACKBOT = "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)";
@@ -88,6 +92,53 @@ test("other pages inherit the main card but don't claim / as their URL", async (
     expectLargeCard(tags, "/opengraph-image");
     expect(tags.has("og:url"), `${path} has no og:url`).toBe(false);
   }
+});
+
+test("a workspace's review link unfurls as its invitation, with a card of its own", async ({
+  page,
+  request,
+}) => {
+  const project = "Spring launch";
+  const { token } = await shareWorkspaceProject(page, project);
+  await brandWorkspace({ color: "#e03b9d", logo: snapshotPng(64, 64) });
+  const copy = invitationPreview({ company: E2E_COMPANY.name, project });
+
+  const tags = await unfurl(request, `/s/${token}`);
+  expect(tag(tags, "og:title")).toBe(copy.title);
+  expect(tag(tags, "og:description")).toBe(copy.description);
+  expect(tag(tags, "twitter:title")).toBe(copy.title);
+  expect(tag(tags, "twitter:description")).toBe(copy.description);
+  expect(tag(tags, "robots")).toContain("noindex");
+  expect(tag(tags, "referrer")).toBe("no-referrer");
+  // The card is this link's own, found by its token alone.
+  expectLargeCard(tags, `/s/${token}/opengraph-image`);
+  expect(new URL(tag(tags, "twitter:image")).pathname).toBe(`/s/${token}/twitter-image`);
+  expect(tags.has("og:url"), "no og:url").toBe(false);
+  await expectCard(request, tag(tags, "og:image"));
+  await expectCard(request, tag(tags, "twitter:image"));
+  const card = await request.get(new URL(tag(tags, "og:image")).pathname);
+  expect(card.headers()["cache-control"]).toBe("private, max-age=300");
+
+  // Another link of the same workspace has a card of its own.
+  const fall = await shareWorkspaceProject(page, "Fall menu");
+  const other = await unfurl(request, `/s/${fall.token}`);
+  expect(tag(other, "og:title")).toBe(
+    invitationPreview({ company: E2E_COMPANY.name, project: "Fall menu" }).title,
+  );
+  expect(tag(other, "og:image")).not.toBe(tag(tags, "og:image"));
+});
+
+test("a revoked workspace link is a 404 with the generic card", async ({ page, request }) => {
+  const { token, projectId } = await shareWorkspaceProject(page, "Withdrawn");
+  expect(tag(await unfurl(request, `/s/${token}`), "og:title")).toContain("Withdrawn");
+  await revokeWorkspaceLink(page, projectId);
+
+  const tags = await unfurl(request, `/s/${token}`, 404);
+  expect(tag(tags, "og:title")).toBe(SHARED_REVIEW_PREVIEW.title);
+  expect(new URL(tag(tags, "og:image")).pathname).toBe("/s/opengraph-image");
+  for (const [key, value] of tags) expect(value, key).not.toContain("Withdrawn");
+  // Asked for directly, its own card is now the generic one: it says nothing about the link.
+  await expectCard(request, `http://localhost/s/${token}/opengraph-image`);
 });
 
 test("a shared review unfurls generically, without project, client or token", async ({

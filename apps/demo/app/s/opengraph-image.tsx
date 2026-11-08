@@ -11,9 +11,10 @@ export const size = LINK_PREVIEW_SIZE;
 export const contentType = LINK_PREVIEW_TYPE;
 
 /**
- * The shared review card for every /s/<token> link. It sits above the [token]
- * segment so it takes no params: one static image, no share lookup, and no
- * token in the image URL.
+ * The generic shared review card, for anonymous /s/<token> links and links
+ * that don't open (a workspace's link has its own, [token]/opengraph-image).
+ * It sits above the [token] segment so it takes no params: one static image,
+ * no share lookup, and no token in the image URL.
  */
 export default function SharedReviewImage() {
   return renderLinkPreview(<SharedReviewPreview />, { cardVersion: 1 });

@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 
 /**
  * Link preview copy and Open Graph defaults (Slack, iMessage, X, LinkedIn).
- * Unfurls show to whole channels, so a shared review's preview stays generic:
- * never a project, client or token.
+ * A workspace's review link previews as its invitation: the company, and the
+ * project's name (a deliberate choice: the person sharing a link chooses the
+ * channel it unfurls in). Anonymous links keep the generic preview. Never a
+ * token, an id or an address in the copy.
  */
 
 export const SITE_NAME = "Squint";
@@ -27,6 +29,22 @@ export const SHARED_REVIEW_PREVIEW: LinkPreviewCopy = {
   description: "Open the link, drop a pin and leave a comment. No account needed.",
   alt: "Squint: you're invited to review. Drop a pin, leave a comment. Squiggy, the blue Squint mascot, leans in among comment pins.",
 };
+
+/** A workspace's review link: who invites, and to review what. */
+export interface Invitation {
+  company: string;
+  project: string;
+}
+
+/** The preview of a workspace's review link. */
+export function invitationPreview({ company, project }: Invitation): LinkPreviewCopy {
+  const title = `${company} invited you to review ${project}`;
+  return {
+    title,
+    description: `Open the link, drop a pin and leave ${company} a comment. No account needed.`,
+    alt: `${title}. Squiggy, the blue Squint mascot, leans in among comment pins.`,
+  };
+}
 
 /** Open Graph fields every page shares. A segment that sets `openGraph` replaces its parent's. */
 const OPEN_GRAPH_BASE = {

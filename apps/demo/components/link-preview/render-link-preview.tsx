@@ -15,15 +15,20 @@ const CARD_VERSION = 1;
 /**
  * A link preview card as a 1200×630 PNG. Fails the build when a route's
  * `cardVersion` is behind CARD_VERSION, so no route keeps serving a stale URL.
+ * `headers` replace ImageResponse's defaults (such as its year-long public cache).
  */
 export async function renderLinkPreview(
   card: ReactElement,
-  { cardVersion }: { cardVersion: number },
+  { cardVersion, headers }: { cardVersion: number; headers?: Record<string, string> },
 ): Promise<ImageResponse> {
   if (cardVersion !== CARD_VERSION) {
     throw new Error(
       `This image route passes cardVersion ${cardVersion}, but CARD_VERSION is ${CARD_VERSION}. Update the route so its image URL changes.`,
     );
   }
-  return new ImageResponse(card, { ...LINK_PREVIEW_SIZE, fonts: await linkPreviewFonts() });
+  return new ImageResponse(card, {
+    ...LINK_PREVIEW_SIZE,
+    fonts: await linkPreviewFonts(),
+    ...(headers ? { headers } : {}),
+  });
 }
