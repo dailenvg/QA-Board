@@ -19,7 +19,7 @@ export default async function ViewerLayout({ children }: { children: ReactNode }
       {session.kind === "ready" ? (
         <WorkspaceProvider start={session.start}>{children}</WorkspaceProvider>
       ) : session.kind === "none" ? (
-        <NoWorkspace email={session.user.email} />
+        <NoWorkspace email={session.user.email} name={session.user.name} />
       ) : (
         <WorkspaceError reason="unavailable" />
       )}

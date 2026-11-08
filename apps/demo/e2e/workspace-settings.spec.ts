@@ -161,6 +161,11 @@ test("a photo is cropped square, resized, and shown with the account in the side
   await page.goto("/account/profile");
   const sidebar = page.getByRole("complementary", { name: "Workspace" });
   await expect(sidebar.getByTestId("account-avatar")).toHaveCount(0);
+  // Without a photo, the user's initials: paper on navy, which reads in both themes.
+  const initials = sidebar.getByTestId("account-initials");
+  await expect(initials).toHaveText(/^\S{1,2}$/);
+  await expect(initials).toHaveCSS("background-color", "rgb(1, 45, 97)");
+  await expect(initials).toHaveCSS("color", "rgb(253, 253, 253)");
   const card = page.getByTestId("avatar-settings");
   await expect(card.getByTestId("avatar-fallback")).toBeVisible();
 
@@ -170,8 +175,10 @@ test("a photo is cropped square, resized, and shown with the account in the side
   const avatar = sidebar.getByTestId("account-avatar");
   await expect(avatar).toBeVisible();
   expect(await naturalSize(avatar)).toEqual([512, 512]);
+  await expect(initials).toHaveCount(0);
 
   await card.getByRole("button", { name: "Remove photo" }).click();
   await expect(page.getByTestId("avatar-saved")).toHaveText("Photo removed.");
   await expect(sidebar.getByTestId("account-avatar")).toHaveCount(0);
+  await expect(initials).toBeVisible();
 });

@@ -10,12 +10,18 @@ import { Icon } from "../ui/Icon";
 
 const GROUP = staggerGroup();
 
+interface NoWorkspaceProps {
+  /** Who is signed in. */
+  email: string;
+  /** Their name, for their initials; null uses the email. */
+  name: string | null;
+}
+
 /**
  * Signed in, but not a member of any workspace (the admin, for now): an empty
  * state, not an error, with the way to the account settings and Sign out.
- * `email` is who is signed in.
  */
-export function NoWorkspace({ email }: { email: string }) {
+export function NoWorkspace({ email, name }: NoWorkspaceProps) {
   const variants = useRevealVariants();
   return (
     <main id="main" className="grid min-h-dvh place-items-center p-4">
@@ -44,7 +50,7 @@ export function NoWorkspace({ email }: { email: string }) {
             <Icon name="user" className="size-5" />
             Account settings
           </ButtonLink>
-          <SignOutButton email={email} />
+          <SignOutButton email={email} name={name} />
         </motion.div>
       </motion.section>
     </main>

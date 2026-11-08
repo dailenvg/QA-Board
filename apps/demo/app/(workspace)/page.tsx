@@ -44,6 +44,7 @@ export default async function OverviewPage({
   const target = legacyFolderRedirect(await searchParams);
   if (target) redirect(target);
   const session = await loadSessionWorkspace();
-  if (session.kind === "none") return <NoWorkspace email={session.user.email} />;
+  if (session.kind === "none")
+    return <NoWorkspace email={session.user.email} name={session.user.name} />;
   return <Overview />;
 }

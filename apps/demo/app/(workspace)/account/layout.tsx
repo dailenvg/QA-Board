@@ -26,6 +26,7 @@ export default async function AccountSettingsLayout({ children }: { children: Re
         aside={
           <SignOutButton
             email={session.user.email}
+            name={session.user.name}
             avatarSrc={await sessionAvatarSrc(session.user.id)}
           />
         }

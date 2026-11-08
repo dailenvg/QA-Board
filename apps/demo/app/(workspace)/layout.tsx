@@ -16,7 +16,11 @@ import { loadSessionWorkspace } from "@/lib/workspace/session-workspace";
 export default async function WorkspaceLayout({ children }: { children: ReactNode }) {
   const session = await loadSessionWorkspace();
   const account = (
-    <SignOutButton email={session.user.email} avatarSrc={await sessionAvatarSrc(session.user.id)} />
+    <SignOutButton
+      email={session.user.email}
+      name={session.user.name}
+      avatarSrc={await sessionAvatarSrc(session.user.id)}
+    />
   );
   return (
     <>
