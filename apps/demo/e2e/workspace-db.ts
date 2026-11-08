@@ -37,21 +37,38 @@ export async function e2eWorkspaceId(): Promise<string> {
 
 /**
  * Empties the workspace (folders, projects and everything in them, files,
- * share links), forgets the owner's comment name and puts its brand back to
- * the seed's (name only, no logo or color), so each test starts as a first
- * visit did. Accounts and sessions stay.
+ * share links), forgets the owner's comment name and photo and puts its brand
+ * back to the seed's (name only, no logo, color or sender name), so each test
+ * starts as a first visit did. Accounts and sessions stay.
  */
 export async function resetWorkspace(): Promise<void> {
   await withClient(async (client) => {
     await client.query(
-      `TRUNCATE folders, projects, workspace_blobs, squint_shares RESTART IDENTITY CASCADE`,
+      `TRUNCATE folders, projects, workspace_blobs, user_blobs, squint_shares RESTART IDENTITY CASCADE`,
     );
     await client.query("UPDATE storage_usage SET bytes = 0, blob_count = 0");
-    await client.query("UPDATE users SET name = NULL");
+    await client.query("UPDATE users SET name = NULL, avatar_blob_key = NULL");
     await client.query(
-      "UPDATE workspaces SET name = $2, logo_blob_key = NULL, brand_color = NULL WHERE slug = $1",
+      `UPDATE workspaces SET name = $2, logo_blob_key = NULL, brand_color = NULL,
+         from_email_name = NULL WHERE slug = $1`,
       [E2E_COMPANY.slug, E2E_COMPANY.name],
     );
+  });
+}
+
+/** The e2e workspace's logo row (its type and size), or null without one. */
+export async function logoRow(): Promise<{ contentType: string; size: number } | null> {
+  const workspaceId = await e2eWorkspaceId();
+  return withClient(async (client) => {
+    const { rows } = await client.query<{ content_type: string; size: string }>(
+      `SELECT logo.content_type, logo.size FROM workspaces AS workspace
+       JOIN workspace_blobs AS logo
+         ON logo.workspace_id = workspace.id AND logo.key = workspace.logo_blob_key
+       WHERE workspace.id = $1`,
+      [workspaceId],
+    );
+    const row = rows[0];
+    return row ? { contentType: row.content_type, size: Number(row.size) } : null;
   });
 }
 
