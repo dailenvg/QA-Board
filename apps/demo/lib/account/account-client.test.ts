@@ -76,7 +76,7 @@ describe("account client", () => {
       "failed",
     ] as const;
     for (const error of errors) {
-      expect(accountErrorMessage(error, 300)).not.toMatch(/—/);
+      expect(accountErrorMessage(error, 300)).not.toMatch(/\u2014/);
     }
     expect(accountErrorMessage("rate-limited", 300)).toBe(
       "Too many attempts. Try again in 5 minutes.",
