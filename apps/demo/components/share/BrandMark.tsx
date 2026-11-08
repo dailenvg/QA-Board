@@ -2,10 +2,11 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { duration, fadeOnly } from "@/lib/motion";
 import { clientApi } from "@/lib/share-client/api";
 import type { ClientBrand } from "@/lib/share/types";
+import { MonogramTile } from "../brand/MonogramTile";
 import { SquintMark } from "../brand/SquintMark";
 import { Skeleton } from "../ui/Skeleton";
 import { accentStyle } from "./brand-accent";
@@ -15,12 +16,18 @@ interface BrandMarkProps {
   brand: ClientBrand;
 }
 
+interface BrandFrameProps {
+  brand: Pick<ClientBrand, "custom" | "name" | "color">;
+  /** The logo's URL; null shows the fallback. */
+  logoSrc: string | null;
+}
+
 type LogoState = "loading" | "ready" | "broken";
 
-/** The company's logo through the link's token, fading in once it's decoded. */
-function CompanyLogo({ src }: { src: string }) {
+/** The company's logo, fading in once it's decoded; `fallback` if it won't load. */
+function CompanyLogo({ src, fallback }: { src: string; fallback: ReactNode }) {
   const [state, setState] = useState<LogoState>("loading");
-  if (state === "broken") return <SquintMark className="size-7" />;
+  if (state === "broken") return fallback;
   return (
     <>
       {/* Fades out as the logo fades in, so the frame never flashes empty between them. */}
@@ -61,20 +68,36 @@ function CompanyLogo({ src }: { src: string }) {
 }
 
 /**
- * The logo frame of a shared link: the company's logo when it has one (the
- * Squint mark while none, or if it won't load), ringed in the company's color.
- * Decorative: the company's name always sits beside it.
+ * The logo frame, ringed in the company's color: its logo at `logoSrc`;
+ * without one (or if it won't load) the company's monogram, or the Squint
+ * mark on an anonymous link. Decorative: the company's name always sits
+ * beside it. The account settings' preview draws it too.
  */
-export function BrandMark({ token, brand }: BrandMarkProps) {
-  const logo =
-    brand.hasLogo && brand.logoVersion ? clientApi(token).logoUrl(brand.logoVersion) : null;
+export function BrandFrame({ brand, logoSrc }: BrandFrameProps) {
+  const fallback = brand.custom ? (
+    <MonogramTile
+      name={brand.name}
+      color={brand.color}
+      className="size-full text-body"
+      testId="brand-monogram"
+    />
+  ) : (
+    <SquintMark className="size-7" />
+  );
   return (
     <span
       style={accentStyle(brand.color)}
       data-testid="brand-mark"
       className={`relative grid size-10 shrink-0 place-items-center overflow-hidden rounded-pill bg-card shadow-seg ${brand.color ? "ring-2 ring-guest-accent dark:ring-guest-accent-dark" : ""}`}
     >
-      {logo ? <CompanyLogo key={logo} src={logo} /> : <SquintMark className="size-7" />}
+      {logoSrc ? <CompanyLogo key={logoSrc} src={logoSrc} fallback={fallback} /> : fallback}
     </span>
   );
+}
+
+/** A shared link's logo frame: the company's logo, read through the link's token. */
+export function BrandMark({ token, brand }: BrandMarkProps) {
+  const logo =
+    brand.hasLogo && brand.logoVersion ? clientApi(token).logoUrl(brand.logoVersion) : null;
+  return <BrandFrame brand={brand} logoSrc={logo} />;
 }

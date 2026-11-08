@@ -118,7 +118,10 @@ export interface ClientBrand {
   /** False on an anonymous share: Squint's own name and look, and the generic copy. */
   custom: boolean;
   name: string;
-  /** `#rrggbb`, for accents only (a rule, a frame), never behind text; null keeps the app's own. */
+  /**
+   * `#rrggbb`, for accents only (a rule, a frame), never behind text but the
+   * monogram's initials, which take the ink that reads on it; null keeps the app's own.
+   */
   color: string | null;
   hasLogo: boolean;
   /** Changes with the logo, so its URL (`?v=`) does too; null without a logo. */

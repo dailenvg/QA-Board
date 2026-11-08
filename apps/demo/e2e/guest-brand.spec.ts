@@ -41,14 +41,17 @@ test("a guest sees the company that shared the link, with its logo once it has o
   const brand = guest.getByTestId("guest-brand");
   await expect(brand.getByTestId("guest-brand-name")).toHaveText(E2E_COMPANY.name);
   await expect(brand).toContainText("Shared review");
-  // No logo or color yet: the Squint mark in a plain frame, and no accent rule.
+  // No logo or color yet: the company's monogram on neutral navy, and no accent rule.
   await expect(brand.getByTestId("brand-logo")).toHaveCount(0);
+  await expect(brand.getByTestId("brand-monogram")).toHaveText("EA");
+  await expect(brand.getByTestId("brand-monogram")).toHaveCSS("background-color", "rgb(1, 45, 97)");
   await expect(guest.getByTestId("accent-rule")).toHaveCount(0);
 
   await brandWorkspace({ color: COLOR, logo: snapshotPng(64, 64) });
   await guest.reload();
   const logo = brand.getByTestId("brand-logo");
   await expect(logo).toBeVisible();
+  await expect(brand.getByTestId("brand-monogram")).toHaveCount(0);
   await expect
     .poll(() => logo.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth))
     .toBe(64);
@@ -84,6 +87,8 @@ test("an anonymous link keeps Squint's own name and look", async ({ page, baseUR
   await guest.keyboard.press("Escape");
   await expect(guest.getByTestId("guest-brand-name")).toHaveText("Squint");
   await expect(guest.getByTestId("brand-logo")).toHaveCount(0);
+  // Squint's own mark, not a monogram: an anonymous link has no company to stand in for.
+  await expect(guest.getByTestId("brand-monogram")).toHaveCount(0);
   await expect(guest.getByTestId("accent-rule")).toHaveCount(0);
   await close();
 });

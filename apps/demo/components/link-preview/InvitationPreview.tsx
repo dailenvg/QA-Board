@@ -1,4 +1,5 @@
 import { PAPER } from "@/lib/brand-palette";
+import { monogram } from "@/lib/monogram";
 import { PreviewFrame } from "./PreviewFrame";
 import { PreviewText } from "./PreviewText";
 import { SharedReviewArt } from "./SharedReviewArt";
@@ -9,7 +10,7 @@ interface InvitationPreviewProps {
   project: string;
   /** The company's brand color, for the logo frame and rule only; null keeps cobalt. */
   color: string | null;
-  /** The logo as a PNG, JPEG or GIF data URI; null shows the name alone. */
+  /** The logo as a PNG, JPEG or GIF data URI; null shows the company's monogram. */
   logoUri: string | null;
 }
 
@@ -56,9 +57,36 @@ function CompanyLogo({ uri, accent }: { uri: string; accent: string }) {
   );
 }
 
+/** The company's initials on its brand color (navy without one), in the logo's frame. */
+function CompanyMonogram({ company, color }: { company: string; color: string | null }) {
+  const tile = monogram(company, color);
+  return (
+    <div
+      style={{
+        width: LOGO_FRAME,
+        height: LOGO_FRAME,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+        borderRadius: 32,
+        background: tile.background,
+        color: tile.ink,
+        fontSize: 48,
+        fontWeight: 800,
+        letterSpacing: -1,
+        boxShadow: `0 16px 32px -20px ${PREVIEW_COLORS.shadow}`,
+      }}
+    >
+      {tile.initials}
+    </div>
+  );
+}
+
 /**
  * A workspace's review link: the company (its logo when the card can draw
- * it), the invitation, and the project's name, with Squiggy beside them.
+ * it, its monogram otherwise), the invitation, and the project's name, with
+ * Squiggy beside them.
  */
 export function InvitationPreview({ company, project, color, logoUri }: InvitationPreviewProps) {
   const accent = color ?? PREVIEW_COLORS.accent;
@@ -67,15 +95,12 @@ export function InvitationPreview({ company, project, color, logoUri }: Invitati
   return (
     <PreviewFrame art={<SharedReviewArt />}>
       <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
-        {logoUri ? <CompanyLogo uri={logoUri} accent={accent} /> : null}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 16,
-            maxWidth: logoUri ? 480 : 620,
-          }}
-        >
+        {logoUri ? (
+          <CompanyLogo uri={logoUri} accent={accent} />
+        ) : (
+          <CompanyMonogram company={company} color={color} />
+        )}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 480 }}>
           <div
             style={{
               display: "flex",
