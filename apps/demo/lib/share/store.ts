@@ -1,3 +1,4 @@
+import type { ShareBrand } from "./brand";
 import type {
   BlobLocation,
   Origin,
@@ -36,6 +37,14 @@ export interface ShareStore {
    * shares made from a workspace (migration 022) never expire on their own.
    */
   expiredIds(now: number, limit: number): Promise<string[]>;
+  /**
+   * The brand of the share's workspace: its name, color and logo key (when
+   * that file is stored). `SQUINT_BRAND` for an anonymous share, an unknown
+   * one, or one whose project is in the trash.
+   */
+  brandOf(id: string): Promise<ShareBrand>;
+  /** The logo file of the share's workspace, under the same rules as `brandOf`; null without one. */
+  brandLogo(id: string): Promise<StoredBlob | null>;
 
   /**
    * Confirmed snapshots and comments only: pending ones are invisible to every

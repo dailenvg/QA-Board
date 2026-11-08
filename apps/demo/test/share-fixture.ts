@@ -1,3 +1,4 @@
+import { SQUINT_BRAND, toClientBrand } from "@/lib/share/brand";
 import { shareExpiresAt } from "@/lib/share/retention";
 import { reviewDeadline } from "@/lib/share/review-window";
 import type {
@@ -49,6 +50,7 @@ export const RECORD = {
 /** What a client of `RECORD` sees. */
 export const VIEW: ClientView = {
   ...STATE,
+  brand: toClientBrand(SQUINT_BRAND),
   reviewEndsAt: reviewDeadline(RECORD.createdAt),
   expiresAt: RECORD.expiresAt,
 };

@@ -1,3 +1,4 @@
+import { SQUINT_BRAND } from "./brand";
 import type { ShareStore } from "./store";
 import type {
   BlobLocation,
@@ -26,7 +27,8 @@ const done = <T>(value: T): Promise<T> => Promise.resolve(value);
 
 /**
  * Shares in this server process's memory. Local development and e2e only:
- * every instance has its own, and a restart forgets them.
+ * every instance has its own, and a restart forgets them. None belongs to a
+ * workspace, so each has Squint's own brand.
  */
 export function createMemoryStore(): ShareStore {
   const shares = new Map<string, Entry>();
@@ -88,6 +90,9 @@ export function createMemoryStore(): ShareStore {
         .sort((a, b) => a.expiresAt - b.expiresAt || a.id.localeCompare(b.id));
       return done(expired.slice(0, limit).map((record) => record.id));
     },
+    // Shares in memory are never a workspace's.
+    brandOf: () => done(SQUINT_BRAND),
+    brandLogo: () => done(null),
     snapshots(id, options) {
       const entry = shares.get(id);
       const visible = [...(entry?.snapshots.values() ?? [])].filter(
