@@ -6,8 +6,9 @@ import { LINK_PREVIEW_TYPE, renderLinkPreview } from "./render-link-preview";
 import { SharedReviewPreview } from "./SharedReviewPreview";
 
 /**
- * A few minutes in the unfurler's own cache, never a shared one: a renamed
- * project or a revoked link shows on the next unfurl, not a year later.
+ * A few minutes in the requester's own cache, never a shared one, so no CDN of
+ * ours serves a renamed project or a revoked link's old card. Unfurlers keep
+ * their own copies, which we can't expire.
  */
 const CARD_HEADERS = { "cache-control": "private, max-age=300" };
 
