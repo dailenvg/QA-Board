@@ -4,6 +4,7 @@ import { isFormPost, readForm, seeOther } from "../auth/form-post";
 import { crossSiteRefusal, describeError, guardAuth, isCrossSite } from "../auth/http";
 import type { AuthRouteDeps } from "../auth/login-handler";
 import { SESSION_COOKIE, sessionCookieOptions } from "../auth/session-cookie";
+import { EMAIL_CHANGED_HREF } from "../routes";
 import { json, readJson } from "../share/http";
 import { isSecretShape } from "../share/tokens";
 import {
@@ -18,9 +19,6 @@ export interface EmailChangeConfirmDeps extends AuthRouteDeps {
   /** Runs work after the response (`after` from next/server). */
   defer: (task: () => Promise<void>) => void;
 }
-
-/** Where a confirmed change sends the browser: sign in again, with the new address. */
-export const SIGN_IN_AGAIN = "/login?email=changed";
 
 const NO_STORE = { "cache-control": "no-store" };
 
@@ -81,7 +79,7 @@ async function fromForm(request: Request, deps: EmailChangeConfirmDeps): Promise
   try {
     const result = await confirm(token, deps);
     if (!result) return back("unavailable");
-    if (result.ok) return clearCookie(seeOther(SIGN_IN_AGAIN), request);
+    if (result.ok) return clearCookie(seeOther(EMAIL_CHANGED_HREF), request);
     return result.reason === "taken" ? back("taken") : seeOther(page);
   } catch (error) {
     console.error(`squint auth: storage failed (${describeError(error)})`);

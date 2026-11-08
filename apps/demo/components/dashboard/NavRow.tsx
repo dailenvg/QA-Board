@@ -11,15 +11,27 @@ interface NavRowProps {
   icon: IconName;
   label: string;
   active: boolean;
+  /**
+   * The active background's shared `layoutId`. Rows that share one glide between each other:
+   * the sidebar's rows all use the default; another nav passes its own.
+   */
+  indicatorId?: string;
   /** Trailing content, such as a count. */
   children?: ReactNode;
 }
 
 /**
  * Sidebar link row. The active row's background is one shared `layoutId`
- * element, so it glides between the Overview and every folder.
+ * element, so it glides between the Overview, every folder and Account.
  */
-export function NavRow({ href, icon, label, active, children }: NavRowProps) {
+export function NavRow({
+  href,
+  icon,
+  label,
+  active,
+  indicatorId = "nav-indicator",
+  children,
+}: NavRowProps) {
   const reduce = useReducedMotion();
   return (
     <Link
@@ -32,7 +44,7 @@ export function NavRow({ href, icon, label, active, children }: NavRowProps) {
     >
       {active ? (
         <motion.span
-          layoutId="nav-indicator"
+          layoutId={indicatorId}
           transition={reduce ? instant : spring.snappy}
           className="absolute inset-0 rounded-row bg-seg"
         />

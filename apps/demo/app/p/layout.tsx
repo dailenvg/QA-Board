@@ -2,7 +2,6 @@ import { Suspense, type ReactNode } from "react";
 import { NoWorkspace } from "@/components/app-state/NoWorkspace";
 import { WorkspaceError } from "@/components/app-state/WorkspaceError";
 import { WorkspaceProvider } from "@/components/app-state/WorkspaceProvider";
-import { SignOutButton } from "@/components/auth/SignOutButton";
 import { WelcomeSignal } from "@/components/auth/WelcomeSignal";
 import { loadSessionWorkspace } from "@/lib/workspace/session-workspace";
 
@@ -20,7 +19,7 @@ export default async function ViewerLayout({ children }: { children: ReactNode }
       {session.kind === "ready" ? (
         <WorkspaceProvider start={session.start}>{children}</WorkspaceProvider>
       ) : session.kind === "none" ? (
-        <NoWorkspace account={<SignOutButton email={session.user.email} />} />
+        <NoWorkspace email={session.user.email} />
       ) : (
         <WorkspaceError reason="unavailable" />
       )}

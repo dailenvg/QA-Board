@@ -2,7 +2,7 @@
 
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
-import { OVERVIEW_HREF, folderHref, projectHref } from "@/lib/routes";
+import { OVERVIEW_HREF, folderHref, isAccountPath, projectHref } from "@/lib/routes";
 import { useAttentionWhile } from "@/lib/squiggy/attention";
 import { createFolder, deleteFolder, moveFolder, renameFolder } from "@/lib/store/actions";
 import {
@@ -39,7 +39,7 @@ interface WorkspaceProps {
 }
 
 /**
- * Persistent shell for the Overview and folder pages: the sidebar stays
+ * Persistent shell for the Overview, folder and account pages: the sidebar stays
  * mounted across them (so its active indicator glides between items), and
  * search, New project and the folder dialogs live here so every page shares them.
  * Pages read the data through `useWorkspace()`, which is null while loading.
@@ -224,6 +224,7 @@ function WorkspaceShell({ data, account, children }: WorkspaceShellProps) {
             actionsFor={workspace.folderActions}
             activeId={routeFolderId ?? null}
             overviewActive={onOverview}
+            accountActive={isAccountPath(pathname)}
             onNewProject={() => showNewProject({})}
             onNewFolder={() => showNewFolder({ parentId: null })}
             onNewFolderHere={newFolderHere}

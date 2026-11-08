@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { ACCOUNT_HREF } from "@/lib/routes";
 import { useAttentionReporter } from "@/lib/squiggy/attention";
 import { Logo } from "../brand/Logo";
 import { Button } from "../ui/Button";
@@ -10,6 +11,7 @@ import { ThemeToggle } from "../ui/ThemeToggle";
 import type { Folder } from "@/lib/store/types";
 import type { MenuItem } from "../ui/Menu";
 import { FolderNav } from "./FolderNav";
+import { NavRow } from "./NavRow";
 
 interface SidebarProps {
   folders: readonly Folder[];
@@ -18,6 +20,8 @@ interface SidebarProps {
   actionsFor: (folder: Folder) => MenuItem[];
   activeId: string | null;
   overviewActive: boolean;
+  /** An account settings page is open. */
+  accountActive: boolean;
   onNewProject: () => void;
   /** A new top-level folder (the "+" by the Folders heading). */
   onNewFolder: () => void;
@@ -44,6 +48,7 @@ export function Sidebar({
   actionsFor,
   activeId,
   overviewActive,
+  accountActive,
   onNewProject,
   onNewFolder,
   onNewFolderHere,
@@ -112,6 +117,10 @@ export function Sidebar({
       />
 
       <div className="mt-auto flex flex-col gap-2">
+        {/* The same indicator as the rows above, so it glides down here from a folder. */}
+        <nav aria-label="Account">
+          <NavRow href={ACCOUNT_HREF} icon="user" label="Account" active={accountActive} />
+        </nav>
         <div className="hidden items-center justify-between gap-3 rounded-card bg-card p-4 lg:flex">
           <span className="text-body font-medium">Appearance</span>
           <ThemeToggle />

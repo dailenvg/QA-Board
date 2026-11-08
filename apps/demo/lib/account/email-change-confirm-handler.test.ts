@@ -4,7 +4,8 @@ import { migratedPglite } from "@/test/pglite";
 import { createSession, readSession } from "../auth/sessions";
 import type { Database } from "../db/database";
 import { requestEmailChange } from "./email-change";
-import { handleEmailChangeConfirm, SIGN_IN_AGAIN } from "./email-change-confirm-handler";
+import { EMAIL_CHANGED_HREF } from "../routes";
+import { handleEmailChangeConfirm } from "./email-change-confirm-handler";
 
 const ORIGIN = "http://127.0.0.1:3100";
 const PATH = "/api/auth/email-change/confirm";
@@ -121,7 +122,7 @@ describe("confirming an email change from its link", () => {
     const session = await createSession(db, userId, NOW);
     const done = await handleEmailChangeConfirm(formPost(token), deps);
     expect(done.status).toBe(303);
-    expect(done.headers.get("location")).toBe(SIGN_IN_AGAIN);
+    expect(done.headers.get("location")).toBe(EMAIL_CHANGED_HREF);
     expect(await readSession(db, session, NOW + 1000)).toBeNull();
     const spent = await handleEmailChangeConfirm(formPost(token), deps);
     expect(spent.headers.get("location")).toBe(`/email-change/${token}`);

@@ -113,6 +113,10 @@ const ICONS = {
     ["path", { d: "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" }],
     ["path", { d: "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" }],
   ],
+  lock: [
+    ["rect", { x: 3, y: 11, width: 18, height: 11, rx: 2 }],
+    ["path", { d: "M7 11V7a5 5 0 0 1 10 0v4" }],
+  ],
   logOut: [
     ["path", { d: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" }],
     ["path", { d: "m16 17 5-5-5-5" }],
@@ -133,6 +137,10 @@ const ICONS = {
     ["rect", { x: 14, y: 3, width: 7, height: 7, rx: 1 }],
     ["rect", { x: 14, y: 14, width: 7, height: 7, rx: 1 }],
     ["rect", { x: 3, y: 14, width: 7, height: 7, rx: 1 }],
+  ],
+  mail: [
+    ["path", { d: "m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7" }],
+    ["rect", { x: 2, y: 4, width: 20, height: 16, rx: 2 }],
   ],
   maximize: [
     ["path", { d: "M15 3h6v6" }],
@@ -227,6 +235,10 @@ const ICONS = {
     ["path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }],
     ["path", { d: "m17 8-5-5-5 5" }],
     ["path", { d: "M12 3v12" }],
+  ],
+  user: [
+    ["path", { d: "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" }],
+    ["circle", { cx: 12, cy: 7, r: 4 }],
   ],
 } satisfies Record<string, readonly IconNode[]>;
 
