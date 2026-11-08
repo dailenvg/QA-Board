@@ -40,8 +40,15 @@ const BUSY_LABELS: Partial<Record<Status, string>> = {
   uploading: "Uploading…",
 };
 
+interface StoredImageProps {
+  src: string;
+  fallback: ReactNode;
+  /** Its backing and inset: a logo's light tile, so a dark logo still shows on dark surfaces. */
+  className: string;
+}
+
 /** The stored image, fading in over a breathing placeholder; `fallback` if it won't load. */
-function StoredImage({ src, fallback }: { src: string; fallback: ReactNode }) {
+function StoredImage({ src, fallback, className }: StoredImageProps) {
   const [loaded, setLoaded] = useState(false);
   const [broken, setBroken] = useState(false);
   if (broken) return fallback;
@@ -49,7 +56,7 @@ function StoredImage({ src, fallback }: { src: string; fallback: ReactNode }) {
     <>
       {loaded ? null : <Skeleton className="absolute inset-0 size-full rounded-none" />}
       <motion.span
-        className="relative size-full"
+        className={`relative size-full ${className}`}
         initial={{ opacity: 0 }}
         animate={{ opacity: loaded ? 1 : 0 }}
         transition={{ duration: duration.micro }}
@@ -144,6 +151,7 @@ export function ImageUploader({
   };
 
   const shape = kind === "avatar" ? "rounded-pill" : "rounded-tile";
+  const backing = kind === "logo" ? "bg-logo-bg p-2" : "";
   return (
     <div ref={rootRef} className="flex flex-col" aria-busy={busy} data-testid={testId}>
       <div className="flex items-center gap-4 max-sm:flex-col max-sm:items-start">
@@ -160,7 +168,7 @@ export function ImageUploader({
               className="grid size-full place-items-center"
               data-testid={src ? `${testId}-image` : `${testId}-fallback`}
             >
-              {src ? <StoredImage src={src} fallback={fallback} /> : fallback}
+              {src ? <StoredImage src={src} fallback={fallback} className={backing} /> : fallback}
             </motion.span>
           </AnimatePresence>
         </span>

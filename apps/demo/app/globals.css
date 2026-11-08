@@ -65,6 +65,8 @@
   --resolved-pin: #16af74;
   --on-resolved-pin: #012d61;
   --favicon-bg: #ffffff;
+  /* Behind a company's logo in both themes: a dark logo with no background would vanish on dark. */
+  --logo-bg: #ffffff;
 
   --shadow-seg: 0 1px 2px rgb(0 0 0 / 0.12);
   --shadow-float: 0 20px 40px -24px rgb(0 0 0 / 0.35);
@@ -176,6 +178,7 @@
   --color-pin-band: var(--pin-band);
   --color-pin-focus: var(--pin-focus);
   --color-favicon-bg: var(--favicon-bg);
+  --color-logo-bg: var(--logo-bg);
 
   --shadow-seg: var(--shadow-seg);
   --shadow-float: var(--shadow-float);

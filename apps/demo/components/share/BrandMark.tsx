@@ -24,7 +24,7 @@ interface BrandFrameProps {
 
 type LogoState = "loading" | "ready" | "broken";
 
-/** The company's logo, fading in once it's decoded; `fallback` if it won't load. */
+/** The company's logo on its light backing, fading in once it's decoded; `fallback` if it won't load. */
 function CompanyLogo({ src, fallback }: { src: string; fallback: ReactNode }) {
   const [state, setState] = useState<LogoState>("loading");
   if (state === "broken") return fallback;
@@ -45,8 +45,9 @@ function CompanyLogo({ src, fallback }: { src: string; fallback: ReactNode }) {
           </motion.span>
         ) : null}
       </AnimatePresence>
+      {/* On a light backing, so a dark logo with no background still shows on dark surfaces. */}
       <motion.span
-        className="size-full"
+        className="size-full rounded-pill bg-logo-bg ring-1 ring-line ring-inset"
         initial={{ opacity: 0 }}
         animate={{ opacity: state === "ready" ? 1 : 0 }}
         transition={{ duration: duration.micro }}

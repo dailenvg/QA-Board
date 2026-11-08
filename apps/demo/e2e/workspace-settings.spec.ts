@@ -24,6 +24,11 @@ async function naturalSize(image: Locator): Promise<[number, number]> {
   ]);
 }
 
+/** A logo sits on its white backing tile, so a dark logo still shows on dark surfaces. */
+async function expectLightBacking(image: Locator) {
+  await expect(image.locator("..")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+}
+
 /** Opens a review link as a guest: a browser of its own, signed out. */
 async function openAsGuest(page: Page, baseURL: string | undefined, token: string) {
   const context = await page.context().browser()?.newContext({ storageState: SIGNED_OUT });
@@ -115,14 +120,18 @@ test("a guest sees the monogram, then the uploaded logo, then the monogram again
   await expect(page.getByTestId("logo-saved")).toHaveText("Logo saved.");
   const tile = logoCard.getByTestId("logo-image").locator("img");
   expect(await naturalSize(tile)).toEqual([512, 256]);
+  await expectLightBacking(tile);
   expect(await logoRow()).toMatchObject({ contentType: "image/png" });
   // The preview shows the new logo at once.
-  await expect(page.getByTestId("invite-preview").getByTestId("brand-logo")).toBeVisible();
+  const previewLogo = page.getByTestId("invite-preview").getByTestId("brand-logo");
+  await expect(previewLogo).toBeVisible();
+  await expectLightBacking(previewLogo);
 
   await guest.reload();
   const logo = brand.getByTestId("brand-logo");
   await expect(logo).toBeVisible();
   expect(await naturalSize(logo)).toEqual([512, 256]);
+  await expectLightBacking(logo);
   await expect(brand.getByTestId("brand-monogram")).toHaveCount(0);
 
   await logoCard.getByRole("button", { name: "Remove logo" }).click();
