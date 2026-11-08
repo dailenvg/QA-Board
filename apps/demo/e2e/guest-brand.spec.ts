@@ -108,8 +108,15 @@ test("nothing a guest gets names the workspace, an account or a storage path", a
   const unfurl = await guestApi.get(`/s/${token}`, {
     headers: { "user-agent": "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)" },
   });
+  // The RSC payload a client-side navigation fetches, apart from the HTML.
+  const flight = await guestApi.get(`/s/${token}`, { headers: { RSC: "1" } });
+  expect(flight.status()).toBe(200);
   const view = await guestApi.get(`/api/s/${token}`);
   expect(view.status()).toBe(200);
+  const cards = await Promise.all(
+    ["opengraph-image", "twitter-image"].map((name) => guestApi.get(`/s/${token}/${name}`)),
+  );
+  for (const card of cards) expect(card.status()).toBe(200);
   const logo = await guestApi.get(`/api/s/${token}/brand/logo`);
   expect(logo.status()).toBe(200);
   const { guest, close } = await openAsGuest(page, baseURL, token);
@@ -121,10 +128,13 @@ test("nothing a guest gets names the workspace, an account or a storage path", a
   const answers = {
     html: await html.text(),
     unfurl: await unfurl.text(),
+    flight: await flight.text(),
     view: await view.text(),
     logoHeaders: JSON.stringify(logo.headers()),
+    cardHeaders: JSON.stringify(cards.map((card) => card.headers())),
     rendered: await guest.content(),
   };
+  expect(answers.flight).toContain(E2E_COMPANY.name);
   expect(JSON.parse(answers.view)).toMatchObject({
     brand: { custom: true, name: E2E_COMPANY.name, color: COLOR, hasLogo: true },
   });
