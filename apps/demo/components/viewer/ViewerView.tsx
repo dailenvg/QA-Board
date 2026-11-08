@@ -479,6 +479,7 @@ export function ViewerView({
         onMode={setMode}
         commentLocked={commentLocked}
         accentRule={accentRule}
+        titleFirst={!owner}
         originalUrl={originalUrl}
         breakpoints={
           website ? (

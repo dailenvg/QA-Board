@@ -27,6 +27,11 @@ interface ViewerTopBarProps {
   commentLocked?: string;
   /** A rule along the top edge in `guest-accent`: a shared link's company color. */
   accentRule?: boolean;
+  /**
+   * Keeps the title readable (about 20 characters, from tablets up) by wrapping the controls
+   * to a second row instead: a shared link, whose brand lockup and extra actions crowd one row.
+   */
+  titleFirst?: boolean;
 }
 
 /**
@@ -44,6 +49,7 @@ export function ViewerTopBar({
   breakpoints,
   commentLocked,
   accentRule = false,
+  titleFirst = false,
 }: ViewerTopBarProps) {
   return (
     // Its own layer, so the Export menu opens over the snapshot bar and pins below it.
@@ -57,10 +63,10 @@ export function ViewerTopBar({
       ) : null}
       {leading}
       {/*
-       * The title outranks the controls: from tablets up it keeps about 20 characters beside
-       * its status, and when that doesn't fit, the controls wrap to the next row instead.
+       * With `titleFirst` the title outranks the controls: from tablets up it keeps about 20
+       * characters beside its status, and when that doesn't fit, the controls wrap below it.
        */}
-      <div className="flex min-w-40 flex-1 items-center gap-2 md:min-w-80">
+      <div className={`flex min-w-40 flex-1 items-center gap-2 ${titleFirst ? "md:min-w-80" : ""}`}>
         <h1 title={project.name} className="truncate text-heading font-bold">
           {project.name}
         </h1>
