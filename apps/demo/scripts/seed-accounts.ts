@@ -7,8 +7,9 @@
  *
  *   pnpm --filter @pinpoint/demo seed:accounts
  */
-import { Client } from "pg";
+import { Pool } from "pg";
 import { seedAccounts, seedInputFromEnv } from "../lib/auth/seed-accounts";
+import { migrateWithLock } from "../lib/db/database";
 import { migrate } from "../lib/share/migrate";
 
 function print(line: string): void {
@@ -27,18 +28,19 @@ async function main(): Promise<void> {
     return;
   }
   const { input } = env;
-  const client = new Client({ connectionString: env.databaseUrl });
-  await client.connect();
+  const pool = new Pool({ connectionString: env.databaseUrl, max: 1 });
   try {
-    const ran = await migrate(client);
+    const ran = await migrateWithLock(pool, migrate);
     print(ran.length > 0 ? `Migrations applied: ${ran.join(", ")}` : "Migrations: up to date");
-    const report = await seedAccounts(client, input);
+    // seedAccounts runs its own transaction, so it needs one connection, not the pool.
+    const client = await pool.connect();
+    const report = await seedAccounts(client, input).finally(() => client.release());
     print(`Admin ${input.admin.email}: ${report.admin}`);
     print(`Workspace ${input.company.slug}: ${report.workspace}`);
     print(`Company user ${input.company.email}: ${report.company}`);
     print(`Owner of ${input.company.slug}: ${report.owner === "created" ? "linked" : "kept"}`);
   } finally {
-    await client.end();
+    await pool.end();
   }
 }
 

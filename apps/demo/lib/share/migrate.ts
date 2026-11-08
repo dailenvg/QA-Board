@@ -63,11 +63,12 @@ export const MIGRATIONS: ReadonlyArray<{ id: string; sql: string }> = [
 type Migration = (typeof MIGRATIONS)[number];
 
 /**
- * Applies pending migrations and returns the ids it ran. Safe on every cold
- * start: applied ids are recorded in `squint_migrations`, and the SQL itself
- * only uses `IF NOT EXISTS` or touches rows still in an old shape, so
- * concurrent runs are harmless. Tests pass a prefix of `MIGRATIONS` to stop
- * at an older schema.
+ * Applies pending migrations and returns the ids it ran. Applied ids are
+ * recorded in `squint_migrations`, so a second run skips them. Concurrent runs
+ * are not safe: two can both see a migration as pending, and DDL racing on an
+ * empty database fails even with `IF NOT EXISTS`. The app runs it through
+ * `migrateWithLock`; tests call it directly on one connection. Tests pass a
+ * prefix of `MIGRATIONS` to stop at an older schema.
  */
 export async function migrate(
   db: Queryable,

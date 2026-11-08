@@ -1,7 +1,7 @@
 import { createGitHubStorage, createMemoryStorage, type StorageAdapter } from "@pinpoint/server";
 import { createPostgresStorage, migrate } from "@pinpoint/server/postgres";
 import pg from "pg";
-import { watchPool } from "./db/database";
+import { migrateWithLock, watchPool } from "./db/database";
 
 export type StorageKind = "github" | "postgres" | "memory";
 
@@ -57,7 +57,7 @@ export function storageFromEnv(env: NodeJS.ProcessEnv = process.env): {
     const pool = watchPool(new pg.Pool({ connectionString: env.DATABASE_URL }), "pinpoint");
     return {
       kind: "postgres",
-      storage: afterMigrations(createPostgresStorage({ pool }), migrate(pool)),
+      storage: afterMigrations(createPostgresStorage({ pool }), migrateWithLock(pool, migrate)),
     };
   }
   // Survives hot reloads in `next dev`; resets when the server restarts.
