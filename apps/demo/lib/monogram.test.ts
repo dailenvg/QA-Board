@@ -1,9 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { NAVY, PAPER } from "./brand-palette";
 import { contrast } from "./color";
 import { monogram, monogramInitials, MONOGRAM_NEUTRAL } from "./monogram";
 
 describe("monogramInitials", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("takes the first letters of the first two words, as capitals", () => {
     expect(monogramInitials("ONE Agency")).toBe("OA");
     expect(monogramInitials("  acme  design  studio ")).toBe("AD");
@@ -16,6 +20,15 @@ describe("monogramInitials", () => {
     expect(monogramInitials("(Parens) & Co")).toBe("PC");
     expect(monogramInitials("★★★")).toBe("★");
     expect(monogramInitials("   ")).toBe("");
+  });
+
+  it("capitalizes the same whatever the default locale, so server and browser agree", () => {
+    // A Turkish default locale capitalizes "i" as a dotted "İ".
+    vi.spyOn(String.prototype, "toLocaleUpperCase").mockImplementation(function (this: string) {
+      return this.replaceAll("i", "İ").toUpperCase();
+    });
+    expect(monogramInitials("ivy studio")).toBe("IS");
+    expect(monogramInitials("ılık iris")).toBe("II");
   });
 });
 

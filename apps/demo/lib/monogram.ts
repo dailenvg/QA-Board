@@ -15,10 +15,14 @@ export interface Monogram {
 /** The tile's color without a brand color: the palette's navy, which carries no company's look. */
 export const MONOGRAM_NEUTRAL = NAVY;
 
-/** A name's first letter or digit, as a capital; null when it has none (only symbols). */
+/**
+ * A name's first letter or digit, as a capital; null when it has none (only
+ * symbols). Capitalized without a locale, so the server and a browser in any
+ * language draw the same initials ("i" is "I" under Turkish too).
+ */
 function initialOf(word: string): string | null {
   const first = Array.from(word).find((character) => /[\p{L}\p{N}]/u.test(character));
-  return first ? first.toLocaleUpperCase() : null;
+  return first ? first.toUpperCase() : null;
 }
 
 /**
