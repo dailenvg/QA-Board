@@ -43,7 +43,9 @@ function reactionLine(speech: ReactionSpeech): string {
     case "save-failed":
       return "That didn't save. Check your connection and try again.";
     case "just-imported":
-      return "All moved in.";
+      return speech.partial
+        ? "Most of it moved in. A few items need another look."
+        : "All moved in.";
   }
 }
 
@@ -57,6 +59,8 @@ function speechKey(speech: SquiggySpeech | null): string {
       return `just-created:${speech.projectName}`;
     case "just-deleted":
       return `just-deleted:${speech.undoable}`;
+    case "just-imported":
+      return `just-imported:${speech.partial}`;
     default:
       return speech.kind;
   }

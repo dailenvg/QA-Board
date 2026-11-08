@@ -118,7 +118,7 @@ async function run(workspaceId: string): Promise<void> {
     return;
   }
   // Only when something new arrived: a retry that found it all there already says nothing.
-  if (outcome.report.moved) emitSquiggy({ type: "imported" });
+  if (outcome.report.moved) emitSquiggy({ type: "imported", partial: !outcome.report.cleared });
   set({ view: "done", report: outcome.report });
 }
 

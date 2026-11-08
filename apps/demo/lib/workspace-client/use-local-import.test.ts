@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { SquiggyEvent } from "../squiggy/events";
 import type { LocalData } from "../store/local-store";
 import type { ImportOutcome } from "./import-local";
 
@@ -121,8 +122,8 @@ describe("the import offer", () => {
   it("has Squiggy cheer only when the import moved something in", async () => {
     const store = await load();
     const { onSquiggy } = await import("../squiggy/events");
-    const heard: string[] = [];
-    onSquiggy(({ event }) => heard.push(event.type));
+    const heard: SquiggyEvent[] = [];
+    onSquiggy(({ event }) => heard.push(event));
     store.checkLocalData();
     local.outcome = { ok: true, report: { ...REPORT, cleared: true } };
     await store.startImport("w");
@@ -131,7 +132,12 @@ describe("the import offer", () => {
     store.checkLocalData();
     local.outcome = { ok: true, report: { ...REPORT, projects: 2, cleared: true, moved: true } };
     await store.startImport("w");
-    expect(heard).toEqual(["imported"]);
+    expect(heard).toEqual([{ type: "imported", partial: false }]);
+    store.finishImport();
+    store.checkLocalData();
+    local.outcome = { ok: true, report: { ...REPORT, projects: 1, moved: true } };
+    await store.startImport("w");
+    expect(heard.at(-1)).toEqual({ type: "imported", partial: true });
   });
 
   it("runs one import at a time, however often Import is pressed", async () => {

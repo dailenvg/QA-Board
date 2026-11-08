@@ -12,7 +12,7 @@ export type ReactionSpeech =
   | { kind: "just-created"; projectName: string }
   | { kind: "just-deleted"; undoable: boolean }
   | { kind: "save-failed" }
-  | { kind: "just-imported" };
+  | { kind: "just-imported"; partial: boolean };
 
 export type SquiggySpeech = AmbientSpeech | ReactionSpeech;
 
@@ -43,7 +43,7 @@ export function reactionSpeech(event: SquiggyEvent): ReactionSpeech {
     case "save-failed":
       return { kind: "save-failed" };
     case "imported":
-      return { kind: "just-imported" };
+      return { kind: "just-imported", partial: event.partial };
   }
 }
 
