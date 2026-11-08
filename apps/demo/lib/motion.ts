@@ -69,6 +69,9 @@ export const popIn: Variants = {
   exit: { opacity: 0, scale: 0.96, y: 4, transition: { duration: duration.micro } },
 };
 
+/** `whileInView` for content below the fold: reveal once, a little after it enters. */
+export const revealViewport = { once: true, margin: "-10%" } as const;
+
 export function staggerGroup(staggerChildren = 0.06, delayChildren = 0.08): Variants {
   return { hidden: {}, visible: { transition: { staggerChildren, delayChildren } } };
 }

@@ -17,6 +17,8 @@ const NEW = [
   "025_workspace_blobs_inline",
   "026_projects_folder_optional",
 ];
+/** Up to the last of `NEW`: later migrations have their own tests. */
+const UP_TO_026 = MIGRATIONS.slice(0, 22 + NEW.length);
 
 const closers: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -82,8 +84,8 @@ async function at022(make: () => Promise<Database>) {
 describe.each(databases)("migrations 023 to 026 (%s)", (_name, make) => {
   it("apply over existing shares, which keep working", async () => {
     const { db, store, anonymous, workspaceId } = await at022(make);
-    expect(await migrate(db)).toEqual(NEW);
-    expect(await migrate(db)).toEqual([]);
+    expect(await migrate(db, UP_TO_026)).toEqual(NEW);
+    expect(await migrate(db, UP_TO_026)).toEqual([]);
     for (const migration of MIGRATIONS.filter((m) => NEW.includes(m.id))) {
       await db.query(migration.sql);
     }

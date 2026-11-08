@@ -39,5 +39,18 @@ export const E2E_COMPANY = {
   password: "e2e owner password",
 } as const;
 
+/**
+ * A second company account with a workspace of its own, for the specs that
+ * change its password or email or sign it out everywhere: the shared session
+ * (`SESSION_STATE`, the e2e owner's) must outlive them. `resetSpareAccount`
+ * puts it back before each.
+ */
+export const E2E_SPARE = {
+  slug: "e2e-spare",
+  name: "E2E Spare",
+  email: "spare@e2e.test",
+  password: "e2e spare password",
+} as const;
+
 /** The signed-in browser state every project starts from (cookies only). */
 export const SESSION_STATE = "e2e/.auth/session.json";

@@ -74,9 +74,10 @@ export async function isResetTokenUsable(
 
 /**
  * Sets the password through a reset link, in one statement: the link is used
- * up, the user's other links too, every session of theirs ends (so a stolen
- * session dies with the old password), and the audit log records it. False
- * when the link can't be used.
+ * up, the user's other links too, and their pending email changes (one asked
+ * for with the old password can't take the account afterwards), every session
+ * of theirs ends (so a stolen session dies with the old password), and the
+ * audit log records it. False when the link can't be used.
  */
 export async function completePasswordReset(
   db: Queryable,
@@ -98,6 +99,9 @@ export async function completePasswordReset(
      ), other_links AS (
        UPDATE password_resets SET used_at = $3
        WHERE user_id IN (SELECT id FROM changed) AND used_at IS NULL AND token_hash <> $1
+     ), email_changes_voided AS (
+       UPDATE email_changes SET used_at = $3
+       WHERE user_id IN (SELECT id FROM changed) AND used_at IS NULL
      ), signed_out AS (
        DELETE FROM sessions WHERE user_id IN (SELECT id FROM changed)
      ), audit AS (

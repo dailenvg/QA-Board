@@ -46,6 +46,14 @@ const config: NextConfig = {
           { key: "X-Robots-Tag", value: "noindex, nofollow" },
         ],
       },
+      // Email change links: the same, for the same reasons.
+      {
+        source: "/email-change/:path*",
+        headers: [
+          { key: "Referrer-Policy", value: "same-origin" },
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+        ],
+      },
     ];
   },
   // Migrations under migrations/ are imported as text.

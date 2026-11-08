@@ -19,6 +19,8 @@ interface FormAlertProps {
   /** A link inside the message, for the messages that contain its words. */
   link?: AlertLink;
   testId?: string;
+  /** For the live region, such as space below it only while it shows (`has-[p]:mb-4`). */
+  className?: string;
 }
 
 const TONES = {
@@ -45,10 +47,10 @@ function linked(message: string, link: AlertLink | undefined): ReactNode {
 }
 
 /** A form-level message: an error (role="alert") or a notice (role="status"). */
-export function FormAlert({ message, tone = "error", link, testId }: FormAlertProps) {
+export function FormAlert({ message, tone = "error", link, testId, className }: FormAlertProps) {
   const variants = usePopVariants();
   return (
-    <div role={tone === "error" ? "alert" : "status"} data-testid={testId}>
+    <div role={tone === "error" ? "alert" : "status"} data-testid={testId} className={className}>
       <AnimatePresence initial={false}>
         {message ? (
           <motion.p
@@ -60,7 +62,8 @@ export function FormAlert({ message, tone = "error", link, testId }: FormAlertPr
             className={`flex items-start gap-2 rounded-tile px-4 py-3 text-body font-medium ${TONES[tone]}`}
           >
             <Icon name={tone === "error" ? "alert" : "check"} className="mt-0.5 size-4 shrink-0" />
-            <span>{linked(message, link)}</span>
+            {/* min-w-0 wrap-anywhere: messages can hold email addresses too long for a phone's line. */}
+            <span className="min-w-0 wrap-anywhere">{linked(message, link)}</span>
           </motion.p>
         ) : null}
       </AnimatePresence>

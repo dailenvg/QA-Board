@@ -1,17 +1,21 @@
 "use client";
 
 import { motion } from "motion/react";
-import type { ReactNode } from "react";
+import { ACCOUNT_HREF } from "@/lib/routes";
 import { staggerGroup, useRevealVariants } from "@/lib/motion";
+import { SignOutButton } from "../auth/SignOutButton";
 import { Squiggy } from "../brand/mascot/Squiggy";
+import { ButtonLink } from "../ui/ButtonLink";
+import { Icon } from "../ui/Icon";
 
 const GROUP = staggerGroup();
 
 /**
  * Signed in, but not a member of any workspace (the admin, for now): an empty
- * state, not an error. `account` is who is signed in, with Sign out.
+ * state, not an error, with the way to the account settings and Sign out.
+ * `email` is who is signed in.
  */
-export function NoWorkspace({ account }: { account: ReactNode }) {
+export function NoWorkspace({ email }: { email: string }) {
   const variants = useRevealVariants();
   return (
     <main id="main" className="grid min-h-dvh place-items-center p-4">
@@ -35,8 +39,12 @@ export function NoWorkspace({ account }: { account: ReactNode }) {
             show. Workspace accounts see theirs here.
           </p>
         </motion.div>
-        <motion.div variants={variants} className="w-full">
-          {account}
+        <motion.div variants={variants} className="flex w-full flex-col gap-2">
+          <ButtonLink href={ACCOUNT_HREF} variant="secondary" testId="account-settings-link">
+            <Icon name="user" className="size-5" />
+            Account settings
+          </ButtonLink>
+          <SignOutButton email={email} />
         </motion.div>
       </motion.section>
     </main>

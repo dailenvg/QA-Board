@@ -9,8 +9,8 @@ import { useReportedReveal } from "./password-reveal";
 
 interface AuthFieldProps {
   label: string;
-  type: "email" | "password";
-  autoComplete: "username" | "email" | "current-password" | "new-password";
+  type: "text" | "email" | "password";
+  autoComplete: "name" | "username" | "email" | "current-password" | "new-password";
   /**
    * The field's name in a plain form post (before hydration). Defaults to its kind (`email`,
    * `password`); new-password fields name themselves, since a form may have two.
@@ -27,7 +27,7 @@ interface AuthFieldProps {
   testId?: string;
 }
 
-/** A labelled email or password input with its hint and inline error. */
+/** A labelled name, email or password input with its hint and inline error. */
 export function AuthField({
   label,
   type,
@@ -61,7 +61,7 @@ export function AuthField({
           // From the field's kind, not the rendered type, so showing the password keeps its name.
           name={name ?? (autoComplete === "new-password" ? undefined : type)}
           autoComplete={autoComplete}
-          autoCapitalize="none"
+          autoCapitalize={type === "text" ? "words" : "none"}
           autoCorrect="off"
           spellCheck={false}
           inputMode={type === "email" ? "email" : undefined}

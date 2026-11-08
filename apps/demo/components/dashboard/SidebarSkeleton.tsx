@@ -23,6 +23,10 @@ export function SidebarSkeleton() {
         <Skeleton className="h-11 w-32 lg:w-full" />
         <Skeleton className="h-11 w-32 lg:w-full" />
       </div>
+      {/* The Account row, at the foot of the panel. */}
+      <div className="mt-auto flex flex-col gap-2">
+        <Skeleton className="h-11 w-32 lg:w-full" />
+      </div>
     </div>
   );
 }

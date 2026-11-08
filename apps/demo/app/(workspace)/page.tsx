@@ -1,8 +1,10 @@
 import type { Metadata, ResolvingMetadata } from "next";
 import { redirect } from "next/navigation";
+import { NoWorkspace } from "@/components/app-state/NoWorkspace";
 import { Overview } from "@/components/overview/Overview";
 import { MAIN_PREVIEW, previewMetadata } from "@/lib/link-preview";
 import { folderHref } from "@/lib/routes";
+import { loadSessionWorkspace } from "@/lib/workspace/session-workspace";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -41,5 +43,7 @@ export default async function OverviewPage({
 }) {
   const target = legacyFolderRedirect(await searchParams);
   if (target) redirect(target);
+  const session = await loadSessionWorkspace();
+  if (session.kind === "none") return <NoWorkspace email={session.user.email} />;
   return <Overview />;
 }

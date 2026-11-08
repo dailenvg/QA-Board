@@ -1,19 +1,7 @@
-import { Resend } from "resend";
-import { LoggableError } from "./http";
+import { EmailRefused, escapeHtml, resendSender, type EmailEnv } from "../email/resend";
 import type { SendResetEmail } from "./password-reset";
 
-/** Reads RESEND_API_KEY and EMAIL_FROM. */
-type EmailEnv = Readonly<Record<string, string | undefined>>;
-
 const SUBJECT = "Reset your Squint password";
-
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
 
 export function resetEmailText(link: string): string {
   return [
@@ -33,45 +21,18 @@ export function resetEmailHtml(link: string): string {
 <p>If it wasn't you, ignore this email. Your password stays as it is.</p>`;
 }
 
-/** Resend's reason with links and addresses blanked, since it can quote the recipient. */
-export function redactResendMessage(message: string): string {
-  return message
-    .replace(/https?:\/\/\S+/g, "[link]")
-    .replace(/\S+@\S+/g, "[address]")
-    .slice(0, 200);
-}
-
-/** Resend refused to send: its error code and redacted reason, safe for the logs. */
-export class ResetEmailRefused extends LoggableError {
+/** Resend refused a reset email: its error code and redacted reason, safe for the logs. */
+export class ResetEmailRefused extends EmailRefused {
   override name = "ResetEmailRefused";
-  constructor(code: string, message: string) {
-    super(`${code} ${redactResendMessage(message)}`);
-  }
 }
 
 /**
- * Sends reset emails through Resend. Without `RESEND_API_KEY` or `EMAIL_FROM`
- * (local development) it sends nothing and logs that it skipped, never the
- * address, link or token.
+ * Sends reset emails through Resend (`lib/email/resend.ts`). Without
+ * `RESEND_API_KEY` or `EMAIL_FROM` (local development) it sends nothing and
+ * logs that it skipped, never the address, link or token.
  */
 export function resetEmailSender(env: EmailEnv = process.env): SendResetEmail {
-  const key = env.RESEND_API_KEY?.trim();
-  const from = env.EMAIL_FROM?.trim();
-  if (!key || !from) {
-    return () => {
-      console.warn("squint auth: reset email skipped (RESEND_API_KEY or EMAIL_FROM not set)");
-      return Promise.resolve();
-    };
-  }
-  const resend = new Resend(key);
-  return async ({ to, link }) => {
-    const { error } = await resend.emails.send({
-      from,
-      to,
-      subject: SUBJECT,
-      text: resetEmailText(link),
-      html: resetEmailHtml(link),
-    });
-    if (error) throw new ResetEmailRefused(error.name, error.message);
-  };
+  const send = resendSender("squint auth: reset email", ResetEmailRefused, env);
+  return ({ to, link }) =>
+    send({ to, subject: SUBJECT, text: resetEmailText(link), html: resetEmailHtml(link) });
 }

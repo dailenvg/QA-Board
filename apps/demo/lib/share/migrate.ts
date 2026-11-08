@@ -24,6 +24,8 @@ import projectShareLinks from "../../migrations/023_project_share_links.sql";
 import projectsDeletedAt from "../../migrations/024_projects_deleted_at.sql";
 import workspaceBlobsInline from "../../migrations/025_workspace_blobs_inline.sql";
 import projectsFolderOptional from "../../migrations/026_projects_folder_optional.sql";
+import emailChanges from "../../migrations/027_email_changes.sql";
+import usersNameLength from "../../migrations/028_users_name_length.sql";
 
 /** The slice of `pg.Pool` the stores use (PGlite matches it in tests). */
 export interface Queryable {
@@ -58,6 +60,8 @@ export const MIGRATIONS: ReadonlyArray<{ id: string; sql: string }> = [
   { id: "024_projects_deleted_at", sql: projectsDeletedAt },
   { id: "025_workspace_blobs_inline", sql: workspaceBlobsInline },
   { id: "026_projects_folder_optional", sql: projectsFolderOptional },
+  { id: "027_email_changes", sql: emailChanges },
+  { id: "028_users_name_length", sql: usersNameLength },
 ];
 
 type Migration = (typeof MIGRATIONS)[number];
