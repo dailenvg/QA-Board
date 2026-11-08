@@ -32,7 +32,7 @@ export class ResetEmailRefused extends EmailRefused {
  * logs that it skipped, never the address, link or token.
  */
 export function resetEmailSender(env: EmailEnv = process.env): SendResetEmail {
-  const send = resendSender("reset email", ResetEmailRefused, env);
+  const send = resendSender("squint auth: reset email", ResetEmailRefused, env);
   return ({ to, link }) =>
     send({ to, subject: SUBJECT, text: resetEmailText(link), html: resetEmailHtml(link) });
 }

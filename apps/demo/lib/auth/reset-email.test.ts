@@ -32,7 +32,10 @@ describe("reset email", () => {
     await resetEmailSender({})({ to: "ana@acme.test", link });
     expect(warn).toHaveBeenCalledTimes(1);
     const logged = JSON.stringify(warn.mock.calls);
-    expect(logged).toContain("reset email skipped");
+    // Byte for byte the line it has always logged.
+    expect(warn.mock.calls).toEqual([
+      ["squint auth: reset email skipped (RESEND_API_KEY or EMAIL_FROM not set)"],
+    ]);
     expect(logged).not.toContain("secret-token");
     expect(logged).not.toContain("ana@acme.test");
     expect(resend.send).not.toHaveBeenCalled();

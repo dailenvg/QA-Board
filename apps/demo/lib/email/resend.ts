@@ -46,10 +46,11 @@ export class EmailRefused extends LoggableError {
 /**
  * Sends through Resend from `EMAIL_FROM`; a refusal throws `Refused`. Without
  * `RESEND_API_KEY` or `EMAIL_FROM` (local development) it sends nothing and
- * logs that `label` was skipped, never the address, link or token.
+ * logs "`logName` skipped" (such as "squint auth: reset email skipped"),
+ * never the address, link or token.
  */
 export function resendSender(
-  label: string,
+  logName: string,
   Refused: new (code: string, message: string) => EmailRefused,
   env: EmailEnv = process.env,
 ): SendEmail {
@@ -57,7 +58,7 @@ export function resendSender(
   const from = env.EMAIL_FROM?.trim();
   if (!key || !from) {
     return () => {
-      console.warn(`squint auth: ${label} skipped (RESEND_API_KEY or EMAIL_FROM not set)`);
+      console.warn(`${logName} skipped (RESEND_API_KEY or EMAIL_FROM not set)`);
       return Promise.resolve();
     };
   }

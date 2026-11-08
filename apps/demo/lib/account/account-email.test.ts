@@ -61,7 +61,10 @@ describe("account emails", () => {
     await emailChangedNoticeSender({})("old@acme.test");
     expect(send).not.toHaveBeenCalled();
     const logged = JSON.stringify(warn.mock.calls);
-    expect(logged).toContain("email change link skipped");
+    expect(warn.mock.calls).toEqual([
+      ["squint account: email change link skipped (RESEND_API_KEY or EMAIL_FROM not set)"],
+      ["squint account: email changed notice skipped (RESEND_API_KEY or EMAIL_FROM not set)"],
+    ]);
     expect(logged).not.toMatch(/acme\.test|secret/);
   });
 

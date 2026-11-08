@@ -32,7 +32,7 @@ export class AccountEmailRefused extends EmailRefused {
 
 /** Mails an email change link to the new address (see `resendSender` for local development). */
 export function emailChangeLinkSender(env: EmailEnv = process.env): SendEmailChangeLink {
-  const send = resendSender("email change link", AccountEmailRefused, env);
+  const send = resendSender("squint account: email change link", AccountEmailRefused, env);
   return ({ to, link }) =>
     send({
       to,
@@ -44,7 +44,7 @@ export function emailChangeLinkSender(env: EmailEnv = process.env): SendEmailCha
 
 /** Tells the old address the account moved. No link: nothing in it to act on. */
 export function emailChangedNoticeSender(env: EmailEnv = process.env): SendEmailChangedNotice {
-  const send = resendSender("email changed notice", AccountEmailRefused, env);
+  const send = resendSender("squint account: email changed notice", AccountEmailRefused, env);
   return (to) =>
     send({
       to,
