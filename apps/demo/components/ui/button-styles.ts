@@ -1,4 +1,5 @@
-export type ButtonVariant = "primary" | "secondary" | "ghost" | "inverse" | "danger";
+export type ButtonVariant =
+  "primary" | "secondary" | "ghost" | "danger-ghost" | "inverse" | "danger";
 
 const VARIANTS: Record<ButtonVariant, string> = {
   primary: "bg-brand text-on-brand shadow-seg hover:bg-brand-hover active:bg-brand-hover",
@@ -6,6 +7,8 @@ const VARIANTS: Record<ButtonVariant, string> = {
   secondary:
     "bg-card text-ink ring-1 ring-line-strong ring-inset hover:bg-brand-soft hover:text-brand-text hover:ring-brand-text active:bg-brand-soft active:text-brand-text active:ring-brand-text",
   ghost: "text-ink hover:bg-hover active:bg-hover",
+  // A ghost's own variant: a text colour passed in className can lose to the ghost's text-ink.
+  "danger-ghost": "text-danger hover:bg-danger-soft active:bg-danger-soft",
   inverse: "bg-inv text-on-inv hover:opacity-90 active:opacity-90",
   danger: "bg-danger text-card hover:opacity-90 active:opacity-90",
 };
