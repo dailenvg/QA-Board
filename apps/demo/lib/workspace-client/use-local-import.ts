@@ -117,8 +117,6 @@ async function run(workspaceId: string): Promise<void> {
     set({ view: "failed", failure: outcome.failure });
     return;
   }
-  // Only when something new arrived: a retry that found it all there already says nothing.
-  if (outcome.report.moved) emitSquiggy({ type: "imported", partial: !outcome.report.cleared });
   set({ view: "done", report: outcome.report });
 }
 
@@ -136,10 +134,17 @@ export function importLater(): void {
   set(HIDDEN);
 }
 
-/** Closes the summary. A copy kept because something was skipped is offered again next sign-in. */
+/**
+ * Closes the summary. A copy kept because something was skipped is offered
+ * again next sign-in. Squiggy cheers now, not when the import finished, so
+ * the reaction plays in view rather than behind the dialog; and only when
+ * something new arrived (a retry that found it all there already says nothing).
+ */
 export function finishImport(): void {
-  if (state.view === "done" && !state.report.cleared) deferImport();
+  const report = state.view === "done" ? state.report : null;
+  if (report && !report.cleared) deferImport();
   set(HIDDEN);
+  if (report?.moved) emitSquiggy({ type: "imported", partial: !report.cleared });
 }
 
 export function askDiscard(): void {

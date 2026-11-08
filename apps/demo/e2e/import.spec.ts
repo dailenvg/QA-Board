@@ -228,6 +228,8 @@ test("imports projects, comments, images and a review link, then clears this bro
   await expect(dialog.getByTestId("import-skipped")).toHaveCount(0);
   await dialog.getByTestId("import-finish").click();
   await expect(dialog).toBeHidden();
+  // Squiggy cheers once the summary is out of the way, not behind it.
+  await expect(page.getByTestId("squiggy-speech")).toHaveText("All moved in.");
   expect(await localState(page)).toEqual({ data: null, images: 0 });
 
   // On the server after a reload: everything, once, and no offer.
@@ -384,6 +386,9 @@ test("a project another workspace has is skipped and named; the rest come in", a
   ]);
   // Kept: the browser still has the project that couldn't come in.
   await dialog.getByTestId("import-finish").click();
+  await expect(page.getByTestId("squiggy-speech")).toHaveText(
+    "Most of it moved in. A few items need another look.",
+  );
   expect((await localState(page)).data).not.toBeNull();
 });
 
