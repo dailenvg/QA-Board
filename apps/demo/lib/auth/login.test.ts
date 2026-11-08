@@ -24,6 +24,15 @@ describe("logIn", () => {
     expect(new Date(rows[0]?.last_login_at ?? 0).getTime()).toBe(NOW);
   });
 
+  it("says whether it's the user's first sign-in", async () => {
+    const db = await migratedPglite();
+    await insertUser(db, "ana@acme.test");
+    const attempt = (at: number) =>
+      logIn(db, { email: "ana@acme.test", password: PASSWORD, ip: IP }, at);
+    expect(await attempt(NOW)).toMatchObject({ ok: true, first: true });
+    expect(await attempt(NOW + 1000)).toMatchObject({ ok: true, first: false });
+  });
+
   it("answers the same for a wrong password, an unknown email and a deleted user", async () => {
     const db = await migratedPglite();
     const userId = await insertUser(db, "ana@acme.test");

@@ -1,4 +1,4 @@
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import { migrate, type Queryable } from "../share/migrate";
 
 /**
@@ -10,29 +10,35 @@ export interface Database extends Queryable {
   transaction<T>(run: (tx: Queryable) => Promise<T>): Promise<T>;
 }
 
+/**
+ * Runs `run` on one client of `pool` between BEGIN and COMMIT, rolling back
+ * if it throws.
+ */
+async function inTransaction<T>(pool: Pool, run: (client: PoolClient) => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  // A client that can't even roll back is broken: drop it instead of pooling it again.
+  let broken = false;
+  try {
+    await client.query("BEGIN");
+    const result = await run(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {
+      broken = true;
+    });
+    throw error;
+  } finally {
+    client.release(broken);
+  }
+}
+
 /** `pool` as a `Database`: queries go to the pool, transactions to one client of it. */
 export function poolDatabase(pool: Pool): Database {
   const queries: Queryable = pool;
   return {
     query: queries.query.bind(pool),
-    async transaction(run) {
-      const client = await pool.connect();
-      // A client that can't even roll back is broken: drop it instead of pooling it again.
-      let broken = false;
-      try {
-        await client.query("BEGIN");
-        const result = await run(client);
-        await client.query("COMMIT");
-        return result;
-      } catch (error) {
-        await client.query("ROLLBACK").catch(() => {
-          broken = true;
-        });
-        throw error;
-      } finally {
-        client.release(broken);
-      }
-    },
+    transaction: (run) => inTransaction(pool, run),
   };
 }
 
@@ -48,11 +54,34 @@ export function watchPool(pool: Pool, label: string): Pool {
   return pool;
 }
 
+/**
+ * One advisory lock for every migration run against this database, Squint's
+ * and Pinpoint's alike. They run at most once per cold start, so sharing a
+ * key costs a few milliseconds of waiting and spares a second constant.
+ */
+const MIGRATION_LOCK = "SELECT pg_advisory_xact_lock(hashtextextended('squint:migrate', 0))";
+
+/**
+ * Runs `run` (a migrate) in one transaction that first takes the migration
+ * lock, so cold starts racing on an empty database apply each migration
+ * once: the others wait, then find it recorded. The lock ends with the
+ * transaction, and a failed migration rolls back whole.
+ */
+export function migrateWithLock<T>(
+  pool: Pool,
+  run: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  return inTransaction(pool, async (client) => {
+    await client.query(MIGRATION_LOCK);
+    return run(client);
+  });
+}
+
 const holder = globalThis as typeof globalThis & { squintDatabase?: Promise<Database> };
 
 async function connect(url: string): Promise<Database> {
   const pool = watchPool(new Pool({ connectionString: url, max: 3 }), "db");
-  await migrate(pool);
+  await migrateWithLock(pool, migrate);
   return poolDatabase(pool);
 }
 

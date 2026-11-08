@@ -64,10 +64,10 @@ export function useGaze(ref: RefObject<HTMLElement | null>, { follow, override }
       targetY.set(overrideY);
       return;
     }
-    if (!follow) {
-      look(0, 0);
-      return;
-    }
+    // No override: start from center. When one lets go (a password hidden again, a mood
+    // that looked somewhere), the eyes come back to the viewer until the pointer moves.
+    look(0, 0);
+    if (!follow) return;
 
     let lastInput = performance.now();
     let wanderTimer = 0;

@@ -2,16 +2,17 @@
  * Things Squiggy reacts to, emitted by the store's action layer
  * (`lib/store/actions.ts`) after a change is saved, or when a save is refused,
  * and by `WelcomeSignal` on the first page after signing in. Undo restores
- * emit nothing. A finished import of this browser's local data emits `imported`
- * when it brought something new into the workspace.
+ * emit nothing. Closing the summary of an import of this browser's local data
+ * emits `imported` when it brought something new into the workspace, `partial`
+ * when some of it was left behind.
  */
 export type SquiggyEvent =
-  | { type: "signed-in" }
+  | { type: "signed-in"; first: boolean }
   | { type: "comment-resolved" }
   | { type: "project-created"; projectName: string }
   | { type: "item-deleted"; item: "project" | "folder" | "comment" }
   | { type: "save-failed" }
-  | { type: "imported" };
+  | { type: "imported"; partial: boolean };
 
 export type SquiggyEventType = SquiggyEvent["type"];
 

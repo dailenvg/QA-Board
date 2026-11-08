@@ -31,7 +31,7 @@ function waitingLabel(active: number, folderName: string, total: number): string
 function reactionLine(speech: ReactionSpeech): string {
   switch (speech.kind) {
     case "signed-in":
-      return "Welcome back. Good to see you.";
+      return speech.first ? "Hi there. Glad you're here." : "Welcome back.";
     case "just-resolved":
       return "One down. Nice.";
     case "just-created":
@@ -43,7 +43,9 @@ function reactionLine(speech: ReactionSpeech): string {
     case "save-failed":
       return "That didn't save. Check your connection and try again.";
     case "just-imported":
-      return "All moved in.";
+      return speech.partial
+        ? "Most of it moved in. A few items need another look."
+        : "All moved in.";
   }
 }
 
@@ -57,6 +59,8 @@ function speechKey(speech: SquiggySpeech | null): string {
       return `just-created:${speech.projectName}`;
     case "just-deleted":
       return `just-deleted:${speech.undoable}`;
+    case "just-imported":
+      return `just-imported:${speech.partial}`;
     default:
       return speech.kind;
   }

@@ -1,5 +1,5 @@
 import { expect, test } from "./test";
-import { createResetLink, recordUrls, signIn, SIGNED_OUT } from "./auth-fixtures";
+import { createResetLink, forgetLastSignIn, recordUrls, signIn, SIGNED_OUT } from "./auth-fixtures";
 import { E2E_ADMIN, E2E_COMPANY } from "./e2e-env";
 
 test.describe("signed out", () => {
@@ -24,21 +24,65 @@ test.describe("signed out", () => {
     await page.goto("/");
     await expect(page).toHaveURL(/\/login$/);
     await signIn(page, E2E_COMPANY);
-    await expect(page.getByTestId("squiggy-speech")).toHaveAttribute("data-kind", "signed-in");
+    const speech = page.getByTestId("squiggy-speech");
+    await expect(speech).toHaveAttribute("data-kind", "signed-in");
+    await expect(speech).toHaveText("Welcome back.");
     await expect(page).toHaveURL(/\/$/);
   });
 
-  test("a wrong password gets the generic message and an empty password field", async ({
+  test("Squiggy welcomes a first sign-in to Squint", async ({ page }) => {
+    await forgetLastSignIn(E2E_COMPANY.email);
+    await page.goto("/login");
+    await signIn(page, E2E_COMPANY);
+    await expect(page.getByTestId("squiggy-speech")).toHaveText("Hi there. Glad you're here.");
+    await expect(page).toHaveURL(/\/$/);
+  });
+
+  test("a wrong password gets the generic message, an empty password field and a reset link", async ({
     page,
   }) => {
     await page.goto("/login");
     await signIn(page, { email: E2E_COMPANY.email, password: "not the password" });
-    await expect(page.getByRole("alert").filter({ hasText: "Invalid" })).toHaveText(
-      "Invalid email or password.",
+    const alert = page.getByRole("alert").filter({ hasText: "Invalid" });
+    await expect(alert).toHaveText(
+      "Invalid email or password. Check both and try again, or reset your password.",
     );
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByLabel("Password")).toHaveValue("");
     await expect(page.getByLabel("Password")).toBeFocused();
+    await alert.getByRole("link", { name: "reset your password" }).click();
+    await expect(page).toHaveURL(/\/reset$/);
+  });
+
+  test("Squiggy shuts its eyes while the password is shown, and looks again once it's hidden", async ({
+    page,
+  }) => {
+    await page.goto("/login");
+    const squiggy = page.locator(".squint-mascot");
+    await expect(squiggy).toHaveAttribute("data-eyes", "mood");
+    await page.getByRole("button", { name: "Show password" }).click();
+    await expect(squiggy).toHaveAttribute("data-eyes", "averted");
+    // Only the eyes: the body keeps the form's mood, and the name stays Squiggy's.
+    await expect(squiggy).toHaveAttribute("data-mood", "idle");
+    await expect(squiggy).toHaveAccessibleName("Squiggy, relaxed");
+    await page.getByRole("button", { name: "Hide password" }).click();
+    await expect(squiggy).toHaveAttribute("data-eyes", "mood");
+  });
+
+  test("on a new password, Squiggy keeps its eyes shut while either field is shown", async ({
+    page,
+  }) => {
+    await page.goto(await createResetLink(E2E_ADMIN.email));
+    const squiggy = page.locator(".squint-mascot");
+    const show = page.getByRole("button", { name: "Show password" });
+    const hide = page.getByRole("button", { name: "Hide password" });
+    await show.first().click();
+    await show.first().click();
+    await expect(squiggy).toHaveAttribute("data-eyes", "averted");
+    await hide.first().click();
+    await expect(squiggy).toHaveAttribute("data-eyes", "averted");
+    await hide.first().click();
+    await expect(squiggy).toHaveAttribute("data-eyes", "mood");
   });
 
   test("checks fields when you leave them", async ({ page }) => {
@@ -185,11 +229,11 @@ test.describe("submitted before hydration (JavaScript off)", () => {
     await signIn(page, { email: E2E_COMPANY.email, password: "not the password" });
     await expect(page).toHaveURL(/\/login\?next=%2Ff%2Fabc&error=invalid-credentials$/);
     await expect(page.getByRole("alert").filter({ hasText: "Invalid" })).toHaveText(
-      "Invalid email or password.",
+      "Invalid email or password. Check both and try again, or reset your password.",
     );
 
     await signIn(page, E2E_COMPANY);
-    await expect(page).toHaveURL(/\/f\/abc\?welcome=1$/);
+    await expect(page).toHaveURL(/\/f\/abc\?welcome=back$/);
     const leaked = urls.filter((url) =>
       [E2E_COMPANY.password, "not the password", E2E_COMPANY.email].some((secret) =>
         url.includes(secret),

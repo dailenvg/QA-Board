@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { SquiggyEvent } from "../squiggy/events";
 import type { LocalData } from "../store/local-store";
 import type { ImportOutcome } from "./import-local";
 
@@ -118,20 +119,56 @@ describe("the import offer", () => {
     expect(local.clears).toBe(0);
   });
 
-  it("has Squiggy cheer only when the import moved something in", async () => {
+  it("has Squiggy cheer once the summary closes, only when the import moved something in", async () => {
     const store = await load();
     const { onSquiggy } = await import("../squiggy/events");
-    const heard: string[] = [];
-    onSquiggy(({ event }) => heard.push(event.type));
+    const heard: SquiggyEvent[] = [];
+    onSquiggy(({ event }) => heard.push(event));
+    const moved = { ...REPORT, projects: 2, cleared: true, moved: true };
+
+    // A retry that found it all there already: nothing new, no cheer.
     store.checkLocalData();
     local.outcome = { ok: true, report: { ...REPORT, cleared: true } };
     await store.startImport("w");
+    store.finishImport();
+    expect(heard).toEqual([]);
+
+    // Not while the summary covers the page; once when it closes, however often close is pressed.
+    store.checkLocalData();
+    local.outcome = { ok: true, report: moved };
+    await store.startImport("w");
     expect(heard).toEqual([]);
     store.finishImport();
+    store.finishImport();
+    expect(heard).toEqual([{ type: "imported", partial: false }]);
+
+    // Something left behind: the partial line.
     store.checkLocalData();
-    local.outcome = { ok: true, report: { ...REPORT, projects: 2, cleared: true, moved: true } };
+    local.outcome = { ok: true, report: { ...REPORT, projects: 1, moved: true } };
     await store.startImport("w");
-    expect(heard).toEqual(["imported"]);
+    store.finishImport();
+    expect(heard.at(-1)).toEqual({ type: "imported", partial: true });
+  });
+
+  it("has Squiggy say nothing when the import fails or the summary's data is discarded", async () => {
+    const store = await load();
+    const { onSquiggy } = await import("../squiggy/events");
+    const heard: SquiggyEvent[] = [];
+    onSquiggy(({ event }) => heard.push(event));
+
+    store.checkLocalData();
+    local.outcome = { ok: false, failure: "server" };
+    await store.startImport("w");
+    store.askDiscard();
+    store.cancelDiscard();
+    expect(store.getLocalImportState()).toEqual({ view: "failed", failure: "server" });
+
+    local.outcome = { ok: true, report: { ...REPORT, projects: 1, moved: true } };
+    await store.startImport("w");
+    store.askDiscard();
+    await store.discardLocalData();
+    store.finishImport();
+    expect(heard).toEqual([]);
   });
 
   it("runs one import at a time, however often Import is pressed", async () => {

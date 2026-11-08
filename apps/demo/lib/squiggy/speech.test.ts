@@ -35,14 +35,24 @@ describe("squiggySpeech", () => {
 
 describe("reactionSpeech", () => {
   it("has a line for each event, with the new project's name", () => {
-    expect(reactionSpeech({ type: "signed-in" })).toEqual({ kind: "signed-in" });
+    expect(reactionSpeech({ type: "signed-in", first: true })).toEqual({
+      kind: "signed-in",
+      first: true,
+    });
     expect(reactionSpeech({ type: "comment-resolved" })).toEqual({ kind: "just-resolved" });
     expect(reactionSpeech({ type: "project-created", projectName: "Homepage" })).toEqual({
       kind: "just-created",
       projectName: "Homepage",
     });
     expect(reactionSpeech({ type: "save-failed" })).toEqual({ kind: "save-failed" });
-    expect(reactionSpeech({ type: "imported" })).toEqual({ kind: "just-imported" });
+    expect(reactionSpeech({ type: "imported", partial: false })).toEqual({
+      kind: "just-imported",
+      partial: false,
+    });
+    expect(reactionSpeech({ type: "imported", partial: true })).toEqual({
+      kind: "just-imported",
+      partial: true,
+    });
   });
 
   it("mentions Undo only for deletes that have one", () => {

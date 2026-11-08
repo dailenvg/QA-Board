@@ -59,6 +59,17 @@ export async function sessionCookie(
   return { name: "squint_session", value: token, url: baseURL };
 }
 
+/** Clears `email`'s last sign-in, so the next one counts as its first. */
+export async function forgetLastSignIn(email: string): Promise<void> {
+  const client = new Client({ connectionString: e2eDatabaseUrl() });
+  await client.connect();
+  try {
+    await client.query("UPDATE users SET last_login_at = NULL WHERE email = $1", [email]);
+  } finally {
+    await client.end();
+  }
+}
+
 /** Ends a session server-side, as a sign-out elsewhere or an expiry would. */
 export async function endSession(token: string): Promise<void> {
   const client = new Client({ connectionString: e2eDatabaseUrl() });

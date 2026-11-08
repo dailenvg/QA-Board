@@ -6,11 +6,15 @@ import { staggerGroup, useRevealVariants } from "@/lib/motion";
 import { Logo } from "../brand/Logo";
 import { Squiggy } from "../brand/mascot/Squiggy";
 import type { Mood } from "../brand/mascot/moods";
+import { PasswordRevealContext, useRevealedPasswords } from "./password-reveal";
 
 interface AuthPanelProps {
   title: string;
   description: ReactNode;
-  /** Squiggy follows the form: thinking while it works, surprised at an error, happy when done. */
+  /**
+   * Squiggy follows the form: thinking while it works, surprised at an error, happy when done.
+   * While a password field inside shows its password, Squiggy also shuts its eyes and looks away.
+   */
   mood: Mood;
   children: ReactNode;
   /** Links under the form, such as back to sign in. */
@@ -36,6 +40,7 @@ export function AuthPanel({
   const reveal = useRevealVariants();
   const titleId = useId();
   const titleRef = useRef<HTMLHeadingElement>(null);
+  const passwords = useRevealedPasswords();
 
   useEffect(() => {
     // Runs when the panel swaps in (focusTitle is fixed per panel), not on every re-render.
@@ -61,7 +66,13 @@ export function AuthPanel({
           {/* display: contents: only orchestrates, so the section's gap still spaces its children. */}
           <motion.div variants={STAGGER} className="contents">
             <motion.div variants={reveal} className="flex flex-col items-center gap-3 text-center">
-              <Squiggy mood={mood} size={96} still label="Squiggy" />
+              <Squiggy
+                mood={mood}
+                averted={passwords.anyRevealed}
+                size={96}
+                still
+                label="Squiggy"
+              />
               <h1
                 ref={titleRef}
                 id={titleId}
@@ -73,7 +84,7 @@ export function AuthPanel({
               <div className="text-body text-pretty text-muted">{description}</div>
             </motion.div>
             <motion.div variants={reveal} className="flex flex-col gap-4">
-              {children}
+              <PasswordRevealContext value={passwords.report}>{children}</PasswordRevealContext>
             </motion.div>
           </motion.div>
         </motion.section>

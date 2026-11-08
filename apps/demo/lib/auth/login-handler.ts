@@ -6,7 +6,7 @@ import type { LoginError } from "./auth-client";
 import { isFormPost, readForm, seeOther } from "./form-post";
 import { crossSiteRefusal, describeError, isCrossSite } from "./http";
 import { logIn, type LoginResult } from "./login";
-import { loginHref, safeNextPath, withParams, withWelcome } from "./next-path";
+import { loginHref, safeNextPath, withParams, withWelcome, type Welcome } from "./next-path";
 import { loginSchema } from "./schemas";
 import { SESSION_COOKIE, sessionCookieOptions } from "./session-cookie";
 
@@ -34,6 +34,10 @@ async function attempt(
   }
 }
 
+function welcomeOf(result: { first: boolean }): Welcome {
+  return result.first ? "first" : "back";
+}
+
 function withSession<T extends NextResponse>(response: T, request: NextRequest, token: string): T {
   response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions(request.nextUrl));
   return response;
@@ -46,7 +50,7 @@ async function fromJson(request: NextRequest, deps: AuthRouteDeps): Promise<Resp
   const result = await attempt(request, body.value, deps);
   if (result.ok) {
     return withSession(
-      NextResponse.json({ ok: true }, { headers: NO_STORE }),
+      NextResponse.json({ ok: true, welcome: welcomeOf(result) }, { headers: NO_STORE }),
       request,
       result.token,
     );
@@ -87,7 +91,9 @@ async function fromForm(request: NextRequest, deps: AuthRouteDeps): Promise<Resp
   });
   if (!parsed.success) return back("invalid-credentials");
   const result = await attempt(request, parsed.data, deps);
-  if (result.ok) return withSession(seeOther(withWelcome(next)), request, result.token);
+  if (result.ok) {
+    return withSession(seeOther(withWelcome(next, welcomeOf(result))), request, result.token);
+  }
   switch (result.reason) {
     case "rate-limited":
       return back("rate-limited", result.retryAfterSeconds);
@@ -102,7 +108,8 @@ async function fromForm(request: NextRequest, deps: AuthRouteDeps): Promise<Resp
 
 /**
  * `POST /api/auth/login`. JSON `{ email, password }` from the hydrated form:
- * sets the session cookie and answers `{ ok: true }`; 401
+ * sets the session cookie and answers `{ ok: true, welcome }` (`first` or
+ * `back`, for Squiggy's greeting); 401
  * `invalid-credentials` for a wrong password and an unknown email alike; 429
  * with `Retry-After` once rate-limited; 503 without a database. A form-encoded
  * post (before hydration) gets the same checks, answered with a 303.

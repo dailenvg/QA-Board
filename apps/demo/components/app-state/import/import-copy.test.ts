@@ -49,7 +49,7 @@ describe("the import dialog's copy", () => {
     const failed = (failure: "folders" | "images-blocked") =>
       dialogText({ view: "failed", failure }, "Acme").description;
     expect(failed("folders")).toMatch(
-      /Keep it for now and ask the Squint team for help, or discard it\.$/,
+      /Keep this data for now and ask the Squint team for help, or discard it\.$/,
     );
     expect(failed("images-blocked")).toContain("Open Squint in a normal window");
   });

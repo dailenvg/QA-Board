@@ -62,7 +62,7 @@ describe("login form posts (before hydration)", () => {
       formPost("/api/auth/login", { email: EMAIL, password: PASSWORD, next: "/f/abc" }),
       { db: Promise.resolve(db), now: NOW },
     );
-    expect(location(response)).toBe("/f/abc?welcome=1");
+    expect(location(response)).toBe("/f/abc?welcome=first");
     expect(response.headers.get("set-cookie")).toMatch(/^squint_session=[A-Za-z0-9_-]{43};/);
     expect(response.headers.get("set-cookie")).toMatch(/HttpOnly/i);
     expectNoCredentials(response, PASSWORD, EMAIL);
@@ -120,7 +120,7 @@ describe("login form posts (before hydration)", () => {
       deps,
     );
     expect(signedIn.status).toBe(200);
-    expect(await signedIn.json()).toEqual({ ok: true });
+    expect(await signedIn.json()).toEqual({ ok: true, welcome: "first" });
     expect(signedIn.headers.get("set-cookie")).toMatch(/^squint_session=/);
     const refused = await handleLogin(
       jsonPost("/api/auth/login", { email: EMAIL, password: "x" }),

@@ -18,15 +18,23 @@ if (
 
 /**
  * An empty schema of its own in the test database, as the search path of
- * every connection, so a test can migrate from nothing without touching
- * anything else there. `close` drops it.
+ * every connection (`connections` of them at most), so a test can migrate
+ * from nothing without touching anything else there. `close` drops it.
  */
-export async function freshSchema(url: string): Promise<{ db: Database; close(): Promise<void> }> {
+export async function freshSchema(
+  url: string,
+  connections = 4,
+): Promise<{ pool: Pool; db: Database; close(): Promise<void> }> {
   const schema = `test_${randomBytes(6).toString("hex")}`;
   const admin = new Pool({ connectionString: url, max: 1 });
   await admin.query(`CREATE SCHEMA ${schema}`);
-  const pool = new Pool({ connectionString: url, max: 4, options: `-c search_path=${schema}` });
+  const pool = new Pool({
+    connectionString: url,
+    max: connections,
+    options: `-c search_path=${schema}`,
+  });
   return {
+    pool,
     db: poolDatabase(pool),
     async close() {
       await pool.end();
