@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useRef, useState, type ChangeEvent, type ReactNode } from "react";
+import { useId, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import {
   imageErrorMessage,
   removeImage,
@@ -40,9 +40,11 @@ const BUSY_LABELS: Partial<Record<Status, string>> = {
   uploading: "Uploading…",
 };
 
-/** The stored image, fading in once decoded over a breathing placeholder. */
-function StoredImage({ src }: { src: string }) {
+/** The stored image, fading in over a breathing placeholder; `fallback` if it won't load. */
+function StoredImage({ src, fallback }: { src: string; fallback: ReactNode }) {
   const [loaded, setLoaded] = useState(false);
+  const [broken, setBroken] = useState(false);
+  if (broken) return fallback;
   return (
     <>
       {loaded ? null : <Skeleton className="absolute inset-0 size-full rounded-none" />}
@@ -59,6 +61,7 @@ function StoredImage({ src }: { src: string }) {
           height={96}
           unoptimized
           onLoad={() => setLoaded(true)}
+          onError={() => setBroken(true)}
           className="size-full object-contain"
         />
       </motion.span>
@@ -84,6 +87,9 @@ export function ImageUploader({
 }: ImageUploaderProps) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const pickRef = useRef<HTMLButtonElement>(null);
+  const hintId = useId();
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const variants = usePopVariants();
@@ -131,13 +137,15 @@ export function ImageUploader({
       return;
     }
     setStatus("removed");
+    // The Remove button goes with the image: keep focus in the uploader, on the button that's left.
+    if (rootRef.current?.contains(document.activeElement)) pickRef.current?.focus();
     onChange(null);
     router.refresh();
   };
 
   const shape = kind === "avatar" ? "rounded-pill" : "rounded-tile";
   return (
-    <div className="flex flex-col" aria-busy={busy} data-testid={testId}>
+    <div ref={rootRef} className="flex flex-col" aria-busy={busy} data-testid={testId}>
       <div className="flex items-center gap-4 max-sm:flex-col max-sm:items-start">
         <span
           className={`relative grid size-24 shrink-0 place-items-center overflow-hidden bg-card shadow-seg ring-1 ring-line ${shape}`}
@@ -152,18 +160,20 @@ export function ImageUploader({
               className="grid size-full place-items-center"
               data-testid={src ? `${testId}-image` : `${testId}-fallback`}
             >
-              {src ? <StoredImage src={src} /> : fallback}
+              {src ? <StoredImage src={src} fallback={fallback} /> : fallback}
             </motion.span>
           </AnimatePresence>
         </span>
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex flex-wrap gap-2">
             <Button
+              ref={pickRef}
               variant="secondary"
               onClick={() => {
                 if (!busy) inputRef.current?.click();
               }}
               aria-disabled={busy || undefined}
+              aria-describedby={hintId}
               data-testid={`${testId}-pick`}
             >
               <Icon name="upload" className="size-5" />
@@ -181,7 +191,9 @@ export function ImageUploader({
               </Button>
             ) : null}
           </div>
-          <p className="text-meta text-pretty text-muted">{hint}</p>
+          <p id={hintId} className="text-meta text-pretty text-muted">
+            {hint}
+          </p>
         </div>
       </div>
       {/* Hidden from sight and from Tab: the button above opens it. */}

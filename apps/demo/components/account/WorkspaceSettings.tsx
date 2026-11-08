@@ -26,7 +26,7 @@ export function WorkspaceSettings({ settings, isOwner }: WorkspaceSettingsProps)
     return (
       <SettingsCard
         title={settings.name}
-        description="Only the workspace's owner can change its name, logo and brand."
+        description="Only the workspace's owner can change its name, logo and brand. Ask them if something needs updating."
         icon="lock"
         testId="workspace-settings"
       >
@@ -39,7 +39,7 @@ export function WorkspaceSettings({ settings, isOwner }: WorkspaceSettingsProps)
     <div className="flex flex-col gap-4" data-testid="workspace-settings">
       <SettingsCard
         title="Logo"
-        description="Shown to guests at the top of your review links and on their link previews. Without one, your initials stand in, on your brand color."
+        description="Shown to guests at the top of your review links and on their link previews. Without one, your workspace's initials stand in, on your brand color."
         icon="image"
         testId="workspace-logo-settings"
       >
@@ -56,7 +56,7 @@ export function WorkspaceSettings({ settings, isOwner }: WorkspaceSettingsProps)
             />
           }
           onChange={setLogoVersion}
-          hint={`A PNG, JPG or WebP, no more than ${LOGO_MAX_ASPECT} times as wide as it is tall. We'll resize it to fit ${IMAGE_MAX_EDGE} px; transparent backgrounds stay transparent.`}
+          hint={`A PNG, JPG or WebP, no more than ${LOGO_MAX_ASPECT} times as wide as it is tall. We'll resize it to fit ${IMAGE_MAX_EDGE} px. Transparent backgrounds stay transparent.`}
           testId="logo"
         />
       </SettingsCard>

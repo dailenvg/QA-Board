@@ -19,10 +19,12 @@ export function SettingsUnavailable({ title }: { title: string }) {
       testId="settings-unavailable"
     >
       <div className="flex flex-col gap-4">
-        <FormAlert message="Squint couldn't read them just now. Your settings are safe; try again in a moment." />
+        <FormAlert message="Squint couldn't read them just now. Your settings are safe. Try again in a moment." />
         <Button
           variant="secondary"
-          onClick={() => startRetry(() => router.refresh())}
+          onClick={() => {
+            if (!retrying) startRetry(() => router.refresh());
+          }}
           aria-disabled={retrying || undefined}
           className="self-start max-sm:self-stretch"
         >

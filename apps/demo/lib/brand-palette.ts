@@ -199,7 +199,7 @@ export function commenterColor(author: string): CommenterColor {
  */
 export const BRAND_SURFACES = [
   { id: "white", label: "White", hex: "#ffffff" },
-  { id: "panel", label: "Panel", hex: "#f4f4f5" },
+  { id: "panel", label: "Light gray", hex: "#f4f4f5" },
 ] as const;
 
 /** A brand color is a mark (a rule, a ring, a monogram tile): 3:1 on each surface (WCAG 1.4.11). */

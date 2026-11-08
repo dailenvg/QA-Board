@@ -38,7 +38,7 @@ export function AvatarForm({ name, email, initialVersion }: AvatarFormProps) {
           />
         }
         onChange={setVersion}
-        hint={`A PNG, JPG or WebP. We'll crop it square and resize it to ${IMAGE_MAX_EDGE} px.`}
+        hint={`A PNG, JPG or WebP. We'll crop it square and resize it to fit ${IMAGE_MAX_EDGE} px.`}
         testId="avatar"
       />
     </SettingsCard>

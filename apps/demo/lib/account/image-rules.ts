@@ -50,7 +50,7 @@ export function imageSizeError(kind: ImageKind, width: number, height: number): 
   }
   if (kind === "avatar" && width !== height) return "Photos must be square.";
   if (kind === "logo" && Math.max(width, height) > Math.min(width, height) * LOGO_MAX_ASPECT) {
-    return `Use a logo no more than ${LOGO_MAX_ASPECT} times as wide as it is tall, or the other way round.`;
+    return `Use a logo no more than ${LOGO_MAX_ASPECT} times as wide as it is tall, or the other way around.`;
   }
   return null;
 }

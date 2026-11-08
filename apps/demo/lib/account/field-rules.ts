@@ -67,7 +67,7 @@ export function brandColorError(value: string): string | null {
   const color = normalizeBrandColor(value);
   if (!color) return "Enter a hex color, like #1157ce.";
   if (brandColorContrast(color).some((surface) => !surface.passes)) {
-    return "That color is too light to stand out on a white page. Pick a darker shade.";
+    return "That color is too light to stand out on white and light gray. Pick a darker shade.";
   }
   return null;
 }

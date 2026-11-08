@@ -23,11 +23,11 @@ const DEFAULT_PICKER = COBALT.toLowerCase();
 function ContrastChip({ label, ratio, passes }: { label: string; ratio: number; passes: boolean }) {
   return (
     <li
-      className={`inline-flex items-center gap-1.5 rounded-pill px-3 py-1 text-label font-semibold ${passes ? "bg-resolved-soft text-resolved-text" : "bg-danger-soft text-danger"}`}
+      className={`inline-flex items-center gap-2 rounded-pill px-3 py-1 text-label font-semibold ${passes ? "bg-resolved-soft text-resolved-text" : "bg-danger-soft text-danger"}`}
     >
       <Icon name={passes ? "check" : "alert"} className="size-3.5" />
       On {label.toLowerCase()}: {ratio.toFixed(1)}:1
-      <span className="sr-only">{passes ? ", enough" : ", not enough"}</span>
+      <span className="sr-only">{passes ? ", passes" : ", too low"}</span>
     </li>
   );
 }
@@ -55,8 +55,12 @@ export function BrandColorField({
         Brand color
       </label>
       <div className="flex flex-wrap items-center gap-2">
-        {/* The swatch is the picker: a native color input, sized as a touch target. */}
-        <span className="relative size-11 shrink-0 overflow-hidden rounded-field shadow-seg ring-1 ring-field-line ring-inset focus-within:ring-2 focus-within:ring-focus">
+        {/*
+          The swatch is the picker: a native color input, sized as a touch target. Its edge and
+          focus ring sit outside the span: the input covers the inside, and overflow-hidden would
+          clip the input's own outline.
+        */}
+        <span className="relative size-11 shrink-0 overflow-hidden rounded-field shadow-seg ring-1 ring-field-line transition-shadow hover:ring-ink-2 has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-focus">
           <input
             type="color"
             aria-label="Pick a brand color"
@@ -90,7 +94,11 @@ export function BrandColorField({
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => onChange("")}
+            onClick={() => {
+              onChange("");
+              // The button goes once the field is blank: hand focus to the hex field, not the page.
+              document.getElementById(inputId)?.focus();
+            }}
             data-testid="brand-color-clear"
           >
             Use Squint&apos;s blue
@@ -99,7 +107,7 @@ export function BrandColorField({
       </div>
       <p id={hintId} className="mt-2 text-meta text-muted">
         A hex color for the accents on your review links. It needs {MIN_BRAND_CONTRAST}:1 contrast
-        on white and on the page&apos;s panels. Leave it blank for Squint&apos;s blue.
+        on both white and light gray backgrounds. Leave it blank for Squint&apos;s blue.
       </p>
       {surfaces.length > 0 ? (
         <ul

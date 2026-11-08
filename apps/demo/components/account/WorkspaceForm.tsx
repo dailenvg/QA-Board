@@ -112,7 +112,7 @@ export function WorkspaceForm({ initial, slug, logoSrc }: WorkspaceFormProps) {
         onSubmit={(event) => void submit(event)}
         noValidate
         aria-busy={status === "saving"}
-        className="flex flex-col gap-5"
+        className="flex flex-col gap-4"
       >
         <AuthField
           label="Workspace name"
@@ -127,11 +127,12 @@ export function WorkspaceForm({ initial, slug, logoSrc }: WorkspaceFormProps) {
         />
         <div className="flex flex-col gap-1">
           <span className="text-body font-semibold">Workspace handle</span>
-          <span className="font-mono text-body text-ink" data-testid="workspace-slug">
+          {/* wrap-anywhere: a long handle can't push past a phone's edge. */}
+          <span className="font-mono text-body text-ink wrap-anywhere" data-testid="workspace-slug">
             {slug}
           </span>
           <span className="text-meta text-muted">
-            Set when the workspace was made. It can&apos;t be changed here.
+            Set when the workspace was created. It can&apos;t be changed.
           </span>
         </div>
         <BrandColorField inputRef={colorRef} {...color.field} onChange={edited(color.field)} />
@@ -142,7 +143,7 @@ export function WorkspaceForm({ initial, slug, logoSrc }: WorkspaceFormProps) {
           name="senderName"
           required={false}
           inputRef={senderRef}
-          hint={`Optional, up to ${SENDER_NAME_MAX} characters. Emails come from "{name} via Squint"; blank uses the workspace name.`}
+          hint={`Optional, up to ${SENDER_NAME_MAX} characters. Guests get emails from this name, followed by "via Squint". Leave it blank to use the workspace name.`}
           {...sender.field}
           onChange={edited(sender.field)}
           testId="sender-name"

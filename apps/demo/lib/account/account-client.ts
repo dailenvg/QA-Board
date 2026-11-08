@@ -131,7 +131,7 @@ export function accountErrorMessage(error: AccountError, retryAfterSeconds = 0):
     case "wrong-password":
       return "That isn't your current password. Check it and try again.";
     case "owner-only":
-      return "Only the workspace's owner can change its settings.";
+      return "Only the workspace's owner can change its settings. Ask them to make the change.";
     case "same-email":
       return "That's already your email address.";
     case "rate-limited":

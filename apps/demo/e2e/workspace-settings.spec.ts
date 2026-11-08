@@ -68,7 +68,7 @@ test("the owner names the workspace and picks a color and sender name, previewed
   await color.fill("#e1fd73");
   await color.blur();
   await expect(
-    card.getByText("That color is too light to stand out on a white page."),
+    card.getByText("That color is too light to stand out on white and light gray."),
   ).toBeVisible();
   await expect(color).toHaveAttribute("aria-invalid", "true");
   await expect(card.getByTestId("brand-contrast")).toContainText("On white: 1.1:1");

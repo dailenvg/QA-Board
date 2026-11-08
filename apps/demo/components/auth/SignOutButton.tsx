@@ -19,6 +19,8 @@ interface SignOutButtonProps {
  */
 export function SignOutButton({ email, avatarSrc = null }: SignOutButtonProps) {
   const [pending, setPending] = useState(false);
+  // A photo that won't load (removed in another tab) is left out, not drawn as a broken image.
+  const [brokenSrc, setBrokenSrc] = useState<string | null>(null);
 
   // Back from /login, the browser may restore this page from its cache with the button still
   // "Signing out…" and inert. Reset it so it works again.
@@ -42,13 +44,14 @@ export function SignOutButton({ email, avatarSrc = null }: SignOutButtonProps) {
       className="flex min-w-0 items-center justify-between gap-3 rounded-card bg-card py-2 pr-2 pl-4"
     >
       <span className="flex min-w-0 items-center gap-2">
-        {avatarSrc ? (
+        {avatarSrc && avatarSrc !== brokenSrc ? (
           <Image
             src={avatarSrc}
             alt=""
             width={28}
             height={28}
             unoptimized
+            onError={() => setBrokenSrc(avatarSrc)}
             data-testid="account-avatar"
             className="size-7 shrink-0 rounded-pill object-cover"
           />
