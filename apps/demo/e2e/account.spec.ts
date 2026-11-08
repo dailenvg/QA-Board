@@ -23,6 +23,9 @@ test.describe("as the e2e owner", () => {
     await page.goto("/account");
     await expect(page).toHaveURL(/\/account\/profile$/);
     await expect(page.getByRole("heading", { level: 1, name: "Account" })).toBeVisible();
+    await expect(page.getByTestId("account-summary")).toHaveText(
+      "Your profile, how you sign in and your workspace.",
+    );
     const sidebar = page.getByRole("complementary", { name: "Workspace" });
     await expect(sidebar.getByRole("link", { name: "Account" })).toHaveAttribute(
       "aria-current",
@@ -181,6 +184,9 @@ test.describe("as the admin, in no workspace", () => {
     await page.getByRole("link", { name: "Account settings" }).click();
     await expect(page).toHaveURL(/\/account\/profile$/);
     await expect(page.getByTestId("account-shell")).toBeVisible();
+    await expect(page.getByTestId("account-summary")).toHaveText(
+      "Your profile and how you sign in.",
+    );
     await expect(page.getByRole("complementary", { name: "Workspace" })).toHaveCount(0);
     const section = page.getByRole("navigation", { name: "Account settings" });
     await expect(section.getByRole("link")).toHaveText(["Profile"]);
