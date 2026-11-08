@@ -28,17 +28,20 @@ test.describe("signed out", () => {
     await expect(page).toHaveURL(/\/$/);
   });
 
-  test("a wrong password gets the generic message and an empty password field", async ({
+  test("a wrong password gets the generic message, an empty password field and a reset link", async ({
     page,
   }) => {
     await page.goto("/login");
     await signIn(page, { email: E2E_COMPANY.email, password: "not the password" });
-    await expect(page.getByRole("alert").filter({ hasText: "Invalid" })).toHaveText(
-      "Invalid email or password.",
+    const alert = page.getByRole("alert").filter({ hasText: "Invalid" });
+    await expect(alert).toHaveText(
+      "Invalid email or password. Check both and try again, or reset your password.",
     );
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByLabel("Password")).toHaveValue("");
     await expect(page.getByLabel("Password")).toBeFocused();
+    await alert.getByRole("link", { name: "reset your password" }).click();
+    await expect(page).toHaveURL(/\/reset$/);
   });
 
   test("checks fields when you leave them", async ({ page }) => {
@@ -185,7 +188,7 @@ test.describe("submitted before hydration (JavaScript off)", () => {
     await signIn(page, { email: E2E_COMPANY.email, password: "not the password" });
     await expect(page).toHaveURL(/\/login\?next=%2Ff%2Fabc&error=invalid-credentials$/);
     await expect(page.getByRole("alert").filter({ hasText: "Invalid" })).toHaveText(
-      "Invalid email or password.",
+      "Invalid email or password. Check both and try again, or reset your password.",
     );
 
     await signIn(page, E2E_COMPANY);

@@ -44,7 +44,9 @@ describe("requestLogin", () => {
 
 describe("loginErrorMessage", () => {
   it("is generic for credentials and counts whole minutes for the lock", () => {
-    expect(loginErrorMessage("invalid-credentials")).toBe("Invalid email or password.");
+    expect(loginErrorMessage("invalid-credentials")).toBe(
+      "Invalid email or password. Check both and try again, or reset your password.",
+    );
     expect(loginErrorMessage("rate-limited", 30)).toBe("Too many attempts. Try again in 1 minute.");
     expect(loginErrorMessage("rate-limited", 61)).toBe(
       "Too many attempts. Try again in 2 minutes.",

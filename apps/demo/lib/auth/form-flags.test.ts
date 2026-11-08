@@ -3,7 +3,9 @@ import { loginFlagMessage, resetPasswordFlagMessage, resetRequestFlagMessage } f
 
 describe("form flags", () => {
   it("turns known codes into the forms' messages", () => {
-    expect(loginFlagMessage("invalid-credentials")).toBe("Invalid email or password.");
+    expect(loginFlagMessage("invalid-credentials")).toBe(
+      "Invalid email or password. Check both and try again, or reset your password.",
+    );
     expect(loginFlagMessage("rate-limited", "840")).toBe(
       "Too many attempts. Try again in 14 minutes.",
     );

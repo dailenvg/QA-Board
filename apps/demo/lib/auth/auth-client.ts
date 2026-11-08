@@ -10,6 +10,9 @@ export type LoginOutcome =
 
 export type ResetOutcome = { ok: true } | { ok: false; error: "expired" | "failed" };
 
+/** The words of the wrong-credentials message that link to the password reset. */
+export const RESET_LINK = { text: "reset your password", href: "/reset" } as const;
+
 /** The lock's length, when a 429 somehow arrives without Retry-After. */
 const DEFAULT_RETRY_SECONDS = 15 * 60;
 
@@ -49,7 +52,8 @@ export async function requestLogin(email: string, password: string): Promise<Log
 export function loginErrorMessage(error: LoginError, retryAfterSeconds = 0): string {
   switch (error) {
     case "invalid-credentials":
-      return "Invalid email or password.";
+      // Generic on purpose: never says which of the two was wrong.
+      return `Invalid email or password. Check both and try again, or ${RESET_LINK.text}.`;
     case "rate-limited": {
       const minutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
       return `Too many attempts. Try again in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`;

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
-import { loginErrorMessage, requestLogin } from "@/lib/auth/auth-client";
+import { loginErrorMessage, RESET_LINK, requestLogin } from "@/lib/auth/auth-client";
 import { emailError, passwordError } from "@/lib/auth/field-rules";
 import { withWelcome } from "@/lib/auth/next-path";
 import { forgetImportDeferral } from "@/lib/workspace-client/import-deferral";
@@ -144,7 +144,7 @@ export function LoginForm({ next, passwordChanged, initialError }: LoginFormProp
           }
           testId="login-password"
         />
-        <FormAlert message={formError} testId="login-error" />
+        <FormAlert message={formError} link={RESET_LINK} testId="login-error" />
         <Button type="submit" aria-disabled={busy || undefined} data-testid="login-submit">
           {status === "submitting"
             ? "Signing in…"
