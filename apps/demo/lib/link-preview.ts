@@ -41,7 +41,7 @@ export interface Invitation {
  * image file exports it as is, which keeps the card's URL to the token alone.
  */
 export const INVITATION_CARD_ALT =
-  "An invitation to review: the company's name and logo, and the project's name. Squiggy, the blue Squint mascot, leans in among comment pins.";
+  "An invitation to review, naming the company and the project. Squiggy, the blue Squint mascot, leans in among comment pins.";
 
 /** The preview of a workspace's review link. */
 export function invitationPreview({ company, project }: Invitation): LinkPreviewCopy {

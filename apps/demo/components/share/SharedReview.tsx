@@ -8,7 +8,7 @@ import { createDraftStorage } from "@/lib/share-client/draft-storage";
 import { createServerBlobs } from "@/lib/share-client/server-blobs";
 import { useClientRefresh } from "@/lib/share-client/use-client-refresh";
 import { useReviewWindow } from "@/lib/share-client/use-review-window";
-import type { ClientView } from "@/lib/share/types";
+import type { ClientBrand, ClientView } from "@/lib/share/types";
 import { ViewerBackendContext } from "@/lib/viewer-backend/backend";
 import { Icon } from "../ui/Icon";
 import { useIsClient } from "@/lib/use-is-client";
@@ -25,11 +25,18 @@ interface SharedReviewProps {
   initial: ClientView;
 }
 
-/** The phone version, under the comments sheet's header. */
-const CLIENT_NOTE = "You can add comments. Only the project owner can resolve or edit them.";
-
-const CLIENT_NOTICE =
-  "You can browse this project and add comments. Only the project owner can resolve, edit or delete them.";
+/**
+ * While the review is open: the phone note (under the comments sheet's
+ * header) and the notice. A workspace's link names its company as the one who
+ * moderates; an anonymous link says "the project owner".
+ */
+function clientCopy(brand: ClientBrand) {
+  const moderator = brand.custom ? brand.name : "the project owner";
+  return {
+    note: `You can add comments. Only ${moderator} can resolve or edit them.`,
+    notice: `You can browse this project and add comments. Only ${moderator} can resolve, edit or delete them.`,
+  };
+}
 
 /** Once the review window is over: the Comment mode's reason, the phone note and the notice. */
 const CLOSED = {
@@ -59,6 +66,7 @@ export function SharedReview({ token, initial }: SharedReviewProps) {
   const { data, project } = useMemo(() => toViewerData(state), [state]);
   useClientRefresh(token, store);
   const { reviewEndsAt, expiresAt, brand } = state.view;
+  const openCopy = clientCopy(brand);
   // A project deleted before its review window ends can't take comments past deletion, so the
   // countdown ends then too: it never promises more time than the deletion notice allows.
   const review = useReviewWindow(
@@ -86,7 +94,7 @@ export function SharedReview({ token, initial }: SharedReviewProps) {
                 <ReviewGuideTrigger reviewClosed={review.closed} token={token} brand={brand} />
               </>
             }
-            panelNote={review.closed ? CLOSED.note : CLIENT_NOTE}
+            panelNote={review.closed ? CLOSED.note : openCopy.note}
             draftStorage={draftStorage}
             commentLocked={review.closed ? CLOSED.reason : undefined}
             expiresAt={expiresAt ?? undefined}
@@ -100,7 +108,7 @@ export function SharedReview({ token, initial }: SharedReviewProps) {
                   name={review.closed ? "clock" : "message"}
                   className="mt-0.5 size-4 shrink-0 text-ink-2"
                 />
-                {review.closed ? CLOSED.notice : CLIENT_NOTICE}
+                {review.closed ? CLOSED.notice : openCopy.notice}
               </p>
             }
           />
