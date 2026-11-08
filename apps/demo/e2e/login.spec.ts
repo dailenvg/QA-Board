@@ -34,7 +34,7 @@ test.describe("signed out", () => {
     await forgetLastSignIn(E2E_COMPANY.email);
     await page.goto("/login");
     await signIn(page, E2E_COMPANY);
-    await expect(page.getByTestId("squiggy-speech")).toHaveText("Welcome to Squint.");
+    await expect(page.getByTestId("squiggy-speech")).toHaveText("Hi there. Glad you're here.");
     await expect(page).toHaveURL(/\/$/);
   });
 
