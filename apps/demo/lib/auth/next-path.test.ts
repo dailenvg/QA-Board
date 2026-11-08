@@ -32,7 +32,7 @@ describe("loginHref and withWelcome", () => {
   });
 
   it("adds the welcome flag, keeping the query", () => {
-    expect(withWelcome("/")).toBe("/?welcome=1");
-    expect(withWelcome("/p/1?page=2")).toBe("/p/1?page=2&welcome=1");
+    expect(withWelcome("/", "first")).toBe("/?welcome=first");
+    expect(withWelcome("/p/1?page=2", "back")).toBe("/p/1?page=2&welcome=back");
   });
 });

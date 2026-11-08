@@ -9,6 +9,9 @@ export const PATH_HEADER = "x-squint-path";
 /** Added to the destination after signing in, once: Squiggy greets, then it's removed. */
 export const WELCOME_PARAM = "welcome";
 
+/** The welcome flag's value: the user's first sign-in, or a return. */
+export type Welcome = "first" | "back";
+
 const BASE = "http://squint.invalid";
 
 /**
@@ -46,6 +49,6 @@ export function withParams(path: string, params: Record<string, string>): string
 }
 
 /** `path` (already safe) with the one-shot welcome flag. */
-export function withWelcome(path: string): string {
-  return withParams(path, { [WELCOME_PARAM]: "1" });
+export function withWelcome(path: string, welcome: Welcome): string {
+  return withParams(path, { [WELCOME_PARAM]: welcome });
 }

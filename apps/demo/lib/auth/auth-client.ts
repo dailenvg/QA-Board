@@ -3,10 +3,12 @@
  * the forms. Never throws: a network failure is an outcome too.
  */
 
+import type { Welcome } from "./next-path";
+
 export type LoginError = "invalid-credentials" | "rate-limited" | "not-configured" | "failed";
 
 export type LoginOutcome =
-  { ok: true } | { ok: false; error: LoginError; retryAfterSeconds?: number };
+  { ok: true; welcome: Welcome } | { ok: false; error: LoginError; retryAfterSeconds?: number };
 
 export type ResetOutcome = { ok: true } | { ok: false; error: "expired" | "failed" };
 
@@ -28,9 +30,17 @@ async function post(path: string, body: unknown): Promise<Response | null> {
   }
 }
 
+/** The greeting a sign-in earned; a return when the answer doesn't say. */
+async function readWelcome(response: Response): Promise<Welcome> {
+  const body: unknown = await response.json().catch(() => null);
+  return body && typeof body === "object" && "welcome" in body && body.welcome === "first"
+    ? "first"
+    : "back";
+}
+
 export async function requestLogin(email: string, password: string): Promise<LoginOutcome> {
   const response = await post("/api/auth/login", { email, password });
-  if (response?.ok) return { ok: true };
+  if (response?.ok) return { ok: true, welcome: await readWelcome(response) };
   switch (response?.status) {
     case 400:
     case 401:

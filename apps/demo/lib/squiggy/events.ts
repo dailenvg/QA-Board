@@ -7,7 +7,7 @@
  * was left behind.
  */
 export type SquiggyEvent =
-  | { type: "signed-in" }
+  | { type: "signed-in"; first: boolean }
   | { type: "comment-resolved" }
   | { type: "project-created"; projectName: string }
   | { type: "item-deleted"; item: "project" | "folder" | "comment" }

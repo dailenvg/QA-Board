@@ -65,7 +65,7 @@ export function LoginForm({ next, passwordChanged, initialError }: LoginFormProp
       setStatus("signed-in");
       // A new sign-in asks again about importing this browser's local data.
       forgetImportDeferral();
-      router.replace(withWelcome(next));
+      router.replace(withWelcome(next, outcome.welcome));
       return;
     }
     setStatus("idle");

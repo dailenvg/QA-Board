@@ -1,5 +1,5 @@
 import { expect, test } from "./test";
-import { createResetLink, recordUrls, signIn, SIGNED_OUT } from "./auth-fixtures";
+import { createResetLink, forgetLastSignIn, recordUrls, signIn, SIGNED_OUT } from "./auth-fixtures";
 import { E2E_ADMIN, E2E_COMPANY } from "./e2e-env";
 
 test.describe("signed out", () => {
@@ -24,7 +24,17 @@ test.describe("signed out", () => {
     await page.goto("/");
     await expect(page).toHaveURL(/\/login$/);
     await signIn(page, E2E_COMPANY);
-    await expect(page.getByTestId("squiggy-speech")).toHaveAttribute("data-kind", "signed-in");
+    const speech = page.getByTestId("squiggy-speech");
+    await expect(speech).toHaveAttribute("data-kind", "signed-in");
+    await expect(speech).toHaveText("Welcome back.");
+    await expect(page).toHaveURL(/\/$/);
+  });
+
+  test("Squiggy welcomes a first sign-in to Squint", async ({ page }) => {
+    await forgetLastSignIn(E2E_COMPANY.email);
+    await page.goto("/login");
+    await signIn(page, E2E_COMPANY);
+    await expect(page.getByTestId("squiggy-speech")).toHaveText("Welcome to Squint.");
     await expect(page).toHaveURL(/\/$/);
   });
 
@@ -192,7 +202,7 @@ test.describe("submitted before hydration (JavaScript off)", () => {
     );
 
     await signIn(page, E2E_COMPANY);
-    await expect(page).toHaveURL(/\/f\/abc\?welcome=1$/);
+    await expect(page).toHaveURL(/\/f\/abc\?welcome=back$/);
     const leaked = urls.filter((url) =>
       [E2E_COMPANY.password, "not the password", E2E_COMPANY.email].some((secret) =>
         url.includes(secret),

@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { loginErrorMessage, requestLogin, setNewPassword } from "./auth-client";
 
-function answer(status: number, headers: Record<string, string> = {}) {
+function answer(status: number, headers: Record<string, string> = {}, body: string | null = null) {
   vi.stubGlobal(
     "fetch",
-    vi.fn(() => Promise.resolve(new Response(null, { status, headers }))),
+    vi.fn(() => Promise.resolve(new Response(body, { status, headers }))),
   );
 }
 
@@ -14,8 +14,13 @@ afterEach(() => {
 
 describe("requestLogin", () => {
   it("reads each answer of the login route", async () => {
+    answer(200, {}, JSON.stringify({ ok: true, welcome: "first" }));
+    expect(await requestLogin("a@b.co", "pw")).toEqual({ ok: true, welcome: "first" });
+    answer(200, {}, JSON.stringify({ ok: true, welcome: "back" }));
+    expect(await requestLogin("a@b.co", "pw")).toEqual({ ok: true, welcome: "back" });
+    // An answer that doesn't say greets as a return.
     answer(200);
-    expect(await requestLogin("a@b.co", "pw")).toEqual({ ok: true });
+    expect(await requestLogin("a@b.co", "pw")).toEqual({ ok: true, welcome: "back" });
     answer(401);
     expect(await requestLogin("a@b.co", "pw")).toEqual({
       ok: false,

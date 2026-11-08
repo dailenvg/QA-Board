@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { insertUser } from "@/test/accounts-fixture";
 import { poolDatabase, type Database } from "../db/database";
 import { migrate } from "../share/migrate";
-import { logIn, type LoginResult } from "./login";
+import { logIn, recordLogin, type LoginResult } from "./login";
 import { MAX_FAILURES_PER_EMAIL, MAX_FAILURES_PER_IP } from "./rate-limit";
 
 /**
@@ -63,5 +63,22 @@ describe.skipIf(!url)("login rate limit on Postgres, in parallel", () => {
       ),
     );
     expect(checked(results)).toBe(MAX_FAILURES_PER_IP);
+  });
+
+  it("tells a sign-in that waited on another one that it isn't the first", async () => {
+    const userId = await insertUser(db, `first-${randomUUID()}@e2e.test`);
+    const now = Date.now();
+    const held = await pool.connect();
+    try {
+      await held.query("BEGIN");
+      expect(await recordLogin(held, userId, now)).toBe(true);
+      const second = recordLogin(db, userId, now + 1000);
+      // Long enough for the second to reach the row and wait on it.
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      await held.query("COMMIT");
+      expect(await second).toBe(false);
+    } finally {
+      held.release();
+    }
   });
 });
