@@ -10,7 +10,8 @@ import { useReportedReveal } from "./password-reveal";
 interface AuthFieldProps {
   label: string;
   type: "text" | "email" | "password";
-  autoComplete: "name" | "username" | "email" | "current-password" | "new-password";
+  autoComplete:
+    "name" | "organization" | "off" | "username" | "email" | "current-password" | "new-password";
   /**
    * The field's name in a plain form post (before hydration). Defaults to its kind (`email`,
    * `password`); new-password fields name themselves, since a form may have two.
@@ -24,10 +25,12 @@ interface AuthFieldProps {
   hint?: string;
   inputRef?: Ref<HTMLInputElement>;
   autoFocus?: boolean;
+  /** False for a field that may be left blank. */
+  required?: boolean;
   testId?: string;
 }
 
-/** A labelled name, email or password input with its hint and inline error. */
+/** A labelled name, email or password input (or another short text) with its hint and inline error. */
 export function AuthField({
   label,
   type,
@@ -40,6 +43,7 @@ export function AuthField({
   hint,
   inputRef,
   autoFocus = false,
+  required = true,
   testId,
 }: AuthFieldProps) {
   const inputId = useId();
@@ -65,7 +69,7 @@ export function AuthField({
           autoCorrect="off"
           spellCheck={false}
           inputMode={type === "email" ? "email" : undefined}
-          required
+          required={required}
           // Only on pages that are nothing but this form.
           autoFocus={autoFocus}
           value={value}

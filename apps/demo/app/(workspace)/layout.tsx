@@ -4,6 +4,7 @@ import { WorkspaceProvider } from "@/components/app-state/WorkspaceProvider";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { WelcomeSignal } from "@/components/auth/WelcomeSignal";
 import { Workspace } from "@/components/dashboard/Workspace";
+import { sessionAvatarSrc } from "@/lib/account/session-settings";
 import { loadSessionWorkspace } from "@/lib/workspace/session-workspace";
 
 /**
@@ -14,7 +15,9 @@ import { loadSessionWorkspace } from "@/lib/workspace/session-workspace";
  */
 export default async function WorkspaceLayout({ children }: { children: ReactNode }) {
   const session = await loadSessionWorkspace();
-  const account = <SignOutButton email={session.user.email} />;
+  const account = (
+    <SignOutButton email={session.user.email} avatarSrc={await sessionAvatarSrc(session.user.id)} />
+  );
   return (
     <>
       <Suspense fallback={null}>
