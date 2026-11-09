@@ -1,5 +1,6 @@
 import type { Membership } from "../auth/memberships";
 import type { Queryable } from "../share/migrate";
+import { clientActivity } from "./activity";
 import { storageSummary } from "./blobs";
 import { listComments } from "./comments";
 import { listFolders } from "./folders";
@@ -22,7 +23,8 @@ export async function setAuthorName(db: Queryable, userId: string, name: string)
 /**
  * Everything a signed-in browser shows for the workspace, in one read: its
  * folders, live projects (archived included, trash not), and their pages,
- * snapshots and comments. Review link secrets aren't in it.
+ * snapshots and comments, and what clients have said on them (pulled or
+ * still on their review links). Review link secrets aren't in it.
  */
 export async function loadWorkspace(
   db: Queryable,
@@ -30,11 +32,12 @@ export async function loadWorkspace(
   userId: string,
 ): Promise<WorkspaceData> {
   const { workspaceId } = membership;
-  const [folders, projects, snapshots, comments, storage, author] = await Promise.all([
+  const [folders, projects, snapshots, comments, clients, storage, author] = await Promise.all([
     listFolders(db, workspaceId),
     listProjects(db, workspaceId),
     listSnapshots(db, workspaceId),
     listComments(db, workspaceId),
+    clientActivity(db, workspaceId),
     storageSummary(db, workspaceId),
     authorName(db, userId),
   ]);
@@ -44,6 +47,7 @@ export async function loadWorkspace(
     projects,
     snapshots,
     comments,
+    clientActivity: clients,
     storage,
     authorName: author,
   };

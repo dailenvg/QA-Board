@@ -290,6 +290,8 @@ describe("sharing a page project", () => {
     const pulled = data().comments;
     expect(pulled.map(({ id, pageId }) => [id, pageId])).toEqual([["k-page", "pg2"]]);
     expect(pulled[0]?.crop?.blobKey).toBe("crop:k-page");
+    // A client's, here at once as after the next read of the workspace.
+    expect(pulled[0]?.fromClient).toBe(true);
     await store.whenSaved();
     expect(await store.workspaceBlobs()?.get("crop:k-page")).not.toBeNull();
 

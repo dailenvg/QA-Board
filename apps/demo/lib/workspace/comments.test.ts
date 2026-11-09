@@ -90,4 +90,26 @@ describe("comments", () => {
     expect(await deleteComment(db, a.workspaceId, "p1", "c1")).toBe(true);
     expect(await listComments(db, a.workspaceId)).toEqual([]);
   });
+
+  it("marks a comment without an author account as a client's, never sending whose it is", async () => {
+    const { db, a } = await twoWorkspaces();
+    await addFolder(db, a.workspaceId);
+    await createProject(db, a.workspaceId, PAGES_PROJECT("p1"), NOW);
+    const guest = { ...INPUT, id: "guest", pageId: "page-1" };
+    const added = await addComment(db, a.workspaceId, "p1", guest, null, NOW);
+    expect(added).toEqual({
+      ok: true,
+      value: { ...guest, projectId: "p1", createdAt: NOW, updatedAt: NOW, fromClient: true },
+    });
+    await addComment(db, a.workspaceId, "p1", { ...INPUT, pageId: "page-1" }, a.userId, NOW);
+    const listed = await listComments(db, a.workspaceId);
+    expect(listed.map((comment) => [comment.id, comment.fromClient])).toEqual([
+      ["c1", undefined],
+      ["guest", true],
+    ]);
+    expect(
+      await updateComment(db, a.workspaceId, "p1", "guest", { body: "Edited" }, NOW),
+    ).toMatchObject({ fromClient: true });
+    expect(JSON.stringify(listed)).not.toContain(a.userId);
+  });
 });

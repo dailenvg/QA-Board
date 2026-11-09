@@ -2,7 +2,12 @@ import { emitSquiggy } from "../squiggy/events";
 import { call, jsonInit } from "../share-client/api";
 import { reduce, type Action } from "../store/reducer";
 import type { SquintData } from "../store/types";
-import type { ShareLink, WorkspaceData, WorkspaceStart } from "../workspace/types";
+import type {
+  ClientCommentActivity,
+  ShareLink,
+  WorkspaceData,
+  WorkspaceStart,
+} from "../workspace/types";
 import { createWorkspaceBlobs, type WorkspaceBlobs } from "./blob-source";
 import { refusalMessage, writesFor, type ServerWrite } from "./mutations";
 import { openTabSync, type TabSync } from "./tab-sync";
@@ -57,6 +62,8 @@ const RECENT_SAVE_MS = 10_000;
 
 let connection: Connection | null = null;
 let state: WorkspaceState = LOADING;
+/** Clients' comments as of the last server read; null until this tab connects. */
+let clientActivity: readonly ClientCommentActivity[] | null = null;
 const listeners = new Set<() => void>();
 const noticeListeners = new Set<(message: string) => void>();
 let lastNotice = { message: "", at: 0 };
@@ -231,6 +238,8 @@ async function read(target: Connection): Promise<void> {
     readAgain = true;
     return;
   }
+  // A server without the summary yet (mid-deploy) has none to give.
+  clientActivity = result.value.clientActivity ?? [];
   setData(toSquintData(result.value, target.links));
   target.blobs.retryMissing();
   fileProjects();
@@ -277,6 +286,7 @@ export function startState(start: WorkspaceStart): WorkspaceState {
 function adopt(target: Connection, start: WorkspaceStart): void {
   for (const link of start.links) target.links.set(link.id, link);
   changes += 1;
+  clientActivity = start.data.clientActivity;
   state = startState(start);
   emit();
   target.blobs.retryMissing();
@@ -315,6 +325,14 @@ export function connectWorkspace(start: WorkspaceStart): void {
 
 export function getWorkspaceState(): WorkspaceState {
   return state;
+}
+
+/**
+ * Clients' comments per project (`ClientCommentActivity`), as of the server's
+ * last read; null before this tab connects. Changes notify `subscribeWorkspace`.
+ */
+export function getClientActivity(): readonly ClientCommentActivity[] | null {
+  return clientActivity;
 }
 
 export function subscribeWorkspace(listener: () => void): () => void {

@@ -146,6 +146,11 @@ export interface Comment {
   pageId?: string;
   /** Added shortly after the comment is posted, once the picture is saved. */
   crop?: CommentCrop;
+  /**
+   * Posted by a client on the project's review link (no account), then pulled
+   * into the workspace. Missing on the team's own comments.
+   */
+  fromClient?: true;
 }
 
 export interface SquintData {

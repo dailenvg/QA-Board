@@ -58,6 +58,7 @@ describe("loadWorkspace", () => {
     expect(data.projects.map((project) => project.id).sort()).toEqual(["deck", "web"]);
     expect(data.snapshots.map((snapshot) => snapshot.id)).toEqual(["s1"]);
     expect(data.comments.map((comment) => comment.id)).toEqual(["c1"]);
+    expect(data.clientActivity).toEqual([]);
     expect(data.storage).toEqual({ bytes: PNG.length, blobCount: 1, quotaBytes: 5 * 1024 ** 3 });
     expect(data.authorName).toBe("Ana");
     // Storage paths and user ids stay on the server.
