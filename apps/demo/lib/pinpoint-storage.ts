@@ -1,7 +1,6 @@
 import { createGitHubStorage, createMemoryStorage, type StorageAdapter } from "@pinpoint/server";
 import { createPostgresStorage, migrate } from "@pinpoint/server/postgres";
-import pg from "pg";
-import { migrateWithLock, watchPool } from "./db/database";
+import { migrateWithLock, openPool } from "./db/database";
 
 export type StorageKind = "github" | "postgres" | "memory";
 
@@ -9,29 +8,42 @@ const globalForPinpoint = globalThis as typeof globalThis & {
   pinpointMemoryStorage?: StorageAdapter;
 };
 
-/** Waits for migrations before every call, so the first request never races the schema. */
-function afterMigrations(storage: StorageAdapter, ready: Promise<unknown>): StorageAdapter {
+/**
+ * Waits for migrations before every call, so the first request never races
+ * the schema. They start with the first call, which waits for them, and a
+ * failed or timed-out run is forgotten so the next call tries again.
+ */
+function afterMigrations(
+  storage: StorageAdapter,
+  runMigrations: () => Promise<unknown>,
+): StorageAdapter {
+  let migrated: Promise<unknown> | undefined;
+  const ready = () =>
+    (migrated ??= runMigrations().catch((error: unknown) => {
+      migrated = undefined;
+      throw error;
+    }));
   const expire = storage.expire?.bind(storage);
   return {
     listPins: async (params) => {
-      await ready;
+      await ready();
       return storage.listPins(params);
     },
     createPin: async (draft) => {
-      await ready;
+      await ready();
       return storage.createPin(draft);
     },
     addReply: async (params) => {
-      await ready;
+      await ready();
       return storage.addReply(params);
     },
     resolvePin: async (params) => {
-      await ready;
+      await ready();
       return storage.resolvePin(params);
     },
     ...(expire && {
       expire: async (cutoff: number, deadline?: number) => {
-        await ready;
+        await ready();
         return expire(cutoff, deadline);
       },
     }),
@@ -54,10 +66,12 @@ export function storageFromEnv(env: NodeJS.ProcessEnv = process.env): {
     };
   }
   if (env.DATABASE_URL) {
-    const pool = watchPool(new pg.Pool({ connectionString: env.DATABASE_URL }), "pinpoint");
+    const pool = openPool(env.DATABASE_URL, "pinpoint");
     return {
       kind: "postgres",
-      storage: afterMigrations(createPostgresStorage({ pool }), migrateWithLock(pool, migrate)),
+      storage: afterMigrations(createPostgresStorage({ pool }), () =>
+        migrateWithLock(pool, migrate),
+      ),
     };
   }
   // Survives hot reloads in `next dev`; resets when the server restarts.
