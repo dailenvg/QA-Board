@@ -24,8 +24,15 @@ interface BrandFrameProps {
 
 type LogoState = "loading" | "ready" | "broken";
 
+interface CompanyLogoProps {
+  src: string;
+  fallback: ReactNode;
+  /** A hairline round the backing, for a frame with no brand ring to edge it (one edge, not two). */
+  edged: boolean;
+}
+
 /** The company's logo on its light backing, fading in once it's decoded; `fallback` if it won't load. */
-function CompanyLogo({ src, fallback }: { src: string; fallback: ReactNode }) {
+function CompanyLogo({ src, fallback, edged }: CompanyLogoProps) {
   const [state, setState] = useState<LogoState>("loading");
   if (state === "broken") return fallback;
   return (
@@ -45,9 +52,12 @@ function CompanyLogo({ src, fallback }: { src: string; fallback: ReactNode }) {
           </motion.span>
         ) : null}
       </AnimatePresence>
-      {/* On a light backing, so a dark logo with no background still shows on dark surfaces. */}
+      {/*
+       * On a light backing, so a dark logo with no background still shows on dark surfaces.
+       * Inset 8px: a square logo's corners stay inside the circle instead of being cut off.
+       */}
       <motion.span
-        className="size-full rounded-pill bg-logo-bg ring-1 ring-line ring-inset"
+        className={`size-full rounded-pill bg-logo-bg ${edged ? "ring-1 ring-line ring-inset" : ""}`}
         initial={{ opacity: 0 }}
         animate={{ opacity: state === "ready" ? 1 : 0 }}
         transition={{ duration: duration.micro }}
@@ -59,7 +69,7 @@ function CompanyLogo({ src, fallback }: { src: string; fallback: ReactNode }) {
           height={40}
           unoptimized
           data-testid="brand-logo"
-          className="size-full object-contain p-1"
+          className="size-full object-contain p-2"
           onLoad={() => setState("ready")}
           onError={() => setState("broken")}
         />
@@ -91,7 +101,11 @@ export function BrandFrame({ brand, logoSrc }: BrandFrameProps) {
       data-testid="brand-mark"
       className={`relative grid size-10 shrink-0 place-items-center overflow-hidden rounded-pill bg-card shadow-seg ${brand.color ? "ring-2 ring-guest-accent dark:ring-guest-accent-dark" : ""}`}
     >
-      {logoSrc ? <CompanyLogo key={logoSrc} src={logoSrc} fallback={fallback} /> : fallback}
+      {logoSrc ? (
+        <CompanyLogo key={logoSrc} src={logoSrc} fallback={fallback} edged={!brand.color} />
+      ) : (
+        fallback
+      )}
     </span>
   );
 }

@@ -1,8 +1,10 @@
 "use client";
 
+import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import { useEffect, useState, type FormEvent } from "react";
 import { personMonogramName } from "@/lib/monogram";
+import { fadeOnly } from "@/lib/motion";
 import { MonogramTile } from "../brand/MonogramTile";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
@@ -48,25 +50,48 @@ export function SignOutButton({ email, name, avatarSrc = null }: SignOutButtonPr
       className="flex min-w-0 items-center justify-between gap-3 rounded-card bg-card py-2 pr-2 pl-4"
     >
       <span className="flex min-w-0 items-center gap-2">
-        {avatarSrc && avatarSrc !== brokenSrc ? (
-          <Image
-            src={avatarSrc}
-            alt=""
-            width={28}
-            height={28}
-            unoptimized
-            onError={() => setBrokenSrc(avatarSrc)}
-            data-testid="account-avatar"
-            className="size-7 shrink-0 rounded-pill object-cover"
-          />
-        ) : (
-          <MonogramTile
-            name={personMonogramName(name, email)}
-            color={null}
-            className="size-7 shrink-0 rounded-pill text-label"
-            testId="account-initials"
-          />
-        )}
+        {/* One fixed slot: photo and initials cross-fade in place, so the email never shifts. */}
+        <span className="relative size-7 shrink-0">
+          <AnimatePresence initial={false}>
+            {avatarSrc && avatarSrc !== brokenSrc ? (
+              <motion.span
+                key={avatarSrc}
+                variants={fadeOnly}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                className="absolute inset-0"
+              >
+                <Image
+                  src={avatarSrc}
+                  alt=""
+                  width={28}
+                  height={28}
+                  unoptimized
+                  onError={() => setBrokenSrc(avatarSrc)}
+                  data-testid="account-avatar"
+                  className="size-full rounded-pill object-cover"
+                />
+              </motion.span>
+            ) : (
+              <motion.span
+                key="initials"
+                variants={fadeOnly}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                className="absolute inset-0"
+              >
+                <MonogramTile
+                  name={personMonogramName(name, email)}
+                  color={null}
+                  className="size-full rounded-pill text-label"
+                  testId="account-initials"
+                />
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </span>
         <span className="min-w-0 truncate text-meta text-muted" title={email}>
           <span className="sr-only">Signed in as </span>
           {email}
