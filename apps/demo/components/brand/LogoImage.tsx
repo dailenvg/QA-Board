@@ -41,8 +41,9 @@ export function LogoImage({ src, fallback, testId }: LogoImageProps) {
           </motion.span>
         ) : null}
       </AnimatePresence>
+      {/* relative: stacks above the absolute skeleton even once its opacity reaches 1. */}
       <motion.span
-        className="size-full bg-logo-bg"
+        className="relative size-full bg-logo-bg"
         initial={{ opacity: 0 }}
         animate={{ opacity: state === "ready" ? 1 : 0 }}
         transition={{ duration: duration.micro }}

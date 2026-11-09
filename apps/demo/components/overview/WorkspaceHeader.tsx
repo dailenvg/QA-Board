@@ -50,7 +50,7 @@ export function WorkspaceHeader({ name, brandColor, logoSrc }: WorkspaceIdentity
       </motion.span>
       <motion.p
         variants={reveal}
-        className="min-w-0 truncate text-title font-bold tracking-tight"
+        className="line-clamp-2 min-w-0 text-title font-bold tracking-tight break-words"
         data-testid="workspace-header-name"
       >
         {name}
