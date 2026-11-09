@@ -24,9 +24,17 @@ async function naturalSize(image: Locator): Promise<[number, number]> {
   ]);
 }
 
-/** A logo sits on its white backing tile, so a dark logo still shows on dark surfaces. */
-async function expectLightBacking(image: Locator) {
+/**
+ * A logo fills its frame, cropped rather than shrunk to fit, on a white
+ * backing that shows through any transparent parts on dark surfaces.
+ */
+async function expectFills(image: Locator, frame: Locator) {
+  await expect(image).toHaveCSS("object-fit", "cover");
   await expect(image.locator("..")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  const [inner, outer] = await Promise.all([image.boundingBox(), frame.boundingBox()]);
+  if (!inner || !outer) throw new Error("the logo or its frame isn't laid out");
+  expect(inner.width).toBeCloseTo(outer.width, 0);
+  expect(inner.height).toBeCloseTo(outer.height, 0);
 }
 
 /** Opens a review link as a guest: a browser of its own, signed out. */
@@ -118,20 +126,21 @@ test("a guest sees the monogram, then the uploaded logo, then the monogram again
   // Wider than 512 px: the browser scales it down, keeping it whole, and stores a PNG.
   await logoCard.getByTestId("logo-input").setInputFiles(png(800, 400));
   await expect(page.getByTestId("logo-saved")).toHaveText("Logo saved.");
-  const tile = logoCard.getByTestId("logo-image").locator("img");
-  expect(await naturalSize(tile)).toEqual([512, 256]);
-  await expectLightBacking(tile);
+  const tile = logoCard.getByTestId("logo-image");
+  expect(await naturalSize(tile.locator("img"))).toEqual([512, 256]);
+  await expectFills(tile.locator("img"), tile);
   expect(await logoRow()).toMatchObject({ contentType: "image/png" });
   // The preview shows the new logo at once.
-  const previewLogo = page.getByTestId("invite-preview").getByTestId("brand-logo");
+  const preview = page.getByTestId("invite-preview");
+  const previewLogo = preview.getByTestId("brand-logo");
   await expect(previewLogo).toBeVisible();
-  await expectLightBacking(previewLogo);
+  await expectFills(previewLogo, preview.getByTestId("brand-mark"));
 
   await guest.reload();
   const logo = brand.getByTestId("brand-logo");
   await expect(logo).toBeVisible();
   expect(await naturalSize(logo)).toEqual([512, 256]);
-  await expectLightBacking(logo);
+  await expectFills(logo, brand.getByTestId("brand-mark"));
   await expect(brand.getByTestId("brand-monogram")).toHaveCount(0);
 
   await logoCard.getByRole("button", { name: "Remove logo" }).click();

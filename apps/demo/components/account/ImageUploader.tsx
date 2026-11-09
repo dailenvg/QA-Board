@@ -43,11 +43,14 @@ const BUSY_LABELS: Partial<Record<Status, string>> = {
 interface StoredImageProps {
   src: string;
   fallback: ReactNode;
-  /** Its backing and inset: a logo's light tile, so a dark logo still shows on dark surfaces. */
+  /** Its backing: a logo's light one, showing through its transparent parts on dark surfaces. */
   className: string;
 }
 
-/** The stored image, fading in over a breathing placeholder; `fallback` if it won't load. */
+/**
+ * The stored image, filling the tile (cropped, not shrunk: the file stays
+ * whole), fading in over a breathing placeholder; `fallback` if it won't load.
+ */
 function StoredImage({ src, fallback, className }: StoredImageProps) {
   const [loaded, setLoaded] = useState(false);
   const [broken, setBroken] = useState(false);
@@ -69,7 +72,7 @@ function StoredImage({ src, fallback, className }: StoredImageProps) {
           unoptimized
           onLoad={() => setLoaded(true)}
           onError={() => setBroken(true)}
-          className="size-full object-contain"
+          className="block size-full object-cover"
         />
       </motion.span>
     </>
@@ -151,7 +154,7 @@ export function ImageUploader({
   };
 
   const shape = kind === "avatar" ? "rounded-pill" : "rounded-tile";
-  const backing = kind === "logo" ? "bg-logo-bg p-2" : "";
+  const backing = kind === "logo" ? "bg-logo-bg" : "";
   return (
     <div ref={rootRef} className="flex flex-col" aria-busy={busy} data-testid={testId}>
       <div className="flex items-center gap-4 max-sm:flex-col max-sm:items-start">

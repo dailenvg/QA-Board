@@ -16,5 +16,5 @@ export const contentType = LINK_PREVIEW_TYPE;
  * Next drops it once the page sets `openGraph`.
  */
 export default function InvitationImage({ params }: { params: { token: string } }) {
-  return renderInvitationCard(params.token, { cardVersion: 2 });
+  return renderInvitationCard(params.token, { cardVersion: 3 });
 }

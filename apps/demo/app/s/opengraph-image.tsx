@@ -17,5 +17,5 @@ export const contentType = LINK_PREVIEW_TYPE;
  * no share lookup, and no token in the image URL.
  */
 export default function SharedReviewImage() {
-  return renderLinkPreview(<SharedReviewPreview />, { cardVersion: 2 });
+  return renderLinkPreview(<SharedReviewPreview />, { cardVersion: 3 });
 }

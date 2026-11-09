@@ -17,6 +17,10 @@ interface InvitationPreviewProps {
 const COMPANY_MAX = 40;
 const PROJECT_MAX = 64;
 const LOGO_FRAME = 112;
+const LOGO_RADIUS = 32;
+const LOGO_BORDER = 4;
+/** The logo fills the frame inside its border, cropped to the frame's corners. */
+const LOGO_SIZE = LOGO_FRAME - 2 * LOGO_BORDER;
 
 /** At most `max` characters, ending in an ellipsis when cut. */
 function clip(text: string, max: number): string {
@@ -34,6 +38,7 @@ function projectSize(project: string): number {
   return 52;
 }
 
+/** The logo filling its frame (the file stays whole; only the card crops), on paper behind any transparency. */
 function CompanyLogo({ uri, accent }: { uri: string; accent: string }) {
   return (
     <div
@@ -41,18 +46,22 @@ function CompanyLogo({ uri, accent }: { uri: string; accent: string }) {
         width: LOGO_FRAME,
         height: LOGO_FRAME,
         display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
         flexShrink: 0,
-        padding: 12,
-        borderRadius: 32,
+        overflow: "hidden",
+        borderRadius: LOGO_RADIUS,
         background: PAPER,
-        border: `4px solid ${accent}`,
+        border: `${LOGO_BORDER}px solid ${accent}`,
         boxShadow: `0 16px 32px -20px ${PREVIEW_COLORS.shadow}`,
       }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- ImageResponse draws plain <img> only. */}
-      <img src={uri} alt="" width={80} height={80} style={{ objectFit: "contain" }} />
+      <img
+        src={uri}
+        alt=""
+        width={LOGO_SIZE}
+        height={LOGO_SIZE}
+        style={{ objectFit: "cover", borderRadius: LOGO_RADIUS - LOGO_BORDER }}
+      />
     </div>
   );
 }
@@ -69,7 +78,7 @@ function CompanyMonogram({ company, color }: { company: string; color: string | 
         alignItems: "center",
         justifyContent: "center",
         flexShrink: 0,
-        borderRadius: 32,
+        borderRadius: LOGO_RADIUS,
         background: tile.background,
         color: tile.ink,
         fontSize: 48,
