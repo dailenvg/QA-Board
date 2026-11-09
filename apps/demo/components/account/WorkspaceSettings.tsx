@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { IMAGE_MAX_EDGE, LOGO_MAX_ASPECT } from "@/lib/account/image-rules";
+import { LOGO_MAX_ASPECT } from "@/lib/account/image-rules";
 import type { WorkspaceSettings as Settings } from "@/lib/account/workspace-settings";
 import { workspaceLogoSrc } from "@/lib/routes";
 import { MonogramTile } from "../brand/MonogramTile";
@@ -56,7 +56,7 @@ export function WorkspaceSettings({ settings, isOwner }: WorkspaceSettingsProps)
             />
           }
           onChange={setLogoVersion}
-          hint={`A PNG, JPG or WebP, no more than ${LOGO_MAX_ASPECT} times as wide as it is tall. We'll resize it to fit ${IMAGE_MAX_EDGE} px. Transparent backgrounds stay transparent.`}
+          hint={`A PNG, JPG or WebP, no more than ${LOGO_MAX_ASPECT} times as wide as it is tall. You'll size and position it next. Transparent backgrounds stay transparent.`}
           testId="logo"
         />
       </SettingsCard>

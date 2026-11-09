@@ -153,6 +153,7 @@ const ICONS = {
     ["path", { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" }],
     ["path", { d: "M12 7v6M9 10h6" }],
   ],
+  minus: [["path", { d: "M5 12h14" }]],
   monitor: [
     ["rect", { x: 2, y: 3, width: 20, height: 14, rx: 2 }],
     ["path", { d: "M8 21h8M12 17v4" }],

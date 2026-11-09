@@ -10,13 +10,15 @@ import {
   uploadImage,
   type ImageTarget,
 } from "@/lib/account/account-client";
+import type { Framing } from "@/lib/account/image-framing";
 import { IMAGE_ACCEPT, type ImageKind } from "@/lib/account/image-rules";
-import { prepareImage } from "@/lib/account/prepare-image";
+import { prepareImage, readImageSize } from "@/lib/account/prepare-image";
 import { duration, usePopVariants } from "@/lib/motion";
 import { FormAlert } from "../auth/FormAlert";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { Skeleton } from "../ui/Skeleton";
+import { ImageCropDialog, type CropSource } from "./ImageCropDialog";
 
 interface ImageUploaderProps {
   kind: ImageKind;
@@ -80,10 +82,11 @@ function StoredImage({ src, fallback, className }: StoredImageProps) {
 }
 
 /**
- * Pick, preview and remove an avatar or logo. A picked file is resized in the
- * browser (`prepareImage`), then uploaded at once; each step shows on the
- * button, and a failure says what to do. The tile swaps with a pop (a fade
- * with reduced motion).
+ * Pick, preview and remove an avatar or logo. A picked file is checked in the
+ * browser (`readImageSize`), then framed square in the crop step
+ * (`ImageCropDialog`); Save draws it as framed (`prepareImage`) and uploads
+ * it. Each step shows on the button, and a failure says what to do. The tile
+ * swaps with a pop (a fade with reduced motion).
  */
 export function ImageUploader({
   kind,
@@ -99,9 +102,11 @@ export function ImageUploader({
   const inputRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const pickRef = useRef<HTMLButtonElement>(null);
+  const picks = useRef(0);
   const hintId = useId();
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [crop, setCrop] = useState<CropSource | null>(null);
   const variants = usePopVariants();
   const busy = status === "preparing" || status === "uploading" || status === "removing";
   const notice =
@@ -118,7 +123,23 @@ export function ImageUploader({
     if (!file || busy) return;
     setError(null);
     setStatus("preparing");
-    const prepared = await prepareImage(file, kind);
+    const read = await readImageSize(file, kind);
+    setStatus("idle");
+    if (!read.ok) {
+      setError(read.error);
+      return;
+    }
+    // The crop step hands focus back to whatever had it when it opened: the button that picked.
+    pickRef.current?.focus();
+    picks.current += 1;
+    setCrop({ id: picks.current, file, size: read.size });
+  };
+
+  const save = async (framing: Framing) => {
+    if (!crop) return;
+    setCrop(null);
+    setStatus("preparing");
+    const prepared = await prepareImage(crop.file, kind, framing);
     if (!prepared.ok) {
       setStatus("idle");
       setError(prepared.error);
@@ -217,6 +238,13 @@ export function ImageUploader({
         className="sr-only"
         onChange={(event) => void pick(event)}
         data-testid={`${testId}-input`}
+      />
+      <ImageCropDialog
+        kind={kind}
+        noun={noun}
+        source={crop}
+        onCancel={() => setCrop(null)}
+        onSave={(framing) => void save(framing)}
       />
       {/* The alerts take room only while they show. */}
       <FormAlert className="has-[p]:mt-4" message={error} testId={`${testId}-error`} />

@@ -18,6 +18,35 @@ function png(width: number, height: number) {
   return { name: "picked.png", mimeType: "image/png", buffer: snapshotPng(width, height) };
 }
 
+/** Picks `file` with an uploader's hidden input, then saves the crop step as it opens. */
+async function pickAndSave(page: Page, input: Locator, file: ReturnType<typeof png>) {
+  await input.setInputFiles(file);
+  const crop = page.getByTestId("image-crop");
+  await expect(crop).toBeVisible();
+  await crop.getByTestId("image-crop-save").click();
+  await expect(crop).toBeHidden();
+}
+
+/** The crop step's preview image and its frame, laid out (transforms included). */
+async function cropBoxes(page: Page) {
+  const frame = page.getByTestId("image-crop-frame");
+  const [image, outer] = await Promise.all([
+    frame.locator("img").boundingBox(),
+    frame.boundingBox(),
+  ]);
+  if (!image || !outer) throw new Error("the crop preview isn't laid out");
+  return { image, frame: outer };
+}
+
+/** Presses `key` (Tab or Shift+Tab) until `target` has focus, a few times at most. */
+async function tabTo(page: Page, target: Locator, key: "Tab" | "Shift+Tab") {
+  for (let press = 0; press < 8; press += 1) {
+    if (await target.evaluate((element) => element === document.activeElement)) break;
+    await page.keyboard.press(key);
+  }
+  await expect(target).toBeFocused();
+}
+
 /** The decoded size of an image once it has loaded. */
 async function naturalSize(image: Locator): Promise<[number, number]> {
   await expect
@@ -128,11 +157,12 @@ test("a guest sees the monogram, then the uploaded logo, then the monogram again
   await page.goto("/account/workspace");
   const logoCard = page.getByTestId("workspace-logo-settings");
   await expect(logoCard.getByTestId("logo-fallback")).toBeVisible();
-  // Wider than 512 px: the browser scales it down, keeping it whole, and stores a PNG.
-  await logoCard.getByTestId("logo-input").setInputFiles(png(800, 400));
+  // Saved at Fit: the browser squares it, the logo whole on transparent padding, scaled to
+  // 512 px, and stores a PNG.
+  await pickAndSave(page, logoCard.getByTestId("logo-input"), png(800, 400));
   await expect(page.getByTestId("logo-saved")).toHaveText("Logo saved.");
   const tile = logoCard.getByTestId("logo-image");
-  expect(await naturalSize(tile.locator("img"))).toEqual([512, 256]);
+  expect(await naturalSize(tile.locator("img"))).toEqual([512, 512]);
   await expectFills(tile.locator("img"), tile);
   expect(await logoRow()).toMatchObject({ contentType: "image/png" });
   // The preview shows the new logo at once.
@@ -144,7 +174,7 @@ test("a guest sees the monogram, then the uploaded logo, then the monogram again
   await guest.reload();
   const logo = brand.getByTestId("brand-logo");
   await expect(logo).toBeVisible();
-  expect(await naturalSize(logo)).toEqual([512, 256]);
+  expect(await naturalSize(logo)).toEqual([512, 512]);
   await expectFills(logo, brand.getByTestId("brand-mark"));
   await expect(brand.getByTestId("brand-monogram")).toHaveCount(0);
 
@@ -172,7 +202,7 @@ test("the Overview opens with the workspace's name and monogram, then its logo o
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(OVERVIEW_HEADLINE.empty);
 
   await page.goto("/account/workspace");
-  await page.getByTestId("logo-input").setInputFiles(png(800, 400));
+  await pickAndSave(page, page.getByTestId("logo-input"), png(800, 400));
   await expect(page.getByTestId("logo-saved")).toHaveText("Logo saved.");
 
   await openOverview(page);
@@ -183,19 +213,20 @@ test("the Overview opens with the workspace's name and monogram, then its logo o
   expect(`${src.pathname}${src.search}`).toMatch(
     /^\/api\/account\/workspace\/logo\?v=[0-9a-f]{16}$/,
   );
-  expect(await naturalSize(logo)).toEqual([512, 256]);
+  expect(await naturalSize(logo)).toEqual([512, 512]);
   await expectFills(logo, header.getByTestId("workspace-header-tile"));
   await expect(monogram).toHaveCount(0);
   await expect(header.getByTestId("workspace-header-name")).toHaveText(E2E_COMPANY.name);
 });
 
-test("a logo that's too wide is refused in the browser, before anything uploads", async ({
+test("a logo that's too wide is refused in the browser, before the crop step opens", async ({
   page,
 }) => {
   await page.goto("/account/workspace");
   const logoCard = page.getByTestId("workspace-logo-settings");
   await logoCard.getByTestId("logo-input").setInputFiles(png(1000, 100));
   await expect(page.getByTestId("logo-error")).toContainText("no more than 4 times as wide");
+  await expect(page.getByTestId("image-crop")).toHaveCount(0);
   await expect(logoCard.getByTestId("logo-fallback")).toBeVisible();
   expect(await logoRow()).toBeNull();
 });
@@ -214,7 +245,20 @@ test("a photo is cropped square, resized, and shown with the account in the side
   const card = page.getByTestId("avatar-settings");
   await expect(card.getByTestId("avatar-fallback")).toBeVisible();
 
+  // The crop step starts a photo at Fill, its least: the round avatar must be covered.
   await card.getByTestId("avatar-input").setInputFiles(png(900, 600));
+  const crop = page.getByRole("dialog", { name: "Adjust photo" });
+  await expect(crop.getByTestId("image-crop-zoom")).toHaveAttribute("aria-valuetext", "Fill");
+  await expect(crop.getByRole("button", { name: "Smaller" })).toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
+  await expect(async () => {
+    const { image, frame } = await cropBoxes(page);
+    expect(image.height).toBeCloseTo(frame.height, 0);
+    expect(image.width).toBeCloseTo(frame.width * 1.5, 0);
+  }).toPass();
+  await crop.getByTestId("image-crop-save").click();
   await expect(page.getByTestId("avatar-saved")).toHaveText("Photo saved.");
   expect(await naturalSize(card.getByTestId("avatar-image").locator("img"))).toEqual([512, 512]);
   const avatar = sidebar.getByTestId("account-avatar");
@@ -226,4 +270,107 @@ test("a photo is cropped square, resized, and shown with the account in the side
   await expect(page.getByTestId("avatar-saved")).toHaveText("Photo removed.");
   await expect(sidebar.getByTestId("account-avatar")).toHaveCount(0);
   await expect(initials).toBeVisible();
+});
+
+test("a logo opens the crop step at Fit, and saves square as it's sized and moved", async ({
+  page,
+}) => {
+  await page.goto("/account/workspace");
+  const logoCard = page.getByTestId("workspace-logo-settings");
+  await logoCard.getByTestId("logo-input").setInputFiles(png(800, 400));
+  const crop = page.getByRole("dialog", { name: "Adjust logo" });
+  const zoom = crop.getByRole("slider", { name: "Size" });
+  await expect(zoom).toHaveAttribute("aria-valuetext", "Fit");
+  await expect(zoom).toBeFocused();
+  // Fit: the whole logo, centred, with room around it (15% a side, so it clears a round frame).
+  await expect(async () => {
+    const { image, frame } = await cropBoxes(page);
+    expect(image.width).toBeCloseTo(frame.width * 0.7, 0);
+    expect(image.x - frame.x).toBeCloseTo(frame.width * 0.15, 0);
+  }).toPass();
+
+  // The + button stops at Fill on its way past: the shorter edge meets the frame.
+  const larger = crop.getByRole("button", { name: "Larger" });
+  for (let press = 0; press < 10; press += 1) {
+    if ((await zoom.getAttribute("aria-valuetext")) === "Fill") break;
+    await larger.click();
+  }
+  await expect(zoom).toHaveAttribute("aria-valuetext", "Fill");
+  await expect(async () => {
+    const { image, frame } = await cropBoxes(page);
+    expect(image.height).toBeCloseTo(frame.height, 0);
+  }).toPass();
+
+  // Dragged left further than it can go, it stops with its right edge on the frame's.
+  const { frame } = await cropBoxes(page);
+  const middle = frame.y + frame.height / 2;
+  await page.mouse.move(frame.x + frame.width * 0.9, middle);
+  await page.mouse.down();
+  await page.mouse.move(frame.x + frame.width * 0.1, middle, { steps: 8 });
+  await page.mouse.up();
+  await expect(async () => {
+    const { image } = await cropBoxes(page);
+    expect(image.x + image.width).toBeCloseTo(frame.x + frame.width, 0);
+    expect(image.y).toBeCloseTo(frame.y, 0);
+  }).toPass();
+
+  await crop.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByTestId("logo-saved")).toHaveText("Logo saved.");
+  // At Fill the frame covers 400 source pixels: stored at those, square.
+  expect(await naturalSize(logoCard.getByTestId("logo-image").locator("img"))).toEqual([400, 400]);
+  expect(await logoRow()).toMatchObject({ contentType: "image/png" });
+});
+
+test("Cancel in the crop step uploads nothing and goes back to the button", async ({ page }) => {
+  await page.goto("/account/workspace");
+  const logoCard = page.getByTestId("workspace-logo-settings");
+  await logoCard.getByTestId("logo-input").setInputFiles(png(600, 600));
+  const crop = page.getByTestId("image-crop");
+  await expect(crop).toBeVisible();
+  await crop.getByTestId("image-crop-cancel").click();
+  await expect(crop).toBeHidden();
+  await expect(logoCard.getByTestId("logo-pick")).toBeFocused();
+  await expect(logoCard.getByTestId("logo-fallback")).toBeVisible();
+  await expect(page.getByTestId("logo-saved")).toBeHidden();
+  expect(await logoRow()).toBeNull();
+});
+
+test("the crop step works from the keyboard alone", async ({ page }) => {
+  await page.goto("/account/workspace");
+  const logoCard = page.getByTestId("workspace-logo-settings");
+  const pick = logoCard.getByTestId("logo-pick");
+  await pick.focus();
+  const chooser = page.waitForEvent("filechooser");
+  await page.keyboard.press("Enter");
+  await (await chooser).setFiles(png(800, 400));
+
+  const crop = page.getByRole("dialog", { name: "Adjust logo" });
+  const zoom = crop.getByRole("slider", { name: "Size" });
+  await expect(zoom).toBeFocused();
+  // Measurements below compare positions: wait for the dialog's pop-in to settle first.
+  await expect(crop).toHaveCSS("transform", "none");
+  await page.keyboard.press("ArrowRight");
+  await expect(zoom).toHaveAttribute("aria-valuetext", /^\d+%$/);
+  await page.keyboard.press("End");
+  await expect(crop.getByRole("button", { name: "Larger" })).toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
+
+  // Back to the frame, where arrow keys move the image (Shift for a bigger step).
+  const frame = crop.getByTestId("image-crop-frame");
+  await tabTo(page, frame, "Shift+Tab");
+  const before = await cropBoxes(page);
+  await page.keyboard.press("Shift+ArrowLeft");
+  await expect(async () => {
+    const { image } = await cropBoxes(page);
+    expect(image.x - before.image.x).toBeCloseTo(-before.frame.width * 0.1, 0);
+  }).toPass();
+
+  await tabTo(page, crop.getByRole("button", { name: "Save" }), "Tab");
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("logo-saved")).toHaveText("Logo saved.");
+  await expect(pick).toBeFocused();
+  // Zoomed all the way in, the frame covers 128 source pixels: stored at those.
+  expect(await naturalSize(logoCard.getByTestId("logo-image").locator("img"))).toEqual([128, 128]);
 });

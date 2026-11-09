@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { IMAGE_MAX_EDGE } from "@/lib/account/image-rules";
 import { personMonogramName } from "@/lib/monogram";
 import { avatarSrc } from "@/lib/routes";
 import { MonogramTile } from "../brand/MonogramTile";
@@ -39,7 +38,7 @@ export function AvatarForm({ name, email, initialVersion }: AvatarFormProps) {
           />
         }
         onChange={setVersion}
-        hint={`A PNG, JPG or WebP. We'll crop it square and resize it to fit ${IMAGE_MAX_EDGE} px.`}
+        hint="A PNG, JPG or WebP. You'll size and position it next. It shows as a circle."
         testId="avatar"
       />
     </SettingsCard>
