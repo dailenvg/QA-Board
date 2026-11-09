@@ -143,6 +143,35 @@ test("/ and Ctrl+K focus the search, but not while typing elsewhere or in a dial
   await expect(dialog).toHaveCount(0);
 });
 
+test("the account settings have no search, and / and Ctrl+K pass them by", async ({
+  page,
+  isMobile,
+}) => {
+  const errors: Error[] = [];
+  page.on("pageerror", (error) => errors.push(error));
+  await page.goto("/account/profile");
+  await expect(page.getByRole("heading", { level: 1, name: "Account" })).toBeVisible();
+  await expect(page.getByRole("search")).toHaveCount(0);
+  // No toolbar either: the page opens on its heading.
+  await expect(page.getByTestId("workspace-toolbar")).toHaveCount(0);
+  if (isMobile) {
+    const header = page.getByTestId("sidebar-header");
+    await expect(
+      header.getByRole("button", { name: /^Switch to (dark|light) theme$/ }),
+    ).toBeVisible();
+  }
+  await page.keyboard.press("/");
+  await page.keyboard.press("Control+k");
+  await expectSearchUnfocused(page);
+  expect(errors).toEqual([]);
+
+  // Back on the Overview, search and its shortcuts are there again.
+  await page.getByRole("link", { name: "Overview" }).click();
+  await expect(page.getByTestId("overview-hero")).toBeVisible();
+  await page.keyboard.press("/");
+  await expect(searchInput(page)).toBeFocused();
+});
+
 test("on a phone, search is an icon button at the top that opens the field across its row", async ({
   page,
   isMobile,

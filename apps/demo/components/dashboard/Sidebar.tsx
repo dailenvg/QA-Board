@@ -27,7 +27,7 @@ interface SidebarProps {
   newFolderIn?: string | null;
   /**
    * The workspace search, below `lg`: the sidebar comes first on stacked screens, so its header
-   * is the top right of the page there.
+   * is the top right of the page there. None on the account settings.
    */
   search?: ReactNode;
   /** The profile card (who is signed in, their account menu): at the foot of the panel. */

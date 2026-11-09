@@ -39,15 +39,15 @@ async function decode(file: File): Promise<ImageBitmap | null> {
   }
 }
 
-/** The upright size of a picked file that can be cropped as `kind`, or why it can't. */
-export async function readImageSize(file: File, kind: ImageKind): Promise<ReadImage> {
+/** The upright size of a picked file that can be cropped, or why it can't. */
+export async function readImageSize(file: File): Promise<ReadImage> {
   const problem = sourceFileError(file);
   if (problem) return { ok: false, error: problem };
   const bitmap = await decode(file);
   if (!bitmap) return { ok: false, error: UNREADABLE };
   const size = { width: bitmap.width, height: bitmap.height };
   bitmap.close();
-  const sizeProblem = sourceSizeError(kind, size);
+  const sizeProblem = sourceSizeError(size);
   return sizeProblem ? { ok: false, error: sizeProblem } : { ok: true, size };
 }
 

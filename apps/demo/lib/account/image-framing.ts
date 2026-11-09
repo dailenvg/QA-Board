@@ -1,11 +1,4 @@
-import {
-  IMAGE_MAX_EDGE,
-  IMAGE_MIN_EDGE,
-  IMAGE_TOO_SMALL,
-  isTooLong,
-  LOGO_TOO_LONG,
-  type ImageKind,
-} from "./image-rules";
+import { IMAGE_MAX_EDGE, IMAGE_MIN_EDGE, IMAGE_TOO_SMALL, type ImageKind } from "./image-rules";
 
 /**
  * The crop step before an avatar or logo uploads: how far a picked image can
@@ -58,11 +51,13 @@ export const ZOOM_STEPS = 100;
 /** Room to move smaller than this is rounding (a side at exactly Fill), not room. */
 const PAN_EPSILON = 1e-9;
 
-/** Why a picked image can't be cropped as `kind`, or null. Any size above that scales down. */
-export function sourceSizeError(kind: ImageKind, { width, height }: SourceSize): string | null {
-  if (Math.min(width, height) < IMAGE_MIN_EDGE) return IMAGE_TOO_SMALL;
-  if (kind === "logo" && isTooLong(width, height)) return LOGO_TOO_LONG;
-  return null;
+/**
+ * Why a picked image can't be cropped, or null. Any size above that scales
+ * down, and any proportion crops: Save always draws a square, so even a long
+ * strip of a logo fits whole at Fit, padded with empty canvas.
+ */
+export function sourceSizeError({ width, height }: SourceSize): string | null {
+  return Math.min(width, height) < IMAGE_MIN_EDGE ? IMAGE_TOO_SMALL : null;
 }
 
 export function zoomRange(kind: ImageKind, { width, height }: SourceSize): ZoomRange {

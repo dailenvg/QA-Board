@@ -123,7 +123,7 @@ export function ImageUploader({
     if (!file || busy) return;
     setError(null);
     setStatus("preparing");
-    const read = await readImageSize(file, kind);
+    const read = await readImageSize(file);
     setStatus("idle");
     if (!read.ok) {
       setError(read.error);

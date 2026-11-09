@@ -20,6 +20,10 @@ const WIDE = { width: 800, height: 400 };
 const TALL = { width: 300, height: 900 };
 const SQUARE = { width: 1000, height: 1000 };
 const TINY = { width: 20, height: 20 };
+/** Logos far past the server's 4:1, which the crop step squares all the same. */
+const BANNER = { width: 2000, height: 100 };
+const POLE = { width: 100, height: 2000 };
+const STRIP = { width: 4000, height: 100 };
 
 function expectDraw(actual: FramedDraw, expected: FramedDraw) {
   for (const key of Object.keys(expected) as (keyof FramedDraw)[]) {
@@ -212,7 +216,18 @@ describe("framedDraw", () => {
   });
 
   it("always makes a square the server takes, from any framing in range", () => {
-    for (const size of [WIDE, TALL, SQUARE, TINY, { width: 4032, height: 3024 }]) {
+    const thinnest = { width: 16, height: 4000 };
+    for (const size of [
+      WIDE,
+      TALL,
+      SQUARE,
+      TINY,
+      { width: 4032, height: 3024 },
+      BANNER,
+      POLE,
+      STRIP,
+      thinnest,
+    ]) {
       for (const kind of ["logo", "avatar"] as const) {
         const range = zoomRange(kind, size);
         for (const step of [0, 37, ZOOM_STEPS]) {
@@ -229,9 +244,85 @@ describe("framedDraw", () => {
 
 describe("sourceSizeError", () => {
   it("refuses only what scaling down can't fix", () => {
-    expect(sourceSizeError("avatar", { width: 15, height: 900 })).toMatch(/too small/);
-    expect(sourceSizeError("logo", { width: 1000, height: 100 })).toMatch(/4 times/);
-    expect(sourceSizeError("avatar", { width: 1000, height: 100 })).toBeNull();
-    expect(sourceSizeError("logo", { width: 4000, height: 1000 })).toBeNull();
+    expect(sourceSizeError({ width: 15, height: 900 })).toMatch(/too small/);
+    expect(sourceSizeError({ width: 4000, height: 15 })).toMatch(/too small/);
+    expect(sourceSizeError({ width: 16, height: 16 })).toBeNull();
+  });
+
+  it("takes any proportion: the crop step saves a square", () => {
+    for (const size of [BANNER, POLE, STRIP, { width: 16, height: 4000 }]) {
+      expect(sourceSizeError(size), `${size.width}x${size.height}`).toBeNull();
+    }
+  });
+});
+
+describe("a logo far wider or taller than 4:1", () => {
+  it("fits its longer edge and fills with its shorter one, either way round", () => {
+    expect(zoomRange("logo", BANNER)).toEqual({ min: 0.7 / 2000, fill: 1 / 100, max: 1 / 100 });
+    expect(zoomRange("logo", POLE)).toEqual(zoomRange("logo", BANNER));
+    expect(zoomRange("logo", STRIP)).toEqual({ min: 0.7 / 4000, fill: 1 / 100, max: 1 / 100 });
+  });
+
+  it("puts Fit at the slider's start and Fill at its end when Fill is as close as it goes", () => {
+    for (const size of [BANNER, POLE, STRIP]) {
+      const range = zoomRange("logo", size);
+      expect(stepAtScale(range, range.min)).toBe(0);
+      expect(stepAtScale(range, range.fill)).toBe(ZOOM_STEPS);
+      expect(scaleAtStep(range, ZOOM_STEPS)).toBe(range.fill);
+      expect(zoomLabel("logo", range, scaleAtStep(range, 0))).toBe("Fit");
+      expect(zoomLabel("logo", range, scaleAtStep(range, ZOOM_STEPS))).toBe("Fill");
+      for (let step = 1; step <= ZOOM_STEPS; step += 1) {
+        expect(scaleAtStep(range, step)).toBeGreaterThan(scaleAtStep(range, step - 1));
+      }
+    }
+  });
+
+  it("keeps Fit and Fill apart, with room past Fill, once the source is large enough", () => {
+    const big = { width: 10_000, height: 500 };
+    const range = zoomRange("logo", big);
+    expect(range).toEqual({ min: 0.7 / 10_000, fill: 1 / 500, max: 1 / 128 });
+    const fillStep = stepAtScale(range, range.fill);
+    expect(fillStep).toBeGreaterThan(0);
+    expect(fillStep).toBeLessThan(ZOOM_STEPS);
+    expect(scaleAtStep(range, fillStep)).toBe(range.fill);
+    expect(zoomLabel("logo", range, range.max)).toBe("391%");
+  });
+
+  it("draws the whole strip at Fit, centred on a 512 px square", () => {
+    expectDraw(framedDraw(STRIP, startFraming(zoomRange("logo", STRIP))), {
+      side: 512,
+      sx: 0,
+      sy: 0,
+      sw: 4000,
+      sh: 100,
+      dx: 76.8,
+      dy: 251.52,
+      dw: 358.4,
+      dh: 8.96,
+    });
+    expectDraw(framedDraw(POLE, startFraming(zoomRange("logo", POLE))), {
+      side: 512,
+      sx: 0,
+      sy: 0,
+      sw: 100,
+      sh: 2000,
+      dx: 247.04,
+      dy: 76.8,
+      dw: 17.92,
+      dh: 358.4,
+    });
+  });
+
+  it("at Fill, moves along the strip to either end and no further", () => {
+    const range = zoomRange("logo", STRIP);
+    const atFill = { scale: range.fill, x: 0, y: 0 };
+    expect(canPan(STRIP, startFraming(range))).toBe(false);
+    expect(canPan(STRIP, atFill)).toBe(true);
+    // 40 frames long: 19.5 frame sides of room either side of centre, none across.
+    expect(panBy(STRIP, atFill, 100, 100)).toEqual({ scale: range.fill, x: 19.5, y: 0 });
+    const square = { side: 100, sy: 0, sw: 100, sh: 100, dx: 0, dy: 0, dw: 100, dh: 100 };
+    expectDraw(framedDraw(STRIP, atFill), { ...square, sx: 1950 });
+    expectDraw(framedDraw(STRIP, panBy(STRIP, atFill, 100, 0)), { ...square, sx: 0 });
+    expectDraw(framedDraw(STRIP, panBy(STRIP, atFill, -100, 0)), { ...square, sx: 3900 });
   });
 });

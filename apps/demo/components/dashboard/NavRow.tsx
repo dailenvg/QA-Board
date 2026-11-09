@@ -21,8 +21,9 @@ interface NavRowProps {
 }
 
 /**
- * Sidebar link row. The active row's background is one shared `layoutId`
- * element, so it glides between the Overview and every folder.
+ * Sidebar link row. The active row is tinted in the brand colour, its label and
+ * icon too; the tint is one shared `layoutId` element, so it glides between the
+ * Overview and every folder.
  */
 export function NavRow({
   href,
@@ -39,14 +40,14 @@ export function NavRow({
       scroll={false}
       aria-current={active ? "page" : undefined}
       className={`relative flex min-h-11 items-center gap-3 rounded-row px-4 text-nav transition-colors ${
-        active ? "font-semibold" : "font-medium hover:bg-hover active:bg-seg"
+        active ? "font-semibold text-brand-text" : "font-medium hover:bg-hover active:bg-seg"
       }`}
     >
       {active ? (
         <motion.span
           layoutId={indicatorId}
           transition={reduce ? instant : spring.snappy}
-          className="absolute inset-0 rounded-row bg-seg"
+          className="absolute inset-0 rounded-row bg-brand-soft"
         />
       ) : null}
       <Icon name={icon} className="relative size-5 shrink-0" />

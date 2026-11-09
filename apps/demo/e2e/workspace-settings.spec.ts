@@ -9,7 +9,7 @@ import {
   openOverview,
   shareWorkspaceProject,
 } from "./squint-fixtures";
-import { logoRow } from "./workspace-db";
+import { brandWorkspace, logoRow } from "./workspace-db";
 
 const PROJECT = "Spring launch";
 
@@ -188,7 +188,7 @@ test("a guest sees the monogram, then the uploaded logo, then the monogram again
   await close();
 });
 
-test("the Overview opens with the workspace's name and monogram, then its logo once uploaded", async ({
+test("the Overview opens with the workspace's name and monogram, then its logo once it has one", async ({
   page,
 }) => {
   await openOverview(page);
@@ -201,9 +201,10 @@ test("the Overview opens with the workspace's name and monogram, then its logo o
   // The name is no heading: the page's one h1 stays the hero's.
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(OVERVIEW_HEADLINE.empty);
 
-  await page.goto("/account/workspace");
-  await pickAndSave(page, page.getByTestId("logo-input"), png(800, 400));
-  await expect(page.getByTestId("logo-saved")).toHaveText("Logo saved.");
+  // Seeded the way an upload stores it (512 px square). The tests below cover the upload
+  // itself, and seeding keeps their uploads inside the per-user limit (10 a minute) across
+  // both projects.
+  await brandWorkspace({ logo: snapshotPng(512, 512) });
 
   await openOverview(page);
   const logo = header.getByTestId("workspace-header-logo");
@@ -219,16 +220,31 @@ test("the Overview opens with the workspace's name and monogram, then its logo o
   await expect(header.getByTestId("workspace-header-name")).toHaveText(E2E_COMPANY.name);
 });
 
-test("a logo that's too wide is refused in the browser, before the crop step opens", async ({
-  page,
-}) => {
+test("a very wide logo opens the crop step and saves square", async ({ page }) => {
   await page.goto("/account/workspace");
   const logoCard = page.getByTestId("workspace-logo-settings");
-  await logoCard.getByTestId("logo-input").setInputFiles(png(1000, 100));
-  await expect(page.getByTestId("logo-error")).toContainText("no more than 4 times as wide");
-  await expect(page.getByTestId("image-crop")).toHaveCount(0);
-  await expect(logoCard.getByTestId("logo-fallback")).toBeVisible();
-  expect(await logoRow()).toBeNull();
+  // 40:1, far past the server's 4:1: the crop step squares it, so the browser takes it.
+  await logoCard.getByTestId("logo-input").setInputFiles(png(4000, 100));
+  const crop = page.getByRole("dialog", { name: "Adjust logo" });
+  const zoom = crop.getByRole("slider", { name: "Size" });
+  await expect(zoom).toHaveAttribute("aria-valuetext", "Fit");
+  await expect(page.getByTestId("logo-error")).toBeEmpty();
+  // Fit: the whole strip across the frame's middle, padded as any logo is.
+  await expect(async () => {
+    const { image, frame } = await cropBoxes(page);
+    expect(image.width).toBeCloseTo(frame.width * 0.7, 0);
+    expect(image.y + image.height / 2).toBeCloseTo(frame.y + frame.height / 2, 0);
+  }).toPass();
+  // As close as it goes, the strip's height meets the frame: Fill is the slider's end.
+  await zoom.press("End");
+  await expect(zoom).toHaveAttribute("aria-valuetext", "Fill");
+  await zoom.press("Home");
+  await expect(zoom).toHaveAttribute("aria-valuetext", "Fit");
+
+  await crop.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByTestId("logo-saved")).toHaveText("Logo saved.");
+  expect(await naturalSize(logoCard.getByTestId("logo-image").locator("img"))).toEqual([512, 512]);
+  expect(await logoRow()).toMatchObject({ contentType: "image/png" });
 });
 
 test("a photo is cropped square, resized, and shown with the account in the sidebar", async ({

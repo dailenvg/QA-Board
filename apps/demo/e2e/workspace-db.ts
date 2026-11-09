@@ -73,16 +73,16 @@ export async function logoRow(): Promise<{ contentType: string; size: number } |
 }
 
 /**
- * Gives the e2e workspace a brand color and a logo, stored as the settings
- * page will store it (a `workspace_blobs` row with no project, bytes inline
- * on the e2e server), until the next `resetWorkspace`.
+ * Gives the e2e workspace a logo, and a brand color unless left out, stored as
+ * the settings page will store them (a `workspace_blobs` row with no project,
+ * bytes inline on the e2e server), until the next `resetWorkspace`.
  */
 export async function brandWorkspace({
-  color,
+  color = null,
   logo,
   logoId = "e2e-logo",
 }: {
-  color: string;
+  color?: string | null;
   logo: Buffer;
   logoId?: string;
 }): Promise<void> {
