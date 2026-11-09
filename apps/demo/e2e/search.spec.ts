@@ -220,11 +220,11 @@ test("a query in progress survives the search moving between the page and the si
   test.skip(isMobile, "Resizes a desktop window across the breakpoints.");
   const input = searchInput(page);
   await input.fill("campaign");
-  // A click outside closes the results (they lie over the top left of the page, so: the sidebar).
+  // A click outside closes the results (they lie over the top left of the page, so: the sidebar,
+  // in its padding).
   await page
     .getByRole("complementary", { name: "Workspace" })
-    .getByRole("heading", { name: "Folders" })
-    .click();
+    .click({ position: { x: 4, y: 200 } });
   await expect(page.getByTestId("search-popup")).toHaveCount(0);
 
   // Below lg the search moves into the sidebar's header (a remount), query and all.

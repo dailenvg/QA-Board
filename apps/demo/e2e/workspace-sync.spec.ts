@@ -32,8 +32,8 @@ test("the workspace lives on the server: another tab and a reload see the same f
 }) => {
   await openFolder(page);
   const other = await context.newPage();
-  await other.goto("/");
-  // In the sidebar's tree: with no projects yet, the Overview shows its welcome instead of cards.
+  await other.goto("/folders");
+  // In the sidebar's tree: with no projects yet, Folders shows the welcome's guide instead of cards.
   await expect(other.getByText(DEFAULT_FOLDER.name).first()).toBeVisible();
 
   await page.getByTestId("new-folder").first().click();
@@ -154,7 +154,8 @@ test("pages arrive rendered from the server and hydrate without a mismatch", asy
 
   // What the server sends already holds the content, not a skeleton waiting for it.
   const pages: Array<[string, string]> = [
-    ["/", 'data-testid="folder-card"'],
+    ["/", 'data-testid="overview-bento"'],
+    ["/folders", 'data-testid="folder-card"'],
     [`/f/${DEFAULT_FOLDER.id}`, 'data-testid="project-card"'],
     ["/p/combined", 'data-testid="mode-comment"'],
   ];

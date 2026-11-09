@@ -14,7 +14,7 @@ interface FolderTreeProps {
   counts: ReadonlyMap<string, number>;
   /** The folder whose page is open, if any. */
   activeId: string | null;
-  /** Labelled by the sidebar's "Folders" heading. */
+  /** Labelled by the sidebar's Folders tab. */
   labelledBy: string;
   /** The row menu's actions for a folder. */
   actionsFor: (folder: Folder) => MenuItem[];

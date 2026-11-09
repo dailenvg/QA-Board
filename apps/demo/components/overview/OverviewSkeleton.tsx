@@ -1,46 +1,56 @@
 import { Skeleton } from "../ui/Skeleton";
-import { FOLDER_GRID } from "./folder-grid-classes";
-import { FOLDER_MAX_WIDTH } from "./glass-folder/geometry";
+import { TILE_SURFACE } from "./bento/tile-styles";
+import { HERO_MASCOT_SIZE } from "./OverviewHero";
 
-const FOLDERS = 3;
+/** A tile's placeholder: its heading (icon and name), then lines of content. */
+function TileSkeleton({ lines, className = "" }: { lines: number; className?: string }) {
+  return (
+    <div className={`${TILE_SURFACE} ${className}`}>
+      <div className="flex items-center gap-3">
+        <Skeleton className="size-9 rounded-pill" />
+        <Skeleton className="h-5 w-32" />
+      </div>
+      {Array.from({ length: lines }, (_, index) => (
+        <Skeleton key={index} className="h-11 w-full" />
+      ))}
+    </div>
+  );
+}
 
 /**
- * Overview placeholder: the hero, the sort row, then folder-shaped cards. The
- * sort row is reserved even though it only shows with two or more folders
- * (unknown until the workspace loads): most workspaces have them, and a row
- * that appears late would push every folder down.
+ * Overview placeholder, shaped like the bento it stands in for (OverviewBento):
+ * the hero across two columns, Comments waiting two rows tall, the client news
+ * two columns wide from xl. The hero has the tile's own padding and Squiggy's
+ * size, so it doesn't jump when the page arrives. Most workspaces have
+ * projects, so the bento is the likelier page; an empty one swaps it for the
+ * welcome.
  */
 export function OverviewSkeleton() {
   return (
-    <div role="status" aria-busy="true" className="flex flex-col gap-4">
-      <span className="sr-only">Loading your folders…</span>
-      <div className="flex flex-col items-center gap-5 rounded-panel bg-panel px-6 py-8 sm:flex-row sm:gap-8 sm:px-10">
-        <Skeleton className="size-28 shrink-0 rounded-pill sm:size-32" />
+    <div
+      role="status"
+      aria-busy="true"
+      className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+    >
+      <span className="sr-only">Loading your overview…</span>
+      <div
+        className={`${TILE_SURFACE} items-center justify-center sm:flex-row sm:gap-8 md:col-span-2`}
+      >
+        <div className="aspect-square shrink-0" style={{ width: HERO_MASCOT_SIZE }}>
+          <Skeleton className="size-full rounded-pill" />
+        </div>
         <div className="flex w-full flex-col items-center gap-3 sm:items-start">
           <Skeleton className="h-4 w-20" />
           <Skeleton className="h-10 w-full max-w-sm" />
-          <Skeleton className="h-5 w-full max-w-md" />
+          {/* Squiggy's line: SquiggySpeechLine reserves a 44px bubble. */}
+          <Skeleton className="h-11 w-full max-w-md rounded-card" />
         </div>
       </div>
-      {/* Matches OverviewFolders' sort row: the menu, then the order (icon-only on phones). */}
-      <div className="-mb-4 flex justify-center gap-2 px-4 sm:justify-end [@media(hover:none)]:pb-10">
-        <Skeleton className="h-11 w-44 rounded-pill" />
-        <Skeleton className="h-11 w-11 rounded-pill sm:w-36" />
-      </div>
-      <div className={FOLDER_GRID}>
-        {Array.from({ length: FOLDERS }, (_, index) => (
-          // Matches FolderCard: a box of FOLDER_ASPECT (340 / 326) whose top 54/340 is the
-          // folder's empty headroom, so only the folder body is drawn. Where nothing hovers
-          // the card drops that headroom (340 / 272), and so does this.
-          <div
-            key={index}
-            className="flex aspect-[340/326] w-full flex-col [@media(hover:none)]:aspect-[340/272]"
-            style={{ maxWidth: FOLDER_MAX_WIDTH }}
-          >
-            <Skeleton className="mt-[15.88%] flex-1 rounded-panel [@media(hover:none)]:mt-0" />
-          </div>
-        ))}
-      </div>
+      <TileSkeleton lines={2} />
+      <TileSkeleton lines={4} className="md:row-span-2" />
+      <TileSkeleton lines={2} className="xl:col-span-2" />
+      <TileSkeleton lines={3} />
+      <TileSkeleton lines={2} />
     </div>
   );
 }

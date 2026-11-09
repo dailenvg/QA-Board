@@ -50,8 +50,11 @@ export const hoverLift = {
   transition: spring.soft,
 } as const;
 
+/** How far, in px, content rises as it reveals (`fadeUp`). */
+export const rise = 16;
+
 export const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 16 },
+  hidden: { opacity: 0, y: rise },
   visible: { opacity: 1, y: 0, transition: { duration: duration.component, ease: ease.out } },
   exit: { opacity: 0, scale: 0.96, transition: { duration: duration.micro, ease: ease.out } },
 };
@@ -72,7 +75,10 @@ export const popIn: Variants = {
 /** `whileInView` for content below the fold: reveal once, a little after it enters. */
 export const revealViewport = { once: true, margin: "-10%" } as const;
 
-export function staggerGroup(staggerChildren = 0.06, delayChildren = 0.08): Variants {
+/** Seconds between one item's entrance and the next's in a stagger. */
+export const staggerStep = 0.06;
+
+export function staggerGroup(staggerChildren = staggerStep, delayChildren = 0.08): Variants {
   return { hidden: {}, visible: { transition: { staggerChildren, delayChildren } } };
 }
 

@@ -79,8 +79,12 @@ test("folders nest: Alpha > Beta > Gamma > Delta, with breadcrumbs, subfolders a
   );
   await expect(treeItem(page, "Alpha")).toContainText("1");
 
-  // The Overview shows top-level folders only, counting what's inside.
-  await breadcrumb(page).getByRole("link", { name: "Overview" }).click();
+  // Folders shows top-level folders only, counting what's inside.
+  await page
+    .getByRole("complementary", { name: "Workspace" })
+    .getByRole("link", { name: "Folders", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/folders$/);
   const cards = page.getByTestId("folder-card");
   await expect(cards).toHaveCount(2);
   await expect(folderCard(page, "Alpha")).toContainText("1 project in all");

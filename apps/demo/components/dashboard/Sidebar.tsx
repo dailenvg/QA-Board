@@ -18,8 +18,10 @@ interface SidebarProps {
   actionsFor: (folder: Folder) => MenuItem[];
   activeId: string | null;
   overviewActive: boolean;
+  /** The Folders page or a folder's page is open. */
+  foldersActive: boolean;
   onNewProject: () => void;
-  /** A new top-level folder (the "+" by the Folders heading). */
+  /** A new top-level folder (the "+" by the Folders tab). */
   onNewFolder: () => void;
   /** A new folder inside the open folder, else at the top level (beside New project). */
   onNewFolderHere: () => void;
@@ -45,6 +47,7 @@ export function Sidebar({
   actionsFor,
   activeId,
   overviewActive,
+  foldersActive,
   onNewProject,
   onNewFolder,
   onNewFolderHere,
@@ -63,13 +66,19 @@ export function Sidebar({
       {/*
         relative: a phone's open search field fills this row. While it does, what it covers is
         hidden (visibility), so Tab and screen readers can't reach controls under the field.
+        The brand sits on a soft brand panel: the whole row from lg, beside search and the theme
+        toggle below it.
       */}
       <div
         data-testid="sidebar-header"
-        className="relative flex min-h-11 items-center gap-2 px-2 [&:has([data-search-open])_[data-search-covered]]:invisible"
+        className="relative flex min-h-11 items-center gap-2 [&:has([data-search-open])_[data-search-covered]]:invisible"
       >
-        <div data-search-covered="" className="mr-auto flex min-w-0">
-          <Logo caption="Visual review" />
+        <div
+          data-search-covered=""
+          data-testid="sidebar-brand"
+          className="mr-auto flex min-w-0 rounded-card bg-brand-soft py-1 pr-2 pl-1 lg:mr-0 lg:flex-1 lg:p-3"
+        >
+          <Logo caption="Visual review" size="large" />
         </div>
         {search}
         <div data-search-covered="" className="flex lg:hidden">
@@ -109,6 +118,7 @@ export function Sidebar({
         actionsFor={actionsFor}
         activeId={activeId}
         overviewActive={overviewActive}
+        foldersActive={foldersActive}
         onCreate={onNewFolder}
       />
 
