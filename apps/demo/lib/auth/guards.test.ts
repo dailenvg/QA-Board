@@ -1,15 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type * as DatabaseModule from "@/lib/db/database";
 import { seat, twoWorkspaces, type Seat } from "@/test/workspace-fixture";
-import type { Database } from "../db/database";
-import { apiMember } from "./guards";
+import { database, type Database } from "../db/database";
+import { apiAccount, apiMember, getSession } from "./guards";
 import { sessionTokenOf } from "./session-cookie";
 
-const holder = vi.hoisted(() => ({ db: null as Database | null }));
+const holder = vi.hoisted(() => ({
+  db: null as Database | null,
+  /** The session cookie's value `getSession` sees, if any. */
+  token: undefined as string | undefined,
+}));
 
 vi.mock("@/lib/db/database", async (importOriginal) => ({
   ...(await importOriginal<typeof DatabaseModule>()),
-  database: () => (holder.db ? Promise.resolve(holder.db) : null),
+  database: vi.fn(() => (holder.db ? Promise.resolve(holder.db) : null)),
+}));
+
+vi.mock("next/headers", () => ({
+  cookies: () =>
+    Promise.resolve({ get: () => (holder.token ? { value: holder.token } : undefined) }),
 }));
 
 let db: Database;
@@ -19,6 +28,8 @@ let b: Seat;
 beforeEach(async () => {
   ({ db, a, b } = await twoWorkspaces());
   holder.db = db;
+  holder.token = undefined;
+  vi.mocked(database).mockClear();
 });
 
 const request = (cookie?: string) =>
@@ -76,6 +87,26 @@ describe("apiMember", () => {
       404,
       { error: "not-found" },
     ]);
+  });
+});
+
+/**
+ * Without a session cookie there is nothing to look up, so the guards don't
+ * touch the database: a signed-out page that started a connect without
+ * waiting for it could leave it frozen half-done for every later request.
+ */
+describe("guards without a session cookie", () => {
+  it("leave the database alone", async () => {
+    expect(await getSession()).toBeNull();
+    expect((await apiAccount(request("theme=dark"))).ok).toBe(false);
+    expect((await apiMember(request(), a.workspaceId)).ok).toBe(false);
+    expect(database).not.toHaveBeenCalled();
+  });
+
+  it("read the session once there is a cookie", async () => {
+    holder.token = sessionTokenOf(a.cookie) ?? undefined;
+    expect((await getSession())?.id).toBe(a.userId);
+    expect(database).toHaveBeenCalled();
   });
 });
 
