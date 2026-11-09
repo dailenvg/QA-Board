@@ -93,7 +93,8 @@ test("an account in no workspace sees an empty state, not an error", async ({
   await page.goto("/");
   const empty = page.getByTestId("no-workspace");
   await expect(empty.getByRole("heading", { level: 1 })).toHaveText("No workspace yet");
-  await expect(empty.getByRole("button", { name: "Sign out" })).toBeVisible();
+  await empty.getByRole("button", { name: "Account menu" }).click();
+  await expect(empty.getByRole("menuitem", { name: "Sign out" })).toBeVisible();
   // A project link shows the same, never another workspace's project.
   await page.goto("/p/anything");
   await expect(page.getByTestId("no-workspace")).toBeVisible();

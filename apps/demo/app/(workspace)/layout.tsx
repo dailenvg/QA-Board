@@ -1,7 +1,7 @@
 import { Suspense, type ReactNode } from "react";
 import { WorkspaceError } from "@/components/app-state/WorkspaceError";
 import { WorkspaceProvider } from "@/components/app-state/WorkspaceProvider";
-import { SignOutButton } from "@/components/auth/SignOutButton";
+import { ProfileCard } from "@/components/auth/ProfileCard";
 import { WelcomeSignal } from "@/components/auth/WelcomeSignal";
 import { Workspace } from "@/components/dashboard/Workspace";
 import { sessionAvatarSrc } from "@/lib/account/session-settings";
@@ -16,7 +16,7 @@ import { loadSessionWorkspace } from "@/lib/workspace/session-workspace";
 export default async function WorkspaceLayout({ children }: { children: ReactNode }) {
   const session = await loadSessionWorkspace();
   const account = (
-    <SignOutButton
+    <ProfileCard
       email={session.user.email}
       name={session.user.name}
       avatarSrc={await sessionAvatarSrc(session.user.id)}

@@ -22,7 +22,7 @@ interface NavRowProps {
 
 /**
  * Sidebar link row. The active row's background is one shared `layoutId`
- * element, so it glides between the Overview, every folder and Account.
+ * element, so it glides between the Overview and every folder.
  */
 export function NavRow({
   href,

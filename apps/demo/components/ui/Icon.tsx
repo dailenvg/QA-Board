@@ -163,6 +163,11 @@ const ICONS = {
     ["circle", { cx: 12, cy: 12, r: 1 }],
     ["circle", { cx: 19, cy: 12, r: 1 }],
   ],
+  moreVertical: [
+    ["circle", { cx: 12, cy: 5, r: 1 }],
+    ["circle", { cx: 12, cy: 12, r: 1 }],
+    ["circle", { cx: 12, cy: 19, r: 1 }],
+  ],
   pause: [
     ["rect", { x: 14, y: 4, width: 4, height: 16, rx: 1 }],
     ["rect", { x: 6, y: 4, width: 4, height: 16, rx: 1 }],

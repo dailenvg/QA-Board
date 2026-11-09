@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { AccountLayout } from "@/components/account/AccountLayout";
 import { AccountShell } from "@/components/account/AccountShell";
-import { SignOutButton } from "@/components/auth/SignOutButton";
+import { ProfileCard } from "@/components/auth/ProfileCard";
 import { sectionsFor } from "@/lib/account/sections";
 import { sessionAvatarSrc } from "@/lib/account/session-settings";
 import { loadSessionWorkspace } from "@/lib/workspace/session-workspace";
@@ -24,7 +24,7 @@ export default async function AccountSettingsLayout({ children }: { children: Re
       <AccountLayout
         sections={sectionsFor(false)}
         aside={
-          <SignOutButton
+          <ProfileCard
             email={session.user.email}
             name={session.user.name}
             avatarSrc={await sessionAvatarSrc(session.user.id)}

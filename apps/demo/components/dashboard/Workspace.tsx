@@ -34,7 +34,7 @@ import { WorkspaceContext, type Workspace as WorkspaceValue } from "./workspace-
 
 interface WorkspaceProps {
   children: ReactNode;
-  /** Who is signed in, and Sign out, for the foot of the sidebar. */
+  /** The profile card (who is signed in, their account menu), for the foot of the sidebar. */
   account?: ReactNode;
 }
 
@@ -225,7 +225,6 @@ function WorkspaceShell({ data, account, children }: WorkspaceShellProps) {
             actionsFor={workspace.folderActions}
             activeId={routeFolderId ?? null}
             overviewActive={onOverview}
-            accountActive={onAccount}
             onNewProject={() => showNewProject({})}
             onNewFolder={() => showNewFolder({ parentId: null })}
             onNewFolderHere={newFolderHere}

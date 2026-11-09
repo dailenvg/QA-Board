@@ -3,7 +3,7 @@
 import { motion } from "motion/react";
 import { ACCOUNT_HREF } from "@/lib/routes";
 import { staggerGroup, useRevealVariants } from "@/lib/motion";
-import { SignOutButton } from "../auth/SignOutButton";
+import { ProfileCard } from "../auth/ProfileCard";
 import { Squiggy } from "../brand/mascot/Squiggy";
 import { ButtonLink } from "../ui/ButtonLink";
 import { Icon } from "../ui/Icon";
@@ -50,7 +50,7 @@ export function NoWorkspace({ email, name }: NoWorkspaceProps) {
             <Icon name="user" className="size-5" />
             Account settings
           </ButtonLink>
-          <SignOutButton email={email} name={name} />
+          <ProfileCard email={email} name={name} />
         </motion.div>
       </motion.section>
     </main>
