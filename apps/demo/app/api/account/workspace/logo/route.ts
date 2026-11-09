@@ -13,7 +13,7 @@ import { refusal } from "@/lib/workspace/http";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** `GET ?v=<version>`: the logo of the signed-in user's workspace, for its settings page. 404 without one. */
+/** `GET ?v=<version>`: the logo of the signed-in user's workspace, for any member (its settings page, the Overview). 404 without one. */
 export const GET = withOwnWorkspace(async (request, { db, membership }) => {
   const logo = await readWorkspaceLogo(db, membership.workspaceId);
   if (!logo) return notFound();

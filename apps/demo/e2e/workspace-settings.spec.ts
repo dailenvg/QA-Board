@@ -3,7 +3,12 @@ import { expect, test } from "./test";
 import { SIGNED_OUT } from "./auth-fixtures";
 import { E2E_COMPANY } from "./e2e-env";
 import { snapshotPng } from "./sample-snapshot";
-import { mockFrameCheck, shareWorkspaceProject } from "./squint-fixtures";
+import {
+  mockFrameCheck,
+  OVERVIEW_HEADLINE,
+  openOverview,
+  shareWorkspaceProject,
+} from "./squint-fixtures";
 import { logoRow } from "./workspace-db";
 
 const PROJECT = "Spring launch";
@@ -151,6 +156,37 @@ test("a guest sees the monogram, then the uploaded logo, then the monogram again
   await expect(brand.getByTestId("brand-monogram")).toHaveText("EA");
   await expect(brand.getByTestId("brand-logo")).toHaveCount(0);
   await close();
+});
+
+test("the Overview opens with the workspace's name and monogram, then its logo once uploaded", async ({
+  page,
+}) => {
+  await openOverview(page);
+  const header = page.getByTestId("workspace-header");
+  await expect(header.getByTestId("workspace-header-name")).toHaveText(E2E_COMPANY.name);
+  const monogram = header.getByTestId("workspace-header-monogram");
+  await expect(monogram).toHaveText("EA");
+  await expect(monogram).toHaveCSS("background-color", "rgb(1, 45, 97)");
+  await expect(header.getByTestId("workspace-header-logo")).toHaveCount(0);
+  // The name is no heading: the page's one h1 stays the hero's.
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(OVERVIEW_HEADLINE.empty);
+
+  await page.goto("/account/workspace");
+  await page.getByTestId("logo-input").setInputFiles(png(800, 400));
+  await expect(page.getByTestId("logo-saved")).toHaveText("Logo saved.");
+
+  await openOverview(page);
+  const logo = header.getByTestId("workspace-header-logo");
+  await expect(logo).toBeVisible();
+  // The members' logo route, at the logo's version: a new upload is a new URL.
+  const src = new URL((await logo.getAttribute("src")) ?? "", page.url());
+  expect(`${src.pathname}${src.search}`).toMatch(
+    /^\/api\/account\/workspace\/logo\?v=[0-9a-f]{16}$/,
+  );
+  expect(await naturalSize(logo)).toEqual([512, 256]);
+  await expectFills(logo, header.getByTestId("workspace-header-tile"));
+  await expect(monogram).toHaveCount(0);
+  await expect(header.getByTestId("workspace-header-name")).toHaveText(E2E_COMPANY.name);
 });
 
 test("a logo that's too wide is refused in the browser, before anything uploads", async ({

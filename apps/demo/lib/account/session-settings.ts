@@ -3,7 +3,7 @@ import { requireMember, requireSession } from "../auth/guards";
 import { describeError } from "../auth/http";
 import { findOwnWorkspace } from "../auth/memberships";
 import { database } from "../db/database";
-import { avatarSrc } from "../routes";
+import { avatarSrc, workspaceLogoSrc } from "../routes";
 import { avatarVersion } from "./avatar";
 import { loadWorkspaceSettings, type WorkspaceSettings } from "./workspace-settings";
 
@@ -33,6 +33,40 @@ export async function sessionAvatarSrc(userId: string): Promise<string | null> {
   const version = await sessionAvatarVersion(userId);
   return version && avatarSrc(version);
 }
+
+/** What the Overview's header shows of the workspace. */
+export interface WorkspaceIdentity {
+  name: string;
+  /** `#rrggbb`, or null: the monogram sits on the neutral navy. */
+  brandColor: string | null;
+  /** The logo's URL, versioned so a new logo is a new URL; null without one. */
+  logoSrc: string | null;
+}
+
+/**
+ * The name, brand color and logo of a workspace the session's user is
+ * already known to belong to (`loadSessionWorkspace` checked). If reading
+ * them fails (logged by kind only), `name` alone: the header shows its monogram.
+ */
+export const sessionWorkspaceIdentity = cache(
+  async (workspaceId: string, name: string): Promise<WorkspaceIdentity> => {
+    const plain = { name, brandColor: null, logoSrc: null };
+    const pending = database();
+    if (!pending) return plain;
+    try {
+      const settings = await loadWorkspaceSettings(await pending, workspaceId);
+      if (!settings) return plain;
+      return {
+        name: settings.name,
+        brandColor: settings.brandColor,
+        logoSrc: settings.logoVersion && workspaceLogoSrc(settings.logoVersion),
+      };
+    } catch (error) {
+      console.error(`squint account: workspace identity read failed (${describeError(error)})`);
+      return plain;
+    }
+  },
+);
 
 /**
  * The workspace settings page: the settings of the signed-in user's
