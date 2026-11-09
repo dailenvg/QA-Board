@@ -41,10 +41,19 @@ export interface SenderNames {
 }
 
 /**
- * `"{from_email_name ?? workspace name} via Squint" <address>`, with the
- * address from `EMAIL_FROM`; plain `"Squint" <address>` when neither name has
- * anything left once cleaned. The name is quoted, so commas and other
- * punctuation in it stay part of the name. Null without a usable address.
+ * The name a workspace's emails come from: "{from_email_name ?? workspace
+ * name} via Squint", or plain "Squint" when neither name has anything left
+ * once cleaned. The workspace settings preview it as typed.
+ */
+export function senderDisplayName(names: SenderNames): string {
+  const sender = cleanSenderName(names.fromEmailName) || cleanSenderName(names.workspaceName);
+  return sender ? `${sender} via ${FALLBACK_SENDER}` : FALLBACK_SENDER;
+}
+
+/**
+ * `"{senderDisplayName}" <address>`, with the address from `EMAIL_FROM`. The
+ * name is quoted, so commas and other punctuation in it stay part of the
+ * name. Null without a usable address.
  */
 export function workspaceFromHeader(
   names: SenderNames,
@@ -52,7 +61,5 @@ export function workspaceFromHeader(
 ): string | null {
   const address = parseFromAddress(emailFrom);
   if (!address) return null;
-  const sender = cleanSenderName(names.fromEmailName) || cleanSenderName(names.workspaceName);
-  const display = sender ? `${sender} via ${FALLBACK_SENDER}` : FALLBACK_SENDER;
-  return `"${display}" <${address}>`;
+  return `"${senderDisplayName(names)}" <${address}>`;
 }

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  brandColorContrast,
   COMMENTER_PALETTE,
   commenterColor,
   FOLDER_COLOR_COUNT,
@@ -10,6 +11,7 @@ import {
   NATIVE_PET_PALETTE,
   NAVY,
   PAPER,
+  readableInk,
   RESOLVED_GREEN,
 } from "./brand-palette";
 import { contrast } from "./color";
@@ -192,5 +194,32 @@ describe("resolved pin tokens", () => {
 
   it("numbers resolved pins in navy", () => {
     expect(token("on-resolved-pin")).toBe(NAVY.toLowerCase());
+  });
+});
+
+describe("brandColorContrast", () => {
+  it("measures a brand color against white and the light panel, at 3:1", () => {
+    const [white, panel] = brandColorContrast("#1157ce");
+    expect(white).toMatchObject({ id: "white", passes: true });
+    expect(white?.ratio).toBeCloseTo(contrast("#1157ce", "#ffffff"));
+    expect(panel).toMatchObject({ id: "panel", passes: true });
+    expect(panel?.ratio).toBeCloseTo(contrast("#1157ce", "#f4f4f5"));
+  });
+
+  it("fails a color too light to stand out, on either surface", () => {
+    // The Daily's lime: about 1.1:1 on white.
+    expect(brandColorContrast("#e1fd73").every((surface) => !surface.passes)).toBe(true);
+    // Passes on white (3.1:1) but not on the darker panel (2.8:1).
+    const [white, panel] = brandColorContrast("#929292");
+    expect(white?.passes).toBe(true);
+    expect(panel?.passes).toBe(false);
+  });
+});
+
+describe("readableInk", () => {
+  it("picks navy on light colors and paper on dark ones", () => {
+    expect(readableInk("#e1fd73").ink).toBe(NAVY);
+    expect(readableInk("#012d61").ink).toBe(PAPER);
+    expect(readableInk("#1157ce").contrast).toBeCloseTo(contrast("#1157ce", PAPER));
   });
 });

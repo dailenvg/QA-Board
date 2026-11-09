@@ -17,7 +17,7 @@ test.describe("signed out", () => {
     await expect(page.getByText(E2E_COMPANY.email)).toBeVisible();
 
     await page.goto("/");
-    await expect(page.getByTestId("sign-out")).toBeVisible();
+    await expect(page.getByTestId("account-menu")).toBeVisible();
   });
 
   test("Squiggy says welcome back on the Overview after signing in", async ({ page }) => {
@@ -181,13 +181,16 @@ test.describe("signed out", () => {
   test("signing out ends the session and protects the dashboard again", async ({ page }) => {
     await page.goto("/login");
     await signIn(page, E2E_COMPANY);
-    await expect(page.getByTestId("sign-out")).toBeVisible();
+    await expect(page.getByTestId("account-menu")).toBeVisible();
     const cookie = (await page.context().cookies()).find(
       (entry) => entry.name === "squint_session",
     );
     expect(cookie).toMatchObject({ httpOnly: true, sameSite: "Lax" });
 
-    await page.getByTestId("sign-out").click();
+    await page.getByTestId("account-menu").click();
+    const signOut = page.getByTestId("sign-out");
+    await expect(signOut).toHaveAttribute("role", "menuitem");
+    await signOut.click();
     await expect(page).toHaveURL(/\/login$/);
     // The old cookie, replayed, no longer opens anything.
     if (cookie) await page.context().addCookies([cookie]);

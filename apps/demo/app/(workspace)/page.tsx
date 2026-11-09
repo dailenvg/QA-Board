@@ -2,6 +2,8 @@ import type { Metadata, ResolvingMetadata } from "next";
 import { redirect } from "next/navigation";
 import { NoWorkspace } from "@/components/app-state/NoWorkspace";
 import { Overview } from "@/components/overview/Overview";
+import { WorkspaceHeader } from "@/components/overview/WorkspaceHeader";
+import { sessionWorkspaceIdentity } from "@/lib/account/session-settings";
 import { MAIN_PREVIEW, previewMetadata } from "@/lib/link-preview";
 import { folderHref } from "@/lib/routes";
 import { loadSessionWorkspace } from "@/lib/workspace/session-workspace";
@@ -44,6 +46,15 @@ export default async function OverviewPage({
   const target = legacyFolderRedirect(await searchParams);
   if (target) redirect(target);
   const session = await loadSessionWorkspace();
-  if (session.kind === "none") return <NoWorkspace email={session.user.email} />;
-  return <Overview />;
+  if (session.kind === "none")
+    return <NoWorkspace email={session.user.email} name={session.user.name} />;
+  if (session.kind !== "ready") return <Overview />;
+  const { id, name } = session.start.data.workspace;
+  const identity = await sessionWorkspaceIdentity(id, name);
+  return (
+    <>
+      <WorkspaceHeader {...identity} />
+      <Overview />
+    </>
+  );
 }

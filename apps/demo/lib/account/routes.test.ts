@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type * as NextServer from "next/server";
 import type * as DatabaseModule from "@/lib/db/database";
-import { ACCOUNT_ENDPOINTS, callAccount } from "@/test/account-routes";
+import { ACCOUNT_ENDPOINTS, ACCOUNT_WRITE_ENDPOINTS, callAccount } from "@/test/account-routes";
 import { insertUser, PASSWORD } from "@/test/accounts-fixture";
 import { migratedPglite } from "@/test/pglite";
 import { createSession, readSession } from "../auth/sessions";
@@ -80,7 +80,7 @@ describe("every account route", () => {
     expect(unknown.status).toBe(401);
   });
 
-  it.each(ACCOUNT_ENDPOINTS)("$method $path refuses another site's Origin", async (route) => {
+  it.each(ACCOUNT_WRITE_ENDPOINTS)("$method $path refuses another site's Origin", async (route) => {
     const response = await callAccount(route.method, route.path, {
       cookie,
       headers: { origin: "https://evil.test" },
@@ -89,7 +89,7 @@ describe("every account route", () => {
     expect(await response.json()).toEqual({ error: "cross-site" });
   });
 
-  it.each(ACCOUNT_ENDPOINTS)("$method $path refuses a body that isn't JSON", async (route) => {
+  it.each(ACCOUNT_WRITE_ENDPOINTS)("$method $path refuses a form's body", async (route) => {
     for (const type of ["application/x-www-form-urlencoded", "text/plain", "multipart/form-data"]) {
       const response = await callAccount(route.method, route.path, {
         cookie,

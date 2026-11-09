@@ -1,13 +1,15 @@
 import type { HandleUploadBody } from "@vercel/blob/client";
-import type { ClientUploadDriver, UploadGrant } from "./blob-driver";
+import type { BlobWriter, ClientUploadDriver, UploadGrant } from "./blob-driver";
 
 /**
  * Vercel Blob, private (the store's access): reading a file needs the token,
  * so its URL alone shows nothing, and URLs never leave the server. Browsers
  * upload straight to the store with a short-lived client token for one fixed
- * pathname (no random suffix, no overwrite). The SDK loads only when used.
+ * pathname (no random suffix, no overwrite); a logo or avatar, which the
+ * server checks first, the server puts there itself, under the same rules.
+ * The SDK loads only when used.
  */
-export function vercelBlobDriver(token: string): ClientUploadDriver {
+export function vercelBlobDriver(token: string): ClientUploadDriver & BlobWriter {
   const sdk = () => import("@vercel/blob");
   return {
     kind: "vercel",
@@ -25,6 +27,17 @@ export function vercelBlobDriver(token: string): ClientUploadDriver {
       if (urls.length === 0) return;
       const { del } = await sdk();
       await del(urls, { token }).catch(() => undefined);
+    },
+    async put(pathname, bytes, contentType) {
+      const { put } = await sdk();
+      const stored = await put(pathname, Buffer.from(bytes), {
+        access: "private",
+        token,
+        contentType,
+        addRandomSuffix: false,
+        allowOverwrite: false,
+      });
+      return { kind: "vercel", url: stored.url };
     },
     async head(pathname) {
       const { BlobNotFoundError, head } = await sdk();

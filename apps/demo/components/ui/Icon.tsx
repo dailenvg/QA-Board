@@ -153,6 +153,7 @@ const ICONS = {
     ["path", { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" }],
     ["path", { d: "M12 7v6M9 10h6" }],
   ],
+  minus: [["path", { d: "M5 12h14" }]],
   monitor: [
     ["rect", { x: 2, y: 3, width: 20, height: 14, rx: 2 }],
     ["path", { d: "M8 21h8M12 17v4" }],
@@ -162,6 +163,11 @@ const ICONS = {
     ["circle", { cx: 5, cy: 12, r: 1 }],
     ["circle", { cx: 12, cy: 12, r: 1 }],
     ["circle", { cx: 19, cy: 12, r: 1 }],
+  ],
+  moreVertical: [
+    ["circle", { cx: 12, cy: 5, r: 1 }],
+    ["circle", { cx: 12, cy: 12, r: 1 }],
+    ["circle", { cx: 12, cy: 19, r: 1 }],
   ],
   pause: [
     ["rect", { x: 14, y: 4, width: 4, height: 16, rx: 1 }],

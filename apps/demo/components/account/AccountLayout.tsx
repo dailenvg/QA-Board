@@ -18,6 +18,7 @@ const GROUP = staggerGroup();
 /** The account settings: title and section nav, then the open section. */
 export function AccountLayout({ sections, children, aside = null }: AccountLayoutProps) {
   const variants = useRevealVariants();
+  const hasWorkspace = sections.some((section) => section.needsWorkspace);
   return (
     <motion.div
       variants={GROUP}
@@ -31,7 +32,11 @@ export function AccountLayout({ sections, children, aside = null }: AccountLayou
       >
         <div className="flex flex-col gap-1 px-2">
           <h1 className="text-display font-bold">Account</h1>
-          <p className="text-body text-muted">Your profile and how you sign in.</p>
+          <p className="text-body text-muted" data-testid="account-summary">
+            {hasWorkspace
+              ? "Your profile, how you sign in and your workspace."
+              : "Your profile and how you sign in."}
+          </p>
         </div>
         <AccountNav sections={sections} />
         {aside}

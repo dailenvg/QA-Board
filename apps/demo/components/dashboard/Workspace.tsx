@@ -34,16 +34,17 @@ import { WorkspaceContext, type Workspace as WorkspaceValue } from "./workspace-
 
 interface WorkspaceProps {
   children: ReactNode;
-  /** Who is signed in, and Sign out, for the foot of the sidebar. */
+  /** The profile card (who is signed in, their account menu), for the foot of the sidebar. */
   account?: ReactNode;
 }
 
 /**
  * Persistent shell for the Overview, folder and account pages: the sidebar stays
  * mounted across them (so its active indicator glides between items), and
- * search, New project and the folder dialogs live here so every page shares them.
- * Pages read the data through `useWorkspace()`, which is null while loading.
- * Render it inside `WorkspaceProvider`, which connects it to the server.
+ * search, New project and the folder dialogs live here so every page shares them
+ * (the account settings have neither search nor the toolbar). Pages read
+ * the data through `useWorkspace()`, which is null while loading. Render it
+ * inside `WorkspaceProvider`, which connects it to the server.
  */
 export function Workspace({ children, account }: WorkspaceProps) {
   const state = useSquint();
@@ -211,8 +212,10 @@ function WorkspaceShell({ data, account, children }: WorkspaceShellProps) {
    * One search, mounted in one place: the page's toolbar on wide screens; in the sidebar's
    * header when the sidebar stacks above the page (else it would sit below the whole sidebar).
    * Crossing `lg` remounts it; the query lives in `SearchQueryProvider`, so it carries over.
+   * None on the account settings, which aren't about projects or folders. It isn't mounted
+   * there, so the / and ⌘K shortcuts don't listen either.
    */
-  const search = workspace ? <WorkspaceSearch data={workspace.data} /> : null;
+  const search = workspace && !onAccount ? <WorkspaceSearch data={workspace.data} /> : null;
 
   return (
     <WorkspaceContext.Provider value={workspace}>
@@ -225,7 +228,6 @@ function WorkspaceShell({ data, account, children }: WorkspaceShellProps) {
             actionsFor={workspace.folderActions}
             activeId={routeFolderId ?? null}
             overviewActive={onOverview}
-            accountActive={onAccount}
             onNewProject={() => showNewProject({})}
             onNewFolder={() => showNewFolder({ parentId: null })}
             onNewFolderHere={newFolderHere}
@@ -234,16 +236,22 @@ function WorkspaceShell({ data, account, children }: WorkspaceShellProps) {
             account={account}
           />
         ) : (
-          <SidebarSkeleton />
+          <SidebarSkeleton search={!onAccount} />
         )}
         <main id="main" className="flex min-w-0 flex-1 flex-col gap-4 self-stretch">
-          <WorkspaceToolbar
-            search={wide ? search : null}
-            onNewProject={() => showNewProject({})}
-            onNewFolder={newFolderHere}
-            newFolderIn={hereFolder?.name ?? null}
-            createActions={!onAccount}
-          />
+          {/*
+            Not on the account settings: no search there, and the create actions would compete
+            with the page's own Save buttons ("here" means nothing there). The page opens on its
+            heading instead.
+          */}
+          {onAccount ? null : (
+            <WorkspaceToolbar
+              search={wide ? search : null}
+              onNewProject={() => showNewProject({})}
+              onNewFolder={newFolderHere}
+              newFolderIn={hereFolder?.name ?? null}
+            />
+          )}
           {children}
         </main>
       </div>

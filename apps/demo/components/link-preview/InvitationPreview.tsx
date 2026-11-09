@@ -1,4 +1,5 @@
 import { PAPER } from "@/lib/brand-palette";
+import { monogram } from "@/lib/monogram";
 import { PreviewFrame } from "./PreviewFrame";
 import { PreviewText } from "./PreviewText";
 import { SharedReviewArt } from "./SharedReviewArt";
@@ -9,13 +10,17 @@ interface InvitationPreviewProps {
   project: string;
   /** The company's brand color, for the logo frame and rule only; null keeps cobalt. */
   color: string | null;
-  /** The logo as a PNG, JPEG or GIF data URI; null shows the name alone. */
+  /** The logo as a PNG, JPEG or GIF data URI; null shows the company's monogram. */
   logoUri: string | null;
 }
 
 const COMPANY_MAX = 40;
 const PROJECT_MAX = 64;
 const LOGO_FRAME = 112;
+const LOGO_RADIUS = 32;
+const LOGO_BORDER = 4;
+/** The logo fills the frame inside its border, cropped to the frame's corners. */
+const LOGO_SIZE = LOGO_FRAME - 2 * LOGO_BORDER;
 
 /** At most `max` characters, ending in an ellipsis when cut. */
 function clip(text: string, max: number): string {
@@ -33,7 +38,37 @@ function projectSize(project: string): number {
   return 52;
 }
 
+/** The logo filling its frame (the file stays whole; only the card crops), on paper behind any transparency. */
 function CompanyLogo({ uri, accent }: { uri: string; accent: string }) {
+  return (
+    <div
+      style={{
+        width: LOGO_FRAME,
+        height: LOGO_FRAME,
+        display: "flex",
+        flexShrink: 0,
+        overflow: "hidden",
+        borderRadius: LOGO_RADIUS,
+        background: PAPER,
+        border: `${LOGO_BORDER}px solid ${accent}`,
+        boxShadow: `0 16px 32px -20px ${PREVIEW_COLORS.shadow}`,
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element -- ImageResponse draws plain <img> only. */}
+      <img
+        src={uri}
+        alt=""
+        width={LOGO_SIZE}
+        height={LOGO_SIZE}
+        style={{ objectFit: "cover", borderRadius: LOGO_RADIUS - LOGO_BORDER }}
+      />
+    </div>
+  );
+}
+
+/** The company's initials on its brand color (navy without one), in the logo's frame. */
+function CompanyMonogram({ company, color }: { company: string; color: string | null }) {
+  const tile = monogram(company, color);
   return (
     <div
       style={{
@@ -43,22 +78,24 @@ function CompanyLogo({ uri, accent }: { uri: string; accent: string }) {
         alignItems: "center",
         justifyContent: "center",
         flexShrink: 0,
-        padding: 12,
-        borderRadius: 32,
-        background: PAPER,
-        border: `4px solid ${accent}`,
+        borderRadius: LOGO_RADIUS,
+        background: tile.background,
+        color: tile.ink,
+        fontSize: 48,
+        fontWeight: 800,
+        letterSpacing: -1,
         boxShadow: `0 16px 32px -20px ${PREVIEW_COLORS.shadow}`,
       }}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element -- ImageResponse draws plain <img> only. */}
-      <img src={uri} alt="" width={80} height={80} style={{ objectFit: "contain" }} />
+      {tile.initials}
     </div>
   );
 }
 
 /**
  * A workspace's review link: the company (its logo when the card can draw
- * it), the invitation, and the project's name, with Squiggy beside them.
+ * it, its monogram otherwise), the invitation, and the project's name, with
+ * Squiggy beside them.
  */
 export function InvitationPreview({ company, project, color, logoUri }: InvitationPreviewProps) {
   const accent = color ?? PREVIEW_COLORS.accent;
@@ -67,15 +104,12 @@ export function InvitationPreview({ company, project, color, logoUri }: Invitati
   return (
     <PreviewFrame art={<SharedReviewArt />}>
       <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
-        {logoUri ? <CompanyLogo uri={logoUri} accent={accent} /> : null}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 16,
-            maxWidth: logoUri ? 480 : 620,
-          }}
-        >
+        {logoUri ? (
+          <CompanyLogo uri={logoUri} accent={accent} />
+        ) : (
+          <CompanyMonogram company={company} color={color} />
+        )}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 480 }}>
           <div
             style={{
               display: "flex",

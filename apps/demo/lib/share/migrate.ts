@@ -26,6 +26,8 @@ import workspaceBlobsInline from "../../migrations/025_workspace_blobs_inline.sq
 import projectsFolderOptional from "../../migrations/026_projects_folder_optional.sql";
 import emailChanges from "../../migrations/027_email_changes.sql";
 import usersNameLength from "../../migrations/028_users_name_length.sql";
+import userBlobs from "../../migrations/029_user_blobs.sql";
+import senderNameLength from "../../migrations/030_workspaces_sender_name_length.sql";
 
 /** The slice of `pg.Pool` the stores use (PGlite matches it in tests). */
 export interface Queryable {
@@ -62,6 +64,8 @@ export const MIGRATIONS: ReadonlyArray<{ id: string; sql: string }> = [
   { id: "026_projects_folder_optional", sql: projectsFolderOptional },
   { id: "027_email_changes", sql: emailChanges },
   { id: "028_users_name_length", sql: usersNameLength },
+  { id: "029_user_blobs", sql: userBlobs },
+  { id: "030_workspaces_sender_name_length", sql: senderNameLength },
 ];
 
 type Migration = (typeof MIGRATIONS)[number];

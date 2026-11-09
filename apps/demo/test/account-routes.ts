@@ -1,7 +1,10 @@
+import * as avatar from "@/app/api/account/avatar/route";
 import * as email from "@/app/api/account/email/route";
 import * as password from "@/app/api/account/password/route";
 import * as profile from "@/app/api/account/profile/route";
 import * as sessions from "@/app/api/account/sessions/route";
+import * as logo from "@/app/api/account/workspace/logo/route";
+import * as workspace from "@/app/api/account/workspace/route";
 
 type Handler = (request: Request) => Promise<Response>;
 
@@ -11,6 +14,9 @@ const ROUTES: Array<[string, Partial<Record<string, unknown>>]> = [
   ["/api/account/password", password],
   ["/api/account/email", email],
   ["/api/account/sessions", sessions],
+  ["/api/account/avatar", avatar],
+  ["/api/account/workspace", workspace],
+  ["/api/account/workspace/logo", logo],
 ];
 
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
@@ -24,16 +30,30 @@ export const ACCOUNT_ENDPOINTS: Array<{ method: string; path: string }> = ROUTES
     })),
 );
 
+/** The endpoints that change something: refused from another site, or with a form's body. */
+export const ACCOUNT_WRITE_ENDPOINTS = ACCOUNT_ENDPOINTS.filter(({ method }) => method !== "GET");
+
 export const ORIGIN = "http://localhost:3000";
 
 export interface AccountCallInit {
   cookie?: string;
-  /** JSON-encoded unless it's a string. */
+  /** JSON-encoded unless it's a string or bytes (sent as they are). None on a GET. */
   body?: unknown;
   headers?: Record<string, string>;
+  /** `?query` for the URL. */
+  search?: string;
 }
 
-/** Calls the handler for `method path` as Next.js would, from a same-site browser sending JSON. */
+function encodeBody(body: unknown): BodyInit {
+  if (typeof body === "string") return body;
+  if (body instanceof Uint8Array) return new Uint8Array(body);
+  return JSON.stringify(body);
+}
+
+/**
+ * Calls the handler for `method path` as Next.js would, from a same-site
+ * browser sending JSON (set `content-type` in `headers` for anything else).
+ */
 export function callAccount(
   method: string,
   path: string,
@@ -44,7 +64,7 @@ export function callAccount(
   if (!handler) throw new Error(`No route for ${method} ${path}`);
   const { body = {} } = init;
   return handler(
-    new Request(`${ORIGIN}${path}`, {
+    new Request(`${ORIGIN}${path}${init.search ?? ""}`, {
       method,
       headers: {
         host: "localhost:3000",
@@ -54,7 +74,7 @@ export function callAccount(
         ...(init.cookie ? { cookie: init.cookie } : {}),
         ...init.headers,
       },
-      body: typeof body === "string" ? body : JSON.stringify(body),
+      ...(method === "GET" ? {} : { body: encodeBody(body) }),
     }),
   );
 }

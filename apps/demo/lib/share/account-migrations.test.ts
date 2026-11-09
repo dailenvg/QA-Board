@@ -9,6 +9,8 @@ import { MIGRATIONS, migrate } from "./migrate";
 /** Every migration before 027: the schema production had when Milestone 2's guest pages shipped. */
 const UP_TO_026 = MIGRATIONS.slice(0, 26);
 const NEW = ["027_email_changes", "028_users_name_length"];
+/** Up to the last of `NEW`: later migrations have their own tests. */
+const UP_TO_028 = MIGRATIONS.slice(0, 26 + NEW.length);
 
 const closers: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -61,8 +63,8 @@ describe.each(databases)("migrations 027 and 028 (%s)", (_name, make) => {
     for (const [index, [name]] of cases.entries()) {
       ids.push(await insertUser(db, `legacy-${index}@acme.test`, name));
     }
-    expect(await migrate(db)).toEqual(NEW);
-    expect(await migrate(db)).toEqual([]);
+    expect(await migrate(db, UP_TO_028)).toEqual(NEW);
+    expect(await migrate(db, UP_TO_028)).toEqual([]);
     // Run again by hand: the UPDATE finds nothing left, and the guarded DO block skips.
     for (const migration of MIGRATIONS.filter((m) => NEW.includes(m.id))) {
       await db.query(migration.sql);

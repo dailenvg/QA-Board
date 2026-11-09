@@ -7,6 +7,8 @@ import { loginErrorMessage } from "../auth/auth-client";
 
 export type AccountError =
   | "wrong-password"
+  /** A workspace setting, from a member who doesn't own the workspace. */
+  | "owner-only"
   | "same-email"
   | "rate-limited"
   | "too-many-requests"
@@ -53,6 +55,10 @@ async function outcomeOf(response: Response | null): Promise<AccountOutcome> {
       return { ok: false, error: "invalid" };
     case 401:
       return { ok: false, error: "signed-out" };
+    case 403:
+      return (await errorCode(response)) === "owner-only"
+        ? { ok: false, error: "owner-only" }
+        : { ok: false, error: "failed" };
     case 422:
       return (await errorCode(response)) === "same-email"
         ? { ok: false, error: "same-email" }
@@ -73,6 +79,20 @@ async function outcomeOf(response: Response | null): Promise<AccountOutcome> {
 
 export async function saveDisplayName(name: string): Promise<AccountOutcome> {
   return outcomeOf(await send("PATCH", "/api/account/profile", { name }));
+}
+
+/** The workspace settings, as `workspaceSettingsSchema` takes them. */
+export interface WorkspaceSettingsValues {
+  name: string;
+  brandColor: string | null;
+  senderName: string | null;
+}
+
+/** Saves every workspace setting at once (the owner's only). */
+export async function saveWorkspaceSettings(
+  values: WorkspaceSettingsValues,
+): Promise<AccountOutcome> {
+  return outcomeOf(await send("PATCH", "/api/account/workspace", values));
 }
 
 /** On success this browser has a new session cookie; every other one is signed out. */
@@ -110,6 +130,8 @@ export function accountErrorMessage(error: AccountError, retryAfterSeconds = 0):
   switch (error) {
     case "wrong-password":
       return "That isn't your current password. Check it and try again.";
+    case "owner-only":
+      return "Only the workspace's owner can change its settings. Ask them to make the change.";
     case "same-email":
       return "That's already your email address.";
     case "rate-limited":
@@ -124,5 +146,98 @@ export function accountErrorMessage(error: AccountError, retryAfterSeconds = 0):
       return "Couldn't reach Squint. Check your connection and try again.";
     case "failed":
       return "Something went wrong on our side. Try again in a moment.";
+  }
+}
+
+/** Where each image goes: the user's avatar, or their workspace's logo. */
+const IMAGE_PATHS = {
+  avatar: "/api/account/avatar",
+  logo: "/api/account/workspace/logo",
+} as const;
+
+export type ImageTarget = keyof typeof IMAGE_PATHS;
+
+export type ImageError =
+  | "too-large"
+  | "wrong-kind"
+  | "wrong-size"
+  | "quota"
+  | "rate-limited"
+  | "owner-only"
+  | "signed-out"
+  | "offline"
+  | "failed";
+
+export type ImageOutcome =
+  | { ok: true; version: string | null }
+  | { ok: false; error: ImageError; retryAfterSeconds?: number };
+
+const IMAGE_REFUSALS: ReadonlySet<string> = new Set([
+  "too-large",
+  "wrong-kind",
+  "wrong-size",
+  "quota",
+  "owner-only",
+]);
+
+async function imageOutcomeOf(response: Response | null): Promise<ImageOutcome> {
+  if (!response) return { ok: false, error: "offline" };
+  if (response.ok) {
+    const body: unknown = await response.json().catch(() => null);
+    const version =
+      body && typeof body === "object" && "version" in body && typeof body.version === "string"
+        ? body.version
+        : null;
+    return { ok: true, version };
+  }
+  if (response.status === 401) return { ok: false, error: "signed-out" };
+  if (response.status === 429) {
+    const retry = Number(response.headers.get("retry-after")) || 60;
+    return { ok: false, error: "rate-limited", retryAfterSeconds: retry };
+  }
+  const code = await errorCode(response);
+  return code && IMAGE_REFUSALS.has(code)
+    ? { ok: false, error: code as ImageError }
+    : { ok: false, error: "failed" };
+}
+
+/** Uploads an image the browser prepared (`prepare-image.ts`); on success, its new `?v=`. */
+export async function uploadImage(target: ImageTarget, image: Blob): Promise<ImageOutcome> {
+  let response: Response | null;
+  try {
+    response = await fetch(IMAGE_PATHS[target], {
+      method: "PUT",
+      headers: { "content-type": image.type || "application/octet-stream" },
+      body: image,
+    });
+  } catch {
+    response = null;
+  }
+  return imageOutcomeOf(response);
+}
+
+export async function removeImage(target: ImageTarget): Promise<ImageOutcome> {
+  return imageOutcomeOf(await send("DELETE", IMAGE_PATHS[target], {}));
+}
+
+/** What an uploader says for a failed upload or removal. */
+export function imageErrorMessage(error: ImageError, retryAfterSeconds = 0): string {
+  switch (error) {
+    case "too-large":
+      return "That image is still over 1 MB once resized. Try a simpler one.";
+    case "wrong-kind":
+      return "That file isn't an image Squint can use. Use a PNG, JPG or WebP.";
+    case "wrong-size":
+      return "That image's size isn't one Squint can use. Try another.";
+    case "quota":
+      return "Your workspace is out of storage. Free some up, then try again.";
+    case "rate-limited":
+      return `You've uploaded a lot of images in the last minute. Try again in ${Math.max(1, retryAfterSeconds)} seconds.`;
+    case "owner-only":
+      return accountErrorMessage("owner-only");
+    case "signed-out":
+    case "offline":
+    case "failed":
+      return accountErrorMessage(error);
   }
 }

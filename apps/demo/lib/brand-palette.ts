@@ -149,7 +149,7 @@ export interface CommenterColor extends PaletteEntry {
 }
 
 /** Navy or paper, whichever reads better on `hex`, with its contrast ratio. */
-function numberInk(hex: string): { ink: string; contrast: number } {
+export function readableInk(hex: string): { ink: string; contrast: number } {
   const onNavy = contrast(hex, NAVY);
   const onPaper = contrast(hex, PAPER);
   return onNavy >= onPaper ? { ink: NAVY, contrast: onNavy } : { ink: PAPER, contrast: onPaper };
@@ -164,7 +164,7 @@ function numberInk(hex: string): { ink: string; contrast: number } {
 export const COMMENTER_PALETTE: readonly CommenterColor[] = NATIVE_PET_PALETTE.flatMap(
   (entry): CommenterColor[] => {
     if (COMMENTER_EXCLUDED.has(entry.id)) return [];
-    const { ink, contrast: ratio } = numberInk(entry.hex);
+    const { ink, contrast: ratio } = readableInk(entry.hex);
     if (ratio < MIN_NUMBER_CONTRAST) return [];
     return [{ ...entry, light: ink === NAVY, ink, contrast: ratio }];
   },
@@ -190,4 +190,32 @@ export function commenterColor(author: string): CommenterColor {
   const entry = COMMENTER_PALETTE[hash(key) % COMMENTER_PALETTE.length];
   if (!entry) throw new Error("The commenter palette is empty.");
   return entry;
+}
+
+/**
+ * The light theme's surfaces a company's brand color is drawn on or beside on
+ * its shared links: cards (white) and panels (`--card` and `--panel`). The
+ * dark theme lifts the color until it reads (`components/share/brand-accent.ts`).
+ */
+export const BRAND_SURFACES = [
+  { id: "white", label: "White", hex: "#ffffff" },
+  { id: "panel", label: "Light gray", hex: "#f4f4f5" },
+] as const;
+
+/** A brand color is a mark (a rule, a ring, a monogram tile): 3:1 on each surface (WCAG 1.4.11). */
+export const MIN_BRAND_CONTRAST = MIN_MARK_CONTRAST;
+
+export interface SurfaceContrast {
+  id: (typeof BRAND_SURFACES)[number]["id"];
+  label: string;
+  ratio: number;
+  passes: boolean;
+}
+
+/** How `hex` stands out on each of BRAND_SURFACES, and whether that's enough. */
+export function brandColorContrast(hex: string): SurfaceContrast[] {
+  return BRAND_SURFACES.map(({ id, label, hex: surface }) => {
+    const ratio = contrast(hex, surface);
+    return { id, label, ratio, passes: ratio >= MIN_BRAND_CONTRAST };
+  });
 }

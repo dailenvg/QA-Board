@@ -29,6 +29,18 @@ interface FolderTreeRowProps {
 /** Indent per level, in rem (12px, on the 4px grid): deep trees stay inside the sidebar's width. */
 const INDENT = 0.75;
 
+/**
+ * Hover and press for the row's chevron and menu button. On the active row a grey pill would
+ * punch a hole in the brand tint, so there they deepen the tint instead.
+ */
+const CONTROL_STATES = {
+  rest: "hover:bg-hover hover:text-ink active:bg-seg",
+  active: "hover:bg-brand-soft hover:text-brand-text active:bg-brand-soft",
+} as const;
+
+/** `Menu`'s ghost trigger, with the active row's brand-tinted hover and open state. */
+const ACTIVE_MENU_TRIGGER = `grid size-11 place-items-center rounded-pill text-muted transition-colors ${CONTROL_STATES.active} aria-expanded:bg-brand-soft aria-expanded:text-brand-text`;
+
 /** Shift+F10, or the context-menu key: the platform keys for "this item's menu". */
 function isMenuKey(event: KeyboardEvent): boolean {
   return (event.shiftKey && event.key === "F10") || event.key === "ContextMenu";
@@ -41,7 +53,10 @@ function isMenuKey(event: KeyboardEvent): boolean {
  * menu's trigger stay out of the Tab order, so the tree keeps one Tab stop;
  * from the keyboard, Shift+F10 or the context-menu key on the row opens the
  * menu, and focus comes back to the row. The active row shares the sidebar's
- * gliding indicator.
+ * gliding brand tint; its chevron, count and menu button keep their muted grey,
+ * which still reads at AA on the tint, and their hover deepens the tint. Ancestors
+ * of the active folder show only a brand folder icon, so the active row (tint,
+ * brand label, semibold) is the one that stands out.
  */
 export function FolderTreeRow({
   node,
@@ -119,7 +134,7 @@ export function FolderTreeRow({
         <motion.span
           layoutId="nav-indicator"
           transition={reduce ? instant : spring.snappy}
-          className="absolute inset-0 rounded-row bg-seg"
+          className="absolute inset-0 rounded-row bg-brand-soft"
         />
       ) : null}
       {hasChildren ? (
@@ -128,7 +143,9 @@ export function FolderTreeRow({
           onClick={onToggle}
           data-testid="folder-toggle"
           // Above the link, which reaches 12px under it.
-          className="relative z-10 grid size-11 shrink-0 cursor-pointer place-items-center rounded-pill text-muted transition-colors hover:bg-hover hover:text-ink active:bg-seg"
+          className={`relative z-10 grid size-11 shrink-0 cursor-pointer place-items-center rounded-pill text-muted transition-colors ${
+            active ? CONTROL_STATES.active : CONTROL_STATES.rest
+          }`}
         >
           <Icon
             name="chevronRight"
@@ -145,12 +162,11 @@ export function FolderTreeRow({
         scroll={false}
         tabIndex={-1}
         // -ml-3/pl-3: the hover fill gets the same inset as the right side without moving the icon.
-        className={`relative -ml-3 flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-row pl-3 pr-2 text-nav ${
+        // transition-colors: the label changes colour in step with the Overview row's (NavRow).
+        className={`relative -ml-3 flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-row pl-3 pr-2 text-nav transition-colors ${
           active
-            ? "font-semibold"
-            : onPath
-              ? "font-semibold text-ink"
-              : "font-medium text-ink-2 hover:bg-hover active:bg-seg"
+            ? "font-semibold text-brand-text"
+            : `font-medium hover:bg-hover active:bg-seg ${onPath ? "text-ink" : "text-ink-2"}`
         }`}
       >
         <Icon name="folder" className={`size-5 shrink-0 ${onPath ? "text-brand-text" : ""}`} />
@@ -174,6 +190,7 @@ export function FolderTreeRow({
         label={`Actions for ${folder.name}`}
         items={actions}
         triggerTabIndex={-1}
+        triggerClassName={active ? ACTIVE_MENU_TRIGGER : undefined}
         handle={menu}
         returnFocus={() => row.current}
         testId="folder-tree-menu"

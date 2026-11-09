@@ -1,10 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { currentPasswordError, displayNameError, isCurrentEmail } from "./field-rules";
+import {
+  brandColorError,
+  currentPasswordError,
+  displayNameError,
+  isCurrentEmail,
+  normalizeBrandColor,
+  normalizeSenderName,
+  senderNameError,
+  workspaceNameError,
+} from "./field-rules";
 import {
   emailChangeSchema,
   emailConfirmSchema,
   passwordChangeSchema,
   profileSchema,
+  workspaceSettingsSchema,
 } from "./schemas";
 
 const TOKEN = "A".repeat(43);
@@ -72,5 +82,80 @@ describe("account field rules (the forms' checks on blur)", () => {
   it("recognize the current address however it's typed", () => {
     expect(isCurrentEmail(" Ana@Acme.test ", "ana@acme.test")).toBe(true);
     expect(isCurrentEmail("bo@acme.test", "ana@acme.test")).toBe(false);
+  });
+});
+
+describe("workspace settings schema", () => {
+  const ok = { name: "ONE Agency", brandColor: "#1157ce", senderName: "ONE Creative" };
+
+  it("takes the name trimmed, the color lowercased and the sender name with spaces collapsed", () => {
+    expect(
+      workspaceSettingsSchema.parse({
+        name: "  ONE Agency ",
+        brandColor: "#1157CE",
+        senderName: "  ONE   Creative ",
+      }),
+    ).toEqual(ok);
+  });
+
+  it("takes null (or a blank sender name) for the defaults", () => {
+    expect(workspaceSettingsSchema.parse({ ...ok, brandColor: null, senderName: null })).toEqual({
+      ...ok,
+      brandColor: null,
+      senderName: null,
+    });
+    expect(workspaceSettingsSchema.parse({ ...ok, senderName: "   " }).senderName).toBeNull();
+  });
+
+  it("drops anything but its fields, such as a workspace id or slug", () => {
+    expect(workspaceSettingsSchema.parse({ ...ok, workspaceId: "other", slug: "x" })).toEqual(ok);
+  });
+
+  it("refuses a name outside 1 to 80 characters", () => {
+    for (const name of ["", "   ", "x".repeat(81), null]) {
+      expect(workspaceSettingsSchema.safeParse({ ...ok, name }).success, String(name)).toBe(false);
+    }
+  });
+
+  it("refuses a color that isn't #rrggbb, or that's too light to stand out on white", () => {
+    for (const brandColor of ["1157ce", "#15c", "#1157cg", "blue", "", "#e1fd73", "#ffffff"]) {
+      const parsed = workspaceSettingsSchema.safeParse({ ...ok, brandColor });
+      expect(parsed.success, brandColor).toBe(false);
+    }
+  });
+
+  it("refuses a sender name over 64 characters or with what a From header can't carry", () => {
+    for (const senderName of ["x".repeat(65), 'ONE "Creative"', "a@b.test", "<ONE>", "tick`"]) {
+      const parsed = workspaceSettingsSchema.safeParse({ ...ok, senderName });
+      expect(parsed.success, senderName).toBe(false);
+    }
+    expect(
+      workspaceSettingsSchema.safeParse({ ...ok, senderName: "Dailen's Studio" }).success,
+    ).toBe(true);
+  });
+});
+
+describe("workspace field rules", () => {
+  it("normalizes a typed color to lowercase #rrggbb, three digits or six, # or not", () => {
+    expect(normalizeBrandColor("#ABC")).toBe("#aabbcc");
+    expect(normalizeBrandColor(" 1157CE ")).toBe("#1157ce");
+    expect(normalizeBrandColor("#1157c")).toBeNull();
+    expect(normalizeBrandColor("")).toBeNull();
+  });
+
+  it("explains a color it can't use, and lets a blank one through", () => {
+    expect(brandColorError("")).toBeNull();
+    expect(brandColorError("#1157ce")).toBeNull();
+    expect(brandColorError("nope")).toMatch(/hex color/);
+    expect(brandColorError("#fafafa")).toMatch(/too light/);
+  });
+
+  it("explains a workspace name or sender name it can't use", () => {
+    expect(workspaceNameError(" ")).toMatch(/name/);
+    expect(workspaceNameError("x".repeat(81))).toMatch(/80/);
+    expect(senderNameError("")).toBeNull();
+    expect(senderNameError("x".repeat(65))).toMatch(/64/);
+    expect(senderNameError("Acme <ceo@acme.test>")).toMatch(/angle brackets/);
+    expect(normalizeSenderName("  Acme \n Studio ")).toBe("Acme Studio");
   });
 });

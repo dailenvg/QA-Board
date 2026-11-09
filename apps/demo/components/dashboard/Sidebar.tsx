@@ -1,7 +1,6 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ACCOUNT_HREF } from "@/lib/routes";
 import { useAttentionReporter } from "@/lib/squiggy/attention";
 import { Logo } from "../brand/Logo";
 import { Button } from "../ui/Button";
@@ -11,7 +10,6 @@ import { ThemeToggle } from "../ui/ThemeToggle";
 import type { Folder } from "@/lib/store/types";
 import type { MenuItem } from "../ui/Menu";
 import { FolderNav } from "./FolderNav";
-import { NavRow } from "./NavRow";
 
 interface SidebarProps {
   folders: readonly Folder[];
@@ -20,8 +18,6 @@ interface SidebarProps {
   actionsFor: (folder: Folder) => MenuItem[];
   activeId: string | null;
   overviewActive: boolean;
-  /** An account settings page is open. */
-  accountActive: boolean;
   onNewProject: () => void;
   /** A new top-level folder (the "+" by the Folders heading). */
   onNewFolder: () => void;
@@ -31,16 +27,17 @@ interface SidebarProps {
   newFolderIn?: string | null;
   /**
    * The workspace search, below `lg`: the sidebar comes first on stacked screens, so its header
-   * is the top right of the page there.
+   * is the top right of the page there. None on the account settings.
    */
   search?: ReactNode;
-  /** Who is signed in, and Sign out: at the foot of the panel. */
+  /** The profile card (who is signed in, their account menu): at the foot of the panel. */
   account?: ReactNode;
 }
 
 /**
- * Floating workspace panel: brand, navigation and appearance. Below `lg` it's the top of the
- * screen, so it carries the create actions too; wide screens have them in the page's toolbar.
+ * Floating workspace panel: brand, navigation and the profile. Below `lg` it's the top of the
+ * screen, so it carries the create actions and a theme toggle too; wide screens have the actions
+ * in the page's toolbar.
  */
 export function Sidebar({
   folders,
@@ -48,7 +45,6 @@ export function Sidebar({
   actionsFor,
   activeId,
   overviewActive,
-  accountActive,
   onNewProject,
   onNewFolder,
   onNewFolderHere,
@@ -116,17 +112,7 @@ export function Sidebar({
         onCreate={onNewFolder}
       />
 
-      <div className="mt-auto flex flex-col gap-2">
-        {/* The same indicator as the rows above, so it glides down here from a folder. */}
-        <nav aria-label="Account">
-          <NavRow href={ACCOUNT_HREF} icon="user" label="Account" active={accountActive} />
-        </nav>
-        <div className="hidden items-center justify-between gap-3 rounded-card bg-card p-4 lg:flex">
-          <span className="text-body font-medium">Appearance</span>
-          <ThemeToggle />
-        </div>
-        {account}
-      </div>
+      <div className="mt-auto flex flex-col">{account}</div>
     </aside>
   );
 }

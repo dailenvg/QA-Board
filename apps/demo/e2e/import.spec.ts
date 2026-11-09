@@ -292,7 +292,7 @@ test("Not now keeps the data and asks again on the next sign-in", async ({ page 
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await page.reload();
-  await expect(page.getByTestId("sign-out").or(page.getByRole("main")).first()).toBeVisible();
+  await expect(page.getByTestId("account-menu").or(page.getByRole("main")).first()).toBeVisible();
   await expect(page.getByTestId("import-dialog")).toHaveCount(0);
   expect((await localState(page)).images).toBe(FILES.length);
 

@@ -14,12 +14,26 @@ import type { SessionUser } from "./users";
  * request (React `cache`).
  */
 
+/**
+ * The session behind `token` and the database it was read from, or null
+ * without a token, a database or a live session. Without a token the database
+ * isn't touched: a signed-out page must not start a connect it won't wait for.
+ */
+async function sessionOf(
+  token: string | null | undefined,
+): Promise<{ db: Database; user: SessionUser } | null> {
+  if (!token) return null;
+  const pending = database();
+  if (!pending) return null;
+  const db = await pending;
+  const user = await readSession(db, token, Date.now());
+  return user && { db, user };
+}
+
 /** The signed-in user, or null (no cookie, unknown or expired session, no database). */
 export const getSession = cache(async (): Promise<SessionUser | null> => {
-  const token = (await cookies()).get(SESSION_COOKIE)?.value;
-  const db = database();
-  if (!token || !db) return null;
-  return readSession(await db, token, Date.now());
+  const session = await sessionOf((await cookies()).get(SESSION_COOKIE)?.value);
+  return session?.user ?? null;
 });
 
 /**
@@ -54,11 +68,8 @@ export type ApiAccount =
  * database it was read from; or the JSON 401 to answer with.
  */
 export async function apiAccount(request: Request): Promise<ApiAccount> {
-  const token = sessionTokenOf(request.headers.get("cookie"));
-  const pending = database();
-  const db = pending && (await pending);
-  const user = token && db ? await readSession(db, token, Date.now()) : null;
-  return db && user ? { ok: true, db, user } : { ok: false, response: unauthenticated() };
+  const session = await sessionOf(sessionTokenOf(request.headers.get("cookie")));
+  return session ? { ok: true, ...session } : { ok: false, response: unauthenticated() };
 }
 
 /** `apiAccount`'s user alone. */
@@ -83,11 +94,9 @@ export type ApiMember =
  * cookie from `request`, so it needs no request scope.
  */
 export async function apiMember(request: Request, workspaceId: string): Promise<ApiMember> {
-  const token = sessionTokenOf(request.headers.get("cookie"));
-  const pending = database();
-  const db = pending && (await pending);
-  const user = token && db ? await readSession(db, token, Date.now()) : null;
-  if (!db || !user) return { ok: false, response: unauthenticated() };
+  const session = await sessionOf(sessionTokenOf(request.headers.get("cookie")));
+  if (!session) return { ok: false, response: unauthenticated() };
+  const { db, user } = session;
   const membership = await findMembership(db, user.id, workspaceId);
   if (!membership) {
     return {
