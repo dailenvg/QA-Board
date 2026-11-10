@@ -19,10 +19,16 @@ export function FoldersSkeleton() {
         <Skeleton className="h-7 w-32" />
         <Skeleton className="h-6 w-48 rounded-pill" />
       </div>
-      {/* Matches OverviewFolders' sort row: the menu, then the order (icon-only on phones). */}
-      <div className="-mb-4 flex justify-center gap-2 px-4 sm:justify-end [@media(hover:none)]:pb-10">
-        <Skeleton className="h-11 w-44 rounded-pill" />
-        <Skeleton className="h-11 w-11 rounded-pill sm:w-36" />
+      {/*
+        Matches OverviewFolders' controls: the status filter, then sort's menu and order
+        (icon-only on phones) at the right, dropping below the filter on narrow screens.
+      */}
+      <div className="-mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 [@media(hover:none)]:pb-10">
+        <Skeleton className="h-13 w-84 max-w-full rounded-pill" />
+        <div className="ml-auto flex gap-2">
+          <Skeleton className="h-11 w-44 rounded-pill" />
+          <Skeleton className="h-11 w-11 rounded-pill sm:w-36" />
+        </div>
       </div>
       <div className={FOLDER_GRID}>
         {Array.from({ length: FOLDERS }, (_, index) => (

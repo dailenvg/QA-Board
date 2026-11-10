@@ -4,8 +4,18 @@ import { BENTO_GRID } from "./bento/bento-grid";
 import { TILE_SURFACE } from "./bento/tile-styles";
 import { HERO_MASCOT_SIZE } from "./OverviewHero";
 
-/** A tile's placeholder: its heading (icon square, title and subtitle, tag), then rows. */
-function TileSkeleton({ rows, className = "" }: { rows: number; className?: string }) {
+interface TileSkeletonProps {
+  rows: number;
+  /** The height of the tile's scene above its rows (a Tailwind `h-…` class), if it has one. */
+  scene?: string;
+  className?: string;
+}
+
+/**
+ * A tile's placeholder: its heading (icon square, title and subtitle, tag), its scene's room,
+ * then rows.
+ */
+function TileSkeleton({ rows, scene, className = "" }: TileSkeletonProps) {
   return (
     <div className={`${TILE_SURFACE} ${className}`}>
       <div className="flex items-center gap-3">
@@ -16,6 +26,7 @@ function TileSkeleton({ rows, className = "" }: { rows: number; className?: stri
         </div>
         <Skeleton className="h-6 w-16 rounded-pill" />
       </div>
+      {scene ? <Skeleton className={`${scene} w-full shrink-0`} /> : null}
       {Array.from({ length: rows }, (_, index) => (
         <div key={index} className="flex items-center gap-3">
           <Skeleton className="size-10 shrink-0 rounded-field" />
@@ -30,7 +41,7 @@ function TileSkeleton({ rows, className = "" }: { rows: number; className?: stri
  * Overview placeholder, on the bento's own grid (`BENTO_GRID`, fitting one
  * screen where the bento does): the hero across two columns, Comments waiting
  * two rows tall, the client news two columns wide from xl. The hero has the
- * tile's own padding and Squiggy's size, so it doesn't jump when the page
+ * tile's own padding and Squiggy's size (and its project page from md), so it doesn't jump when the page
  * arrives. Most workspaces have projects, so the bento is the likelier page;
  * an empty one swaps it for the welcome.
  */
@@ -53,12 +64,20 @@ export function OverviewSkeleton() {
           {/* Squiggy's line: SquiggySpeechLine reserves a 44px bubble. */}
           <Skeleton className="h-11 w-full max-w-md rounded-card" />
         </div>
+        {/* HeroScene's project page, from md. */}
+        <Skeleton className="ml-auto hidden aspect-[4/3] w-40 shrink-0 md:block" />
       </div>
-      <TileSkeleton rows={1} />
-      <TileSkeleton rows={4} className="md:row-span-2" />
-      <TileSkeleton rows={2} className="xl:col-span-2" />
-      <TileSkeleton rows={2} />
-      <TileSkeleton rows={1} />
+      {/* Status, waiting, clients, recent, busiest, each with its scene's room. */}
+      {/*
+        Status: no rows, just the ring beside its counts and pin row (112px, 96px where the
+        bento fits one screen). This tile sets the hero row's height there, so it matches
+        exactly: a taller placeholder would make the rows below jump up when the page arrives.
+      */}
+      <TileSkeleton rows={0} scene="h-28 bento-fit:h-24" />
+      <TileSkeleton rows={3} scene="h-16" className="md:row-span-2" />
+      <TileSkeleton rows={2} scene="h-24" className="xl:col-span-2" />
+      <TileSkeleton rows={2} scene="h-12" />
+      <TileSkeleton rows={1} scene="h-16" />
     </div>
   );
 }

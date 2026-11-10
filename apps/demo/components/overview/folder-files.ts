@@ -1,8 +1,33 @@
 import { projectsInside } from "@/lib/store/folders";
 import { summarize } from "@/lib/store/selectors";
-import type { Project, SquintData } from "@/lib/store/types";
+import type { Folder, Project, SquintData } from "@/lib/store/types";
 import { displayHost } from "@/lib/url";
+import type { StatusFilterValue } from "../dashboard/status-filter";
 import type { FolderFile } from "./glass-folder/GlassFolder";
+
+/**
+ * The projects in a folder and its subfolders with `status` ("all": every one), as a folder
+ * card counts them.
+ */
+export function projectsWithStatus(
+  data: SquintData,
+  folderId: string,
+  status: StatusFilterValue = "all",
+): Project[] {
+  const inside = projectsInside(data, folderId);
+  if (status === "all") return inside;
+  return inside.filter((project) => summarize(data, project).status === status);
+}
+
+/** Of `folders`, those holding a project with `status` anywhere inside; all of them for "all". */
+export function foldersWithStatus(
+  data: SquintData,
+  folders: readonly Folder[],
+  status: StatusFilterValue,
+): Folder[] {
+  if (status === "all") return [...folders];
+  return folders.filter((folder) => projectsWithStatus(data, folder.id, status).length > 0);
+}
 
 function toFile(data: SquintData, project: Project): FolderFile {
   const { source } = project;
@@ -21,11 +46,15 @@ function toFile(data: SquintData, project: Project): FolderFile {
 }
 
 /**
- * The projects in a folder and its subfolders as glass-folder files, newest first (by
- * creation, so edits don't reshuffle).
+ * The projects in a folder and its subfolders (with `status`, when filtered) as glass-folder
+ * files, newest first (by creation, so edits don't reshuffle).
  */
-export function folderFiles(data: SquintData, folderId: string): FolderFile[] {
-  return projectsInside(data, folderId)
+export function folderFiles(
+  data: SquintData,
+  folderId: string,
+  status: StatusFilterValue = "all",
+): FolderFile[] {
+  return projectsWithStatus(data, folderId, status)
     .sort((a, b) => b.createdAt - a.createdAt)
     .map((project) => toFile(data, project));
 }

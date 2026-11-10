@@ -2,7 +2,7 @@
 
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import type { PaletteEntry } from "@/lib/brand-palette";
 import { arrowNudge, cardLift } from "@/lib/motion";
 import type { BusiestFolder } from "@/lib/overview/activity";
@@ -11,6 +11,9 @@ import { Icon } from "../../ui/Icon";
 import { FolderMascot } from "../FolderMascot";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { GrowBar } from "./GrowBar";
+import { BusiestDrop } from "./scenes/BusiestDrop";
+import { SceneBox } from "./scenes/SceneBox";
+import { useScene } from "./scenes/use-scene";
 import { TileEmpty } from "./TileEmpty";
 import { TileHeading } from "./TileHeading";
 import { TILE_SURFACE } from "./tile-styles";
@@ -20,7 +23,7 @@ const MotionLink = motion.create(Link);
 
 /**
  * The mascot's width in the tile, smaller than on a folder card so the tile fits one screen:
- * at the fit threshold (1280×760) its row holds the whole card at 64px, not at 72.
+ * at the fit threshold (1280×784) its row holds the whole card at 64px, not at 72.
  */
 const MASCOT_SIZE = 64;
 
@@ -37,6 +40,8 @@ function shareLabel({ measure, percent }: BusiestFolder): string {
 
 interface BusiestTileProps {
   folder: BusiestFolder | null;
+  /** The folder's newest projects' thumbnails, dropping into its mascot. */
+  thumbs: readonly ReactNode[];
   /** The folder's colour, as its glass folder and mascot on Folders have it. */
   swatch: PaletteEntry | null;
 }
@@ -46,10 +51,12 @@ interface BusiestTileProps {
  * whole tile a link to it (named by what it shows): it lifts on hover or
  * focus and gives on press, its arrow nudges forward, and its Squiggy,
  * magnifier in hand, perks up and looks around, as on the folder's card.
- * A bar fills to the folder's share of the workspace's.
+ * A bar fills to the folder's share of the workspace's, as its projects pop
+ * up and drop into the mascot (again on hover or focus).
  */
-export function BusiestTile({ folder, swatch }: BusiestTileProps) {
+export function BusiestTile({ folder, swatch, thumbs }: BusiestTileProps) {
   const headingId = useId();
+  const [sceneRef, scene] = useScene();
   const reduce = useReducedMotion() ?? false;
   const [engaged, setEngaged] = useState(false);
   if (!folder) {
@@ -78,9 +85,15 @@ export function BusiestTile({ folder, swatch }: BusiestTileProps) {
       data-testid="tile-busiest"
       data-measure={folder.measure}
       data-count={folder.count}
-      onHoverStart={() => setEngaged(true)}
+      onHoverStart={() => {
+        setEngaged(true);
+        scene.replay();
+      }}
       onHoverEnd={() => setEngaged(false)}
-      onFocus={() => setEngaged(true)}
+      onFocus={() => {
+        setEngaged(true);
+        scene.replay();
+      }}
       onBlur={() => setEngaged(false)}
       {...motionProps}
       // active:bg-hover: a pressed state that stays with reduced motion, which drops the give.
@@ -92,7 +105,7 @@ export function BusiestTile({ folder, swatch }: BusiestTileProps) {
         title="Busiest folder"
         subtitle={folder.measure === "comments" ? "Most comments waiting" : "Most projects"}
         tag={
-          <TileTag tone={folder.measure === "comments" ? "comments" : "brand"}>
+          <TileTag>
             <AnimatedNumber value={folder.count} />{" "}
             {folder.measure === "comments" ? "open" : "inside"}
           </TileTag>
@@ -106,8 +119,11 @@ export function BusiestTile({ folder, swatch }: BusiestTileProps) {
           </span>
         </p>
         {swatch ? (
-          <span aria-hidden="true" className="-mr-1 -mb-1 shrink-0">
+          <span aria-hidden="true" className="relative -mr-1 -mb-1 shrink-0">
             <FolderMascot swatch={swatch} active={engaged && !reduce} size={MASCOT_SIZE} />
+            <SceneBox sceneRef={sceneRef} scene={scene} className="absolute! inset-0">
+              <BusiestDrop thumbs={thumbs} />
+            </SceneBox>
           </span>
         ) : null}
       </div>

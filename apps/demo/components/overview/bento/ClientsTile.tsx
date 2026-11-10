@@ -5,10 +5,13 @@ import { commenterColor, type CommenterColor } from "@/lib/brand-palette";
 import { LIST_ROWS, type ClientNews } from "@/lib/overview/activity";
 import type { Visit } from "@/lib/overview/last-seen";
 import { FOLDERS_HREF, projectHref } from "@/lib/routes";
+import { HIGHLIGHT_TAG } from "../../ui/highlight-tag";
 import { Skeleton } from "../../ui/Skeleton";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { MoreLink } from "./MoreLink";
-import { BOARD_PINS, PinBoard } from "./PinBoard";
+import { ClientsScene, SCENE_PINS } from "./scenes/ClientsScene";
+import { SceneBox } from "./scenes/SceneBox";
+import { useScene } from "./scenes/use-scene";
 import { TileEmpty } from "./TileEmpty";
 import { TileHeading } from "./TileHeading";
 import { TILE_LIST, TILE_LIST_BOX, TILE_SURFACE } from "./tile-styles";
@@ -47,11 +50,12 @@ function projectColor(projectName: string): CommenterColor {
 function boardPins(news: ClientNews): CommenterColor[] {
   return news.rows
     .flatMap((row) => Array.from({ length: row.count }, () => projectColor(row.projectName)))
-    .slice(0, BOARD_PINS);
+    .slice(0, SCENE_PINS);
 }
 
 /**
- * Client comments since the last look: their pins dropping onto a page, then
+ * Client comments since the last look: a client's cursor dropping their pins
+ * onto a page while Squiggy listens (again on hover or focus), then
  * each project with news, opening the project (which also brings in any still
  * waiting on its review link). Each project's dot matches its pins.
  */
@@ -60,11 +64,14 @@ export function ClientsTile({ news, visit, now, thumb }: ClientsTileProps) {
   const rows = news?.rows ?? [];
   const { ref, shown, more } = useFitRows(rows.length, LIST_ROWS.clients.natural);
   const pins = useMemo(() => (news ? boardPins(news) : []), [news]);
+  const [sceneRef, scene] = useScene();
   return (
     <section
       aria-labelledby={headingId}
       data-testid="tile-clients"
       data-count={news?.total}
+      onPointerEnter={scene.replay}
+      onFocus={scene.replay}
       className={`${TILE_SURFACE} @container`}
     >
       <TileHeading
@@ -74,7 +81,7 @@ export function ClientsTile({ news, visit, now, thumb }: ClientsTileProps) {
         subtitle={sinceLabel(visit)}
         tag={
           news ? (
-            <TileTag tone="brand">
+            <TileTag>
               <AnimatedNumber value={news.total} testId="tile-count" /> new
             </TileTag>
           ) : null
@@ -91,10 +98,20 @@ export function ClientsTile({ news, visit, now, thumb }: ClientsTileProps) {
           Comments clients leave on review links show up here.
         </TileEmpty>
       ) : (
-        <div className="grid min-h-0 flex-1 gap-4 @[24rem]:grid-cols-[minmax(0,9rem)_minmax(0,1fr)] @[36rem]:grid-cols-[minmax(0,13rem)_minmax(0,1fr)]">
-          <div className="h-24 @[24rem]:h-auto @[24rem]:min-h-28">
-            <PinBoard pins={pins} />
-          </div>
+        // Where the bento fits one screen the scene's column narrows, so its page (4:3) stays
+        // within the tile's height.
+        <div className="grid min-h-0 flex-1 gap-4 @[24rem]:grid-cols-[minmax(0,9rem)_minmax(0,1fr)] @[36rem]:grid-cols-[minmax(0,13rem)_minmax(0,1fr)] bento-fit:@[24rem]:grid-cols-[minmax(0,7rem)_minmax(0,1fr)] bento-fit:@[36rem]:grid-cols-[minmax(0,7rem)_minmax(0,1fr)]">
+          {/*
+            aspect-[4/3]: the stage's own shape, so the box holds its room before the scene draws
+            (on phones it would otherwise push the rows down as it's scrolled to).
+          */}
+          <SceneBox
+            sceneRef={sceneRef}
+            scene={scene}
+            className="mx-auto aspect-[4/3] w-32 self-start @[24rem]:mx-0 @[24rem]:w-full"
+          >
+            <ClientsScene pins={pins} still={scene.still} />
+          </SceneBox>
           <div className="flex min-w-0 flex-col gap-1 bento-fit:min-h-0">
             {news.waiting > 0 ? (
               <p
@@ -117,7 +134,7 @@ export function ClientsTile({ news, visit, now, thumb }: ClientsTileProps) {
                       <span className="min-w-0 truncate text-body font-semibold">
                         {row.projectName}
                       </span>
-                      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-pill bg-brand-soft px-2 py-0.5 text-label font-semibold text-brand-text tabular-nums">
+                      <span className={`${HIGHLIGHT_TAG} tabular-nums`}>
                         <span
                           aria-hidden="true"
                           style={{ "--dot": projectColor(row.projectName).hex } as CSSProperties}

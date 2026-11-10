@@ -11,6 +11,7 @@ import type { Workspace } from "../dashboard/workspace-context";
 import { FolderCard } from "./FolderCard";
 import { folderFiles, projectCountLabel } from "./folder-files";
 import { FOLDER_GRID } from "./folder-grid-classes";
+import type { StatusFilterValue } from "../dashboard/status-filter";
 
 const stagger = staggerGroup(0.08, 0.12);
 
@@ -20,6 +21,8 @@ interface FolderGridProps {
   folders: readonly Folder[];
   /** Id of the heading that names the grid. */
   labelledBy: string;
+  /** Only projects with this status go in each folder, and its count (Folders' filter). */
+  status?: StatusFilterValue;
 }
 
 /**
@@ -28,7 +31,7 @@ interface FolderGridProps {
  * (folderSwatches: its place in creation order among its siblings), so a new
  * sort order moves folders without recoloring them.
  */
-export function FolderGrid({ workspace, folders, labelledBy }: FolderGridProps) {
+export function FolderGrid({ workspace, folders, labelledBy, status = "all" }: FolderGridProps) {
   const { data } = workspace;
   const tone = useTheme();
   const swatches = useMemo(() => folderSwatches(workspace.folders), [workspace.folders]);
@@ -36,7 +39,7 @@ export function FolderGrid({ workspace, folders, labelledBy }: FolderGridProps) 
     () =>
       new Map(
         folders.map((folder) => {
-          const files = folderFiles(data, folder.id);
+          const files = folderFiles(data, folder.id, status);
           const meta = projectCountLabel(
             files.length,
             subtreeIds(data.folders, folder.id).size > 1,
@@ -44,7 +47,7 @@ export function FolderGrid({ workspace, folders, labelledBy }: FolderGridProps) 
           return [folder.id, { files, meta }];
         }),
       ),
-    [data, folders],
+    [data, folders, status],
   );
 
   return (

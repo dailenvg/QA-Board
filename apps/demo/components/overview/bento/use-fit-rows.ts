@@ -3,7 +3,7 @@ import { rowsThatFit } from "@/lib/overview/charts";
 import { useMediaQuery } from "@/lib/use-media-query";
 
 /** The `bento-fit` variant's query (globals.css): the bento fits one screen. */
-export const BENTO_FIT_QUERY = "(min-width: 80rem) and (min-height: 47.5rem)";
+export const BENTO_FIT_QUERY = "(min-width: 80rem) and (min-height: 49rem)";
 
 /** The "+N more" link's height in px (`MoreLink`, a 44px target). */
 const MORE_HEIGHT = 44;

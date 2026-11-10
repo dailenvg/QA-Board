@@ -2,6 +2,7 @@
 
 import { motion } from "motion/react";
 import { usePopVariants } from "@/lib/motion";
+import { HIGHLIGHT_TAG } from "../../ui/highlight-tag";
 
 /**
  * "New": came in since the last look at the Overview. On the highlighter, Squint's mark for
@@ -16,7 +17,7 @@ export function NewMark() {
       animate="visible"
       exit="exit"
       data-testid="new-mark"
-      className="shrink-0 rounded-pill bg-highlight px-2 py-0.5 text-label font-semibold text-on-highlight"
+      className={HIGHLIGHT_TAG}
     >
       New
     </motion.span>

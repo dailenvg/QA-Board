@@ -88,6 +88,17 @@ export function OverviewBento({ workspace, workspaceId }: OverviewBentoProps) {
     () => (busiest ? (folderSwatches(folders).get(busiest.id) ?? null) : null),
     [busiest, folders],
   );
+  const busiestThumbs = useMemo(
+    () =>
+      busiest
+        ? data.projects
+            .filter((project) => project.folderId === busiest.id)
+            .sort((a, b) => b.updatedAt - a.updatedAt)
+            .slice(0, 3)
+            .map((project) => thumb(project.id))
+        : [],
+    [busiest, data.projects, thumb],
+  );
   // Top-level folders, as Folders counts them: every project sits in one of them.
   const topLevel = childFolders(folders, null).length;
   const summary = `${plural(data.projects.length, "project")} in ${plural(topLevel, "folder")}.`;
@@ -95,7 +106,7 @@ export function OverviewBento({ workspace, workspaceId }: OverviewBentoProps) {
   return (
     <div data-testid="overview-bento" className={BENTO_GRID}>
       <BentoTile order={0} className="md:col-span-2">
-        <HeroTile summary={summary} />
+        <HeroTile summary={summary} {...totals} />
       </BentoTile>
       <BentoTile order={1}>
         <StatusTile {...totals} />
@@ -116,7 +127,7 @@ export function OverviewBento({ workspace, workspaceId }: OverviewBentoProps) {
         />
       </BentoTile>
       <BentoTile order={5}>
-        <BusiestTile folder={busiest} swatch={swatch} />
+        <BusiestTile folder={busiest} swatch={swatch} thumbs={busiestThumbs} />
       </BentoTile>
     </div>
   );

@@ -7,6 +7,9 @@ import { FOLDERS_HREF, projectHref } from "@/lib/routes";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { MoreLink } from "./MoreLink";
 import { NewMark } from "./NewMark";
+import { RecentFan } from "./scenes/RecentFan";
+import { SceneBox } from "./scenes/SceneBox";
+import { useScene } from "./scenes/use-scene";
 import { Sparkline } from "./Sparkline";
 import { TileEmpty } from "./TileEmpty";
 import { TileHeading } from "./TileHeading";
@@ -29,7 +32,8 @@ interface RecentTileProps {
 }
 
 /**
- * The week's updates as a bar per day, then the most recently updated
+ * The newest projects fanning out beside the week's updates as a bar per day,
+ * then the most recently updated
  * projects, newest first, each opening its project and marked New when it
  * changed since the last look.
  */
@@ -37,10 +41,13 @@ export function RecentTile({ projects, total, week, now, thumb }: RecentTileProp
   const headingId = useId();
   const { ref, shown, more } = useFitRows(projects.length, LIST_ROWS.recent.natural, total);
   const thisWeek = week.reduce((sum, count) => sum + count, 0);
+  const [sceneRef, scene] = useScene();
   return (
     <section
       aria-labelledby={headingId}
       data-testid="tile-recent"
+      onPointerEnter={scene.replay}
+      onFocus={scene.replay}
       className={`${TILE_SURFACE} @container`}
     >
       <TileHeading
@@ -49,7 +56,7 @@ export function RecentTile({ projects, total, week, now, thumb }: RecentTileProp
         title="Recently updated"
         subtitle="Last 7 days"
         tag={
-          <TileTag tone="ready" testId="recent-week">
+          <TileTag>
             <AnimatedNumber value={thisWeek} />
             {/*
               Narrow tiles (phones, lg's two columns, xl's three) show the number alone, so the
@@ -63,10 +70,21 @@ export function RecentTile({ projects, total, week, now, thumb }: RecentTileProp
         <TileEmpty title="No projects yet">Projects show up here as they change.</TileEmpty>
       ) : (
         <>
-          <Sparkline
-            days={week.length ? week : [0, 0, 0, 0, 0, 0, 0]}
-            label={`${thisWeek} ${thisWeek === 1 ? "project" : "projects"} updated in the last 7 days`}
-          />
+          <div className="flex shrink-0 items-end gap-3">
+            <SceneBox
+              sceneRef={sceneRef}
+              scene={scene}
+              className="h-12 w-24 shrink-0 bento-fit:h-8 bento-fit:w-18"
+            >
+              <RecentFan thumbs={projects.slice(0, 3).map((project) => thumb(project.id))} />
+            </SceneBox>
+            <div className="min-w-0 flex-1">
+              <Sparkline
+                days={week.length ? week : [0, 0, 0, 0, 0, 0, 0]}
+                label={`${thisWeek} ${thisWeek === 1 ? "project" : "projects"} updated in the last 7 days`}
+              />
+            </div>
+          </div>
           <div className={TILE_LIST_BOX}>
             <ol ref={ref} role="list" className={TILE_LIST}>
               {projects.slice(0, shown).map((project) => (

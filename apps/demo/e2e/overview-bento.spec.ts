@@ -249,43 +249,131 @@ test("an empty workspace keeps the welcome and its stories instead of the bento"
   await expect(page.getByTestId("overview-bento")).toHaveCount(0);
 });
 
-test("client comments land as pins, one per new comment, in their project's color", async ({
+/** Every tile with its illustrated scene. */
+const SCENE_TILES = ["status", "waiting", "clients", "recent", "busiest"] as const;
+
+test("each card has an illustrated scene, hidden from screen readers, that plays again on hover", async ({
   page,
   isMobile,
 }) => {
   await seedActivity(page);
   await openOverview(page);
-  const board = tile(page, "clients").getByTestId("pin-board");
-  await board.scrollIntoViewIfNeeded();
-  await expect(board).toHaveAttribute("data-pins", "2");
-  await expect(board.getByTestId("story-pin")).toHaveCount(2);
-  // A one-off entrance, not a loop: there's nothing to pause anywhere in the bento.
+  for (const name of SCENE_TILES) {
+    const scene = tile(page, name).getByTestId("tile-scene");
+    await scene.scrollIntoViewIfNeeded();
+    await expect(scene).toHaveAttribute("aria-hidden", "true");
+  }
+  await expect(page.getByTestId("overview-hero").getByTestId("tile-scene")).toHaveAttribute(
+    "aria-hidden",
+    "true",
+  );
+  // A client's cursor drops a pin per new comment; the waiting stack has a bubble per comment.
+  const clients = tile(page, "clients").getByTestId("tile-scene");
+  await expect(clients.getByTestId("story-pin")).toHaveCount(2);
+  await expect(tile(page, "waiting").getByTestId("scene-bubble")).toHaveCount(3);
+  // Three open, one resolved: of five pins, one checks off.
+  await expect(
+    tile(page, "status").locator('[data-testid="scene-pin"][data-resolved="true"]'),
+  ).toHaveCount(1);
+  // One-off entrances, never a loop: there's nothing to pause anywhere in the bento.
   await expect(page.getByRole("button", { name: "Pause animations" })).toHaveCount(0);
-  // Every row has its project's thumbnail and an arrow; on a pointer, hovering lifts the row.
+
+  // Every row has its project's thumbnail and an arrow; on a pointer, hovering lifts the row,
+  // and hovering a card plays its scene again (the pins drop anew).
   const row = tile(page, "recent").getByTestId("recent-row").first();
   await expect(row.locator("svg")).not.toHaveCount(0);
-  if (!isMobile) {
-    await row.hover();
-    await expect
-      .poll(() => row.evaluate((element) => getComputedStyle(element).transform))
-      .not.toBe("none");
+  if (isMobile) return;
+  await row.hover();
+  await expect
+    .poll(() => row.evaluate((element) => getComputedStyle(element).transform))
+    .not.toBe("none");
+  await expect(clients).toHaveAttribute("data-run", "0");
+  await page.mouse.move(0, 0);
+  // A replay waits for the play under way to end (each takes at most 0.8s).
+  await page.waitForTimeout(900);
+  await tile(page, "clients").hover({ position: { x: 20, y: 20 } });
+  await expect(clients).toHaveAttribute("data-run", "1");
+  await expect(clients.getByTestId("story-pin")).toHaveCount(2);
+});
+
+/** React's hydration failures (#418 text, #423 recovery, #425 text content) or warnings. */
+const HYDRATION = /#418|#423|#425|hydrat/i;
+
+/** Every page error and console error from here on, for checking after the page settles. */
+function collectErrors(page: Page): string[] {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  return errors;
+}
+
+/**
+ * Loads the Overview, then reloads it: no hydration error either time. The first load draws
+ * the client pins; on the reload they came in before the last visit, so there are none.
+ */
+async function expectCleanHydration(page: Page): Promise<void> {
+  const errors = collectErrors(page);
+  for (const [load, pins] of [
+    [() => openOverview(page), 2],
+    [() => page.reload(), 0],
+  ] as const) {
+    await load();
+    // Set by an effect after hydration (the last visit is read then): hydration is over.
+    await expect(tile(page, "clients")).toHaveAttribute("data-count", String(pins));
+    expect(errors.filter((text) => HYDRATION.test(text))).toEqual([]);
+    // A scene draws once it's scrolled to (on phones the tile is below the fold).
+    await tile(page, "clients").scrollIntoViewIfNeeded();
+    await expect(tile(page, "clients").getByTestId("story-pin")).toHaveCount(pins);
   }
+}
+
+test("the Overview hydrates without a mismatch", async ({ page }) => {
+  await seedActivity(page);
+  await expectCleanHydration(page);
 });
 
 test.describe("with reduced motion", () => {
   test.use({ reducedMotion: "reduce" });
+
+  test("the Overview still hydrates without a mismatch", async ({ page }) => {
+    // The server can't know the preference: scenes drawn at once must wait for hydration.
+    await seedActivity(page);
+    await expectCleanHydration(page);
+  });
 
   test("everything shows its final state at once", async ({ page }) => {
     await seedActivity(page);
     await openOverview(page);
     // No count-up: the numbers are already there.
     await expect(page.getByTestId("status-open")).toHaveText("3");
-    const board = tile(page, "clients").getByTestId("pin-board");
-    await expect(board.getByTestId("story-pin")).toHaveCount(2);
+    // Scenes are drawn at their last frame without waiting to be scrolled to.
+    await expect(tile(page, "clients").getByTestId("story-pin")).toHaveCount(2);
+    await expect(
+      tile(page, "status").locator('[data-testid="scene-pin"][data-resolved="true"]'),
+    ).toHaveCount(1);
+    await expect(tile(page, "recent").getByTestId("scene-card")).toHaveCount(3);
     const bars = tile(page, "recent").getByTestId("sparkline").locator("[data-count]");
     await expect(bars).toHaveCount(7);
     await expect(page.getByRole("button", { name: "Pause animations" })).toHaveCount(0);
   });
+});
+
+test("every count tag wears the file-type tag's lime", async ({ page }) => {
+  await seedActivity(page);
+  await page.goto(`/f/${DEFAULT_FOLDER.id}`);
+  const typeTag = page.getByTestId("project-type-tag").first();
+  const style = (locator: Locator) =>
+    locator.evaluate((element) => {
+      const { backgroundColor, color, height, borderRadius } = getComputedStyle(element);
+      return { backgroundColor, color, height, borderRadius };
+    });
+  const expected = await style(typeTag);
+  await openOverview(page);
+  const tags = page.getByTestId("overview-bento").getByTestId("tile-tag");
+  await expect(tags).toHaveCount(5);
+  for (const tag of await tags.all()) expect(await style(tag)).toEqual(expected);
 });
 
 /**
@@ -323,6 +411,21 @@ async function expectFitsOneScreen(page: Page, height: number) {
   }
   // Only whole rows, and "+N more" whole or not at all (polled: lists settle once measured).
   await expect.poll(() => cutOffInLists(page)).toEqual([]);
+  // Each scene fits inside its card.
+  const scenes = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-testid="tile-scene"]')].flatMap((scene) => {
+      const card = scene.closest("section, a")?.getBoundingClientRect();
+      const own = scene.getBoundingClientRect();
+      if (!card || own.height === 0) return [];
+      const inside =
+        own.top >= card.top - 1 &&
+        own.bottom <= card.bottom + 1 &&
+        own.left >= card.left - 1 &&
+        own.right <= card.right + 1;
+      return inside ? [] : [scene.closest("section, a")?.getAttribute("data-testid")];
+    }),
+  );
+  expect(scenes).toEqual([]);
 }
 
 test.describe("on a wide window tall enough for it", () => {

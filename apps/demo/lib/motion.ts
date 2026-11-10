@@ -79,6 +79,13 @@ export const arrowNudge: Variants = {
 /** Seconds a number takes to count up to its value, or a bar to grow to its length. */
 export const tally = 0.8;
 
+/**
+ * Illustrated scenes in cards (the Overview's bento): each plays once as it comes on screen,
+ * and again on hover or focus, all within `tally`. Their pieces enter `sceneStep` apart, each
+ * taking `duration.component`, so a scene of up to six pieces ends in time.
+ */
+export const sceneStep = 0.08;
+
 /** How far, in px, content rises as it reveals (`fadeUp`). */
 export const rise = 16;
 

@@ -9,6 +9,9 @@ import { Highlight } from "../../ui/Highlight";
 import { HERO_MASCOT_SIZE } from "../OverviewHero";
 import { SquiggySpeechLine } from "../SquiggySpeechLine";
 import { StoryGlow } from "../welcome/StoryGlow";
+import { HeroScene } from "./scenes/HeroScene";
+import { SceneBox } from "./scenes/SceneBox";
+import { useScene } from "./scenes/use-scene";
 import { TILE_SURFACE } from "./tile-styles";
 
 const stagger = staggerGroup(0.07, 0.1);
@@ -16,23 +19,29 @@ const stagger = staggerGroup(0.07, 0.1);
 interface HeroTileProps {
   /** What the workspace holds, in a line, for when Squiggy has nothing specific to say. */
   summary: string;
+  /** The workspace's comments, for the pins on the project page beside Squiggy. */
+  open: number;
+  resolved: number;
 }
 
 /**
  * The bento's lead tile: Squiggy, whose mood follows the workspace
  * (`useSquiggyMood`), the page's headline, and Squiggy's line about the
  * workspace (comments waiting, all resolved, or what just happened), else a
- * line saying what it holds.
+ * line saying what it holds. From md, a project page beside them carries the
+ * workspace's pins (open and resolved), dropping in as the tile arrives and
+ * again on hover or focus.
  *
  * Squiggy holds each mood's pose rather than looping it (WCAG 2.2.2): the
  * Overview is read beside it, and the bento only offers Pause beside the client
  * story, which isn't always there. Mood changes, blinks, its gaze, hover and
  * pokes still animate, as with the other mascots that sit beside content.
  */
-export function HeroTile({ summary }: HeroTileProps) {
+export function HeroTile({ summary, open, resolved }: HeroTileProps) {
   const reveal = useRevealVariants();
   const squiggy = useSquiggyMood();
   const headingId = useId();
+  const [sceneRef, scene] = useScene();
   return (
     <motion.section
       variants={stagger}
@@ -40,6 +49,8 @@ export function HeroTile({ summary }: HeroTileProps) {
       animate="visible"
       aria-labelledby={headingId}
       data-testid="overview-hero"
+      onPointerEnter={scene.replay}
+      onFocus={scene.replay}
       // Where the bento fits one screen, a smaller Squiggy leaves the rows below their room.
       className={`${TILE_SURFACE} relative isolate justify-center overflow-hidden [--hero-mascot:var(--hero-mascot-size)] sm:flex-row sm:items-center sm:gap-8 bento-fit:[--hero-mascot:6rem]`}
       style={{ "--hero-mascot-size": HERO_MASCOT_SIZE } as CSSProperties}
@@ -71,6 +82,14 @@ export function HeroTile({ summary }: HeroTileProps) {
           <SquiggySpeechLine speech={squiggy.speech} fallback={summary} />
         </motion.div>
       </div>
+      {/* aspect-[4/3]: the stage's own shape, so the box holds its room before the scene draws. */}
+      <SceneBox
+        sceneRef={sceneRef}
+        scene={scene}
+        className="ml-auto hidden aspect-[4/3] w-40 shrink-0 md:block"
+      >
+        <HeroScene open={open} resolved={resolved} still={scene.still} />
+      </SceneBox>
     </motion.section>
   );
 }
