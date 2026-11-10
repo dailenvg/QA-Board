@@ -38,8 +38,9 @@ export async function e2eWorkspaceId(): Promise<string> {
 /**
  * Empties the workspace (folders, projects and everything in them, files,
  * share links), forgets the owner's comment name and photo and puts its brand
- * back to the seed's (name only, no logo, color or sender name), so each test
- * starts as a first visit did. Accounts and sessions stay.
+ * back to the seed's (name only, no logo, color or sender name) and its quota
+ * to the default, so each test starts as a first visit did. Accounts and
+ * sessions stay.
  */
 export async function resetWorkspace(): Promise<void> {
   await withClient(async (client) => {
@@ -50,7 +51,7 @@ export async function resetWorkspace(): Promise<void> {
     await client.query("UPDATE users SET name = NULL, avatar_blob_key = NULL");
     await client.query(
       `UPDATE workspaces SET name = $2, logo_blob_key = NULL, brand_color = NULL,
-         from_email_name = NULL WHERE slug = $1`,
+         from_email_name = NULL, storage_quota_bytes = DEFAULT WHERE slug = $1`,
       [E2E_COMPANY.slug, E2E_COMPANY.name],
     );
   });
@@ -100,6 +101,96 @@ export async function brandWorkspace({
       color,
     ]);
   });
+}
+
+/** A project `storeProjects` adds, with files of these kinds and sizes. */
+export interface StoredProject {
+  id: string;
+  name: string;
+  /** What a page project was made from; a website project without one. */
+  origin?: "image" | "pdf";
+  /** Archived or put in the trash at this time (ISO), as the app would have. */
+  archivedAt?: string;
+  trashedAt?: string;
+  files: Array<{ kind: "page" | "snapshot" | "crop"; size: number }>;
+}
+
+/**
+ * Adds projects holding files straight to the e2e workspace, in a folder of
+ * their own: a row per file at its real path, `size` as recorded (the bytes
+ * themselves are a placeholder), so the Storage page has something to weigh.
+ * An archived one is due to go 30 days after `archivedAt`, as archiving sets it.
+ */
+export async function storeProjects(projects: StoredProject[]): Promise<void> {
+  const workspaceId = await e2eWorkspaceId();
+  await withClient(async (client) => {
+    await client.query(
+      `INSERT INTO folders (workspace_id, id, parent_id, name) VALUES ($1, 'stored', NULL, 'Stored')
+       ON CONFLICT DO NOTHING`,
+      [workspaceId],
+    );
+    for (const project of projects) {
+      const source = project.origin
+        ? { kind: "pages", origin: project.origin, fileName: `${project.id}.${project.origin}` }
+        : { kind: "url", url: "https://example.com/" };
+      await client.query(
+        `INSERT INTO projects (id, workspace_id, folder_id, name, source, archived_at, delete_after,
+           deleted_at)
+         VALUES ($1, $2, 'stored', $3, $4, $5::timestamptz, $5::timestamptz + interval '30 days',
+           $6::timestamptz)`,
+        [
+          project.id,
+          workspaceId,
+          project.name,
+          JSON.stringify(source),
+          project.archivedAt ?? null,
+          project.trashedAt ?? null,
+        ],
+      );
+      await storeFiles(client, workspaceId, project.id, project.files);
+    }
+  });
+}
+
+async function storeFiles(
+  client: Client,
+  workspaceId: string,
+  projectId: string,
+  files: StoredProject["files"],
+) {
+  for (const [index, file] of files.entries()) {
+    await client.query(
+      `INSERT INTO workspace_blobs (workspace_id, key, project_id, content_type, size, bytes)
+       VALUES ($1, $2, $3, 'image/png', $4, $5)`,
+      [
+        workspaceId,
+        `ws/${workspaceId}/project/${projectId}/${file.kind}/f${index}`,
+        projectId,
+        file.size,
+        Buffer.from([0]),
+      ],
+    );
+  }
+}
+
+/** Adds files to a project the server made (one `shareWorkspaceProject` made, say). */
+export async function storeFilesFor(
+  projectId: string,
+  files: StoredProject["files"],
+): Promise<void> {
+  const workspaceId = await e2eWorkspaceId();
+  await withClient((client) => storeFiles(client, workspaceId, projectId, files));
+}
+
+/** Sets the e2e workspace's storage quota, until the next `resetWorkspace`. */
+export async function setStorageQuota(bytes: number): Promise<void> {
+  const workspaceId = await e2eWorkspaceId();
+  await withClient((client) =>
+    client.query("UPDATE workspaces SET storage_quota_bytes = $2 WHERE id = $1", [
+      workspaceId,
+      bytes,
+    ]),
+  );
 }
 
 /** Every account's id: none may reach a guest. */
