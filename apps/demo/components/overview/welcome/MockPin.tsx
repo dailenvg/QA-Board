@@ -10,6 +10,10 @@ interface MockPinProps {
   color: CommenterColor;
   /** Fills green with a check, as resolved pins do. */
   resolved?: boolean;
+  /** Its pin number (1 in the stories). */
+  number?: number;
+  /** Seconds before it drops, so several can land one after another. */
+  delay?: number;
 }
 
 const drop = {
@@ -25,10 +29,10 @@ const fill = {
 };
 
 /**
- * Pin 1, in the app's teardrop: its sharp corner is the parent's top-right
- * corner, where the comment points. Mount it to drop it in.
+ * A numbered pin (1 by default), in the app's teardrop: its sharp corner is
+ * the parent's top-right corner, where the comment points. Mount it to drop it in.
  */
-export function MockPin({ color, resolved = false }: MockPinProps) {
+export function MockPin({ color, resolved = false, number = 1, delay = 0 }: MockPinProps) {
   return (
     <motion.span
       data-testid="story-pin"
@@ -37,13 +41,13 @@ export function MockPin({ color, resolved = false }: MockPinProps) {
       className="absolute top-0 left-full z-10 block"
       style={{ translate: "0 -100%", originX: 0, originY: 1 }}
       {...drop}
-      transition={spring.jelly}
+      transition={{ ...spring.jelly, delay }}
     >
       <span
         style={{ "--pin": color.hex, "--pin-ink": color.ink } as CSSProperties}
         className="pin-marker relative grid size-6 place-items-center rounded-pin bg-(--pin) text-kbd font-bold text-(--pin-ink)"
       >
-        1
+        {number}
         <AnimatePresence initial={false}>
           {resolved && (
             <motion.span
@@ -53,7 +57,7 @@ export function MockPin({ color, resolved = false }: MockPinProps) {
               {...fill}
               transition={spring.snappy}
             >
-              1
+              {number}
               <span className="absolute -top-1.5 -right-1.5 grid size-3.5 place-items-center rounded-full bg-card text-resolved-text shadow-seg">
                 <Icon name="check" className="size-2.5" />
               </span>

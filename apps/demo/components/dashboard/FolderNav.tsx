@@ -73,7 +73,8 @@ export function FolderNav({
           aria-label="New folder"
           title="New folder"
           data-testid="new-folder"
-          className={SIDE_BUTTON}
+          // Below lg the sidebar's New folder button, beside New project, does this job.
+          className={`${SIDE_BUTTON} max-lg:hidden`}
         >
           <Icon name="folderPlus" className="size-5" />
         </button>
@@ -120,7 +121,7 @@ export function FolderNav({
                 />
               ) : (
                 <p data-testid="folder-tree-empty" className="py-2 pl-2 text-meta text-muted">
-                  No folders yet. Use New folder above.
+                  No folders yet. Use the folder-plus button above.
                 </p>
               )}
             </div>

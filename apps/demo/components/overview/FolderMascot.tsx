@@ -14,6 +14,8 @@ interface FolderMascotProps {
   swatch: PaletteEntry;
   /** While the folder is hovered or focused it perks up and looks around through the lens. */
   active: boolean;
+  /** Width in px; the folder's own key size by default. */
+  size?: number;
 }
 
 /**
@@ -21,7 +23,7 @@ interface FolderMascotProps {
  * At rest it holds fully still (no idle loop, no blinks), so a grid of folders
  * stays calm; it only comes alive on the folder being hovered or focused.
  */
-export function FolderMascot({ swatch, active }: FolderMascotProps) {
+export function FolderMascot({ swatch, active, size = SIZE }: FolderMascotProps) {
   return (
     <Squiggy
       mood={active ? "searching" : "idle"}
@@ -30,7 +32,7 @@ export function FolderMascot({ swatch, active }: FolderMascotProps) {
       followCursor={false}
       still={!active}
       blinks={active}
-      size={SIZE}
+      size={size}
       color={swatch.hex}
       eyeColor={swatch.ink}
       ink={swatch.ink}

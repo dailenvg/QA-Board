@@ -7,6 +7,7 @@ import {
   openFolder,
   openOverview,
   postComment,
+  openNewTopLevelFolder,
 } from "./squint-fixtures";
 
 /** Fills the New folder dialog (whatever opened it) and waits for the new folder's page. */
@@ -36,7 +37,7 @@ test("folders nest: Alpha > Beta > Gamma > Delta, with breadcrumbs, subfolders a
   page,
 }) => {
   await openFolder(page);
-  await page.getByTestId("new-folder").click();
+  await openNewTopLevelFolder(page);
   await nameNewFolder(page, "New folder", "Alpha");
   await newSubfolder(page, "Alpha", "Beta");
   // From the sidebar tree's menu too.
@@ -55,7 +56,7 @@ test("folders nest: Alpha > Beta > Gamma > Delta, with breadcrumbs, subfolders a
   // Deep: the middle folds behind "…", which unfolds in place.
   const crumbs = breadcrumb(page);
   await expect(crumbs.getByRole("listitem")).toHaveText([
-    "Overview",
+    "Folders",
     "Alpha",
     "…",
     "Gamma",
@@ -66,7 +67,7 @@ test("folders nest: Alpha > Beta > Gamma > Delta, with breadcrumbs, subfolders a
   await expect(crumbs.getByRole("link", { name: "Beta" })).toBeFocused();
   await crumbs.getByRole("link", { name: "Beta" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Beta");
-  await expect(breadcrumb(page).getByRole("listitem")).toHaveText(["Overview", "Alpha", "Beta"]);
+  await expect(breadcrumb(page).getByRole("listitem")).toHaveText(["Folders", "Alpha", "Beta"]);
 
   // A project deep inside counts for every folder above it.
   await treeItem(page, "Gamma").click();
@@ -93,10 +94,10 @@ test("folders nest: Alpha > Beta > Gamma > Delta, with breadcrumbs, subfolders a
 
 test("the sidebar tree works from the keyboard and remembers what's open", async ({ page }) => {
   await openFolder(page);
-  await page.getByTestId("new-folder").click();
+  await openNewTopLevelFolder(page);
   await nameNewFolder(page, "New folder", "Alpha");
   await newSubfolder(page, "Alpha", "Beta");
-  await page.getByTestId("new-folder").click();
+  await openNewTopLevelFolder(page);
   await nameNewFolder(page, "New folder", "Omega");
 
   const alpha = treeItem(page, "Alpha");
@@ -152,11 +153,11 @@ test("a folder moves under another folder, never into itself or its own subfolde
   page,
 }) => {
   await openFolder(page);
-  await page.getByTestId("new-folder").click();
+  await openNewTopLevelFolder(page);
   await nameNewFolder(page, "New folder", "Alpha");
   await newSubfolder(page, "Alpha", "Beta");
   await newSubfolder(page, "Beta", "Gamma");
-  await page.getByTestId("new-folder").click();
+  await openNewTopLevelFolder(page);
   await nameNewFolder(page, "New folder", "Omega");
   await treeItem(page, "Beta").click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Beta");
@@ -171,7 +172,7 @@ test("a folder moves under another folder, never into itself or its own subfolde
   await option("Omega").check();
   await dialog.getByTestId("move-folder-submit").click();
   await expect(page.getByTestId("toast")).toContainText("Moved Beta into Omega");
-  await expect(breadcrumb(page).getByRole("listitem")).toHaveText(["Overview", "Omega", "Beta"]);
+  await expect(breadcrumb(page).getByRole("listitem")).toHaveText(["Folders", "Omega", "Beta"]);
   await expect(treeItem(page, "Beta")).toHaveAttribute("aria-level", "2");
   await expect(treeItem(page, "Alpha")).not.toHaveAttribute("aria-expanded");
 
@@ -183,14 +184,14 @@ test("a folder moves under another folder, never into itself or its own subfolde
   await expect(option("Top level")).toBeDisabled();
   await option("Alpha").check();
   await dialog.getByTestId("move-folder-submit").click();
-  await expect(breadcrumb(page).getByRole("listitem")).toHaveText(["Overview", "Alpha", "Omega"]);
+  await expect(breadcrumb(page).getByRole("listitem")).toHaveText(["Folders", "Alpha", "Omega"]);
 });
 
 test("deleting a folder deletes everything inside it, counted first, and revokes its links", async ({
   page,
 }) => {
   await openFolder(page);
-  await page.getByTestId("new-folder").click();
+  await openNewTopLevelFolder(page);
   await nameNewFolder(page, "New folder", "Alpha");
   await createImageProject(page, "top.png");
   await page.getByRole("link", { name: "Back to Alpha" }).click();
@@ -246,7 +247,7 @@ test("Move folder fits a phone with a long folder name, its reasons in full, and
   await page.setViewportSize({ width: 375, height: 812 });
   const long = "Quarterly campaign assets for the spring product launch and partner events";
   await openFolder(page);
-  await page.getByTestId("new-folder").click();
+  await openNewTopLevelFolder(page);
   await nameNewFolder(page, "New folder", long);
   await newSubfolder(page, long, "Beta");
 
@@ -304,5 +305,5 @@ test("New folder beside New project makes one where you are: top level, then ins
   await nameNewFolder(page, "New folder", "Alpha");
   await newFolder.click();
   await nameNewFolder(page, "New folder in Alpha", "Beta");
-  await expect(breadcrumb(page).getByRole("listitem")).toHaveText(["Overview", "Alpha", "Beta"]);
+  await expect(breadcrumb(page).getByRole("listitem")).toHaveText(["Folders", "Alpha", "Beta"]);
 });

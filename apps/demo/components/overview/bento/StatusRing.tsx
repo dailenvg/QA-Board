@@ -1,8 +1,9 @@
 "use client";
 
 import { motion, useReducedMotion } from "motion/react";
-import { duration, ease } from "@/lib/motion";
+import { ease, tally } from "@/lib/motion";
 import { resolvedPercent } from "@/lib/overview/activity";
+import { AnimatedNumber } from "./AnimatedNumber";
 
 interface StatusRingProps {
   open: number;
@@ -24,7 +25,11 @@ export function StatusRing({ open, resolved }: StatusRingProps) {
   const total = open + resolved;
   const share = total === 0 ? 0 : resolved / total;
   return (
-    <span aria-hidden="true" className="relative grid size-28 shrink-0 place-items-center">
+    <span
+      aria-hidden="true"
+      // 80px where the bento fits one screen: this tile sets the hero row's height there.
+      className="relative grid size-28 shrink-0 place-items-center bento-fit:size-20"
+    >
       <svg viewBox="0 0 100 100" className="absolute inset-0 size-full -rotate-90">
         <circle
           cx="50"
@@ -46,12 +51,12 @@ export function StatusRing({ open, resolved }: StatusRingProps) {
             initial={{ pathLength: reduce ? share : 0 }}
             whileInView={{ pathLength: share }}
             viewport={{ once: true }}
-            transition={{ duration: duration.page, ease: ease.out }}
+            transition={{ duration: tally, ease: ease.out }}
           />
         ) : null}
       </svg>
-      <span className="text-title font-bold tabular-nums">
-        {resolvedPercent({ open, resolved })}%
+      <span className="text-title font-bold">
+        <AnimatedNumber value={resolvedPercent({ open, resolved })} />%
       </span>
     </span>
   );

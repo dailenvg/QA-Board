@@ -1,3 +1,4 @@
+import { Logo } from "../brand/Logo";
 import { Skeleton } from "../ui/Skeleton";
 
 interface SidebarSkeletonProps {
@@ -14,9 +15,14 @@ export function SidebarSkeleton({ search = true, tree = false }: SidebarSkeleton
       aria-hidden="true"
       className="flex flex-col gap-5 rounded-panel bg-panel p-4 lg:sticky lg:top-4 lg:h-[calc(100dvh-2rem)] lg:w-sidebar lg:shrink-0"
     >
-      {/* The header as it loads in: the brand panel, then below lg the search and theme toggle. */}
+      {/*
+        The header as it loads in: the brand panel itself (it needs no data; unlinked, as this
+        placeholder is hidden from assistive tech), then below lg the search and theme toggle.
+      */}
       <div className="flex min-h-11 items-center gap-2">
-        <Skeleton className="mr-auto h-14 w-44 rounded-card lg:mr-0 lg:h-18 lg:flex-1" />
+        <div className="mr-auto flex min-w-0 rounded-card bg-highlight py-1 pr-2 pl-1 lg:mr-0 lg:flex-1 lg:p-3">
+          <Logo caption="Visual review" size="large" tone="on-highlight" linked={false} />
+        </div>
         {search ? (
           <Skeleton className="size-11 rounded-pill sm:w-72 sm:rounded-field lg:hidden" />
         ) : null}

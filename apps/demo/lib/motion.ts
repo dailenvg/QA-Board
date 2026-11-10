@@ -50,6 +50,35 @@ export const hoverLift = {
   transition: spring.soft,
 } as const;
 
+/**
+ * Links inside cards (list rows, a whole-card link): a small lift on hover or
+ * keyboard focus, a give on press. Variant labels, so a trailing arrow can
+ * follow (`arrowNudge`). Use with `initial="rest" animate="rest"
+ * whileHover="hover" whileFocus="hover" whileTap="press"`.
+ */
+export const rowLift: Variants = {
+  rest: { y: 0, scale: 1, transition: spring.snappy },
+  hover: { y: -2, scale: 1, transition: spring.snappy },
+  press: { y: 0, scale: 0.98, transition: spring.snappy },
+};
+
+/** `hoverLift` as variant labels, for a whole-card link whose arrow follows (`arrowNudge`). */
+export const cardLift: Variants = {
+  rest: { y: 0, scale: 1, transition: spring.soft },
+  hover: { y: -4, scale: 1.02, transition: spring.soft },
+  press: { y: 0, scale: 0.98, transition: spring.soft },
+};
+
+/** A link's trailing arrow, nudged forward while its row is hovered, focused or pressed. */
+export const arrowNudge: Variants = {
+  rest: { x: 0, transition: spring.snappy },
+  hover: { x: 3, transition: spring.snappy },
+  press: { x: 3, transition: spring.snappy },
+};
+
+/** Seconds a number takes to count up to its value, or a bar to grow to its length. */
+export const tally = 0.8;
+
 /** How far, in px, content rises as it reveals (`fadeUp`). */
 export const rise = 16;
 

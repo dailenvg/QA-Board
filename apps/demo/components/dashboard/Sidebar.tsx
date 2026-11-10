@@ -66,8 +66,8 @@ export function Sidebar({
       {/*
         relative: a phone's open search field fills this row. While it does, what it covers is
         hidden (visibility), so Tab and screen readers can't reach controls under the field.
-        The brand sits on a soft brand panel: the whole row from lg, beside search and the theme
-        toggle below it.
+        The brand sits on the highlighter, Squint's own lime (the same in both themes): the whole
+        row from lg, beside search and the theme toggle below it.
       */}
       <div
         data-testid="sidebar-header"
@@ -76,9 +76,9 @@ export function Sidebar({
         <div
           data-search-covered=""
           data-testid="sidebar-brand"
-          className="mr-auto flex min-w-0 rounded-card bg-brand-soft py-1 pr-2 pl-1 lg:mr-0 lg:flex-1 lg:p-3"
+          className="mr-auto flex min-w-0 rounded-card bg-highlight py-1 pr-2 pl-1 lg:mr-0 lg:flex-1 lg:p-3"
         >
-          <Logo caption="Visual review" size="large" />
+          <Logo caption="Visual review" size="large" tone="on-highlight" />
         </div>
         {search}
         <div data-search-covered="" className="flex lg:hidden">

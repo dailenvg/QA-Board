@@ -11,12 +11,13 @@ import {
   openOverview,
   seedWorkspace,
   sheetLift,
+  openNewTopLevelFolder,
 } from "./squint-fixtures";
 import type { Project, ProjectSource, SquintData } from "../lib/store/types";
 import { WORKSPACE_SEED } from "./workspace-seed";
 
 function overviewLink(page: Page): Locator {
-  // The sidebar's: folder pages also have one in their breadcrumb.
+  // The sidebar's, not one in a page's content.
   return page
     .getByRole("complementary", { name: "Workspace" })
     .getByRole("link", { name: "Overview", exact: true });
@@ -39,7 +40,7 @@ async function addUrlProject(page: Page, url: string, name: string): Promise<voi
 }
 
 async function addFolder(page: Page, name: string): Promise<void> {
-  await page.getByTestId("new-folder").click();
+  await openNewTopLevelFolder(page);
   const dialog = page.getByRole("dialog", { name: "New folder" });
   await dialog.getByLabel("Folder name").fill(name);
   await dialog.getByRole("button", { name: "Create folder" }).click();
@@ -75,7 +76,7 @@ test("a first visit shows the welcome, with no folders: the first step is creati
   await expect(page.getByTestId("folder-tree-empty")).toHaveCount(0);
   await page.getByTestId("folders-toggle").click();
   await expect(page.getByTestId("folder-tree-empty")).toHaveText(
-    "No folders yet. Use New folder above.",
+    "No folders yet. Use the folder-plus button above.",
   );
 
   const action = page.getByTestId("overview-empty-action");

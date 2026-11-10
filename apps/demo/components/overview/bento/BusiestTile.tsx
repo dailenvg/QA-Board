@@ -1,41 +1,38 @@
 "use client";
 
-import { motion, useReducedMotion, type Variants } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useId, useState } from "react";
 import type { PaletteEntry } from "@/lib/brand-palette";
-import { duration, ease, hoverLift } from "@/lib/motion";
+import { arrowNudge, cardLift } from "@/lib/motion";
 import type { BusiestFolder } from "@/lib/overview/activity";
 import { folderHref } from "@/lib/routes";
 import { Icon } from "../../ui/Icon";
 import { FolderMascot } from "../FolderMascot";
+import { AnimatedNumber } from "./AnimatedNumber";
+import { GrowBar } from "./GrowBar";
 import { TileEmpty } from "./TileEmpty";
 import { TileHeading } from "./TileHeading";
 import { TILE_SURFACE } from "./tile-styles";
+import { TileTag } from "./TileTag";
 
 const MotionLink = motion.create(Link);
 
-function countLabel({ measure, count }: BusiestFolder): string {
-  return measure === "comments"
-    ? `${count} open ${count === 1 ? "comment" : "comments"}`
-    : `${count} ${count === 1 ? "project" : "projects"}`;
+/**
+ * The mascot's width in the tile, smaller than on a folder card so the tile fits one screen:
+ * at the fit threshold (1280×760) its row holds the whole card at 64px, not at 72.
+ */
+const MASCOT_SIZE = 64;
+
+function unit({ measure, count }: BusiestFolder): string {
+  if (measure === "comments") return count === 1 ? "open comment" : "open comments";
+  return count === 1 ? "project" : "projects";
 }
 
 function shareLabel({ measure, percent }: BusiestFolder): string {
   return measure === "comments"
     ? `${percent}% of all open comments`
     : `${percent}% of all projects`;
-}
-
-/**
- * The bar's fill grows to the folder's share once the track is on screen. The track
- * watches (the fill starts at no width, which nothing can see come into view).
- */
-function barVariants(share: number, reduce: boolean): Variants {
-  return {
-    hidden: { scaleX: reduce ? share : 0 },
-    visible: { scaleX: share, transition: { duration: duration.page, ease: ease.out } },
-  };
 }
 
 interface BusiestTileProps {
@@ -46,9 +43,10 @@ interface BusiestTileProps {
 
 /**
  * The folder with the most open comments (else the most projects), the
- * whole tile a link to it (named by what it shows), with a bar of its share
- * of the workspace's. Its Squiggy, magnifier in hand, perks up and looks
- * around while the tile is hovered or focused, as on the folder's card.
+ * whole tile a link to it (named by what it shows): it lifts on hover or
+ * focus and gives on press, its arrow nudges forward, and its Squiggy,
+ * magnifier in hand, perks up and looks around, as on the folder's card.
+ * A bar fills to the folder's share of the workspace's.
  */
 export function BusiestTile({ folder, swatch }: BusiestTileProps) {
   const headingId = useId();
@@ -57,15 +55,23 @@ export function BusiestTile({ folder, swatch }: BusiestTileProps) {
   if (!folder) {
     return (
       <section aria-labelledby={headingId} data-testid="tile-busiest" className={TILE_SURFACE}>
-        <TileHeading id={headingId} icon="folder" tone="brand">
-          Busiest folder
-        </TileHeading>
+        <TileHeading id={headingId} icon="folder" title="Busiest folder" />
         <TileEmpty title="No busy folders yet">
           The folder with the most going on shows up here.
         </TileEmpty>
       </section>
     );
   }
+  const motionProps = reduce
+    ? {}
+    : {
+        variants: cardLift,
+        initial: "rest",
+        animate: "rest",
+        whileHover: "hover",
+        whileFocus: "hover",
+        whileTap: "press",
+      };
   return (
     <MotionLink
       href={folderHref(folder.id)}
@@ -76,43 +82,41 @@ export function BusiestTile({ folder, swatch }: BusiestTileProps) {
       onHoverEnd={() => setEngaged(false)}
       onFocus={() => setEngaged(true)}
       onBlur={() => setEngaged(false)}
-      {...(reduce ? {} : hoverLift)}
-      // active:bg-hover: a pressed state that stays with reduced motion, which drops whileTap.
-      className={`${TILE_SURFACE} group ring-2 ring-transparent transition-shadow hover:shadow-float hover:ring-brand-text active:bg-hover`}
+      {...motionProps}
+      // active:bg-hover: a pressed state that stays with reduced motion, which drops the give.
+      className={`${TILE_SURFACE} ring-2 ring-transparent transition-shadow hover:shadow-float hover:ring-brand-text active:bg-hover`}
     >
-      <TileHeading id={headingId} icon="folder" tone="brand">
-        Busiest folder
-      </TileHeading>
-      {/* The mascot takes the room the list tiles beside it fill; the name keeps the full width. */}
-      <div className="-mt-2 -mb-4 flex flex-1 items-end justify-end">
+      <TileHeading
+        id={headingId}
+        icon="folder"
+        title="Busiest folder"
+        subtitle={folder.measure === "comments" ? "Most comments waiting" : "Most projects"}
+        tag={
+          <TileTag tone={folder.measure === "comments" ? "comments" : "brand"}>
+            <AnimatedNumber value={folder.count} />{" "}
+            {folder.measure === "comments" ? "open" : "inside"}
+          </TileTag>
+        }
+      />
+      <div className="flex min-h-0 flex-1 items-end gap-3">
+        <p className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-title font-bold">{folder.name}</span>
+          <span className="truncate text-body text-muted">
+            {folder.count} {unit(folder)}
+          </span>
+        </p>
         {swatch ? (
-          <span aria-hidden="true" className="-mr-2">
-            <FolderMascot swatch={swatch} active={engaged && !reduce} />
+          <span aria-hidden="true" className="-mr-1 -mb-1 shrink-0">
+            <FolderMascot swatch={swatch} active={engaged && !reduce} size={MASCOT_SIZE} />
           </span>
         ) : null}
       </div>
-      <p className="flex min-w-0 flex-col">
-        <span className="truncate text-title font-bold">{folder.name}</span>
-        <span className="text-body text-muted">{countLabel(folder)}</span>
-      </p>
-      <motion.span
-        aria-hidden="true"
-        className="block h-2 overflow-hidden rounded-pill bg-seg"
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true }}
-      >
-        <motion.span
-          className="block h-full origin-left rounded-pill bg-brand"
-          variants={barVariants(folder.share, reduce)}
-        />
-      </motion.span>
-      <span className="-mt-2 flex items-center justify-between gap-2 text-meta text-muted">
+      <GrowBar share={folder.share} fill="bg-brand" height="h-2" className="shrink-0" />
+      <span className="flex shrink-0 items-center justify-between gap-2 text-meta text-muted">
         {shareLabel(folder)}
-        <Icon
-          name="chevronRight"
-          className="size-4 transition-transform group-hover:translate-x-0.5"
-        />
+        <motion.span variants={reduce ? undefined : arrowNudge}>
+          <Icon name="chevronRight" className="size-4" />
+        </motion.span>
       </span>
     </MotionLink>
   );

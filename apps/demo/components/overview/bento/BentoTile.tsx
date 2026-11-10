@@ -39,7 +39,7 @@ export function BentoTile({ order, className = "", children }: BentoTileProps) {
       initial={reduce ? false : "hidden"}
       whileInView="visible"
       viewport={revealViewport}
-      className={`min-w-0 print:transform-none! print:opacity-100! ${className}`}
+      className={`min-w-0 bento-fit:min-h-0 print:transform-none! print:opacity-100! ${className}`}
     >
       {children}
     </motion.div>

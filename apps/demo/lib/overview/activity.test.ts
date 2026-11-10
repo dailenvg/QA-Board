@@ -167,7 +167,7 @@ describe("overview activity", () => {
           { projectId: "b", projectName: "Project b", count: 1, latestAt: 90 },
         ],
       });
-      expect(newFromClients(shared, [], 50, 1).rows).toHaveLength(1);
+      expect(newFromClients(shared, [], 50).rows).toHaveLength(2);
     });
 
     it("doesn't count waiting comments again once a pull has brought them in", () => {

@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+/* The Overview's bento fits one screen: wide (xl) and tall enough to hold every tile. */
+@custom-variant bento-fit (@media (width >= 80rem) and (height >= 47.5rem));
 
 /*
  * Squint: soft zinc neutrals, floating panels with large radii, one cobalt

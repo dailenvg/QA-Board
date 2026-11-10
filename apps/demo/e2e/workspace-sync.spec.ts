@@ -9,6 +9,7 @@ import {
   openOverview,
   samplePng,
   seedWorkspace,
+  openNewTopLevelFolder,
 } from "./squint-fixtures";
 import { WORKSPACE_SEED } from "./workspace-seed";
 
@@ -36,7 +37,7 @@ test("the workspace lives on the server: another tab and a reload see the same f
   // In the sidebar's tree: with no projects yet, Folders shows the welcome's guide instead of cards.
   await expect(other.getByText(DEFAULT_FOLDER.name).first()).toBeVisible();
 
-  await page.getByTestId("new-folder").first().click();
+  await openNewTopLevelFolder(page);
   const dialog = page.getByRole("dialog", { name: "New folder" });
   await dialog.getByLabel("Folder name").fill("From tab one");
   await dialog.getByRole("button", { name: "Create folder" }).click();
@@ -136,9 +137,14 @@ test("after the session ends, signing in again brings back a working workspace",
   await expect(page).toHaveURL(/\/f\/default/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(DEFAULT_FOLDER.name);
 
-  // Working again: a change saves, and a reload reads it back.
+  // Working again: a change saves, and a reload reads it back (once it's saved: a reload
+  // sent with the save still on its way can read the folder before it).
+  const saved = page.waitForResponse(
+    (response) => response.request().method() === "PATCH" && response.url().includes("/folders/"),
+  );
   await renameFolder(page, "Back again");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Back again");
+  expect((await saved).status()).toBe(200);
   await page.reload();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Back again");
   await context.close();

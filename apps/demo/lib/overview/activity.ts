@@ -9,8 +9,15 @@ import type { ClientCommentActivity } from "../workspace/types";
  * on a review link only count where the Overview talks about clients.
  */
 
-/** Rows each list tile shows at most. */
-export const LIST_ROWS = { waiting: 3, recent: 4, clients: 3 } as const;
+/**
+ * Rows each list tile can show: where the bento fits one screen, as many as
+ * fit; elsewhere `natural`. Past them, a "+N more" link stands for the rest.
+ */
+export const LIST_ROWS = {
+  waiting: { most: 6, natural: 3 },
+  recent: { most: 6, natural: 4 },
+  clients: { most: 6, natural: 3 },
+} as const;
 
 /** Whether something at `at` came after the last visit. Nothing is new until that's known. */
 export function isNewSince(at: number, since: number | null): boolean {
@@ -69,7 +76,10 @@ export interface WaitingComment {
 }
 
 /** The open comments that have waited longest, oldest first. */
-export function oldestOpen(data: SquintData, limit: number = LIST_ROWS.waiting): WaitingComment[] {
+export function oldestOpen(
+  data: SquintData,
+  limit: number = LIST_ROWS.waiting.most,
+): WaitingComment[] {
   const projects = projectsById(data);
   return placedComments(data)
     .filter((comment) => comment.status === "active")
@@ -101,7 +111,7 @@ export interface RecentProject {
 export function recentProjects(
   data: SquintData,
   since: number | null,
-  limit: number = LIST_ROWS.recent,
+  limit: number = LIST_ROWS.recent.most,
 ): RecentProject[] {
   const folders = new Map(data.folders.map((folder) => [folder.id, folder.name]));
   const open = new Map<string, number>();
@@ -135,7 +145,7 @@ export interface ClientNews {
   total: number;
   /** Of `total`, those still on review links: opening the project brings them in. */
   waiting: number;
-  /** Busiest first by newest comment, at most `limit`. */
+  /** Each project with news, the newest first (`rows.length` of them in all). */
   rows: ClientProjectNews[];
 }
 
@@ -149,7 +159,6 @@ export function newFromClients(
   data: SquintData,
   activity: readonly ClientCommentActivity[],
   since: number,
-  limit: number = LIST_ROWS.clients,
 ): ClientNews {
   const projects = projectsById(data);
   const news = new Map<string, ClientProjectNews>();
@@ -183,7 +192,7 @@ export function newFromClients(
   return {
     total: rows.reduce((sum, row) => sum + row.count, 0),
     waiting,
-    rows: rows.slice(0, limit),
+    rows,
   };
 }
 

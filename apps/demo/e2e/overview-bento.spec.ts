@@ -168,9 +168,9 @@ test("the bento counts comments, client news, recent projects and the busiest fo
   // A first visit: the last week's client comments, pulled and still on the review link.
   const clients = tile(page, "clients");
   await expect(clients).toHaveAttribute("data-count", "2");
-  await expect(clients).toContainText("in the last 7 days");
-  await expect(clients.getByTestId("clients-waiting")).toContainText(
-    "1 is still on its review link",
+  await expect(clients).toContainText("Last 7 days");
+  await expect(clients.getByTestId("clients-waiting")).toHaveText(
+    "1 comment is still on its review link. Open the project to bring it in.",
   );
   await expect(clients.getByTestId("client-row")).toHaveText([
     /^Shared site\s*1 new/,
@@ -187,7 +187,7 @@ test("the bento counts comments, client news, recent projects and the busiest fo
   await expect(busiest).toHaveAttribute("data-measure", "comments");
   await expect(busiest).toHaveAttribute("data-count", "2");
   await expect(busiest).toHaveAccessibleName(
-    /^Busiest folder\s*My projects\s*2 open comments\s*67% of all open comments$/,
+    /^Busiest folder.*My projects.*67% of all open comments$/,
   );
   await expect(busiest).toHaveAttribute("href", `/f/${DEFAULT_FOLDER.id}`);
 
@@ -205,7 +205,7 @@ test("what came in before the last visit isn't new any more", async ({ page }) =
   await page.reload();
   await expect(tile(page, "clients")).toHaveAttribute("data-count", "0");
   await expect(tile(page, "clients")).toContainText("No new client comments");
-  await expect(tile(page, "clients")).toContainText("since your last visit");
+  await expect(tile(page, "clients")).toContainText("Since last visit");
   await expect(tile(page, "recent").getByTestId("new-mark")).toHaveCount(0);
 });
 
@@ -249,33 +249,110 @@ test("an empty workspace keeps the welcome and its stories instead of the bento"
   await expect(page.getByTestId("overview-bento")).toHaveCount(0);
 });
 
-test.describe("client news story", () => {
-  test("plays while there's news, and Pause stops it", async ({ page, isMobile }) => {
-    test.skip(isMobile, "The story shows once the tile is wide enough, beside the list.");
+test("client comments land as pins, one per new comment, in their project's color", async ({
+  page,
+  isMobile,
+}) => {
+  await seedActivity(page);
+  await openOverview(page);
+  const board = tile(page, "clients").getByTestId("pin-board");
+  await board.scrollIntoViewIfNeeded();
+  await expect(board).toHaveAttribute("data-pins", "2");
+  await expect(board.getByTestId("story-pin")).toHaveCount(2);
+  // A one-off entrance, not a loop: there's nothing to pause anywhere in the bento.
+  await expect(page.getByRole("button", { name: "Pause animations" })).toHaveCount(0);
+  // Every row has its project's thumbnail and an arrow; on a pointer, hovering lifts the row.
+  const row = tile(page, "recent").getByTestId("recent-row").first();
+  await expect(row.locator("svg")).not.toHaveCount(0);
+  if (!isMobile) {
+    await row.hover();
+    await expect
+      .poll(() => row.evaluate((element) => getComputedStyle(element).transform))
+      .not.toBe("none");
+  }
+});
+
+test.describe("with reduced motion", () => {
+  test.use({ reducedMotion: "reduce" });
+
+  test("everything shows its final state at once", async ({ page }) => {
     await seedActivity(page);
     await openOverview(page);
-    const story = tile(page, "clients").getByTestId("tile-story");
-    await expect(story).toHaveAttribute("data-playing", "true");
-    const pause = tile(page, "clients").getByRole("button", { name: "Pause animations" });
-    await pause.click();
-    await expect(pause).toHaveAttribute("aria-pressed", "true");
-    await expect(story).toHaveAttribute("data-playing", "false");
+    // No count-up: the numbers are already there.
+    await expect(page.getByTestId("status-open")).toHaveText("3");
+    const board = tile(page, "clients").getByTestId("pin-board");
+    await expect(board.getByTestId("story-pin")).toHaveCount(2);
+    const bars = tile(page, "recent").getByTestId("sparkline").locator("[data-count]");
+    await expect(bars).toHaveCount(7);
+    await expect(page.getByRole("button", { name: "Pause animations" })).toHaveCount(0);
   });
+});
 
-  test.describe("with reduced motion", () => {
-    test.use({ reducedMotion: "reduce" });
+/**
+ * Rows and "+N more" links that stick out of the box their list clips to: [] when every one
+ * shown is whole. Each list's box is its `<ol>`'s parent.
+ */
+async function cutOffInLists(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const cut: string[] = [];
+    for (const name of ["waiting", "clients", "recent"]) {
+      const parent = document.querySelector(`[data-testid="tile-${name}"] ol`)?.parentElement;
+      if (!parent) continue;
+      const box = parent.getBoundingClientRect();
+      const shown = parent.querySelectorAll('[data-testid$="-row"], [data-testid="tile-more"]');
+      for (const element of shown) {
+        const { top, bottom } = element.getBoundingClientRect();
+        if (top < box.top - 1 || bottom > box.bottom + 1)
+          cut.push(`${name}: ${element.textContent}`);
+      }
+    }
+    return cut;
+  });
+}
 
-    test("holds a still frame, with no Pause to offer", async ({ page, isMobile }) => {
-      test.skip(isMobile, "The story shows once the tile is wide enough, beside the list.");
+async function expectFitsOneScreen(page: Page, height: number) {
+  await expect(tile(page, "busiest")).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() => (document.scrollingElement?.scrollHeight ?? 0) <= window.innerHeight),
+    )
+    .toBe(true);
+  for (const name of ["status", "waiting", "clients", "recent", "busiest"] as const) {
+    const box = await tile(page, name).boundingBox();
+    expect(box && box.y + box.height <= height, name).toBe(true);
+  }
+  // Only whole rows, and "+N more" whole or not at all (polled: lists settle once measured).
+  await expect.poll(() => cutOffInLists(page)).toEqual([]);
+}
+
+test.describe("on a wide window tall enough for it", () => {
+  test.describe("1280×800", () => {
+    test.use({ viewport: { width: 1280, height: 800 } });
+
+    test("the bento fits one screen, its lists showing the whole rows that fit", async ({
+      page,
+      isMobile,
+    }) => {
+      test.skip(isMobile, "Phones stack the tiles and scroll.");
       await seedActivity(page);
       await openOverview(page);
-      const clients = tile(page, "clients");
-      await expect(clients).toHaveAttribute("data-count", "2");
-      const story = clients.getByTestId("tile-story");
-      await expect(story).toHaveAttribute("data-playing", "false");
-      // The Pin story's last beat: the pin is down, the comment written.
-      await expect(story).toHaveAttribute("data-beat", "5");
-      await expect(clients.getByRole("button", { name: "Pause animations" })).toHaveCount(0);
+      await expectFitsOneScreen(page, 800);
+      await expect(tile(page, "recent").getByTestId("recent-row").first()).toBeVisible();
+    });
+  });
+
+  test.describe("1536×864", () => {
+    test.use({ viewport: { width: 1536, height: 864 } });
+
+    test("lists that don't all fit end in a link to the rest", async ({ page, isMobile }) => {
+      test.skip(isMobile, "Phones stack the tiles and scroll.");
+      await seedActivity(page);
+      await openOverview(page);
+      await expectFitsOneScreen(page, 864);
+      // Seven projects don't all fit: the rest are a link away.
+      const more = tile(page, "recent").getByTestId("tile-more");
+      await expect(more).toHaveText(/^\+\d+ more in Folders$/);
+      await expect(more).toHaveAttribute("href", "/folders");
     });
   });
 });

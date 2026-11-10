@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
-import { useId } from "react";
+import { useId, type CSSProperties } from "react";
 import { staggerGroup, useRevealVariants } from "@/lib/motion";
 import { useSquiggyMood } from "@/lib/squiggy/use-squiggy-mood";
 import { Squiggy } from "../../brand/mascot/Squiggy";
@@ -40,7 +40,9 @@ export function HeroTile({ summary }: HeroTileProps) {
       animate="visible"
       aria-labelledby={headingId}
       data-testid="overview-hero"
-      className={`${TILE_SURFACE} relative isolate justify-center overflow-hidden sm:flex-row sm:items-center sm:gap-8`}
+      // Where the bento fits one screen, a smaller Squiggy leaves the rows below their room.
+      className={`${TILE_SURFACE} relative isolate justify-center overflow-hidden [--hero-mascot:var(--hero-mascot-size)] sm:flex-row sm:items-center sm:gap-8 bento-fit:[--hero-mascot:6rem]`}
+      style={{ "--hero-mascot-size": HERO_MASCOT_SIZE } as CSSProperties}
     >
       <StoryGlow
         color="var(--color-brand)"
@@ -56,7 +58,7 @@ export function HeroTile({ summary }: HeroTileProps) {
         data-testid="squiggy"
         data-mood={squiggy.mood}
       >
-        <Squiggy mood={squiggy.mood} size={HERO_MASCOT_SIZE} onPoke={squiggy.poke} still />
+        <Squiggy mood={squiggy.mood} size="var(--hero-mascot)" onPoke={squiggy.poke} still />
       </motion.div>
       <div className="flex min-w-0 flex-col items-center gap-3 text-center sm:items-start sm:text-left">
         <motion.p variants={reveal} className="label-caps text-brand-text">
