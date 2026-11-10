@@ -71,17 +71,3 @@ export function rowsThatFit({ available, row, gap, more, total }: FitInput): num
   while (count > 1 && height(count) + gap + more > available) count -= 1;
   return Math.max(1, count);
 }
-
-/**
- * Of a row of `pins` standing for every comment, how many show resolved: the resolved share,
- * rounded, but at least one while any is resolved and at least one left open while any is
- * open, so the row never overstates either way (as `percentOf`).
- */
-export function checkedPins(open: number, resolved: number, pins: number): number {
-  const total = open + resolved;
-  if (total === 0 || pins <= 0) return 0;
-  let checked = Math.round((resolved / total) * pins);
-  if (resolved > 0) checked = Math.max(1, checked);
-  if (open > 0) checked = Math.min(pins - 1, checked);
-  return checked;
-}

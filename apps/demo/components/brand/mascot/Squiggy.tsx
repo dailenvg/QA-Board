@@ -11,13 +11,21 @@ import {
   useSpring,
   useTransform,
   useVelocity,
+  type Variants,
 } from "motion/react";
 import { duration, instant, spring, springValue } from "@/lib/motion";
 import { MagnifiedEye, Magnifier } from "./Accessory";
 import { eyePose } from "./eye-pose";
 import { GAZE_RANGE, useBlink, useGaze } from "./hooks";
 import { MoodProps } from "./MoodProps";
-import { MOOD_SPECS, layerVariants, type Accessory, type EyeShape, type Mood } from "./moods";
+import {
+  GREETING,
+  MOOD_SPECS,
+  layerVariants,
+  type Accessory,
+  type EyeShape,
+  type Mood,
+} from "./moods";
 import {
   BODY_PATH,
   BRAND,
@@ -61,6 +69,11 @@ export type SquiggyProps = {
    */
   still?: boolean;
   /**
+   * Each new value plays the greeting hop once (`GREETING`) over the mood, which it leaves
+   * as it is; 0 or omitted never greets. Skipped with reduced motion.
+   */
+  greet?: number;
+  /**
    * Blinks on the mood's own schedule. Off keeps the eyes open: for a frame
    * that must hold fully still, such as a paused or reduced-motion scene.
    */
@@ -79,6 +92,8 @@ const floatVariants = layerVariants("float");
 const squashVariants = layerVariants("squash");
 const eyesVariants = layerVariants("eyes");
 const shadowVariants = layerVariants("shadow");
+const helloBody: Variants = { hello: { ...GREETING.body, transition: GREETING.transition } };
+const helloShadow: Variants = { hello: { ...GREETING.shadow, transition: GREETING.transition } };
 
 const BLINK_SCALE = 0.08;
 /** Horizontal gaze (SVG units) past which the eyes flip to face that side. */
@@ -99,6 +114,7 @@ export function Squiggy({
   perked: perkedByParent = false,
   averted = false,
   still = false,
+  greet = 0,
   blinks = true,
   as = "div",
   label = "Squiggy",
@@ -127,6 +143,13 @@ export function Squiggy({
     };
     // `held` re-binds the squash and shadow layers to controls when a drag ends.
   }, [mood, reduce, still, held, controls, spec.loop]);
+
+  // The greeting runs on its own layers, so it never interrupts the mood's controls.
+  const hello = useAnimationControls();
+  useEffect(() => {
+    if (!greet || reduce) return;
+    void hello.start("hello");
+  }, [greet, reduce, hello]);
 
   const eyes = eyePose(spec, { held, averted });
   const blinking = useBlink(blinks && eyes.blinks);
@@ -220,77 +243,85 @@ export function Squiggy({
       }
     >
       <svg viewBox={STAGE_VIEWBOX} aria-hidden="true" focusable="false">
-        <motion.ellipse
-          cx={CENTER_X}
-          cy={GROUND_Y + 16}
-          rx={150}
-          ry={13}
-          fill={BRAND.ink}
-          variants={shadowVariants}
-          initial={`${mood}:enter`}
-          animate={held ? { scaleX: 0.55, opacity: 0.08 } : controls}
-        />
+        <motion.g variants={helloShadow} animate={hello} style={{ originX: 0.5, originY: 0.5 }}>
+          <motion.ellipse
+            cx={CENTER_X}
+            cy={GROUND_Y + 16}
+            rx={150}
+            ry={13}
+            fill={BRAND.ink}
+            variants={shadowVariants}
+            initial={`${mood}:enter`}
+            animate={held ? { scaleX: 0.55, opacity: 0.08 } : controls}
+          />
+        </motion.g>
 
         <motion.g style={{ x: leanX, rotate: reduce ? 0 : leanRotate, ...ground }}>
           <motion.g
             animate={{ y: lifted && !held ? -6 : 0 }}
             transition={reduce ? instant : spring.ui}
           >
-            <motion.g
-              variants={floatVariants}
-              initial={`${mood}:enter`}
-              animate={controls}
-              style={ground}
-            >
+            <motion.g variants={helloBody} animate={hello} style={ground}>
               <motion.g
-                variants={squashVariants}
+                variants={floatVariants}
                 initial={`${mood}:enter`}
-                animate={held ? { scaleX: 0.92, scaleY: 1.1 } : controls}
+                animate={controls}
                 style={ground}
               >
-                <motion.g animate={poke} style={ground}>
-                  <motion.path
-                    d={BODY_PATH}
-                    fill={color}
-                    fillRule="evenodd"
-                    animate={{ fill: color }}
-                  />
+                <motion.g
+                  variants={squashVariants}
+                  initial={`${mood}:enter`}
+                  animate={held ? { scaleX: 0.92, scaleY: 1.1 } : controls}
+                  style={ground}
+                >
+                  <motion.g animate={poke} style={ground}>
+                    <motion.path
+                      d={BODY_PATH}
+                      fill={color}
+                      fillRule="evenodd"
+                      animate={{ fill: color }}
+                    />
 
-                  <motion.g style={{ x: gaze.x, y: gaze.y }}>
-                    <motion.g variants={eyesVariants} initial={`${mood}:enter`} animate={controls}>
+                    <motion.g style={{ x: gaze.x, y: gaze.y }}>
                       <motion.g
-                        animate={{ scale: eyeBoost }}
-                        transition={reduce ? instant : spring.ui}
+                        variants={eyesVariants}
+                        initial={`${mood}:enter`}
+                        animate={controls}
                       >
-                        <Eye
-                          d={EYE_LEFT_PATH}
-                          color={eyeColor}
-                          shape={eyes.left}
-                          closed={blinking}
-                          facing={facing}
-                          reduce={reduce}
-                        />
-                        <MagnifiedEye active={magnifier} reduce={reduce}>
+                        <motion.g
+                          animate={{ scale: eyeBoost }}
+                          transition={reduce ? instant : spring.ui}
+                        >
                           <Eye
-                            d={EYE_RIGHT_PATH}
+                            d={EYE_LEFT_PATH}
                             color={eyeColor}
-                            shape={eyes.right}
-                            closed={blinking || winking}
+                            shape={eyes.left}
+                            closed={blinking}
                             facing={facing}
                             reduce={reduce}
                           />
-                        </MagnifiedEye>
-                        <AnimatePresence>
-                          {magnifier && <Magnifier key="magnifier" ink={ink} reduce={reduce} />}
-                        </AnimatePresence>
+                          <MagnifiedEye active={magnifier} reduce={reduce}>
+                            <Eye
+                              d={EYE_RIGHT_PATH}
+                              color={eyeColor}
+                              shape={eyes.right}
+                              closed={blinking || winking}
+                              facing={facing}
+                              reduce={reduce}
+                            />
+                          </MagnifiedEye>
+                          <AnimatePresence>
+                            {magnifier && <Magnifier key="magnifier" ink={ink} reduce={reduce} />}
+                          </AnimatePresence>
+                        </motion.g>
                       </motion.g>
                     </motion.g>
                   </motion.g>
                 </motion.g>
-              </motion.g>
 
-              {/* Drawn after the body so badges and props sit in front of it. */}
-              <MoodProps mood={mood} color={color} reduce={reduce || still} />
+                {/* Drawn after the body so badges and props sit in front of it. */}
+                <MoodProps mood={mood} color={color} reduce={reduce || still} />
+              </motion.g>
             </motion.g>
           </motion.g>
         </motion.g>

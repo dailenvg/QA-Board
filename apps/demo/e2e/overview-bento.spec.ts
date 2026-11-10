@@ -250,7 +250,7 @@ test("an empty workspace keeps the welcome and its stories instead of the bento"
 });
 
 /** Every tile with its illustrated scene. */
-const SCENE_TILES = ["status", "waiting", "clients", "recent", "busiest"] as const;
+const SCENE_TILES = ["waiting", "clients", "busiest"] as const;
 
 test("each card has an illustrated scene, hidden from screen readers, that plays again on hover", async ({
   page,
@@ -271,10 +271,6 @@ test("each card has an illustrated scene, hidden from screen readers, that plays
   const clients = tile(page, "clients").getByTestId("tile-scene");
   await expect(clients.getByTestId("story-pin")).toHaveCount(2);
   await expect(tile(page, "waiting").getByTestId("scene-bubble")).toHaveCount(3);
-  // Three open, one resolved: of five pins, one checks off.
-  await expect(
-    tile(page, "status").locator('[data-testid="scene-pin"][data-resolved="true"]'),
-  ).toHaveCount(1);
   // One-off entrances, never a loop: there's nothing to pause anywhere in the bento.
   await expect(page.getByRole("button", { name: "Pause animations" })).toHaveCount(0);
 
@@ -350,12 +346,6 @@ test.describe("with reduced motion", () => {
     await expect(page.getByTestId("status-open")).toHaveText("3");
     // Scenes are drawn at their last frame without waiting to be scrolled to.
     await expect(tile(page, "clients").getByTestId("story-pin")).toHaveCount(2);
-    await expect(
-      tile(page, "status").locator('[data-testid="scene-pin"][data-resolved="true"]'),
-    ).toHaveCount(1);
-    await expect(tile(page, "recent").getByTestId("scene-card")).toHaveCount(3);
-    const bars = tile(page, "recent").getByTestId("sparkline").locator("[data-count]");
-    await expect(bars).toHaveCount(7);
     await expect(page.getByRole("button", { name: "Pause animations" })).toHaveCount(0);
   });
 });

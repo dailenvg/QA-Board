@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ageShare, checkedPins, perDay, rowsThatFit, startOfDay } from "./charts";
+import { ageShare, perDay, rowsThatFit, startOfDay } from "./charts";
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -40,15 +40,5 @@ describe("overview charts", () => {
     // Always one row, however tight.
     expect(rowsThatFit({ ...sizes, available: 10, total: 5 })).toBe(1);
     expect(rowsThatFit({ ...sizes, available: 500, total: 0 })).toBe(0);
-  });
-
-  it("checks off a row of pins by the resolved share, never all or none too early", () => {
-    expect(checkedPins(3, 1, 5)).toBe(1);
-    expect(checkedPins(1, 1, 5)).toBe(3);
-    expect(checkedPins(1, 199, 5)).toBe(4);
-    expect(checkedPins(199, 1, 5)).toBe(1);
-    expect(checkedPins(0, 4, 5)).toBe(5);
-    expect(checkedPins(4, 0, 5)).toBe(0);
-    expect(checkedPins(0, 0, 5)).toBe(0);
   });
 });

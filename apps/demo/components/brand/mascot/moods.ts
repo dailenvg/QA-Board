@@ -191,6 +191,25 @@ export const MOOD_SPECS: Record<Mood, MoodSpec> = {
   },
 };
 
+/**
+ * A one-off hello layered over whatever the mood is: crouch, a hop with a little twist,
+ * landing squash. Played once on cue (`greet`), never looped, so a still mascot can wave.
+ */
+export const GREETING = {
+  body: {
+    y: [0, 0, -30, 0, 0],
+    rotate: [0, 0, -6, 3, 0],
+    scaleX: [1, 1.12, 0.94, 1.08, 1],
+    scaleY: [1, 0.88, 1.06, 0.92, 1],
+  },
+  shadow: { scaleX: [1, 1.05, 0.62, 1.05, 1], opacity: [1, 1, 0.45, 1, 1] },
+  transition: {
+    duration: 0.8,
+    times: [0, 0.18, 0.5, 0.82, 1],
+    ease: ["easeOut", "easeOut", "easeIn", "easeOut"],
+  },
+} as const satisfies { body: Pose; shadow: Pose; transition: Transition };
+
 export type Layer = "float" | "squash" | "eyes" | "shadow";
 
 const restOf = (pose: Pose) =>
