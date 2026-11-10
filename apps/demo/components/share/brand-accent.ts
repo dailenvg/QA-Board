@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import { contrast, mix } from "@/lib/color";
 
 /** The dark theme's `--card`: the lightest surface the rule and ring sit on or beside there. */
-const DARK_SURFACE = "#1f1f22";
+const DARK_SURFACE = "#27272c";
 /** WCAG 1.4.11's non-text ratio. The accent is decorative, but this keeps it visible. */
 const MIN_ACCENT_CONTRAST = 3;
 /** How finely the color is lifted toward white: 5% at a time. */

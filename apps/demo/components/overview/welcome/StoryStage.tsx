@@ -28,7 +28,10 @@ export function StoryStage({ tint, still, children }: StoryStageProps) {
         color={tint}
         className="top-[18%] left-[18%] size-[64%] opacity-40 dark:opacity-25"
       />
-      <MotionConfig skipAnimations={still}>{children}</MotionConfig>
+      {/* contents: the mock-ups keep the stage as their box, but draw light in dark mode. */}
+      <span className="mock-light contents">
+        <MotionConfig skipAnimations={still}>{children}</MotionConfig>
+      </span>
     </span>
   );
 }
