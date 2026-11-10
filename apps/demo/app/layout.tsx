@@ -1,6 +1,6 @@
 import { PinpointProvider } from "@pinpoint/widget/next";
 import type { Metadata, Viewport } from "next";
-import { Figtree } from "next/font/google";
+import localFont from "next/font/local";
 import type { ReactNode } from "react";
 import { ToastProvider } from "@/components/ui/ToastProvider";
 import { MAIN_PREVIEW, previewMetadata, SITE_NAME } from "@/lib/link-preview";
@@ -8,9 +8,13 @@ import { siteUrl } from "@/lib/site-url";
 import { THEME_COLOR, THEME_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
-const sans = Figtree({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+/**
+ * Figtree, served from the repo so a build never downloads it (see `fonts/README.md`): one
+ * variable file for Latin and Latin Extended, weights 400 to 700.
+ */
+const figtree = localFont({
+  src: "./fonts/Figtree-Variable.woff2",
+  weight: "400 700",
   variable: "--font-figtree",
   display: "swap",
 });
@@ -35,7 +39,7 @@ const forceWidget = process.env.NEXT_PUBLIC_PINPOINT_ENABLED === "1" ? true : un
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     // The inline script may switch data-theme before hydration.
-    <html lang="en" data-theme="light" className={sans.variable} suppressHydrationWarning>
+    <html lang="en" data-theme="light" className={figtree.variable} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
