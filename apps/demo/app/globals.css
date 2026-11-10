@@ -41,6 +41,8 @@
   /* Native Pet lime: a fill under dark ink (marks, selection, swashes), never text on light. */
   --highlight: #deff5b;
   --on-highlight: #18181b;
+  /* The lime's own stroke, a shade darker: edges the sidebar's brand block on the panel. */
+  --highlight-line: #b9d636;
   --focus: #0c54cc;
 
   --ready: #48c0f0;
@@ -163,6 +165,7 @@
   --color-guest-accent-dark: var(--guest-accent-dark, var(--guest-accent, var(--brand)));
   --color-highlight: var(--highlight);
   --color-on-highlight: var(--on-highlight);
+  --color-highlight-line: var(--highlight-line);
   --color-focus: var(--focus);
 
   --color-ready: var(--ready);

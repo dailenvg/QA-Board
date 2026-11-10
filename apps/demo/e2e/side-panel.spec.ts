@@ -36,11 +36,11 @@ async function box(locator: Locator) {
 test.describe("on a wide screen", () => {
   test.use({ viewport: { width: 1280, height: 800 } });
 
-  test("the side panel is three blocks that fill the screen; the navigation scrolls inside", async ({
+  test("the side panel is one block that fills the screen; the navigation scrolls up to the separator", async ({
     page,
     isMobile,
   }) => {
-    test.skip(isMobile, "Phones stack the blocks at their natural height.");
+    test.skip(isMobile, "Phones show the panel at its natural height.");
     await seedWorkspace(page, manyFolders(), "/folders");
     const panel = page.getByRole("complementary", { name: "Workspace" });
     // Inside the page's 16px gutters, top to bottom, and no taller.
@@ -52,10 +52,18 @@ test.describe("on a wide screen", () => {
       box(block(page, "nav")),
       box(block(page, "account")),
     ]);
-    // Stacked with a gap between them: separate blocks.
+    // One panel: brand, then the navigation, which runs right down to the profile's separator.
     expect(nav.y).toBeGreaterThan(brand.y + brand.height);
-    expect(account.y).toBeGreaterThan(nav.y + nav.height);
-    expect(account.y + account.height).toBeCloseTo(outer.y + outer.height, 0);
+    expect(account.y).toBeCloseTo(nav.y + nav.height, 0);
+    expect(account.y + account.height).toBeCloseTo(outer.y + outer.height - 16, 0);
+    const style = (locator: Locator, property: "borderTopWidth" | "backgroundColor") =>
+      locator.evaluate((element, name) => getComputedStyle(element)[name], property);
+    // The lime brand has a stroke; the profile has a line above it and no card behind it.
+    expect(await style(block(page, "brand"), "borderTopWidth")).toBe("1px");
+    expect(await style(block(page, "account"), "borderTopWidth")).toBe("1px");
+    expect(await style(block(page, "account").locator("> div"), "backgroundColor")).toBe(
+      "rgba(0, 0, 0, 0)",
+    );
 
     // Thirty folders overflow the navigation, which scrolls on its own brand scrollbar.
     const scroller = block(page, "nav");
@@ -92,7 +100,7 @@ test.describe("on a wide screen", () => {
   });
 });
 
-test("on a phone the blocks stack at the top, search and the theme toggle in the brand's", async ({
+test("on a phone the panel sits at the top, search and the theme toggle beside the brand", async ({
   page,
   isMobile,
 }) => {
@@ -109,7 +117,7 @@ test("on a phone the blocks stack at the top, search and the theme toggle in the
     box(block(page, "account")),
   ]);
   expect(nav.y).toBeGreaterThan(brand.y + brand.height);
-  expect(account.y).toBeGreaterThan(nav.y + nav.height);
+  expect(account.y).toBeCloseTo(nav.y + nav.height, 0);
 });
 
 test("the sidebar's mark is white on brand blue; elsewhere it keeps its colors", async ({
