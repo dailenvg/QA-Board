@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { contrast } from "@/lib/color";
 import { accentStyle, darkAccent } from "./brand-accent";
 
-const DARK_CARD = "#1f1f22";
-const DARK_PANEL = "#161618";
+const DARK_CARD = "#27272c";
+const DARK_PANEL = "#1b1b1f";
 
 describe("darkAccent", () => {
   it("keeps a color that already reads on dark surfaces", () => {

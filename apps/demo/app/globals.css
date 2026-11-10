@@ -83,17 +83,21 @@
 }
 
 [data-theme="dark"] {
-  --bg: #0c0c0e;
-  --panel: #161618;
-  --card: #1f1f22;
-  --tile: #18181b;
-  --line: #2c2c30;
-  --line-strong: #3a3a3f;
-  /* 3.1:1 on --card, 3.4:1 on --panel. */
-  --field-line: #6b6b73;
-  --hover: #26262a;
-  --seg: #26262a;
-  --seg-on: #3a3a3f;
+  /*
+   * Elevation reads as lightness, as in light mode: page, then panels, then cards inside
+   * them, each a clear step up (L* 2.5, 9.9, 15.8), so nested surfaces never merge.
+   */
+  --bg: #09090b;
+  --panel: #1b1b1f;
+  --card: #27272c;
+  --tile: #212126;
+  --line: #38383f;
+  --line-strong: #4d4d55;
+  /* 3.5:1 on --card, 4:1 on --panel. */
+  --field-line: #7a7a83;
+  --hover: #2d2d33;
+  --seg: #2a2a30;
+  --seg-on: #45454d;
   --ink: #f4f4f5;
   --ink-2: #d4d4d8;
   --muted: #a8a8b0;
@@ -120,6 +124,33 @@
   --shadow-float: 0 20px 40px -24px rgb(0 0 0 / 0.8);
   --shadow-pop: 0 10px 30px -10px rgb(0 0 0 / 0.7);
   color-scheme: dark;
+}
+
+/*
+ * Inside illustrations, the mock pages, cards and bubbles stand for someone's site or a
+ * comment on it, so dark mode draws them light, as a screenshot would be, a touch dimmer than
+ * white so they don't glare. Their stage keeps the dark theme's tint around them. Every token
+ * those mock-ups use is set here, so text on them keeps light mode's contrast.
+ */
+[data-theme="dark"] .mock-light {
+  --card: #ececef;
+  --tile: #e0e0e4;
+  --line: #d4d4d9;
+  --line-strong: #bcbcc4;
+  --hover: #e0e0e4;
+  --seg: #d4d4d9;
+  --seg-on: #ececef;
+  --ink: #18181b;
+  --ink-2: #3f3f46;
+  --muted: #595962;
+  --brand-text: #0c54cc;
+  --brand-soft: rgb(12 84 204 / 0.1);
+  --ready-text: #0a6a90;
+  --comments-text: #b32f19;
+  --resolved-text: #06714a;
+  /* Text that inherits its color (no text-* class) inherits it already resolved: reset it. */
+  color: var(--ink);
+  color-scheme: light;
 }
 
 /*

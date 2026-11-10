@@ -26,7 +26,7 @@ export function WaitingScene({ open }: WaitingSceneProps) {
         <motion.span
           key={index}
           data-testid="scene-bubble"
-          className="absolute flex h-7 w-28 items-center gap-1.5 rounded-tile bg-card px-2 shadow-seg ring-1 ring-line"
+          className="mock-light absolute flex h-7 w-28 items-center gap-1.5 rounded-tile bg-card px-2 shadow-seg ring-1 ring-line"
           style={{ left: `${8 + index * 12}%`, top: `${12 + index * 10}%`, zIndex: index }}
           initial={{ opacity: 0, y: 12, scale: 0.9 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}

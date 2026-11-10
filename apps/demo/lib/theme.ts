@@ -4,7 +4,7 @@ export const THEME_STORAGE_KEY = "squint:theme";
 const THEME_EVENT = "squint:theme-change";
 
 /** Browser chrome color per theme; mirrors `--bg` in globals.css. */
-export const THEME_COLOR: Record<Theme, string> = { light: "#e7e7ea", dark: "#0c0c0e" };
+export const THEME_COLOR: Record<Theme, string> = { light: "#e7e7ea", dark: "#09090b" };
 
 /**
  * Inline <head> script: applies the stored theme before first paint so a dark

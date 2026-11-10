@@ -20,7 +20,7 @@ export function MonogramTile({ name, color, className = "", testId }: MonogramTi
       aria-hidden="true"
       data-testid={testId}
       style={{ backgroundColor: background, color: ink }}
-      className={`grid place-items-center leading-none font-bold tracking-tight select-none ${className}`}
+      className={`grid place-items-center leading-none font-bold tracking-tight select-none dark:ring-1 dark:ring-white/20 dark:ring-inset ${className}`}
     >
       {initials}
     </span>
