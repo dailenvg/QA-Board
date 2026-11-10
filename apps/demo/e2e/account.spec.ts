@@ -24,7 +24,7 @@ test.describe("as the e2e owner", () => {
     await expect(page).toHaveURL(/\/account\/profile$/);
     await expect(page.getByRole("heading", { level: 1, name: "Account" })).toBeVisible();
     await expect(page.getByTestId("account-summary")).toHaveText(
-      "Your profile, how you sign in and your workspace.",
+      "Your profile, how you sign in, your workspace and its storage.",
     );
     const sidebar = page.getByRole("complementary", { name: "Workspace" });
     await sidebar.getByTestId("account-menu").click();
