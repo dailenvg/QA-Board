@@ -130,6 +130,24 @@ export const OVERVIEW_HEADLINE = {
   filled: "Your projects at a glance",
 };
 
+/**
+ * Opens New folder for a top-level folder: the "+" beside the sidebar's Folders tab on wide
+ * screens. Below lg that "+" is hidden and the sidebar's New folder button (beside New
+ * project) makes one where you are, so from a folder's page it goes to Folders first.
+ */
+export async function openNewTopLevelFolder(page: Page): Promise<void> {
+  const plus = page.getByTestId("new-folder");
+  if (await plus.isVisible()) {
+    await plus.click();
+    return;
+  }
+  if (!/^\/(folders)?$/.test(new URL(page.url()).pathname)) {
+    await page.goto("/folders");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Folders");
+  }
+  await page.getByTestId("sidebar-new-folder").click();
+}
+
 /** New project: the toolbar's on wide screens, the sidebar's where the sidebar stacks above. */
 export function newProjectButton(page: Page): Locator {
   return page

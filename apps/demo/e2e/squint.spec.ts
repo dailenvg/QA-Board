@@ -13,6 +13,7 @@ import {
   samplePng,
   showComments,
   topBarStatus,
+  openNewTopLevelFolder,
 } from "./squint-fixtures";
 
 test("a website project takes a comment from posted to resolved, reopened and deleted", async ({
@@ -29,7 +30,7 @@ test("a website project takes a comment from posted to resolved, reopened and de
   await openFolder(page);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("My projects");
 
-  await page.getByTestId("new-folder").click();
+  await openNewTopLevelFolder(page);
   const folderDialog = page.getByRole("dialog", { name: "New folder" });
   await folderDialog.getByLabel("Folder name").fill("Client work");
   await folderDialog.getByRole("button", { name: "Create folder" }).click();

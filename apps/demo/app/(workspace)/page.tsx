@@ -54,7 +54,7 @@ export default async function OverviewPage({
   return (
     <>
       <WorkspaceHeader {...identity} />
-      <Overview />
+      <Overview workspaceId={id} />
     </>
   );
 }

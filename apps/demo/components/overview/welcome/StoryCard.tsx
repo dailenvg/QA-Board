@@ -1,10 +1,10 @@
 "use client";
 
-import { MotionConfig, motion, useInView } from "motion/react";
-import { useRef, type CSSProperties } from "react";
+import { motion, useInView } from "motion/react";
+import { useRef } from "react";
 import { useRevealVariants } from "@/lib/motion";
 import type { StoryDefinition } from "./story-scene";
-import { StoryGlow } from "./StoryGlow";
+import { StoryStage } from "./StoryStage";
 import { useStoryLoop } from "./use-story-loop";
 
 /** How much of a card must be on screen for its story to play. */
@@ -50,19 +50,9 @@ export function StoryCard({ step, story, delay, running, still, wide = false }: 
           wide ? "@[34rem]:grid @[34rem]:grid-cols-2 @[34rem]:items-center @[52rem]:flex" : ""
         }`}
       >
-        <span
-          aria-hidden="true"
-          style={{ "--tint": story.tint } as CSSProperties}
-          className="relative isolate block aspect-[4/3] w-full overflow-hidden rounded-tile bg-[color-mix(in_oklab,var(--tint)_14%,var(--color-panel))]"
-        >
-          <StoryGlow
-            color={story.tint}
-            className="top-[18%] left-[18%] size-[64%] opacity-40 dark:opacity-25"
-          />
-          <MotionConfig skipAnimations={still}>
-            <Scene beat={beat} playing={playing} still={still} />
-          </MotionConfig>
-        </span>
+        <StoryStage tint={story.tint} still={still}>
+          <Scene beat={beat} playing={playing} still={still} />
+        </StoryStage>
         <div className="flex flex-col gap-1 p-3">
           <p className="label-caps text-brand-text">Step {step}</p>
           <h3 className="text-heading font-bold">{story.title}</h3>

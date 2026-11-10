@@ -50,8 +50,47 @@ export const hoverLift = {
   transition: spring.soft,
 } as const;
 
+/**
+ * Links inside cards (list rows, a whole-card link): a small lift on hover or
+ * keyboard focus, a give on press. Variant labels, so a trailing arrow can
+ * follow (`arrowNudge`). Use with `initial="rest" animate="rest"
+ * whileHover="hover" whileFocus="hover" whileTap="press"`.
+ */
+export const rowLift: Variants = {
+  rest: { y: 0, scale: 1, transition: spring.snappy },
+  hover: { y: -2, scale: 1, transition: spring.snappy },
+  press: { y: 0, scale: 0.98, transition: spring.snappy },
+};
+
+/** `hoverLift` as variant labels, for a whole-card link whose arrow follows (`arrowNudge`). */
+export const cardLift: Variants = {
+  rest: { y: 0, scale: 1, transition: spring.soft },
+  hover: { y: -4, scale: 1.02, transition: spring.soft },
+  press: { y: 0, scale: 0.98, transition: spring.soft },
+};
+
+/** A link's trailing arrow, nudged forward while its row is hovered, focused or pressed. */
+export const arrowNudge: Variants = {
+  rest: { x: 0, transition: spring.snappy },
+  hover: { x: 3, transition: spring.snappy },
+  press: { x: 3, transition: spring.snappy },
+};
+
+/** Seconds a number takes to count up to its value, or a bar to grow to its length. */
+export const tally = 0.8;
+
+/**
+ * Illustrated scenes in cards (the Overview's bento): each plays once as it comes on screen,
+ * and again on hover or focus, all within `tally`. Their pieces enter `sceneStep` apart, each
+ * taking `duration.component`, so a scene of up to six pieces ends in time.
+ */
+export const sceneStep = 0.08;
+
+/** How far, in px, content rises as it reveals (`fadeUp`). */
+export const rise = 16;
+
 export const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 16 },
+  hidden: { opacity: 0, y: rise },
   visible: { opacity: 1, y: 0, transition: { duration: duration.component, ease: ease.out } },
   exit: { opacity: 0, scale: 0.96, transition: { duration: duration.micro, ease: ease.out } },
 };
@@ -72,7 +111,10 @@ export const popIn: Variants = {
 /** `whileInView` for content below the fold: reveal once, a little after it enters. */
 export const revealViewport = { once: true, margin: "-10%" } as const;
 
-export function staggerGroup(staggerChildren = 0.06, delayChildren = 0.08): Variants {
+/** Seconds between one item's entrance and the next's in a stagger. */
+export const staggerStep = 0.06;
+
+export function staggerGroup(staggerChildren = staggerStep, delayChildren = 0.08): Variants {
   return { hidden: {}, visible: { transition: { staggerChildren, delayChildren } } };
 }
 

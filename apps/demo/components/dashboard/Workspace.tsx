@@ -2,7 +2,14 @@
 
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
-import { OVERVIEW_HREF, folderHref, isAccountPath, projectHref } from "@/lib/routes";
+import {
+  FOLDERS_HREF,
+  OVERVIEW_HREF,
+  folderHref,
+  isAccountPath,
+  isFoldersPath,
+  projectHref,
+} from "@/lib/routes";
 import { useAttentionWhile } from "@/lib/squiggy/attention";
 import { createFolder, deleteFolder, moveFolder, renameFolder } from "@/lib/store/actions";
 import {
@@ -39,7 +46,7 @@ interface WorkspaceProps {
 }
 
 /**
- * Persistent shell for the Overview, folder and account pages: the sidebar stays
+ * Persistent shell for the Overview, Folders, folder and account pages: the sidebar stays
  * mounted across them (so its active indicator glides between items), and
  * search, New project and the folder dialogs live here so every page shares them
  * (the account settings have neither search nor the toolbar). Pages read
@@ -71,6 +78,7 @@ function WorkspaceShell({ data, account, children }: WorkspaceShellProps) {
   const { id: routeFolderId } = useParams<{ id?: string }>();
   const toast = useToast();
   const onOverview = pathname === OVERVIEW_HREF;
+  const inFolders = isFoldersPath(pathname);
   const onAccount = isAccountPath(pathname);
   /** Tailwind's `lg`, in rem like the CSS: sidebar beside the page rather than above it. */
   const wide = useMediaQuery("(min-width: 64rem)");
@@ -104,7 +112,7 @@ function WorkspaceShell({ data, account, children }: WorkspaceShellProps) {
   /**
    * The New folder buttons beside New project: like it, they work where the person is, inside
    * the open folder (the dialog says so), else at the top level. The "+" by the sidebar's
-   * Folders heading always makes a top-level one.
+   * Folders tab always makes a top-level one.
    */
   const hereFolder = folders.find((folder) => folder.id === routeFolderId) ?? null;
   const newFolderHere = () => showNewFolder({ parentId: hereFolder?.id ?? null });
@@ -182,8 +190,9 @@ function WorkspaceShell({ data, account, children }: WorkspaceShellProps) {
   ]);
 
   /**
-   * One project opens, unless it was made on the Overview: the new sheet drops into its
-   * folder there, so stay and offer a way in. Several stay put and offer their folder.
+   * One project opens, unless it was made on the Overview or Folders: Folders shows the new
+   * sheet drop into its folder, and the Overview lists it among the recent projects, so stay
+   * and offer a way in. Several stay put and offer their folder.
    */
   const onCreated = (projects: Project[]) => {
     newProject.close();
@@ -198,7 +207,7 @@ function WorkspaceShell({ data, account, children }: WorkspaceShellProps) {
       });
       return;
     }
-    if (!onOverview) {
+    if (!onOverview && pathname !== FOLDERS_HREF) {
       router.push(projectHref(project.id));
       return;
     }
@@ -228,6 +237,7 @@ function WorkspaceShell({ data, account, children }: WorkspaceShellProps) {
             actionsFor={workspace.folderActions}
             activeId={routeFolderId ?? null}
             overviewActive={onOverview}
+            foldersActive={inFolders}
             onNewProject={() => showNewProject({})}
             onNewFolder={() => showNewFolder({ parentId: null })}
             onNewFolderHere={newFolderHere}
@@ -236,7 +246,7 @@ function WorkspaceShell({ data, account, children }: WorkspaceShellProps) {
             account={account}
           />
         ) : (
-          <SidebarSkeleton search={!onAccount} />
+          <SidebarSkeleton search={!onAccount} tree={inFolders} />
         )}
         <main id="main" className="flex min-w-0 flex-1 flex-col gap-4 self-stretch">
           {/*

@@ -33,6 +33,7 @@ function workspace(projects: WorkspaceProject[], folders = true): WorkspaceData 
     projects,
     snapshots: [],
     comments: [],
+    clientActivity: [],
     storage: { bytes: 0, blobCount: 0, quotaBytes: 1 },
     authorName: "Ana",
   };

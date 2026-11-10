@@ -7,8 +7,11 @@ import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 
 interface DashboardEmptyProps {
-  /** `folder`: nothing in this folder yet. `filter`: nothing matches the status filter. */
-  kind: "folder" | "filter";
+  /**
+   * `folder`: nothing in this folder yet. `filter`: none of its projects matches the status
+   * filter. `folders`: no folder on Folders holds a project that matches it.
+   */
+  kind: "folder" | "filter" | "folders";
   onAction: () => void;
 }
 
@@ -21,6 +24,11 @@ const COPY = {
   filter: {
     title: "No projects with this status",
     body: "Try another filter, or show every project in this folder.",
+    action: "Show all",
+  },
+  folders: {
+    title: "No projects with this status",
+    body: "Try another filter, or show every folder.",
     action: "Show all",
   },
 } as const;

@@ -1,6 +1,12 @@
 @import "tailwindcss";
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+/*
+ * The Overview's bento fits one screen: wide (xl) and tall enough to hold every tile whole
+ * (49rem: with the status tile's pin row, the busiest card needs about 773px; a little to spare).
+ * Keep in step with BENTO_FIT_QUERY (use-fit-rows.ts).
+ */
+@custom-variant bento-fit (@media (width >= 80rem) and (height >= 49rem));
 
 /*
  * Squint: soft zinc neutrals, floating panels with large radii, one cobalt
@@ -35,6 +41,8 @@
   /* Native Pet lime: a fill under dark ink (marks, selection, swashes), never text on light. */
   --highlight: #deff5b;
   --on-highlight: #18181b;
+  /* The lime's own stroke, a shade darker: edges the sidebar's brand block on the panel. */
+  --highlight-line: #b9d636;
   --focus: #0c54cc;
 
   --ready: #48c0f0;
@@ -157,6 +165,7 @@
   --color-guest-accent-dark: var(--guest-accent-dark, var(--guest-accent, var(--brand)));
   --color-highlight: var(--highlight);
   --color-on-highlight: var(--on-highlight);
+  --color-highlight-line: var(--highlight-line);
   --color-focus: var(--focus);
 
   --color-ready: var(--ready);
@@ -223,6 +232,33 @@
   --radius-pin: 1rem 1rem 1rem 0.25rem;
 
   --breakpoint-3xl: 96rem;
+}
+
+/*
+ * A thin scrollbar in the brand's blue on its soft tint, for panels that scroll inside
+ * themselves (the sidebar's navigation). Standard properties where supported; the WebKit
+ * pseudo-elements for Safari. The thumb is the brand's text blue, the cobalt itself in light
+ * (5.2:1 on the track) and lifted in dark, where the cobalt on its dark tint is only 2.1:1
+ * (WCAG 1.4.11 asks 3:1; the lifted blue is 6.6:1).
+ */
+@utility scrollbar-brand {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-brand-text) var(--color-brand-soft);
+
+  &::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    border-radius: 999px;
+    background: var(--color-brand-soft);
+  }
+
+  &::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: var(--color-brand-text);
+  }
 }
 
 @layer base {

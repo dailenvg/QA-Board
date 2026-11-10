@@ -20,14 +20,20 @@ interface CommentRow {
   created_at: Date;
   updated_at: Date;
   resolved_at: Date | null;
+  /** No author account: a client's comment, pulled from the review link. */
+  from_client: boolean;
 }
 
 const COLUMNS = `comment.project_id, comment.id, comment.x, comment.y, comment.body,
   comment.author_name, comment.status, comment.snapshot_id, comment.page_id, comment.crop,
-  comment.created_at, comment.updated_at, comment.resolved_at`;
+  comment.created_at, comment.updated_at, comment.resolved_at,
+  comment.author_user_id IS NULL AS from_client`;
 const RETURNING = COLUMNS.replaceAll("comment.", "");
 
-/** Never the author's user id: the wire format is the browser store's. */
+/**
+ * Never the author's user id: the wire format is the browser store's. Only
+ * whether there is one shows, as `fromClient` (none: a client's comment).
+ */
 function toComment(row: CommentRow): Comment {
   return {
     id: row.id,
@@ -43,6 +49,7 @@ function toComment(row: CommentRow): Comment {
     ...(row.snapshot_id ? { snapshotId: row.snapshot_id } : {}),
     ...(row.page_id ? { pageId: row.page_id } : {}),
     ...(row.crop ? { crop: row.crop } : {}),
+    ...(row.from_client ? { fromClient: true as const } : {}),
   };
 }
 

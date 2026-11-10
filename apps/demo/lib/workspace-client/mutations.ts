@@ -38,8 +38,9 @@ const write = (
   tolerate?: readonly number[],
 ): ServerWrite => ({ method, path, body, ...(tolerate ? { tolerate } : {}) });
 
+/** The comment as the API takes it: whose it is comes from the request (`fromShare`), not the body. */
 function commentBody(comment: Comment) {
-  const { projectId: _project, ...body } = comment;
+  const { projectId: _project, fromClient: _client, ...body } = comment;
   return body;
 }
 

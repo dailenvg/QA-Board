@@ -2,6 +2,7 @@
 
 import { motion } from "motion/react";
 import { staggerGroup, useRevealVariants } from "@/lib/motion";
+import type { Workspace } from "../dashboard/workspace-context";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { PauseToggle } from "./welcome/PauseToggle";
@@ -18,26 +19,29 @@ const FIRST_STEP = {
     label: "Create your first folder",
   },
   project: {
-    status:
-      "No projects yet. Once you add one, your folders show up here with their newest projects inside.",
+    status: "No projects yet. Once you add one, it shows up here.",
     icon: "plus",
     label: "Add your first project",
   },
 } as const;
 
 interface OverviewEmptyProps {
-  firstStep: keyof typeof FIRST_STEP;
-  onAction: () => void;
+  /** The first step is a folder while it has none, else a project. */
+  workspace: Workspace;
 }
 
 /**
- * No projects anywhere yet: the welcome's second half. How Squint works, told
+ * No projects anywhere yet: the welcome's second half (on the Overview, and
+ * in place of the folder grid on Folders). How Squint works, told
  * in three short stories, then the first step. Headed "How it works" so it
  * reads as part of the welcome above it; the line under the heading still
  * says what's missing (and where things will appear once they exist).
  */
-export function OverviewEmpty({ firstStep, onAction }: OverviewEmptyProps) {
+export function OverviewEmpty({ workspace }: OverviewEmptyProps) {
+  const firstStep: keyof typeof FIRST_STEP = workspace.folders.length ? "project" : "folder";
   const step = FIRST_STEP[firstStep];
+  const onAction = () =>
+    firstStep === "project" ? workspace.openNewProject() : workspace.newFolder(null);
   const reveal = useRevealVariants();
   const playback = useStoryPlayback();
   return (

@@ -20,6 +20,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
       email={session.user.email}
       name={session.user.name}
       avatarSrc={await sessionAvatarSrc(session.user.id)}
+      bare
     />
   );
   return (

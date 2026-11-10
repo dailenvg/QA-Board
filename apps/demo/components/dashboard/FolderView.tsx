@@ -18,6 +18,7 @@ import { ProjectDialogs } from "./ProjectDialogs";
 import { ProjectGrid } from "./ProjectGrid";
 import { sortProjects } from "./project-sort";
 import type { StatusFilterValue } from "./status-filter";
+import { focusStatusFilter } from "./StatusFilter";
 import { useProjectSort } from "./use-project-sort";
 import { useWorkspace, type Workspace } from "./workspace-context";
 
@@ -107,7 +108,13 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
       {summaries.length === 0 ? (
         <DashboardEmpty kind="folder" onAction={() => workspace.openNewProject(folder.id)} />
       ) : visible.length === 0 ? (
-        <DashboardEmpty kind="filter" onAction={() => setFilter("all")} />
+        <DashboardEmpty
+          kind="filter"
+          onAction={() => {
+            setFilter("all");
+            focusStatusFilter();
+          }}
+        />
       ) : (
         <ProjectGrid
           summaries={visible}

@@ -46,6 +46,17 @@ const GAP = 4;
 const EDGE = 8;
 
 /**
+ * The visible part of a scroller marked `data-menu-bounds` around `anchor` (the sidebar's
+ * navigation), while it clips (on narrow screens it doesn't scroll, so the screen bounds).
+ */
+function clippingBounds(anchor: HTMLElement): { top: number; bottom: number } | null {
+  const scroller = anchor.closest<HTMLElement>("[data-menu-bounds]");
+  if (!scroller || getComputedStyle(scroller).overflowY === "visible") return null;
+  const box = scroller.getBoundingClientRect();
+  return { top: Math.max(0, box.top), bottom: Math.min(window.innerHeight, box.bottom) };
+}
+
+/**
  * `preferred`, unless the menu would cross the screen's (or its dialog's) edge on that side and
  * fits on the other: a menu above a trigger scrolled to the top of a phone opens below it.
  */
@@ -58,10 +69,8 @@ function fittingSide(
   const box = anchor.getBoundingClientRect();
   // Not laid out (hidden): nothing to measure against.
   if (!box.height) return preferred;
-  const bounds = anchor.closest('[role="dialog"]')?.getBoundingClientRect() ?? {
-    top: 0,
-    bottom: window.innerHeight,
-  };
+  const bounds = anchor.closest('[role="dialog"]')?.getBoundingClientRect() ??
+    clippingBounds(anchor) ?? { top: 0, bottom: window.innerHeight };
   // offsetHeight ignores the pop-in's scale, so this is the menu's full height.
   const needed = menu.offsetHeight + GAP + EDGE;
   const fits: Record<MenuPlacement, boolean> = {

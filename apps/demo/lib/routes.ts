@@ -1,8 +1,16 @@
 /** App routes. Build links through these so every page agrees on the shape. */
 export const OVERVIEW_HREF = "/";
 
+/** Every top-level folder, as a grid; each folder's own page is `folderHref`. */
+export const FOLDERS_HREF = "/folders";
+
 export function folderHref(folderId: string): string {
   return `/f/${encodeURIComponent(folderId)}`;
+}
+
+/** Whether `pathname` is in the Folders section: the folder grid, or a folder's page. */
+export function isFoldersPath(pathname: string): boolean {
+  return pathname === FOLDERS_HREF || pathname.startsWith("/f/");
 }
 
 export function projectHref(projectId: string): string {

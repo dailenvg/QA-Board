@@ -1,11 +1,12 @@
 "use client";
 
-import { AnimatePresence } from "motion/react";
+import { AnimatePresence, useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { ancestorsOf, flattenFolderTree, type FolderNode } from "@/lib/store/folders";
 import type { Folder } from "@/lib/store/types";
 import type { MenuItem } from "../ui/Menu";
 import { FolderTreeRow } from "./FolderTreeRow";
+import { revealInScroller } from "./reveal-in-scroller";
 import { useExpandedFolders } from "./use-expanded-folders";
 
 interface FolderTreeProps {
@@ -14,7 +15,7 @@ interface FolderTreeProps {
   counts: ReadonlyMap<string, number>;
   /** The folder whose page is open, if any. */
   activeId: string | null;
-  /** Labelled by the sidebar's "Folders" heading. */
+  /** Labelled by the sidebar's Folders tab. */
   labelledBy: string;
   /** The row menu's actions for a folder. */
   actionsFor: (folder: Folder) => MenuItem[];
@@ -61,6 +62,17 @@ export function FolderTree({ folders, counts, activeId, labelledBy, actionsFor }
   useEffect(() => {
     for (const id of ancestors) setOpen(id, true);
   }, [ancestors, setOpen]);
+
+  // The open folder's row scrolls into view inside the sidebar, once per folder opened.
+  const reduce = useReducedMotion() ?? false;
+  const revealed = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeId || revealed.current === activeId) return;
+    const row = items.current.get(activeId);
+    if (!row) return;
+    revealed.current = activeId;
+    revealInScroller(row, !reduce);
+  }, [activeId, rows, reduce]);
 
   // The one Tab stop: the row last moved to, else the active folder, else the first row.
   const tabStop =
@@ -111,7 +123,7 @@ export function FolderTree({ folders, counts, activeId, labelledBy, actionsFor }
       aria-labelledby={labelledBy}
       onKeyDown={onKeyDown}
       data-testid="folder-tree"
-      className="-m-1 flex flex-col gap-1 p-1 max-lg:max-h-56 max-lg:overflow-y-auto"
+      className="-m-1 flex flex-col gap-1 p-1 max-lg:scrollbar-brand max-lg:max-h-56 max-lg:overflow-y-auto"
     >
       <AnimatePresence initial={false}>
         {rows.map((row) => {

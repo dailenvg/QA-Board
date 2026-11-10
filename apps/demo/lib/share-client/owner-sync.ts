@@ -202,7 +202,9 @@ async function collect(share: ProjectShare, projectId: string, changes: ShareCha
       continue;
     }
     const { crop: _gone, ...withoutCrop } = comment;
-    comments.push(fromSharedComment(copied === "missing" ? withoutCrop : comment, projectId));
+    const pulled = fromSharedComment(copied === "missing" ? withoutCrop : comment, projectId);
+    // Pulls bring clients' comments only; the workspace marks them so too once saved.
+    comments.push({ ...pulled, fromClient: true });
   }
   return { snapshots, comments, held };
 }

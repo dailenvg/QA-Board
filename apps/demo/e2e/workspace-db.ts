@@ -164,3 +164,35 @@ export async function addProjectElsewhere(id: string): Promise<void> {
     );
   });
 }
+
+/**
+ * A comment a client posted on the review link of `projectId` (a project of the e2e workspace
+ * with a link), as the link's comment route stores it: past the owner's pull position, so it
+ * waits there until the project is opened and pulls it.
+ */
+export async function addWaitingClientComment(
+  projectId: string,
+  comment: { id: string; body: string; author: string; createdAt: number },
+): Promise<void> {
+  const workspaceId = await e2eWorkspaceId();
+  await withClient(async (client) => {
+    const { rowCount } = await client.query(
+      `INSERT INTO squint_share_comments (share_id, id, data, origin)
+       SELECT link.share_id, $3, $4::jsonb, 'client' FROM project_share_links AS link
+       WHERE link.workspace_id = $1 AND link.project_id = $2`,
+      [
+        workspaceId,
+        projectId,
+        comment.id,
+        JSON.stringify({
+          ...comment,
+          x: 40,
+          y: 30,
+          status: "active",
+          updatedAt: comment.createdAt,
+        }),
+      ],
+    );
+    if (rowCount !== 1) throw new Error(`${projectId} has no review link.`);
+  });
+}

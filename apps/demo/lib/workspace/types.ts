@@ -51,6 +51,25 @@ export interface StorageSummary {
   quotaBytes: number;
 }
 
+/**
+ * Clients' comments on one live project: those pulled into the workspace
+ * (`Comment.fromClient`) and those still waiting on its review link.
+ */
+export interface ClientCommentActivity {
+  projectId: string;
+  /** Open client comments, pulled or still waiting on the review link. */
+  open: number;
+  /** When the newest client comment, open or resolved, was posted (epoch ms). */
+  latestAt: number;
+  /**
+   * When each open comment still waiting on the review link was posted,
+   * newest first: not pulled yet, so it isn't in `comments`.
+   */
+  waiting: number[];
+  /** The link's pull position `waiting` was read at (0 without a link): a later pull has them. */
+  cursor: number;
+}
+
 /** Everything a signed-in browser needs to show a workspace. */
 export interface WorkspaceData {
   workspace: { id: string; slug: string; name: string };
@@ -58,6 +77,8 @@ export interface WorkspaceData {
   projects: WorkspaceProject[];
   snapshots: Snapshot[];
   comments: Comment[];
+  /** Projects with any client comment, for the Overview. */
+  clientActivity: ClientCommentActivity[];
   storage: StorageSummary;
   /** The signed-in user's name for new comments; null until they give one. */
   authorName: string | null;

@@ -1,5 +1,5 @@
-import { projectsInside } from "@/lib/store/folders";
 import type { Folder, SquintData } from "@/lib/store/types";
+import type { StatusFilterValue } from "../dashboard/status-filter";
 import {
   nameCollator,
   type SortChoice,
@@ -7,6 +7,7 @@ import {
   type SortOptions,
   type SortSpec,
 } from "../dashboard/sort-choice";
+import { projectsWithStatus } from "./folder-files";
 
 export type FolderSortKey = "updated" | "name" | "projects" | "comments";
 
@@ -49,15 +50,22 @@ export const FOLDER_SORT: SortOptions<FolderSortKey> = {
   fallback: { key: "updated", direction: FOLDER_SORT_SPECS.updated.natural },
 };
 
-/** Each folder with what it's sorted by, in the folders' order. */
-export function folderStats(data: SquintData, folders: readonly Folder[]): FolderStats[] {
+/**
+ * Each folder with what it's sorted by, in the folders' order; with a status filter, counting
+ * only the projects that have it, as their cards do.
+ */
+export function folderStats(
+  data: SquintData,
+  folders: readonly Folder[],
+  status: StatusFilterValue = "all",
+): FolderStats[] {
   const open = new Set(
     data.comments
       .filter((comment) => comment.status === "active")
       .map((comment) => comment.projectId),
   );
   return folders.map((folder) => {
-    const projects = projectsInside(data, folder.id);
+    const projects = projectsWithStatus(data, folder.id, status);
     return {
       folder,
       updatedAt: projects.length

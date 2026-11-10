@@ -41,7 +41,7 @@ jobs:
   e2e:
     name: End-to-end (Playwright)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     # Accounts and shares live in Postgres; the e2e setup empties and seeds this throwaway one.
     services:
       postgres:

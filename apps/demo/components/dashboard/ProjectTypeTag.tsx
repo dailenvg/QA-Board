@@ -1,4 +1,5 @@
 import type { ProjectSource } from "@/lib/store/types";
+import { HIGHLIGHT_TAG } from "../ui/highlight-tag";
 import { Icon } from "../ui/Icon";
 import { projectKind } from "./project-source";
 
@@ -25,7 +26,7 @@ export function ProjectTypeTag({ source }: ProjectTypeTagProps) {
       <span
         aria-hidden="true"
         data-testid="project-type-tag"
-        className="absolute top-5 left-5 z-[1] inline-flex h-6 items-center gap-1 rounded-pill bg-highlight px-2 text-label font-semibold whitespace-nowrap text-on-highlight shadow-seg ring-1 ring-on-highlight/30"
+        className={`absolute top-5 left-5 z-[1] ${HIGHLIGHT_TAG}`}
       >
         <Icon name={icon} className="size-4 shrink-0" />
         {label}

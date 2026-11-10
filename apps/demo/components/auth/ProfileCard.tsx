@@ -19,6 +19,8 @@ interface ProfileCardProps {
   name: string | null;
   /** Their photo's URL; null without one. */
   avatarSrc?: string | null;
+  /** No card behind it: for the sidebar's foot, where a separator sets it apart instead. */
+  bare?: boolean;
 }
 
 /** Tinted while an account page is open, so the way back there shows where you are. */
@@ -30,7 +32,7 @@ const CURRENT_TRIGGER_CLASS =
  * settings, dark mode and Sign out. Sign out is a plain form post to the logout route, which
  * redirects to /login.
  */
-export function ProfileCard({ email, name, avatarSrc = null }: ProfileCardProps) {
+export function ProfileCard({ email, name, avatarSrc = null, bare = false }: ProfileCardProps) {
   const [pending, setPending] = useState(false);
   const form = useRef<HTMLFormElement>(null);
   const theme = useTheme();
@@ -75,7 +77,9 @@ export function ProfileCard({ email, name, avatarSrc = null }: ProfileCardProps)
   ];
 
   return (
-    <div className="flex min-w-0 items-center gap-3 rounded-card bg-card py-2 pr-2 pl-4 text-left">
+    <div
+      className={`flex min-w-0 items-center gap-3 text-left ${bare ? "py-1 pl-2" : "rounded-card bg-card py-2 pr-2 pl-4"}`}
+    >
       <ProfileAvatar email={email} name={name} avatarSrc={avatarSrc} />
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="sr-only">Signed in as </span>
@@ -107,7 +111,7 @@ export function ProfileCard({ email, name, avatarSrc = null }: ProfileCardProps)
 }
 
 /** One fixed slot: photo and initials cross-fade in place, so the text never shifts. */
-function ProfileAvatar({ email, name, avatarSrc }: Required<ProfileCardProps>) {
+function ProfileAvatar({ email, name, avatarSrc }: Required<Omit<ProfileCardProps, "bare">>) {
   // A photo that won't load (removed in another tab) gives way to the initials, not a broken image.
   const [brokenSrc, setBrokenSrc] = useState<string | null>(null);
   return (

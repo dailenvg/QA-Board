@@ -11,18 +11,25 @@ import {
   openOverview,
   seedWorkspace,
   sheetLift,
+  openNewTopLevelFolder,
 } from "./squint-fixtures";
 import type { Project, ProjectSource, SquintData } from "../lib/store/types";
 import { WORKSPACE_SEED } from "./workspace-seed";
 
 function overviewLink(page: Page): Locator {
-  // The sidebar's: folder pages also have one in their breadcrumb.
+  // The sidebar's, not one in a page's content.
   return page
     .getByRole("complementary", { name: "Workspace" })
     .getByRole("link", { name: "Overview", exact: true });
 }
 
-/** Creates a website project through the New project dialog, which stays on the Overview. */
+function foldersLink(page: Page): Locator {
+  return page
+    .getByRole("complementary", { name: "Workspace" })
+    .getByRole("link", { name: "Folders", exact: true });
+}
+
+/** Creates a website project through the New project dialog, which stays on Folders. */
 async function addUrlProject(page: Page, url: string, name: string): Promise<void> {
   await newProjectButton(page).click();
   const dialog = page.getByRole("dialog", { name: "New project" });
@@ -33,13 +40,13 @@ async function addUrlProject(page: Page, url: string, name: string): Promise<voi
 }
 
 async function addFolder(page: Page, name: string): Promise<void> {
-  await page.getByTestId("new-folder").click();
+  await openNewTopLevelFolder(page);
   const dialog = page.getByRole("dialog", { name: "New folder" });
   await dialog.getByLabel("Folder name").fill(name);
   await dialog.getByRole("button", { name: "Create folder" }).click();
   await expect(page).toHaveURL(/\/f\/[^/]+$/);
-  await overviewLink(page).click();
-  await expect(overviewLink(page)).toHaveAttribute("aria-current", "page");
+  await foldersLink(page).click();
+  await expect(foldersLink(page)).toHaveAttribute("aria-current", "page");
 }
 
 test.beforeEach(async ({ page }) => {
@@ -50,10 +57,11 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-/** The Overview with DEFAULT_FOLDER in place, so New project files into it. */
-async function openOverviewWithFolder(page: Page): Promise<void> {
+/** Folders with DEFAULT_FOLDER in place, so New project files into it. */
+async function openFoldersWithFolder(page: Page): Promise<void> {
   await addDefaultFolder(page);
-  await openOverview(page);
+  await page.goto("/folders");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Folders");
 }
 
 test("a first visit shows the welcome, with no folders: the first step is creating one", async ({
@@ -63,10 +71,13 @@ test("a first visit shows the welcome, with no folders: the first step is creati
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(OVERVIEW_HEADLINE.empty);
   await expect(page.getByTestId("overview-empty")).toBeVisible();
   await expect(page.getByTestId("folder-card")).toHaveCount(0);
-  await expect(page.getByTestId("folder-tree-empty")).toHaveText(
-    "No folders yet. Use New folder above.",
-  );
   await expect(overviewLink(page)).toHaveAttribute("aria-current", "page");
+  // The folder list stays closed on the Overview until its arrow opens it.
+  await expect(page.getByTestId("folder-tree-empty")).toHaveCount(0);
+  await page.getByTestId("folders-toggle").click();
+  await expect(page.getByTestId("folder-tree-empty")).toHaveText(
+    "No folders yet. Use the folder-plus button above.",
+  );
 
   const action = page.getByTestId("overview-empty-action");
   await expect(action).toHaveText("Create your first folder");
@@ -106,19 +117,19 @@ test("New project with no folders asks to name the first folder, then files the 
   await dialog.getByTestId("create-project").click();
   await expect(dialog).toHaveCount(0);
   await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByTestId("overview-bento")).toBeVisible();
+  await foldersLink(page).click();
   const card = folderCard(page, "Client work");
   await expect(card.locator(".gf-meta")).toHaveText("1 project");
 });
 
-test("creating a project on the Overview stays there and drops it into its folder", async ({
-  page,
-}) => {
-  await openOverviewWithFolder(page);
+test("creating a project on Folders stays there and drops it into its folder", async ({ page }) => {
+  await openFoldersWithFolder(page);
   await addUrlProject(page, "example.com", "Homepage");
 
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/folders$/);
   await expect(page.getByTestId("toast")).toContainText("Added Homepage to My projects");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(OVERVIEW_HEADLINE.filled);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Folders");
   const card = folderCard(page, DEFAULT_FOLDER.name);
   await expect(card.locator(".gf-meta")).toHaveText("1 project");
   // A preview of the project in the pocket, not a link of its own: the folder is the one link.
@@ -138,7 +149,7 @@ test("a folder is one link to its page, with a decorative mascot key and no extr
   page,
   isMobile,
 }) => {
-  await openOverviewWithFolder(page);
+  await openFoldersWithFolder(page);
   await addUrlProject(page, "example.com", "Homepage");
   const card = folderCard(page, DEFAULT_FOLDER.name);
 
@@ -171,6 +182,8 @@ test("a folder is one link to its page, with a decorative mascot key and no extr
     "page",
   );
   await expect(overviewLink(page)).not.toHaveAttribute("aria-current", "page");
+  // Folders stays marked as the section; the folder's row holds the tint.
+  await expect(foldersLink(page)).toHaveAttribute("aria-current", "true");
 
   await page.goBack();
   await folderCard(page, DEFAULT_FOLDER.name)
@@ -184,7 +197,7 @@ test("hovering a folder fans its projects out, and a click on one opens the fold
   isMobile,
 }) => {
   test.skip(isMobile, "Touch has no hover: a tap follows the folder's link.");
-  await openOverviewWithFolder(page);
+  await openFoldersWithFolder(page);
   await addUrlProject(page, "example.com", "Homepage");
   const card = folderCard(page, DEFAULT_FOLDER.name);
   const sheet = card.getByTestId("folder-sheet").filter({ hasText: "Homepage" });
@@ -203,7 +216,7 @@ test("Tab moves from the folder straight to its menu; focus fans the projects ou
   page,
   isMobile,
 }) => {
-  await openOverviewWithFolder(page);
+  await openFoldersWithFolder(page);
   await page.keyboard.press("n");
   const dialog = page.getByRole("dialog", { name: "New project" });
   await dialog.getByLabel("Website address").fill("example.com");
@@ -232,12 +245,10 @@ test("Tab moves from the folder straight to its menu; focus fans the projects ou
   await expect(page).toHaveURL(new RegExp(`/f/${DEFAULT_FOLDER.id}$`));
 });
 
-test("sorting the Overview's folders reorders them and is remembered after a reload", async ({
-  page,
-}) => {
+test("sorting the folders reorders them and is remembered after a reload", async ({ page }) => {
   // My projects holds four projects; Client work (one, two folders down) and Café menus (one)
   // were each updated after them, Café menus last.
-  await seedWorkspace(page, WORKSPACE_SEED);
+  await seedWorkspace(page, WORKSPACE_SEED, "/folders");
   const titles = page.getByTestId("folder-card").locator(".gf-title");
   const trigger = page.getByTestId("sort-menu");
   const reverse = page.getByTestId("sort-direction");
@@ -267,7 +278,7 @@ test("sorting the Overview's folders reorders them and is remembered after a rel
 });
 
 test("the corner menu renames a folder and protects the last one", async ({ page }) => {
-  await openOverviewWithFolder(page);
+  await openFoldersWithFolder(page);
   await addUrlProject(page, "example.com", "Homepage");
 
   const card = folderCard(page, DEFAULT_FOLDER.name);
@@ -299,7 +310,7 @@ test("the corner menu renames a folder and protects the last one", async ({ page
 });
 
 test("with two folders the corner menu deletes one", async ({ page }) => {
-  await openOverviewWithFolder(page);
+  await openFoldersWithFolder(page);
   await addUrlProject(page, "example.com", "Homepage");
   await addFolder(page, "Client work");
 
@@ -365,7 +376,7 @@ test("folder sheets are previews, never tiny targets, at rest or fanned", async 
   };
   await seedWorkspace(page, data);
 
-  for (const path of ["/", "/f/fa"]) {
+  for (const path of ["/folders", "/f/fa"]) {
     await page.goto(path);
     const sheets = page.getByTestId("folder-sheet");
     await expect(sheets.first()).toBeAttached();

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { OVERVIEW_HREF, folderHref } from "@/lib/routes";
+import { FOLDERS_HREF, folderHref } from "@/lib/routes";
 import type { Folder } from "@/lib/store/types";
 import { Icon } from "../ui/Icon";
 
@@ -27,7 +27,7 @@ function Separator() {
 }
 
 /**
- * Where a folder sits: Overview › parents › this folder (the current page,
+ * Where a folder sits: Folders › parents › this folder (the current page,
  * not a link). Deep paths keep the first and last parent and fold the middle
  * behind "…", which unfolds them in place. Wraps on narrow screens.
  */
@@ -81,8 +81,8 @@ export function Breadcrumb({ ancestors, current }: BreadcrumbProps) {
     <nav aria-label="Breadcrumb" data-testid="breadcrumb" className="-ml-2">
       <ol className="flex flex-wrap items-center gap-x-1">
         <li className="flex items-center">
-          <Link href={OVERVIEW_HREF} scroll={false} className={CRUMB}>
-            Overview
+          <Link href={FOLDERS_HREF} scroll={false} className={CRUMB}>
+            Folders
           </Link>
         </li>
         {crumbs}
