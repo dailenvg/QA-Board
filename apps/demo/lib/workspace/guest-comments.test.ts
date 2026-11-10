@@ -73,15 +73,32 @@ async function authorOf(id: string): Promise<string | null | undefined> {
   return rows[0]?.author_user_id;
 }
 
+async function originOf(id: string): Promise<string | undefined> {
+  const { rows } = await db.query<{ origin: string }>("SELECT origin FROM comments WHERE id = $1", [
+    id,
+  ]);
+  return rows[0]?.origin;
+}
+
 describe("saving a guest's comment pulled from a review link", () => {
-  it("stores it without an author account", async () => {
+  it("stores it without an author account, as a client's", async () => {
     expect((await post("p1", "guest-1", true)).status).toBe(201);
     expect(await authorOf("guest-1")).toBeNull();
+    expect(await originOf("guest-1")).toBe("client");
   });
 
-  it("keeps a member's own comment theirs", async () => {
+  it("keeps a member's own comment theirs, the team's", async () => {
     expect((await post("p1", "mine")).status).toBe(201);
     expect(await authorOf("mine")).toBe(a.userId);
+    expect(await originOf("mine")).toBe("team");
+  });
+
+  it("takes it back as a client's after a delete is undone, while the link still has it", async () => {
+    expect((await post("p1", "guest-1", true)).status).toBe(201);
+    const path = `/api/w/${a.workspaceId}/projects/p1/comments/guest-1`;
+    expect((await call("DELETE", path, { cookie: a.cookie })).status).toBe(204);
+    expect((await post("p1", "guest-1", true)).status).toBe(201);
+    expect(await originOf("guest-1")).toBe("client");
   });
 
   it("refuses anything a guest didn't post on that project's link", async () => {

@@ -165,6 +165,7 @@ const toComment = (comment: Comment) => ({
   snapshotId: comment.snapshotId,
   pageId: comment.pageId,
   crop: comment.crop,
+  fromClient: comment.fromClient,
 });
 
 /** Each project with its snapshots and comments, and how many bytes it adds to a request. */

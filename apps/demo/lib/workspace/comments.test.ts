@@ -112,4 +112,20 @@ describe("comments", () => {
     ).toMatchObject({ fromClient: true });
     expect(JSON.stringify(listed)).not.toContain(a.userId);
   });
+
+  it("keeps a member's comment the team's after their account is deleted", async () => {
+    const { db, a } = await twoWorkspaces();
+    await addFolder(db, a.workspaceId);
+    await createProject(db, a.workspaceId, PAGES_PROJECT("p1"), NOW);
+    await addComment(db, a.workspaceId, "p1", { ...INPUT, pageId: "page-1" }, a.userId, NOW);
+    await db.query("DELETE FROM users WHERE id = $1", [a.userId]);
+    const { rows } = await db.query<{ author_user_id: string | null; origin: string }>(
+      "SELECT author_user_id, origin FROM comments WHERE id = 'c1'",
+    );
+    // The account is gone (ON DELETE SET NULL), but whose comment it was stays.
+    expect(rows).toEqual([{ author_user_id: null, origin: "team" }]);
+    expect(await listComments(db, a.workspaceId)).toEqual([
+      expect.not.objectContaining({ fromClient: true }),
+    ]);
+  });
 });

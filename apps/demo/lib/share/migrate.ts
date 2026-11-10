@@ -28,6 +28,7 @@ import emailChanges from "../../migrations/027_email_changes.sql";
 import usersNameLength from "../../migrations/028_users_name_length.sql";
 import userBlobs from "../../migrations/029_user_blobs.sql";
 import senderNameLength from "../../migrations/030_workspaces_sender_name_length.sql";
+import commentsOrigin from "../../migrations/031_comments_origin.sql";
 
 /** The slice of `pg.Pool` the stores use (PGlite matches it in tests). */
 export interface Queryable {
@@ -66,6 +67,7 @@ export const MIGRATIONS: ReadonlyArray<{ id: string; sql: string }> = [
   { id: "028_users_name_length", sql: usersNameLength },
   { id: "029_user_blobs", sql: userBlobs },
   { id: "030_workspaces_sender_name_length", sql: senderNameLength },
+  { id: "031_comments_origin", sql: commentsOrigin },
 ];
 
 type Migration = (typeof MIGRATIONS)[number];
