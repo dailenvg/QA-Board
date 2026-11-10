@@ -164,13 +164,40 @@ describe("import", () => {
       updatedAt: NOW + 1,
     });
     // The browser's own comments become the member's; pulled guest comments keep no user.
-    const { rows } = await db.query<{ id: string; author_user_id: string | null }>(
-      "SELECT id, author_user_id FROM comments ORDER BY id",
+    const { rows } = await db.query<{ id: string; author_user_id: string | null; origin: string }>(
+      "SELECT id, author_user_id, origin FROM comments ORDER BY id",
     );
     expect(rows).toEqual([
-      { id: "c1", author_user_id: a.userId },
-      { id: "c2", author_user_id: null },
+      { id: "c1", author_user_id: a.userId, origin: "team" },
+      { id: "c2", author_user_id: null, origin: "client" },
     ]);
+  });
+
+  it("imports a comment pulled from a review link as a client's, whatever its author's name", async () => {
+    const { db, a } = await twoWorkspaces();
+    const data = browserData();
+    const pulled = data.comments.map((comment) =>
+      comment.id === "c1" ? { ...comment, fromClient: true as const } : comment,
+    );
+    await importData(
+      db,
+      a.workspaceId,
+      a.userId,
+      { ...data, comments: pulled },
+      NOW,
+      TEST_AUTH_SECRET,
+    );
+    const { rows } = await db.query<{ id: string; origin: string }>(
+      "SELECT id, origin FROM comments ORDER BY id",
+    );
+    // c1's author has the browser's own name, but it came from a client.
+    expect(rows).toEqual([
+      { id: "c1", origin: "client" },
+      { id: "c2", origin: "client" },
+    ]);
+    expect((await listComments(db, a.workspaceId)).every((comment) => comment.fromClient)).toBe(
+      true,
+    );
   });
 
   it("is idempotent: a second import skips everything and changes nothing", async () => {

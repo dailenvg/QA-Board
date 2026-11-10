@@ -8,6 +8,8 @@ import { MIGRATIONS, migrate } from "./migrate";
 /** Every migration before 029: the schema production had when the profile settings shipped. */
 const UP_TO_028 = MIGRATIONS.slice(0, 28);
 const NEW = ["029_user_blobs", "030_workspaces_sender_name_length"];
+/** Up to the last of `NEW`: later migrations have their own tests. */
+const UP_TO_030 = MIGRATIONS.slice(0, 28 + NEW.length);
 
 const closers: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -55,8 +57,8 @@ describe.each(databases)("migrations 029 and 030 (%s)", (_name, make) => {
     for (const [index, [sender]] of cases.entries()) {
       ids.push(await insertWorkspace(db, `legacy-${index}`, sender));
     }
-    expect(await migrate(db)).toEqual(NEW);
-    expect(await migrate(db)).toEqual([]);
+    expect(await migrate(db, UP_TO_030)).toEqual(NEW);
+    expect(await migrate(db, UP_TO_030)).toEqual([]);
     for (const migration of MIGRATIONS.filter((m) => NEW.includes(m.id))) {
       await db.query(migration.sql);
     }

@@ -73,6 +73,23 @@ describe("writesFor", () => {
     expect(write?.body).not.toHaveProperty("projectId");
   });
 
+  it("restores a client's comment as a client's while its review link has it, else as the member's", () => {
+    const restored = writes({ type: "comment/restore", comment: { ...comment, fromClient: true } });
+    const body = { ...comment, projectId: undefined };
+    expect(restored).toEqual([
+      // 404 once the guest's original is gone from the link: then the next write saves it.
+      {
+        method: "POST",
+        path: "/projects/p1/comments",
+        body: { ...body, fromShare: true },
+        tolerate: [404, 409],
+      },
+      // 409 when the first one saved it.
+      { method: "POST", path: "/projects/p1/comments", body, tolerate: [409] },
+    ]);
+    expect(restored[0]?.body).not.toHaveProperty("fromClient");
+  });
+
   it("saves a pull's snapshots before its comments, then the new pull position", () => {
     const snapshot = {
       id: "snap",

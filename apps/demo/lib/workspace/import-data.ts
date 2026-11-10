@@ -227,6 +227,9 @@ async function importComments(
     body: comment.body,
     author_name: comment.author,
     author_user_id: comment.author === data.authorName ? userId : null,
+    // A client's: pulled from a review link, or anyone's but the owner's (pulled before
+    // the browser marked them). Shown the same way before and after the import.
+    origin: comment.fromClient || comment.author !== data.authorName ? "client" : "team",
     status: comment.status,
     snapshot_id: comment.snapshotId ?? null,
     page_id: comment.pageId ?? null,
@@ -238,14 +241,14 @@ async function importComments(
   return inserted(
     tx,
     `INSERT INTO comments (project_id, id, x, y, body, author_name, author_user_id, status,
-       snapshot_id, page_id, crop, created_at, updated_at, resolved_at)
+       snapshot_id, page_id, crop, created_at, updated_at, resolved_at, origin)
      SELECT x.project_id, x.id, x.x, x.y, x.body, x.author_name, x.author_user_id, x.status,
        x.snapshot_id, x.page_id, x.crop, ${at("created_at")}, ${at("updated_at")},
-       ${at("resolved_at")}
+       ${at("resolved_at")}, x.origin
      FROM jsonb_to_recordset($2::jsonb) AS x(project_id text, id text, x double precision,
        y double precision, body text, author_name text, author_user_id uuid, status text,
        snapshot_id text, page_id text, crop jsonb, created_at bigint, updated_at bigint,
-       resolved_at bigint)
+       resolved_at bigint, origin text)
      ${IMPORTED}
      ON CONFLICT (project_id, id) DO NOTHING RETURNING 1`,
     [workspaceId, JSON.stringify(records), ids],

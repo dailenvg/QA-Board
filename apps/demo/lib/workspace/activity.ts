@@ -5,7 +5,7 @@ import type { ClientCommentActivity } from "./types";
 /**
  * Clients' comments across the workspace's live projects, for the Overview.
  * A client's comment is either pulled into the workspace already (a comment
- * with no author account) or still waiting on the project's review link: a
+ * whose origin is 'client') or still waiting on the project's review link: a
  * client row of the link's share past the owner's pull cursor that isn't in
  * `comments` yet (another tab may have saved it before moving the cursor).
  * A comment is counted in one place only, never in both. A share that has
@@ -34,7 +34,7 @@ async function pulledRows(db: Queryable, workspaceId: string): Promise<PulledRow
      FROM comments AS comment
      JOIN projects AS project ON project.id = comment.project_id
      WHERE project.workspace_id = $1 AND project.deleted_at IS NULL
-       AND comment.author_user_id IS NULL
+       AND comment.origin = 'client'
      GROUP BY comment.project_id`,
     [workspaceId],
   );

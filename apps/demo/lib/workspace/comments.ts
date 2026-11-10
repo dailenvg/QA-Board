@@ -20,19 +20,19 @@ interface CommentRow {
   created_at: Date;
   updated_at: Date;
   resolved_at: Date | null;
-  /** No author account: a client's comment, pulled from the review link. */
+  /** Its `origin` is 'client': a guest's comment, pulled from the review link. */
   from_client: boolean;
 }
 
 const COLUMNS = `comment.project_id, comment.id, comment.x, comment.y, comment.body,
   comment.author_name, comment.status, comment.snapshot_id, comment.page_id, comment.crop,
   comment.created_at, comment.updated_at, comment.resolved_at,
-  comment.author_user_id IS NULL AS from_client`;
+  comment.origin = 'client' AS from_client`;
 const RETURNING = COLUMNS.replaceAll("comment.", "");
 
 /**
  * Never the author's user id: the wire format is the browser store's. Only
- * whether there is one shows, as `fromClient` (none: a client's comment).
+ * where the comment came from shows, as `fromClient` (a client's comment).
  */
 function toComment(row: CommentRow): Comment {
   return {
@@ -85,7 +85,8 @@ async function surfaceExists(db: Queryable, projectId: string, input: CommentCre
 /**
  * Adds a comment to a live project of the workspace; never replaces one.
  * `authorUserId` is the signed-in member (null only for guests, who post
- * through their share). Run the project check first for a 404.
+ * through their share), and sets the comment's origin for good: 'team' with
+ * one, 'client' without. Run the project check first for a 404.
  */
 export async function addComment(
   db: Queryable,
@@ -100,8 +101,9 @@ export async function addComment(
   const resolvedAt = input.status === "resolved" ? (input.resolvedAt ?? now) : null;
   const { rows } = await db.query<CommentRow>(
     `INSERT INTO comments (project_id, id, x, y, body, author_name, author_user_id, status,
-       snapshot_id, page_id, crop, created_at, updated_at, resolved_at)
-     SELECT project.id, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15
+       snapshot_id, page_id, crop, created_at, updated_at, resolved_at, origin)
+     SELECT project.id, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15,
+       CASE WHEN $8::uuid IS NULL THEN 'client' ELSE 'team' END
      FROM projects AS project
      WHERE project.workspace_id = $1 AND project.id = $2 AND project.deleted_at IS NULL
      ON CONFLICT (project_id, id) DO NOTHING RETURNING ${RETURNING}`,

@@ -79,9 +79,13 @@ describe("client activity", () => {
     await updateComment(db, a.workspaceId, "p1", "g2", { status: "resolved" }, NOW);
 
     // Resolved still counts as the newest client comment, but isn't open.
-    expect(await clientActivity(db, a.workspaceId)).toEqual([
+    const expected = [
       { projectId: "p1", open: 1, latestAt: NOW + 2 * HOUR, waiting: [], cursor: 0 },
-    ]);
+    ];
+    expect(await clientActivity(db, a.workspaceId)).toEqual(expected);
+    // A member whose account is deleted is still no client.
+    await db.query("DELETE FROM users WHERE id = $1", [a.userId]);
+    expect(await clientActivity(db, a.workspaceId)).toEqual(expected);
   });
 
   it("counts client comments still on the review link until they're pulled, never twice", async () => {

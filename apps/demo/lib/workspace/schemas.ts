@@ -212,6 +212,8 @@ const importCommentSchema = z.object({
   snapshotId: idSchema.optional(),
   pageId: idSchema.optional(),
   crop: cropSchema.optional(),
+  /** Pulled from a review link (`Comment.fromClient`): imported as a client's. */
+  fromClient: z.literal(true).optional(),
 });
 
 /** A browser's local data (`SquintData`), as the one-shot import sends it. */

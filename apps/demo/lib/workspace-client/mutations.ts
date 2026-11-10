@@ -72,6 +72,21 @@ function commentWrite(
   return projectId ? [change(projectId)] : [];
 }
 
+/**
+ * Undoing a delete. A client's comment goes back as a client's while the guest's original is
+ * still on the review link (the server checks); once the link is gone it can't be shown to be
+ * one (404), so the second write saves it as the member's. Either way only one lands: after
+ * the first, the second's id is taken (409).
+ */
+function restoreWrites(comment: Comment): ServerWrite[] {
+  const path = commentsPath(comment.projectId);
+  const body = commentBody(comment);
+  const plain = write("POST", path, body, [409]);
+  return comment.fromClient
+    ? [write("POST", path, { ...body, fromShare: true }, [404, 409]), plain]
+    : [plain];
+}
+
 /** Client additions a pull merged: their snapshots first, which comments may sit on. */
 function mergeWrites(before: SquintData, after: SquintData, projectId: string): ServerWrite[] {
   const share = after.projects.find((project) => project.id === projectId)?.share;
@@ -131,9 +146,7 @@ export function writesFor(action: Action, before: SquintData, after: SquintData)
     case "comment/add":
       return [write("POST", commentsPath(action.comment.projectId), commentBody(action.comment))];
     case "comment/restore":
-      return [
-        write("POST", commentsPath(action.comment.projectId), commentBody(action.comment), [409]),
-      ];
+      return restoreWrites(action.comment);
     case "comment/edit":
       return commentWrite(before, action.id, (projectId) =>
         write("PATCH", commentPath(projectId, action.id), { body: action.body }),
