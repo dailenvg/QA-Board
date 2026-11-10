@@ -27,6 +27,8 @@ export interface WorkspaceProject {
   updatedAt: number;
   label: string | null;
   archivedAt: number | null;
+  /** When an archived project is due to be deleted for good; null unless archived. */
+  deleteAfter: number | null;
   share?: WorkspaceShareSummary;
 }
 

@@ -18,6 +18,7 @@ import {
   updateProject,
 } from "./projects";
 import { addComment, listComments } from "./comments";
+import { ARCHIVE_GRACE_MS } from "./limits";
 
 describe("projects", () => {
   it("creates a page project with its pages, in order, and reads it back as the browser's shape", async () => {
@@ -48,6 +49,7 @@ describe("projects", () => {
         updatedAt: NOW,
         label: null,
         archivedAt: null,
+        deleteAfter: null,
       },
     });
     const { rows } = await db.query<{ source: unknown }>("SELECT source FROM projects");
@@ -131,10 +133,24 @@ describe("projects", () => {
     const { db, a } = await twoWorkspaces();
     await addFolder(db, a.workspaceId);
     await createProject(db, a.workspaceId, URL_PROJECT("p1"), NOW);
-    expect((await setArchived(db, a.workspaceId, "p1", true, NOW + 1))?.archivedAt).toBe(NOW + 1);
-    // Archiving again keeps the first date.
-    expect((await setArchived(db, a.workspaceId, "p1", true, NOW + 2))?.archivedAt).toBe(NOW + 1);
-    expect((await setArchived(db, a.workspaceId, "p1", false, NOW + 3))?.archivedAt).toBeNull();
+    const due = NOW + 1 + ARCHIVE_GRACE_MS;
+    expect(await setArchived(db, a.workspaceId, "p1", true, NOW + 1)).toMatchObject({
+      archivedAt: NOW + 1,
+      deleteAfter: due,
+    });
+    // Archiving again keeps the first dates.
+    expect(await setArchived(db, a.workspaceId, "p1", true, NOW + 2)).toMatchObject({
+      archivedAt: NOW + 1,
+      deleteAfter: due,
+    });
+    expect(await setArchived(db, a.workspaceId, "p1", false, NOW + 3)).toMatchObject({
+      archivedAt: null,
+      deleteAfter: null,
+    });
+    // Archived again later: a fresh 30 days from then.
+    expect((await setArchived(db, a.workspaceId, "p1", true, NOW + 3))?.deleteAfter).toBe(
+      NOW + 3 + ARCHIVE_GRACE_MS,
+    );
     expect((await setLabel(db, a.workspaceId, "p1", "Urgent"))?.label).toBe("Urgent");
     expect((await setLabel(db, a.workspaceId, "p1", null))?.label).toBeNull();
 

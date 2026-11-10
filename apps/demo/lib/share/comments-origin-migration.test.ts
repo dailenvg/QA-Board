@@ -8,6 +8,8 @@ import { MIGRATIONS, migrate } from "./migrate";
 /** Every migration before 031: the schema production had when the Overview bento shipped. */
 const UP_TO_030 = MIGRATIONS.slice(0, 30);
 const NEW = ["031_comments_origin"];
+/** Up to the last of `NEW`: later migrations have their own tests. */
+const UP_TO_031 = MIGRATIONS.slice(0, 30 + NEW.length);
 
 const closers: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -67,7 +69,7 @@ async function origins(db: Database): Promise<Record<string, string>> {
 describe.each(databases)("migration 031 (%s)", (_name, make) => {
   it("labels existing comments as they show today: no author account, a client's", async () => {
     const { db } = await at030(make, { mine: "member", guest: null });
-    expect(await migrate(db)).toEqual(NEW);
+    expect(await migrate(db, UP_TO_031)).toEqual(NEW);
     expect(await origins(db)).toEqual({ guest: "client", mine: "team" });
     // New comments default to the team's, and nothing else is allowed.
     await db.query(
@@ -83,9 +85,9 @@ describe.each(databases)("migration 031 (%s)", (_name, make) => {
 
   it("never relabels a comment when it runs again, even after its author's account is deleted", async () => {
     const { db, userId } = await at030(make, { mine: "member", guest: null });
-    await migrate(db);
+    await migrate(db, UP_TO_031);
     await db.query("DELETE FROM users WHERE id = $1", [userId]);
-    expect(await migrate(db)).toEqual([]);
+    expect(await migrate(db, UP_TO_031)).toEqual([]);
     // By hand too: the column is there, so the guarded block skips the backfill.
     for (const migration of MIGRATIONS.filter((m) => NEW.includes(m.id))) {
       await db.query(migration.sql);
