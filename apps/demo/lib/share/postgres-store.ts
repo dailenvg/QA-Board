@@ -42,8 +42,9 @@ const SHARE_COLUMNS = "id, token_hash, owner_key_hash, project, created_at, upda
 
 /**
  * A share answers like a revoked one while its workspace project is in the
- * trash (migration 024) or its workspace is waiting to be deleted (033), until
- * either is restored. Anonymous shares have neither.
+ * trash (migration 024), or its workspace is archived (009) or waiting to be
+ * deleted (033), until it's restored or un-archived. Anonymous shares have
+ * neither.
  */
 const ANSWERS = `NOT EXISTS (
   SELECT 1 FROM projects AS project
@@ -51,8 +52,9 @@ const ANSWERS = `NOT EXISTS (
     AND project.workspace_id = squint_shares.workspace_id
     AND project.deleted_at IS NOT NULL
 ) AND NOT EXISTS (
-  SELECT 1 FROM workspaces AS pending
-  WHERE pending.id = squint_shares.workspace_id AND pending.delete_after IS NOT NULL
+  SELECT 1 FROM workspaces AS closed
+  WHERE closed.id = squint_shares.workspace_id
+    AND (closed.archived_at IS NOT NULL OR closed.delete_after IS NOT NULL)
 )`;
 
 /**

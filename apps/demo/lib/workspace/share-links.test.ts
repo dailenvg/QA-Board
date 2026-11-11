@@ -141,6 +141,28 @@ describe("share links", () => {
     expect(await clientShare(store, created.token, NOW)).not.toBeNull();
   });
 
+  it("closes an archived workspace's shares until it's un-archived, and no one else's", async () => {
+    const { db, a, b, store, created, input } = await setup();
+    await attach(db, a.workspaceId, "p1", input);
+    const theirs = await createShare({ store, blobs: inlineBackend }, STATE, NOW);
+    await attach(db, b.workspaceId, "q1", {
+      shareId: theirs.shareId,
+      token: theirs.token,
+      ownerKey: theirs.ownerKey,
+    });
+    const anonymous = await createShare({ store, blobs: inlineBackend }, STATE, NOW);
+
+    await db.query("UPDATE workspaces SET archived_at = now() WHERE id = $1", [a.workspaceId]);
+    expect(await clientShare(store, created.token, NOW)).toBeNull();
+    expect(await store.byId(created.shareId)).toBeNull();
+    expect(await clientShare(store, theirs.token, NOW)).not.toBeNull();
+    expect(await clientShare(store, anonymous.token, NOW)).not.toBeNull();
+
+    await db.query("UPDATE workspaces SET archived_at = NULL WHERE id = $1", [a.workspaceId]);
+    expect(await clientShare(store, created.token, NOW)).not.toBeNull();
+    expect(await store.byId(created.shareId)).not.toBeNull();
+  });
+
   it("keeps a workspace share's missing deletion date through an owner push", async () => {
     const { db, a, store, created, input } = await setup();
     await attach(db, a.workspaceId, "p1", input);
