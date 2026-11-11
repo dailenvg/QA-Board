@@ -1,7 +1,9 @@
 import type { Metadata, ResolvingMetadata } from "next";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { SharedReview } from "@/components/share/SharedReview";
 import { invitationPreview, previewMetadata, SHARED_REVIEW_PREVIEW } from "@/lib/link-preview";
+import { reviewerNameOf } from "@/lib/share-client/reviewer-name";
 import { invitationOf, openGuestShare } from "@/lib/share/guest-share";
 
 export const dynamic = "force-dynamic";
@@ -45,10 +47,15 @@ export async function generateMetadata(
   return { ...PAGE_METADATA, ...preview };
 }
 
-/** A client's shared review link. Unknown, revoked and expired tokens are a plain 404. */
+/**
+ * A client's shared review link. Unknown, revoked and expired tokens are a
+ * plain 404. The reviewer's name for this link comes from its cookie, so the
+ * page renders with it; it only fills in the name field, never vouches for anyone.
+ */
 export default async function SharedReviewPage({ params }: Props) {
   const { token } = await params;
   const view = await openGuestShare(token);
   if (!view) notFound();
-  return <SharedReview token={token} initial={view} />;
+  const authorName = reviewerNameOf((await headers()).get("cookie"));
+  return <SharedReview token={token} initial={view} authorName={authorName} />;
 }
