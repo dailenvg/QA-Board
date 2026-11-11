@@ -18,10 +18,31 @@ import { newImageId, storeImage, type ImageDriver, type ImageRow } from "./image
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
 
-/** Where a user's avatar is stored. Outside `ws/` and `squint/`, so no workspace sweep lists it. */
+/** Every user's file sits under this prefix: outside `ws/` and `squint/`. */
+export const USER_BLOB_PREFIX = "user/";
+
+/** Where a user's avatar is stored. */
 export function avatarPath(userId: string, id: string): string {
   if (!UUID.test(userId) || !ID.test(id)) throw new Error("Not an avatar path.");
-  return `user/${userId}/avatar/${id}`;
+  return `${USER_BLOB_PREFIX}${userId}/avatar/${id}`;
+}
+
+const AVATAR_PATH =
+  /^user\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/avatar\/[A-Za-z0-9_-]{1,64}$/;
+
+/** The user an avatar's path belongs to; null for anything else. */
+export function parseAvatarPath(path: string): { userId: string } | null {
+  const userId = AVATAR_PATH.exec(path)?.[1];
+  return userId ? { userId } : null;
+}
+
+/** Whether a row records the file at `path` (the cron's sweep keeps those). */
+export async function avatarRowExists(db: Queryable, userId: string, path: string) {
+  const { rows } = await db.query("SELECT 1 FROM user_blobs WHERE user_id = $1 AND key = $2", [
+    userId,
+    path,
+  ]);
+  return rows.length === 1;
 }
 
 const AVATAR_ROW = `SELECT avatar.key, avatar.size, avatar.bytes, avatar.blob_url

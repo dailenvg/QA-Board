@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as cronRoute from "@/app/api/cron/expire/route";
 import type * as DatabaseModule from "@/lib/db/database";
+import { PASSWORD } from "@/test/accounts-fixture";
+import { deletionWorld, WORKSPACE_NAME } from "@/test/deletion-fixture";
 import { addFolder, NOW, PNG, twoWorkspaces, URL_PROJECT } from "@/test/workspace-fixture";
+import { ACCOUNT_DELETION_GRACE_MS, scheduleAccountDeletion } from "../account/account-deletion";
 import type { Database } from "../db/database";
 import { inlineBackend } from "../share/blob-backend";
 import { createPostgresStore } from "../share/postgres-store";
@@ -59,5 +62,31 @@ describe("expiry cron: workspace steps", () => {
     expect((await listTrash(db, a.workspaceId)).map((project) => project.id)).toEqual(["recent"]);
     const { rows } = await db.query("SELECT project_id FROM workspace_blobs");
     expect(rows).toEqual([{ project_id: "recent" }]);
+  });
+
+  it("deletes accounts and workspaces whose 30 days are up, and keeps the rest", async () => {
+    const world = await deletionWorld();
+    holder.db = world.db;
+    shares.squintShares = Promise.resolve({
+      store: createPostgresStore(world.db),
+      blobs: inlineBackend,
+    });
+    const confirm = { confirmText: WORKSPACE_NAME, currentPassword: PASSWORD, ip: "203.0.113.9" };
+    await scheduleAccountDeletion(
+      world.db,
+      world.owner,
+      confirm,
+      Date.now() - ACCOUNT_DELETION_GRACE_MS - 1,
+    );
+
+    const response = await cronRoute.GET(
+      new Request("http://localhost/api/cron/expire", {
+        headers: { authorization: `Bearer ${SECRET}` },
+      }),
+    );
+
+    expect(await response.json()).toMatchObject({ accounts: 1, failed: { accounts: false } });
+    const { rows } = await world.db.query<{ id: string }>("SELECT id FROM workspaces");
+    expect(rows).toEqual([{ id: world.other.workspaceId }]);
   });
 });

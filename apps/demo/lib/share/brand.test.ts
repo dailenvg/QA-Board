@@ -79,6 +79,18 @@ describe("a share's brand", () => {
     expect(await store.brandLogo(linked.shareId)).toBeNull();
   });
 
+  it("is Squint's own, with no logo, while the share's workspace is archived", async () => {
+    const { db, a, store, linked } = await setup();
+    const key = await seedLogo(db, a.workspaceId, PNG);
+    await db.query("UPDATE workspaces SET archived_at = now() WHERE id = $1", [a.workspaceId]);
+    expect(await store.brandOf(linked.shareId)).toEqual(SQUINT_BRAND);
+    expect(await store.brandLogo(linked.shareId)).toBeNull();
+
+    await db.query("UPDATE workspaces SET archived_at = NULL WHERE id = $1", [a.workspaceId]);
+    expect(await store.brandOf(linked.shareId)).toMatchObject({ custom: true, logoKey: key });
+    expect(await store.brandLogo(linked.shareId)).toMatchObject({ key });
+  });
+
   it("has no logo when the workspace's key points anywhere but its logo folder", async () => {
     const { db, a, b, store, linked } = await setup();
     // Another workspace's logo, then a project file of its own: neither is this share's logo.

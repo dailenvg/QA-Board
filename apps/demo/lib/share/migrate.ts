@@ -30,6 +30,7 @@ import userBlobs from "../../migrations/029_user_blobs.sql";
 import senderNameLength from "../../migrations/030_workspaces_sender_name_length.sql";
 import commentsOrigin from "../../migrations/031_comments_origin.sql";
 import projectsDeleteAfter from "../../migrations/032_projects_delete_after.sql";
+import accountDeletion from "../../migrations/033_account_deletion.sql";
 
 /** The slice of `pg.Pool` the stores use (PGlite matches it in tests). */
 export interface Queryable {
@@ -70,6 +71,7 @@ export const MIGRATIONS: ReadonlyArray<{ id: string; sql: string }> = [
   { id: "030_workspaces_sender_name_length", sql: senderNameLength },
   { id: "031_comments_origin", sql: commentsOrigin },
   { id: "032_projects_delete_after", sql: projectsDeleteAfter },
+  { id: "033_account_deletion", sql: accountDeletion },
 ];
 
 type Migration = (typeof MIGRATIONS)[number];

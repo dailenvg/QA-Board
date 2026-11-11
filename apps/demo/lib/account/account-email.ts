@@ -53,3 +53,46 @@ export function emailChangedNoticeSender(env: EmailEnv = process.env): SendEmail
       html: `<p>${escapeHtml(EMAIL_CHANGED_NOTICE)}</p>`,
     });
 }
+
+/** What the deletion notice says: when the account goes for good, and the workspace with it. */
+export interface DeletionNotice {
+  to: string;
+  /** When it's deleted for good (epoch ms). */
+  deleteAfter: number;
+  /** The workspace deleted with it; null for a member's account. */
+  workspaceName: string | null;
+}
+
+export type SendDeletionNotice = (notice: DeletionNotice) => Promise<void>;
+
+const DELETION_SUBJECT = "Your Squint account is scheduled for deletion";
+
+/** "December 2, 2026": the day in UTC, which is when the cron runs. */
+const deletionDate = new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "UTC" });
+
+/** The notice's lines, one paragraph each. No link: nothing in it to act on. */
+export function deletionNoticeLines({ deleteAfter, workspaceName }: DeletionNotice): string[] {
+  const date = deletionDate.format(deleteAfter);
+  return [
+    "Your Squint account is scheduled for deletion, and you've been signed out everywhere.",
+    ...(workspaceName === null
+      ? []
+      : [`The ${workspaceName} workspace, with its projects and review links, goes with it.`]),
+    `Your account will be deleted for good on ${date} (UTC). Until then, your Squint admin can restore it.`,
+    "If this wasn't you, contact your Squint admin.",
+  ];
+}
+
+/** Tells the account's address it's going, and until when it can come back. */
+export function deletionNoticeSender(env: EmailEnv = process.env): SendDeletionNotice {
+  const send = resendSender("squint account: deletion notice", AccountEmailRefused, env);
+  return (notice) => {
+    const lines = deletionNoticeLines(notice);
+    return send({
+      to: notice.to,
+      subject: DELETION_SUBJECT,
+      text: lines.join("\n\n"),
+      html: lines.map((line) => `<p>${escapeHtml(line)}</p>`).join("\n"),
+    });
+  };
+}

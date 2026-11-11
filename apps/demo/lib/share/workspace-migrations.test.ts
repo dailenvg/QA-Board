@@ -89,6 +89,9 @@ describe.each(databases)("migrations 023 to 026 (%s)", (_name, make) => {
     for (const migration of MIGRATIONS.filter((m) => NEW.includes(m.id))) {
       await db.query(migration.sql);
     }
+    // The store is today's, which reads later columns too (033's delete dates): the app
+    // always migrates all the way before it serves a share.
+    await migrate(db);
 
     // The anonymous share opens as before, with its comments, file and deletion date.
     const share = await clientShare(store, anonymous.token, Date.now());

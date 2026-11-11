@@ -20,6 +20,13 @@ export interface ShareStore {
   byId(id: string): Promise<ShareRecord | null>;
   byTokenHash(tokenHash: string): Promise<ShareRecord | null>;
   /**
+   * Whether the share's row is still there, open or not: unlike `byId`, it
+   * counts a share closed with its project or workspace (in the trash,
+   * archived, waiting to be deleted), which opens again when that's undone.
+   * For cleanup that must keep such a share's files; never to serve it.
+   */
+  exists(id: string): Promise<boolean>;
+  /**
    * Replaces the project, and the share's deletion date (`expiresAt`) with it.
    * A workspace's share keeps none (null), whatever `expiresAt` says.
    */
@@ -40,7 +47,8 @@ export interface ShareStore {
   /**
    * The brand of the share's workspace: its name, color and logo key (when
    * that file is stored). `SQUINT_BRAND` for an anonymous share, an unknown
-   * one, or one whose project is in the trash.
+   * one, or one closed like `byId` (its project in the trash, its workspace
+   * archived or waiting to be deleted).
    */
   brandOf(id: string): Promise<ShareBrand>;
   /** The logo file of the share's workspace, under the same rules as `brandOf`; null without one. */

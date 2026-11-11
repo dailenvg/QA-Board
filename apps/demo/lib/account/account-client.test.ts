@@ -93,6 +93,10 @@ describe("account client", () => {
       "signed-out",
       "offline",
       "failed",
+      "owner-only",
+      "admin-account",
+      "owner-has-members",
+      "confirm-mismatch",
     ] as const;
     for (const error of errors) {
       expect(accountErrorMessage(error, 300)).not.toMatch(/\u2014/);

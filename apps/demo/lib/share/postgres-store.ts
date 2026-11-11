@@ -41,14 +41,20 @@ interface BlobRow {
 const SHARE_COLUMNS = "id, token_hash, owner_key_hash, project, created_at, updated_at, expires_at";
 
 /**
- * A share whose workspace project is in the trash (migration 024) answers like
- * a revoked one until the project is restored. Anonymous shares have no project.
+ * A share answers like a revoked one while its workspace project is in the
+ * trash (migration 024), or its workspace is archived (009) or waiting to be
+ * deleted (033), until it's restored or un-archived. Anonymous shares have
+ * neither.
  */
-const NOT_TRASHED = `NOT EXISTS (
+const ANSWERS = `NOT EXISTS (
   SELECT 1 FROM projects AS project
   WHERE project.id = squint_shares.project_id
     AND project.workspace_id = squint_shares.workspace_id
     AND project.deleted_at IS NOT NULL
+) AND NOT EXISTS (
+  SELECT 1 FROM workspaces AS closed
+  WHERE closed.id = squint_shares.workspace_id
+    AND (closed.archived_at IS NOT NULL OR closed.delete_after IS NOT NULL)
 )`;
 
 /**
@@ -110,7 +116,7 @@ const upsertSql = (table: string) => `INSERT INTO ${table} (share_id, id, data, 
 export function createPostgresStore(db: Queryable): ShareStore {
   const one = async (where: string, value: string) => {
     const { rows } = await db.query<ShareRow>(
-      `SELECT ${SHARE_COLUMNS} FROM squint_shares WHERE ${where} = $1 AND ${NOT_TRASHED}`,
+      `SELECT ${SHARE_COLUMNS} FROM squint_shares WHERE ${where} = $1 AND ${ANSWERS}`,
       [value],
     );
     return rows[0] ? toRecord(rows[0]) : null;
@@ -149,6 +155,10 @@ export function createPostgresStore(db: Queryable): ShareStore {
     },
     byId: (id) => one("id", id),
     byTokenHash: (tokenHash) => one("token_hash", tokenHash),
+    async exists(id) {
+      const { rows } = await db.query("SELECT 1 FROM squint_shares WHERE id = $1", [id]);
+      return rows.length === 1;
+    },
     async setProject(id, project, at, expiresAt) {
       // A share moved into a workspace since the caller read it keeps no deletion date.
       await db.query(
@@ -174,7 +184,7 @@ export function createPostgresStore(db: Queryable): ShareStore {
     async brandOf(id) {
       const { rows } = await db.query<BrandRow>(
         `SELECT workspace.name, workspace.brand_color, logo.key AS logo_key
-         FROM ${BRAND_FROM} WHERE squint_shares.id = $1 AND ${NOT_TRASHED}`,
+         FROM ${BRAND_FROM} WHERE squint_shares.id = $1 AND ${ANSWERS}`,
         [id],
       );
       const row = rows[0];
@@ -190,7 +200,7 @@ export function createPostgresStore(db: Queryable): ShareStore {
       const { rows } = await db.query<BlobRow>(
         `SELECT logo.key, logo.content_type, logo.size, logo.bytes, logo.blob_url
          FROM ${BRAND_FROM}
-         WHERE squint_shares.id = $1 AND logo.key IS NOT NULL AND ${NOT_TRASHED}`,
+         WHERE squint_shares.id = $1 AND logo.key IS NOT NULL AND ${ANSWERS}`,
         [id],
       );
       return rows[0] ? toStoredBlob(rows[0]) : null;

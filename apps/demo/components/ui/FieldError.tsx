@@ -12,7 +12,8 @@ export function FieldError({ id, message }: FieldErrorProps) {
       {message ? (
         <span className="mt-2 flex items-start gap-2">
           <Icon name="alert" className="mt-0.5 size-3.5 shrink-0" />
-          {message}
+          {/* min-w-0 wrap-anywhere: a message can quote an email too long for a phone's line. */}
+          <span className="min-w-0 wrap-anywhere">{message}</span>
         </span>
       ) : null}
     </p>
