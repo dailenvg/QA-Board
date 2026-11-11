@@ -3,17 +3,24 @@ import { insertUser, NOW, PASSWORD } from "@/test/accounts-fixture";
 import {
   addMember,
   AVATAR_URL,
+  closingMember,
   countRows,
   deletionWorld,
+  MEMBER_EMAIL,
   OWNER_EMAIL,
   SHARE_FILE_URL,
   WORKSPACE_NAME,
   type DeletionWorld,
 } from "@/test/deletion-fixture";
+import { findOwnWorkspace } from "../auth/memberships";
 import type { SessionUser } from "../auth/users";
 import type { BlobLocation } from "../share/types";
 import type { PurgeServices } from "../workspace/purge";
-import { ACCOUNT_DELETION_GRACE_MS, scheduleAccountDeletion } from "./account-deletion";
+import {
+  ACCOUNT_DELETION_GRACE_MS,
+  restoreAccount,
+  scheduleAccountDeletion,
+} from "./account-deletion";
 import { purgeDeletedAccounts, tombstoneEmail } from "./account-purge";
 
 const IP = "203.0.113.9";
@@ -166,6 +173,38 @@ describe("purgeDeletedAccounts", () => {
     expect(await countRows(db, "projects", "workspace_id", workspaceId)).toBe(1);
     const { rows } = await db.query("SELECT author_name, author_user_id, origin FROM comments");
     expect(rows).toEqual([{ author_name: "Bo", author_user_id: memberId, origin: "team" }]);
+  });
+
+  it("deletes the workspace a restored member left, and neither them nor their new one", async () => {
+    const { db, owner, workspaceId } = world;
+    const member = await closingMember(world, NOW);
+    const restored = await restoreAccount(db, member.id, NOW + 1, null, {
+      name: "Bo Studio",
+      slug: "bo-studio",
+    });
+    const newWorkspaceId = (restored.ok && restored.restored?.newWorkspaceId) || "";
+    const { services } = recordingServices();
+
+    expect(await purgeDeletedAccounts(db, services, DUE, DEADLINE)).toEqual({
+      count: 1,
+      done: true,
+    });
+    expect(await countRows(db, "workspaces", "id", workspaceId)).toBe(0);
+    expect((await userRow(owner.id))?.email).toBe(tombstoneEmail(owner.id));
+    expect(await userRow(member.id)).toMatchObject({
+      email: MEMBER_EMAIL,
+      deleted_at: null,
+      delete_after: null,
+    });
+    expect(await findOwnWorkspace(db, member.id)).toMatchObject({
+      workspaceId: newWorkspaceId,
+      role: "owner",
+    });
+    expect(await countRows(db, "storage_usage", "workspace_id", newWorkspaceId)).toBe(1);
+    expect(await purgeAudit()).toEqual([
+      { action: "workspace.deleted", actor_user_id: null },
+      { action: "user.deleted", actor_user_id: null },
+    ]);
   });
 
   it("keeps a due account that still owns an open workspace, says so, and deletes it once that's resolved", async () => {
