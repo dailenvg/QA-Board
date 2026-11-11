@@ -166,11 +166,12 @@ describe("expiry cron: what it deletes", () => {
 });
 
 describe("expiry cron: each step on its own", () => {
-  type Step = "shares" | "blobs" | "trash" | "workspaceBlobs" | "pins";
+  type Step = "shares" | "blobs" | "trash" | "accounts" | "workspaceBlobs" | "pins";
   const failed = (steps: Partial<Record<Step, boolean>>) => ({
     shares: false,
     blobs: false,
     trash: false,
+    accounts: false,
     workspaceBlobs: false,
     pins: false,
     ...steps,
@@ -203,6 +204,7 @@ describe("expiry cron: each step on its own", () => {
       blobs: 2,
       // No DATABASE_URL: the workspace steps are skipped.
       trash: null,
+      accounts: null,
       workspaceBlobs: null,
       pins: 0,
       done: false,
@@ -228,6 +230,7 @@ describe("expiry cron: each step on its own", () => {
       shares: 2,
       blobs: null,
       trash: null,
+      accounts: null,
       workspaceBlobs: null,
       pins: null,
       done: false,

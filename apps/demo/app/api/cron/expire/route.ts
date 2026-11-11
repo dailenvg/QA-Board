@@ -6,6 +6,7 @@ import { json } from "@/lib/share/http";
 import { retentionCutoff } from "@/lib/share/retention";
 import { shareServices } from "@/lib/share/server";
 import { blobDriverFromEnv } from "@/lib/workspace/blob-driver";
+import { purgeDeletedAccounts } from "@/lib/account/account-purge";
 import { purgeTrash, sweepWorkspaceBlobs } from "@/lib/workspace/purge";
 
 export const runtime = "nodejs";
@@ -17,7 +18,7 @@ const BUDGET_MS = 45_000;
 
 let pins: StorageAdapter | undefined;
 
-type StepName = "shares" | "blobs" | "trash" | "workspaceBlobs" | "pins";
+type StepName = "shares" | "blobs" | "trash" | "accounts" | "workspaceBlobs" | "pins";
 
 /** What one step did: how many it deleted (null when skipped or failed), and whether it finished. */
 interface StepResult {
@@ -73,19 +74,29 @@ async function shareSteps(now: number, deadline: number): Promise<[StepResult, S
 
 /**
  * Workspace projects trashed more than 30 days ago, deleted for good; then
- * workspace files nothing records any more. Skipped without a database.
+ * deleted accounts (and the workspaces they owned) whose 30 days are up; then
+ * workspace and avatar files nothing records any more, which picks up any
+ * file a failed delete left. Skipped without a database.
  */
-async function workspaceSteps(now: number, deadline: number): Promise<[StepResult, StepResult]> {
+async function workspaceSteps(
+  now: number,
+  deadline: number,
+): Promise<[StepResult, StepResult, StepResult]> {
   const pending = database();
-  const trash = await step("trash", async () => {
-    if (!pending) return null;
-    const services = { shareBlobs: (await shareServices()).blobs, blobs: blobDriverFromEnv() };
-    return purgeTrash(await pending, services, now, deadline);
+  const purgeServices = async () => ({
+    shareBlobs: (await shareServices()).blobs,
+    blobs: blobDriverFromEnv(),
   });
+  const trash = await step("trash", async () =>
+    pending ? purgeTrash(await pending, await purgeServices(), now, deadline) : null,
+  );
+  const accounts = await step("accounts", async () =>
+    pending ? purgeDeletedAccounts(await pending, await purgeServices(), now, deadline) : null,
+  );
   const files = await step("workspaceBlobs", async () =>
     pending ? sweepWorkspaceBlobs(await pending, blobDriverFromEnv(), now, deadline) : null,
   );
-  return [trash, files];
+  return [trash, accounts, files];
 }
 
 function pinSteps(now: number, deadline: number): Promise<StepResult> {
@@ -99,28 +110,29 @@ function pinSteps(now: number, deadline: number): Promise<StepResult> {
 /**
  * `GET /api/cron/expire`, daily. Independent steps, each with its own error
  * handling: shares past their `expiresAt`, then Blob files a failed delete
- * left behind; workspace projects past their time in the trash, then
- * workspace files nothing records; and, alongside them, pinpoint pins 30 days
- * old (when their storage can expire them). Answers each step's count (null when
- * skipped or failed), `done` (false when the time budget ran out or a step
- * failed; the next run continues) and `failed` per step, with a 500 when any
- * step failed.
+ * left behind; workspace projects past their time in the trash, deleted
+ * accounts past theirs, then files nothing records; and, alongside them,
+ * pinpoint pins 30 days old (when their storage can expire them). Answers
+ * each step's count (null when skipped or failed), `done` (false when the
+ * time budget ran out or a step failed; the next run continues) and `failed`
+ * per step, with a 500 when any step failed.
  */
 export async function GET(request: Request) {
   const refused = await refusal(request);
   if (refused) return refused;
   const now = Date.now();
   const deadline = now + BUDGET_MS;
-  const [[shares, blobs], [trash, workspaceBlobs], pinned] = await Promise.all([
+  const [[shares, blobs], [trash, accounts, workspaceBlobs], pinned] = await Promise.all([
     shareSteps(now, deadline),
     workspaceSteps(now, deadline),
     pinSteps(now, deadline),
   ]);
-  const steps = { shares, blobs, trash, workspaceBlobs, pins: pinned };
+  const steps = { shares, blobs, trash, accounts, workspaceBlobs, pins: pinned };
   const report = {
     shares: shares.count,
     blobs: blobs.count,
     trash: trash.count,
+    accounts: accounts.count,
     workspaceBlobs: workspaceBlobs.count,
     pins: pinned.count,
     done: Object.values(steps).every((result) => result.done),
@@ -128,6 +140,7 @@ export async function GET(request: Request) {
       shares: shares.failed,
       blobs: blobs.failed,
       trash: trash.failed,
+      accounts: accounts.failed,
       workspaceBlobs: workspaceBlobs.failed,
       pins: pinned.failed,
     },
