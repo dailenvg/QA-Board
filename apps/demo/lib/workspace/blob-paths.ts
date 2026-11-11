@@ -60,6 +60,12 @@ export function brandLogoPath(workspaceId: string, id: string): string {
   return path;
 }
 
+/** The workspace a logo's path belongs to; null for anything else. */
+export function parseBrandLogoPath(path: string): { workspaceId: string } | null {
+  const match = new RegExp(`^ws/(${UUID})/brand/logo/${SEGMENT}$`).exec(path);
+  return match?.[1] ? { workspaceId: match[1] } : null;
+}
+
 /** The largest file a key may hold. */
 export function blobLimit(key: string): number {
   const kind = parseBlobKey(key)?.kind ?? "crop";

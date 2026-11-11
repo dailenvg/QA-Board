@@ -13,7 +13,7 @@ import { inlineBackend } from "../share/blob-backend";
 import { createPostgresStore } from "../share/postgres-store";
 import { createShare } from "../share/service";
 import type { ClientUploadDriver, ListedFile } from "./blob-driver";
-import { blobPath } from "./blob-paths";
+import { blobPath, brandLogoPath } from "./blob-paths";
 import { storageSummary } from "./blobs";
 import { TRASH_GRACE_MS, UNCOMMITTED_BLOB_MS } from "./limits";
 import { createProject, getProject, listTrash, restoreProject, trashProject } from "./projects";
@@ -37,7 +37,11 @@ function fakeStore(files: ListedFile[] = []) {
     },
     head: () => Promise.resolve(null),
     handleUpload: () => Promise.reject(new Error("unused")),
-    list: () => Promise.resolve({ files, hasMore: false }),
+    list: (prefix) =>
+      Promise.resolve({
+        files: files.filter((file) => file.pathname.startsWith(prefix)),
+        hasMore: false,
+      }),
   };
   return { driver, discarded };
 }
@@ -178,5 +182,47 @@ describe("sweepWorkspaceBlobs", () => {
     expect(discarded).toEqual(["https://store.test/orphan", "https://store.test/stale"]);
     const { rows } = await db.query<{ blob_url: string }>("SELECT blob_url FROM workspace_blobs");
     expect(rows).toEqual([{ blob_url: "https://store.test/kept" }]);
+  });
+
+  it("deletes old logo and avatar files no row records, and keeps recorded or recent ones", async () => {
+    const { db, a } = await twoWorkspaces();
+    const keptLogo = brandLogoPath(a.workspaceId, "kept");
+    const keptAvatar = `user/${a.userId}/avatar/kept`;
+    await db.query(
+      `INSERT INTO workspace_blobs (workspace_id, key, project_id, content_type, size, blob_url)
+       VALUES ($1, $2, NULL, 'image/png', 10, 'https://store.test/logo-kept')`,
+      [a.workspaceId, keptLogo],
+    );
+    await db.query(
+      `INSERT INTO user_blobs (user_id, key, content_type, size, blob_url)
+       VALUES ($1, $2, 'image/png', 10, 'https://store.test/avatar-kept')`,
+      [a.userId, keptAvatar],
+    );
+    const old = new Date(NOW - UNCOMMITTED_BLOB_MS - 1);
+    // A workspace and a user deleted for good: their rows went, and their files' deletes failed.
+    const goneWorkspace = "00000000-0000-4000-8000-000000000001";
+    const goneUser = "00000000-0000-4000-8000-000000000002";
+    const { driver, discarded } = fakeStore([
+      { pathname: keptLogo, url: "https://store.test/logo-kept", uploadedAt: old },
+      { pathname: keptAvatar, url: "https://store.test/avatar-kept", uploadedAt: old },
+      {
+        pathname: brandLogoPath(goneWorkspace, "old"),
+        url: "https://store.test/logo-gone",
+        uploadedAt: old,
+      },
+      {
+        pathname: `user/${goneUser}/avatar/old`,
+        url: "https://store.test/avatar-gone",
+        uploadedAt: old,
+      },
+      {
+        pathname: `user/${a.userId}/avatar/uploading`,
+        url: "https://store.test/avatar-fresh",
+        uploadedAt: new Date(NOW),
+      },
+      { pathname: `user/${a.userId}/notes/x`, url: "https://store.test/unknown", uploadedAt: old },
+    ]);
+    expect(await sweepWorkspaceBlobs(db, driver, NOW, DEADLINE)).toEqual({ count: 2, done: true });
+    expect(discarded).toEqual(["https://store.test/logo-gone", "https://store.test/avatar-gone"]);
   });
 });
