@@ -71,8 +71,19 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # The runner's apt mirror sometimes fails to serve an index file, which used to fail the whole
+      # run. apt now retries each download itself, and the install is tried up to three times with
+      # a growing pause, so a passing mirror hiccup costs seconds instead of a red build. A real
+      # failure still fails the step after the third try.
       - name: Install Playwright Chromium
-        run: pnpm --filter @pinpoint/demo exec playwright install --with-deps chromium
+        run: |
+          echo 'Acquire::Retries "5";' | sudo tee /etc/apt/apt.conf.d/80-retries > /dev/null
+          for attempt in 1 2 3; do
+            pnpm --filter @pinpoint/demo exec playwright install --with-deps chromium && exit 0
+            echo "::warning::Playwright install failed (attempt $attempt of 3)"
+            [ "$attempt" -lt 3 ] && sleep $((attempt * 20))
+          done
+          exit 1
 
       - run: pnpm test:e2e
 

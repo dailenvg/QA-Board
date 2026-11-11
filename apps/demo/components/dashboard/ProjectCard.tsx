@@ -5,11 +5,15 @@ import Link from "next/link";
 import { hoverLift, useRevealVariants } from "@/lib/motion";
 import { relativeTime } from "@/lib/relative-time";
 import { projectHref } from "@/lib/routes";
+import { isArchived } from "@/lib/store/archive";
 import type { ProjectSummary } from "@/lib/store/selectors";
 import type { Project } from "@/lib/store/types";
+import { shortDate } from "../ui/deletion-when";
 import { Icon } from "../ui/Icon";
-import { Menu } from "../ui/Menu";
+import { Menu, type MenuItem } from "../ui/Menu";
 import { StatusChip } from "../ui/StatusChip";
+import { ArchivedChip } from "./ArchivedChip";
+import { LabelChip } from "./LabelChip";
 import { sourceLabel } from "./project-source";
 import { ProjectThumbnail } from "./ProjectThumbnail";
 import { ProjectTypeTag } from "./ProjectTypeTag";
@@ -17,6 +21,9 @@ import { ProjectTypeTag } from "./ProjectTypeTag";
 export interface ProjectCardActions {
   onRename: (project: Project) => void;
   onMove: (project: Project) => void;
+  onLabel: (project: Project) => void;
+  /** Archives the project, or unarchives an archived one. */
+  onArchive: (project: Project) => void;
   onDelete: (project: Project) => void;
 }
 
@@ -26,21 +33,45 @@ interface ProjectCardProps extends ProjectCardActions {
   now: number;
 }
 
+function menuItems(
+  project: Project,
+  canMove: boolean,
+  { onRename, onMove, onLabel, onArchive, onDelete }: ProjectCardActions,
+): MenuItem[] {
+  const archived = isArchived(project);
+  return [
+    { label: "Rename", icon: "pencil", onSelect: () => onRename(project) },
+    {
+      label: "Move to folder",
+      icon: "folder",
+      onSelect: () => onMove(project),
+      disabled: !canMove,
+    },
+    {
+      label: project.label ? "Change label" : "Add label",
+      icon: "tag",
+      onSelect: () => onLabel(project),
+    },
+    {
+      label: archived ? "Unarchive" : "Archive",
+      icon: archived ? "archiveRestore" : "archive",
+      onSelect: () => onArchive(project),
+    },
+    { label: "Delete", icon: "trash", onSelect: () => onDelete(project), danger: true },
+  ];
+}
+
 /**
  * Project tile. The whole card opens the viewer, its type tag included; the overflow menu sits
- * above the link.
+ * above the link. An archived project's card says so in place of its status, and when it's
+ * deleted for good.
  */
-export function ProjectCard({
-  summary,
-  canMove,
-  now,
-  onRename,
-  onMove,
-  onDelete,
-}: ProjectCardProps) {
+export function ProjectCard({ summary, canMove, now, ...actions }: ProjectCardProps) {
   const { project, counts, status, previewKey } = summary;
   const reduce = useReducedMotion();
   const variants = useRevealVariants();
+  // Dates wait for the browser's clock and locale (`now` is 0 on the server).
+  const deletesOn = project.deleteAfter !== undefined && now ? project.deleteAfter : null;
 
   return (
     <motion.li
@@ -49,6 +80,8 @@ export function ProjectCard({
       exit="exit"
       {...(reduce ? {} : hoverLift)}
       data-testid="project-card"
+      data-project-id={project.id}
+      data-archived={isArchived(project) || undefined}
       // Hover draws a 2px brand line (pointers only: Tailwind's hover skips touch). brand-text is
       // the brand blue as each theme draws lines and text: cobalt in light; in dark the lighter
       // brand blue, 9:1 on the page where cobalt is under 3:1. Keyboard focus wins over it (higher
@@ -74,20 +107,14 @@ export function ProjectCard({
           className="relative z-10 -mr-1"
           label={`Actions for ${project.name}`}
           testId="project-menu"
-          items={[
-            { label: "Rename", icon: "pencil", onSelect: () => onRename(project) },
-            {
-              label: "Move to folder",
-              icon: "folder",
-              onSelect: () => onMove(project),
-              disabled: !canMove,
-            },
-            { label: "Delete", icon: "trash", onSelect: () => onDelete(project), danger: true },
-          ]}
+          items={menuItems(project, canMove, actions)}
         />
       </div>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-2">
-        <StatusChip status={status} />
+        <div className="flex max-w-full min-w-0 flex-wrap items-center gap-2">
+          {isArchived(project) ? <ArchivedChip /> : <StatusChip status={status} />}
+          {project.label ? <LabelChip label={project.label} /> : null}
+        </div>
         <p className="flex items-center gap-3 text-meta text-muted">
           <span className="inline-flex items-center gap-1" title="Active and resolved comments">
             <Icon name="message" className="size-3.5" />
@@ -106,6 +133,19 @@ export function ProjectCard({
           <span>{relativeTime(project.updatedAt, now)}</span>
         </p>
       </div>
+      {deletesOn !== null ? (
+        <p
+          data-testid="archived-deletes"
+          className="flex items-start gap-1 px-2 text-meta text-muted"
+        >
+          {/* Top-aligned (nudged to the first line's middle), so a wrapped line keeps its icon. */}
+          <Icon name="clock" className="mt-0.5 size-3.5 shrink-0" />
+          <span>
+            Deletes for good on{" "}
+            <time dateTime={new Date(deletesOn).toISOString()}>{shortDate(deletesOn, now)}</time>
+          </span>
+        </p>
+      ) : null}
     </motion.li>
   );
 }

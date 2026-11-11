@@ -11,7 +11,7 @@ import type { Database } from "../db/database";
 import { inlineBackend } from "../share/blob-backend";
 import { createPostgresStore } from "../share/postgres-store";
 import { clientShare, createShare } from "../share/service";
-import { createProject, getProject, restoreProject, trashProject } from "./projects";
+import { createProject, getProject, restoreProject, setArchived, trashProject } from "./projects";
 import { attachShare, getShareLink, syncShareLink } from "./share-links";
 
 async function setup() {
@@ -139,6 +139,23 @@ describe("share links", () => {
     expect(await getShareLink(db, a.workspaceId, "p1", TEST_AUTH_SECRET)).toBeNull();
     await restoreProject(db, a.workspaceId, "p1");
     expect(await clientShare(store, created.token, NOW)).not.toBeNull();
+  });
+
+  it("closes an archived project's share until it's unarchived, and keeps its secrets", async () => {
+    const { db, a, store, created, input } = await setup();
+    await attach(db, a.workspaceId, "p1", input);
+    await setArchived(db, a.workspaceId, "p1", true, NOW);
+    expect(await clientShare(store, created.token, NOW)).toBeNull();
+    expect(await store.byId(created.shareId)).toBeNull();
+    // Closed, not gone: the members still have the link, to reopen it by unarchiving.
+    expect(await store.exists(created.shareId)).toBe(true);
+    expect(await getShareLink(db, a.workspaceId, "p1", TEST_AUTH_SECRET)).toMatchObject({
+      id: created.shareId,
+      token: created.token,
+    });
+    await setArchived(db, a.workspaceId, "p1", false, NOW);
+    expect(await clientShare(store, created.token, NOW)).not.toBeNull();
+    expect(await store.byId(created.shareId)).not.toBeNull();
   });
 
   it("closes an archived workspace's shares until it's un-archived, and no one else's", async () => {

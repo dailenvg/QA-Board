@@ -1,13 +1,17 @@
 import type { Mood } from "@/components/brand/mascot/moods";
-import type { SquiggyEvent, SquiggyEventRecord, SquiggyEventType } from "./events";
+import { storageLevel, usedPercent } from "../account/storage-level";
+import { activeData } from "../store/archive";
 import type { SquintData } from "../store/types";
+import type { StorageSummary } from "../workspace/types";
+import type { SquiggyEvent, SquiggyEventRecord, SquiggyEventType } from "./events";
 
 /**
  * Squiggy's mood, in layers (highest wins):
  * 1. Reaction: a one-shot mood after an event, for `REACTION_MS`. The latest replaces it.
  * 2. Attention: poked (happy wink), or New project hovered, focused or open (listening).
  * 3. Asleep: no input for `IDLE_SLEEP_MS`.
- * 4. Ambient: what the workspace looks like, held at least `AMBIENT_DWELL_MS`.
+ * 4. Ambient: what the workspace looks like, held at least `AMBIENT_DWELL_MS`:
+ *    stressed while its storage is nearly or entirely used up, else its comments.
  * Pure: no React, no DOM.
  */
 
@@ -33,6 +37,7 @@ export const REACTION_MOOD: Record<SquiggyEventType, Mood> = {
   "comment-resolved": "resolved",
   "project-created": "happy",
   "item-deleted": "surprised",
+  "project-archived": "sleeping",
   "save-failed": "surprised",
   imported: "happy",
 };
@@ -44,6 +49,13 @@ export interface BusiestFolder {
   active: number;
 }
 
+/** Storage that's running out: `near` from 80% of the quota, `over` once it's used up. */
+export interface StorageStrain {
+  level: "near" | "over";
+  /** Whole percent of the quota used (`usedPercent`). */
+  percent: number;
+}
+
 /** What the ambient mood and the speech line read from the workspace. */
 export interface WorkspaceSummary {
   projects: number;
@@ -51,10 +63,26 @@ export interface WorkspaceSummary {
   resolved: number;
   /** Null when no comment is active. */
   busiestFolder: BusiestFolder | null;
+  /** Null while there's room, or before the storage is known. */
+  storage: StorageStrain | null;
 }
 
-/** Counts projects and their comments. A tie for busiest goes to the older folder. */
-export function squiggySummary(data: SquintData): WorkspaceSummary {
+/** How strained the workspace's storage is, or null while there's room (or it isn't known). */
+export function storageStrain(storage: StorageSummary | null): StorageStrain | null {
+  if (!storage) return null;
+  const level = storageLevel(storage.bytes, storage.quotaBytes);
+  return level === "ok" ? null : { level, percent: usedPercent(storage.bytes, storage.quotaBytes) };
+}
+
+/**
+ * Counts projects and their comments, archived ones left out (as the Overview
+ * leaves them out), and reads the storage. A tie for busiest goes to the older folder.
+ */
+export function squiggySummary(
+  workspace: SquintData,
+  storage: StorageSummary | null = null,
+): WorkspaceSummary {
+  const data = activeData(workspace);
   const folderOf = new Map(data.projects.map((project) => [project.id, project.folderId]));
   const activeByFolder = new Map<string, number>();
   let active = 0;
@@ -77,14 +105,22 @@ export function squiggySummary(data: SquintData): WorkspaceSummary {
       busiestFolder = { id: folder.id, name: folder.name, active: count };
     }
   }
-  return { projects: data.projects.length, active, resolved, busiestFolder };
+  return {
+    projects: data.projects.length,
+    active,
+    resolved,
+    busiestFolder,
+    storage: storageStrain(storage),
+  };
 }
 
 /**
- * The workspace's mood. `engaged`: there has been input this visit; an empty
- * workspace sleeps until then.
+ * The workspace's mood. Storage running out beats everything else: Squiggy is
+ * stressed. `engaged`: there has been input this visit; an empty workspace
+ * sleeps until then.
  */
 export function ambientMood(summary: WorkspaceSummary, engaged: boolean): Mood {
+  if (summary.storage) return "stressed";
   if (summary.projects === 0) return engaged ? "idle" : "sleeping";
   if (summary.active >= BUSY_COMMENTS) return "surprised";
   if (summary.active > 0) return "thinking";

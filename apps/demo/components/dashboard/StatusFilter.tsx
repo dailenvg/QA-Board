@@ -11,9 +11,9 @@ interface StatusFilterProps {
 }
 
 /**
- * The status filter (All, Ready to review, Comments in, Comments resolved) on folder pages and
- * Folders: one segmented control whose thumb glides between options, scrolling across the full
- * width on narrow screens.
+ * The status filter (All, Ready to review, Comments in, Comments resolved, and Archived, the
+ * only one that shows archived projects) on folder pages and Folders: one segmented control
+ * whose thumb glides between options, scrolling across the full width on narrow screens.
  */
 export function StatusFilter({ value, onChange }: StatusFilterProps) {
   return (

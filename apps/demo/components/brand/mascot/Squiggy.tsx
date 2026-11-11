@@ -15,6 +15,7 @@ import {
 } from "motion/react";
 import { duration, instant, spring, springValue } from "@/lib/motion";
 import { MagnifiedEye, Magnifier } from "./Accessory";
+import { WorriedBrows } from "./Brows";
 import { eyePose } from "./eye-pose";
 import { GAZE_RANGE, useBlink, useGaze } from "./hooks";
 import { MoodProps } from "./MoodProps";
@@ -311,6 +312,9 @@ export function Squiggy({
                             />
                           </MagnifiedEye>
                           <AnimatePresence>
+                            {spec.brows === "worried" && (
+                              <WorriedBrows key="brows" color={eyeColor} reduce={reduce} />
+                            )}
                             {magnifier && <Magnifier key="magnifier" ink={ink} reduce={reduce} />}
                           </AnimatePresence>
                         </motion.g>

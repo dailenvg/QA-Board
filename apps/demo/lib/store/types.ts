@@ -77,6 +77,15 @@ export interface Project {
   updatedAt: number;
   /** Set while the project is shared with clients. */
   share?: ProjectShare;
+  /** A short tag the team gives it (one per project), for filtering. */
+  label?: string;
+  /**
+   * Set while archived: out of the folder grids, counts and the Overview, its
+   * review link closed, until it's unarchived or deleted for good at `deleteAfter`.
+   */
+  archivedAt?: number;
+  /** When an archived project is deleted for good (epoch ms); set with `archivedAt`. */
+  deleteAfter?: number;
 }
 
 export type CommentStatus = "active" | "resolved";

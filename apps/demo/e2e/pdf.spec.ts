@@ -142,7 +142,7 @@ test("a rendered PDF stays in PDF mode: Image mode creates an image project", as
   await dialog.getByRole("radio", { name: "Image" }).click();
   const [photo] = await samplePngFiles(page, ["Photo"]);
   if (!photo) throw new Error("no image");
-  await dialog.locator('input[type="file"]').setInputFiles(photo);
+  await dialog.getByTestId("image-input").setInputFiles(photo);
   await expect(dialog.locator('[data-testid="picked-image"][data-status="ready"]')).toHaveCount(1);
   await expect(dialog.getByLabel("Project name (optional)")).toHaveAttribute(
     "placeholder",

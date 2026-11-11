@@ -6,7 +6,14 @@ import { call } from "@/test/workspace-routes";
 import type { Database } from "../db/database";
 import { deleteFolder, listFolders } from "../workspace/folders";
 import { addComment } from "../workspace/comments";
-import { createProject, listProjects, restoreProject, trashProject } from "../workspace/projects";
+import { ARCHIVE_GRACE_MS } from "../workspace/limits";
+import {
+  createProject,
+  getProject,
+  listProjects,
+  restoreProject,
+  trashProject,
+} from "../workspace/projects";
 import type { WorkspaceData, WorkspaceStart } from "../workspace/types";
 
 const holder = vi.hoisted(() => ({ db: null as Database | null }));
@@ -202,6 +209,67 @@ describe("the workspace store", () => {
 
     await store.refreshWorkspace();
     expect(data().comments[0]).toMatchObject({ pageId: page?.id, x: 12, y: 40 });
+  });
+
+  it("archives at once with its deletion date, saves it, and unarchives the same way", async () => {
+    const { db, owner, store, actions, data } = await connected(async (db, id) => {
+      await createProject(db, id, URL_PROJECT("p1"), 1);
+    });
+    const before = Date.now();
+    expect(actions.setProjectArchived("p1", true).ok).toBe(true);
+    const archived = data().projects[0];
+    expect(archived?.archivedAt).toBeGreaterThanOrEqual(before);
+    expect(archived?.deleteAfter).toBe((archived?.archivedAt ?? 0) + ARCHIVE_GRACE_MS);
+    await store.whenSaved();
+    const saved = await getProject(db, owner.workspaceId, "p1");
+    expect(saved?.archivedAt).not.toBeNull();
+    expect(saved?.deleteAfter).toBe((saved?.archivedAt ?? 0) + ARCHIVE_GRACE_MS);
+
+    // The server's dates come back on the next read.
+    await store.refreshWorkspace();
+    expect(data().projects[0]).toMatchObject({
+      archivedAt: saved?.archivedAt,
+      deleteAfter: saved?.deleteAfter,
+    });
+
+    expect(actions.setProjectArchived("p1", false).ok).toBe(true);
+    expect(data().projects[0]).not.toHaveProperty("archivedAt");
+    expect(data().projects[0]).not.toHaveProperty("deleteAfter");
+    await store.whenSaved();
+    expect(await getProject(db, owner.workspaceId, "p1")).toMatchObject({
+      archivedAt: null,
+      deleteAfter: null,
+    });
+  });
+
+  it("sets a cleaned-up label, saves it, and clears it", async () => {
+    const { db, owner, store, actions, data } = await connected(async (db, id) => {
+      await createProject(db, id, URL_PROJECT("p1"), 1);
+    });
+    actions.setProjectLabel("p1", "  Client   review ");
+    expect(data().projects[0]?.label).toBe("Client review");
+    await store.whenSaved();
+    expect((await getProject(db, owner.workspaceId, "p1"))?.label).toBe("Client review");
+
+    actions.setProjectLabel("p1", null);
+    expect(data().projects[0]).not.toHaveProperty("label");
+    await store.whenSaved();
+    expect((await getProject(db, owner.workspaceId, "p1"))?.label).toBeNull();
+  });
+
+  it("rolls back an archive the server refused, and says so", async () => {
+    const { db, owner, store, actions, notices, data } = await connected(async (db, id) => {
+      await createProject(db, id, URL_PROJECT("p1"), 1);
+    });
+    await trashProject(db, owner.workspaceId, "p1", 2);
+    actions.setProjectArchived("p1", true);
+    expect(data().projects[0]?.archivedAt).toBeDefined();
+    await store.whenSaved();
+    await store.refreshWorkspace();
+    expect(notices).toEqual([
+      "This project is no longer here. It may have been deleted in another tab.",
+    ]);
+    expect(data().projects).toEqual([]);
   });
 
   it("shows the signed-out state once the session is gone, and the workspace once back", async () => {

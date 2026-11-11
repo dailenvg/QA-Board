@@ -11,7 +11,7 @@ import type { Workspace } from "../dashboard/workspace-context";
 import { FolderCard } from "./FolderCard";
 import { folderFiles, projectCountLabel } from "./folder-files";
 import { FOLDER_GRID } from "./folder-grid-classes";
-import type { StatusFilterValue } from "../dashboard/status-filter";
+import { NO_FILTER, type ProjectFilter } from "../dashboard/status-filter";
 
 const stagger = staggerGroup(0.08, 0.12);
 
@@ -21,8 +21,11 @@ interface FolderGridProps {
   folders: readonly Folder[];
   /** Id of the heading that names the grid. */
   labelledBy: string;
-  /** Only projects with this status go in each folder, and its count (Folders' filter). */
-  status?: StatusFilterValue;
+  /**
+   * Only the projects this shows go in each folder, and its count (Folders' filters); by
+   * default every project that isn't archived.
+   */
+  filter?: ProjectFilter;
 }
 
 /**
@@ -31,15 +34,21 @@ interface FolderGridProps {
  * (folderSwatches: its place in creation order among its siblings), so a new
  * sort order moves folders without recoloring them.
  */
-export function FolderGrid({ workspace, folders, labelledBy, status = "all" }: FolderGridProps) {
-  const { data } = workspace;
+export function FolderGrid({
+  workspace,
+  folders,
+  labelledBy,
+  filter = NO_FILTER,
+}: FolderGridProps) {
+  // Archived projects included: the filter decides whether they show.
+  const data = workspace.allData;
   const tone = useTheme();
   const swatches = useMemo(() => folderSwatches(workspace.folders), [workspace.folders]);
   const cards = useMemo(
     () =>
       new Map(
         folders.map((folder) => {
-          const files = folderFiles(data, folder.id, status);
+          const files = folderFiles(data, folder.id, filter);
           const meta = projectCountLabel(
             files.length,
             subtreeIds(data.folders, folder.id).size > 1,
@@ -47,7 +56,7 @@ export function FolderGrid({ workspace, folders, labelledBy, status = "all" }: F
           return [folder.id, { files, meta }];
         }),
       ),
-    [data, folders, status],
+    [data, folders, filter],
   );
 
   return (

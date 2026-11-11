@@ -10,6 +10,7 @@ import {
   seedWorkspace,
   showComments,
 } from "./squint-fixtures";
+import { setStorageQuota, storeProjects } from "./workspace-db";
 import { WORKSPACE_SEED } from "./workspace-seed";
 
 /** The Overview's Squiggy: the wrapper carries the mood as `data-mood`. */
@@ -217,5 +218,24 @@ test("a minute without input puts Squiggy to sleep; any input wakes it", async (
   await expect(squiggyButton(page, "sleeping")).toBeVisible();
 
   await page.keyboard.press("Shift");
+  await expect(squiggy(page)).toHaveAttribute("data-mood", "idle");
+});
+
+test("Squiggy is stressed while storage is 80% full or more, and says where to free space", async ({
+  page,
+}) => {
+  await storeProjects([{ id: "heavy", name: "Heavy deck", files: [{ kind: "page", size: 850 }] }]);
+  await setStorageQuota(1000);
+  await page.goto("/");
+  await expect(squiggy(page)).toHaveAttribute("data-mood", "stressed");
+  await expect(squiggyButton(page, "stressed")).toBeVisible();
+  const line = page
+    .getByTestId("squiggy-speech")
+    .getByRole("link", { name: /Storage is 85% full/ });
+  await expect(line).toHaveAttribute("href", "/account/storage");
+
+  // Room again (a bigger quota): Squiggy settles back down.
+  await setStorageQuota(10_000);
+  await page.reload();
   await expect(squiggy(page)).toHaveAttribute("data-mood", "idle");
 });

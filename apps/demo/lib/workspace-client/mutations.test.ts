@@ -132,6 +132,26 @@ describe("writesFor", () => {
   });
 });
 
+describe("archive and label writes", () => {
+  it("archives and unarchives through the archive route", () => {
+    expect(writes({ type: "project/archive", id: "p1", archived: true, at: 9 })).toEqual([
+      { method: "PUT", path: "/projects/p1/archive", body: { archived: true } },
+    ]);
+    expect(writes({ type: "project/archive", id: "p1", archived: false, at: 9 })).toEqual([
+      { method: "PUT", path: "/projects/p1/archive", body: { archived: false } },
+    ]);
+  });
+
+  it("sets and clears a label through the label route", () => {
+    expect(writes({ type: "project/label", id: "p2", label: "Urgent" })).toEqual([
+      { method: "PUT", path: "/projects/p2/label", body: { label: "Urgent" } },
+    ]);
+    expect(writes({ type: "project/label", id: "p2", label: null })).toEqual([
+      { method: "PUT", path: "/projects/p2/label", body: { label: null } },
+    ]);
+  });
+});
+
 describe("refusalMessage", () => {
   it("says a thing was deleted elsewhere for a 404, and asks to retry otherwise", () => {
     const rename: Action = { type: "project/rename", id: "p1", name: "X", at: 2 };

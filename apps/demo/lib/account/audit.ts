@@ -26,13 +26,16 @@ export type WorkspaceAction =
 /** Who joined or left a workspace: targets the user, with the workspace's id. */
 export type MembershipAction = "membership.added" | "membership.removed";
 
+/** What the daily cron does to a workspace's projects: an archived one deleted once its date came. */
+export type ProjectAction = "project.deleted";
+
 /** One audit entry, by whoever did it: a user, or null for Squint itself (the daily cron). */
 export interface AuditEntry {
   actorUserId: string | null;
   /** Set for a workspace's entries, so they outlive it (021: no foreign key). */
   workspaceId?: string | null;
-  action: AccountAction | WorkspaceAction | MembershipAction;
-  target: { type: "user" | "workspace"; id: string };
+  action: AccountAction | WorkspaceAction | MembershipAction | ProjectAction;
+  target: { type: "user" | "workspace" | "project"; id: string };
   /** The fields that changed: never a value, an email, a hash or a token. */
   fields: readonly string[];
 }

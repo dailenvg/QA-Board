@@ -1,6 +1,7 @@
 import type { Action } from "../store/reducer";
 import { sortedFolders } from "../store/selectors";
 import type { Folder, Project, SquintData } from "../store/types";
+import { ARCHIVE_GRACE_MS } from "../workspace/limits";
 import type { ShareLink, WorkspaceData, WorkspaceProject } from "../workspace/types";
 
 /** Where a project without a folder goes when the workspace has no folder at all. */
@@ -19,6 +20,7 @@ const NO_FOLDER = "";
 
 function toProject(project: WorkspaceProject, links: ReadonlyMap<string, ShareLink>): Project {
   const { id, folderId, name, source, createdAt, updatedAt, share } = project;
+  const { label, archivedAt, deleteAfter } = project;
   const link = share ? links.get(share.id) : undefined;
   return {
     id,
@@ -27,6 +29,11 @@ function toProject(project: WorkspaceProject, links: ReadonlyMap<string, ShareLi
     source,
     createdAt,
     updatedAt,
+    ...(label ? { label } : {}),
+    // Archiving sets both dates (032 gave older archives theirs); the fallback is archiving's own.
+    ...(archivedAt === null
+      ? {}
+      : { archivedAt, deleteAfter: deleteAfter ?? archivedAt + ARCHIVE_GRACE_MS }),
     ...(share && link
       ? {
           share: {

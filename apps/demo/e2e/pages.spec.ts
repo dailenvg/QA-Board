@@ -38,7 +38,7 @@ test("an image that can't be prepared says why, and must be removed before creat
   const dialog = page.getByRole("dialog", { name: "New project" });
   await dialog.getByRole("radio", { name: "Image" }).click();
   await dialog
-    .locator('input[type="file"]')
+    .getByTestId("image-input")
     .setInputFiles([
       good,
       { name: "broken.png", mimeType: "image/png", buffer: Buffer.from("not an image") },

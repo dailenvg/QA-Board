@@ -179,7 +179,7 @@ export async function createImageProject(page: Page, fileName: string): Promise<
   const dialog = newProjectDialog(page);
   await dialog.getByRole("radio", { name: "Image" }).click();
   await dialog
-    .locator('input[type="file"]')
+    .getByTestId("image-input")
     .setInputFiles({ name: fileName, mimeType: "image/png", buffer });
   // The name shows as soon as the file is chosen; Create waits until it's prepared.
   await expect(
@@ -216,7 +216,7 @@ export async function pickImages(
   await newProjectButton(page).click();
   const dialog = newProjectDialog(page);
   await dialog.getByRole("radio", { name: "Image" }).click();
-  await dialog.locator('input[type="file"]').setInputFiles([...files]);
+  await dialog.getByTestId("image-input").setInputFiles([...files]);
   await expect(dialog.locator('[data-testid="picked-image"][data-status="ready"]')).toHaveCount(
     files.length,
   );

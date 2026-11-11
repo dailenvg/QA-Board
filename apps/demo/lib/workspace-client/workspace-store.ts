@@ -5,6 +5,7 @@ import type { SquintData } from "../store/types";
 import type {
   ClientCommentActivity,
   ShareLink,
+  StorageSummary,
   WorkspaceData,
   WorkspaceStart,
 } from "../workspace/types";
@@ -64,6 +65,8 @@ let connection: Connection | null = null;
 let state: WorkspaceState = LOADING;
 /** Clients' comments as of the last server read; null until this tab connects. */
 let clientActivity: readonly ClientCommentActivity[] | null = null;
+/** The workspace's storage use as of the last server read; null until this tab connects. */
+let storage: StorageSummary | null = null;
 const listeners = new Set<() => void>();
 const noticeListeners = new Set<(message: string) => void>();
 let lastNotice = { message: "", at: 0 };
@@ -240,6 +243,7 @@ async function read(target: Connection): Promise<void> {
   }
   // A server without the summary yet (mid-deploy) has none to give.
   clientActivity = result.value.clientActivity ?? [];
+  storage = result.value.storage ?? null;
   setData(toSquintData(result.value, target.links));
   target.blobs.retryMissing();
   fileProjects();
@@ -287,6 +291,7 @@ function adopt(target: Connection, start: WorkspaceStart): void {
   for (const link of start.links) target.links.set(link.id, link);
   changes += 1;
   clientActivity = start.data.clientActivity;
+  storage = start.data.storage;
   state = startState(start);
   emit();
   target.blobs.retryMissing();
@@ -333,6 +338,14 @@ export function getWorkspaceState(): WorkspaceState {
  */
 export function getClientActivity(): readonly ClientCommentActivity[] | null {
   return clientActivity;
+}
+
+/**
+ * The workspace's storage use (`WorkspaceData.storage`), as of the server's
+ * last read; null before this tab connects. Changes notify `subscribeWorkspace`.
+ */
+export function getWorkspaceStorage(): StorageSummary | null {
+  return storage;
 }
 
 export function subscribeWorkspace(listener: () => void): () => void {

@@ -1,7 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { deleteProject, moveProject, renameProject, restoreProject } from "@/lib/store/actions";
+import { AnimatePresence } from "motion/react";
+import { useMemo } from "react";
+import {
+  deleteProject,
+  moveProject,
+  renameProject,
+  restoreProject,
+  setProjectArchived,
+  setProjectLabel,
+} from "@/lib/store/actions";
+import { isArchived, labelsOf, workspaceLabels } from "@/lib/store/archive";
 import { ancestorsOf, childFolders } from "@/lib/store/folders";
 import { folderSummaries } from "@/lib/store/selectors";
 import type { Folder, Project } from "@/lib/store/types";
@@ -15,10 +24,11 @@ import { DashboardHeader } from "./DashboardHeader";
 import { FolderNotFound } from "./FolderNotFound";
 import { FolderSkeleton } from "./FolderSkeleton";
 import { ProjectDialogs } from "./ProjectDialogs";
-import { ProjectGrid } from "./ProjectGrid";
+import { cardFocusHandoff, focusProjectCard, ProjectGrid } from "./ProjectGrid";
 import { sortProjects } from "./project-sort";
-import type { StatusFilterValue } from "./status-filter";
+import { isFiltered, matchesFilter, noMatchKind } from "./status-filter";
 import { focusStatusFilter } from "./StatusFilter";
+import { useProjectFilter } from "./use-project-filter";
 import { useProjectSort } from "./use-project-sort";
 import { useWorkspace, type Workspace } from "./workspace-context";
 
@@ -36,23 +46,31 @@ export function FolderView({ folderId }: { folderId: string }) {
 }
 
 /**
- * Breadcrumb and folder header with summary chips, then its subfolders as
- * folder cards, then the status filter's projects in the chosen order, and the project dialogs.
+ * Breadcrumb and folder header with summary chips, then its subfolders as folder cards, then
+ * the projects the status and label filters show (archived ones only under Archived) in the
+ * chosen order, and the project dialogs.
  */
 function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Folder }) {
-  const { data, folders, report } = workspace;
+  const { allData, folders, report } = workspace;
   const toast = useToast();
   const now = useNow();
-  const [filter, setFilter] = useState<StatusFilterValue>("all");
   const { sort, setKey, reverse } = useProjectSort();
 
-  const summaries = useMemo(() => folderSummaries(data, folder.id), [data, folder.id]);
+  // Archived projects included: the Archived filter shows them.
+  const summaries = useMemo(() => folderSummaries(allData, folder.id), [allData, folder.id]);
+  const labels = useMemo(() => labelsOf(summaries.map((entry) => entry.project)), [summaries]);
+  const allLabels = useMemo(() => workspaceLabels(allData), [allData]);
+  const { filter, setStatus, setLabel, reset } = useProjectFilter(labels);
+  const active = useMemo(
+    () => summaries.filter((entry) => !isArchived(entry.project)),
+    [summaries],
+  );
   const subfolders = useMemo(() => childFolders(folders, folder.id), [folders, folder.id]);
   const ancestors = useMemo(() => ancestorsOf(folders, folder.id), [folders, folder.id]);
   const visible = useMemo(
     () =>
       sortProjects(
-        filter === "all" ? summaries : summaries.filter((entry) => entry.status === filter),
+        summaries.filter((entry) => matchesFilter(entry.project, entry.status, filter)),
         sort.key,
         sort.direction,
       ),
@@ -61,14 +79,35 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
 
   const projectRename = useDialogState<Project>();
   const projectMove = useDialogState<Project>();
+  const projectLabel = useDialogState<Project>();
   const projectDelete = useDialogState<Project>();
 
-  const withComments = summaries.filter((entry) => entry.status === "comments").length;
+  const withComments = active.filter((entry) => entry.status === "comments").length;
   const chips = [
-    plural(summaries.length, "project"),
+    plural(active.length, "project"),
     ...(subfolders.length ? [plural(subfolders.length, "subfolder")] : []),
     ...(withComments > 0 ? [`${withComments} with active comments`] : []),
   ];
+  // Nothing to review here (archived projects aside): the folder's own empty state.
+  const empty = active.length === 0 && !isFiltered(filter);
+
+  // Either way the card leaves the list it's in (archived ones show under Archived only), so
+  // focus moves to its neighbour; Undo brings it back and puts focus on it again.
+  const archive = (project: Project) => {
+    const archiving = !isArchived(project);
+    const handOffFocus = cardFocusHandoff(project.id);
+    if (!report(setProjectArchived(project.id, archiving))) return;
+    handOffFocus();
+    toast({
+      message: archiving ? `Archived ${project.name}` : `Unarchived ${project.name}`,
+      action: {
+        label: "Undo",
+        onAction: () => {
+          if (report(setProjectArchived(project.id, !archiving))) focusProjectCard(project.id);
+        },
+      },
+    });
+  };
 
   return (
     <>
@@ -76,7 +115,9 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
         folder={folder}
         chips={chips}
         filter={filter}
-        onFilter={setFilter}
+        labels={labels}
+        onStatus={setStatus}
+        onLabel={setLabel}
         sort={sort}
         onSortKey={setKey}
         onReverseSort={reverse}
@@ -103,33 +144,49 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
       ) : null}
       {subfolders.length ? <h2 className="text-heading font-bold">Projects</h2> : null}
       <p className="sr-only" aria-live="polite">
-        {filter === "all" ? "" : `${plural(visible.length, "project")} shown`}
+        {isFiltered(filter) ? `${plural(visible.length, "project")} shown` : ""}
       </p>
-      {summaries.length === 0 ? (
-        <DashboardEmpty kind="folder" onAction={() => workspace.openNewProject(folder.id)} />
-      ) : visible.length === 0 ? (
-        <DashboardEmpty
-          kind="filter"
-          onAction={() => {
-            setFilter("all");
-            focusStatusFilter();
-          }}
-        />
-      ) : (
-        <ProjectGrid
-          summaries={visible}
-          canMove={folders.length > 1}
-          now={now}
-          onRename={projectRename.show}
-          onMove={projectMove.show}
-          onDelete={projectDelete.show}
-        />
-      )}
+      {/*
+        One at a time: when the last card is archived (or filtered away) the grid fades out
+        with it before the empty state comes in, rather than vanishing.
+      */}
+      <AnimatePresence mode="wait">
+        {empty ? (
+          <DashboardEmpty
+            key="empty-folder"
+            kind="folder"
+            onAction={() => workspace.openNewProject(folder.id)}
+          />
+        ) : visible.length === 0 ? (
+          <DashboardEmpty
+            key="empty-filter"
+            kind={noMatchKind(filter, "folder")}
+            onAction={() => {
+              reset();
+              focusStatusFilter();
+            }}
+          />
+        ) : (
+          <ProjectGrid
+            key="grid"
+            summaries={visible}
+            canMove={folders.length > 1}
+            now={now}
+            onRename={projectRename.show}
+            onMove={projectMove.show}
+            onLabel={projectLabel.show}
+            onArchive={archive}
+            onDelete={projectDelete.show}
+          />
+        )}
+      </AnimatePresence>
 
       <ProjectDialogs
         folders={folders}
+        labels={allLabels}
         rename={projectRename}
         move={projectMove}
+        label={projectLabel}
         remove={projectDelete}
         onRename={(project, name) => {
           const result = renameProject(project.id, name);
@@ -142,21 +199,33 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
           const target = folders.find((entry) => entry.id === folderId);
           report(moveProject(project.id, folderId), `Moved to ${target?.name ?? "folder"}`);
         }}
+        onLabel={(project, label) => {
+          projectLabel.close();
+          report(
+            setProjectLabel(project.id, label),
+            label === null ? `Removed the label from ${project.name}` : undefined,
+          );
+        }}
         onDelete={(project) => {
           projectDelete.close();
-          const comments = data.comments.filter((comment) => comment.projectId === project.id);
-          const snapshots = data.snapshots.filter((snapshot) => snapshot.projectId === project.id);
+          const comments = allData.comments.filter((comment) => comment.projectId === project.id);
+          const snapshots = allData.snapshots.filter(
+            (snapshot) => snapshot.projectId === project.id,
+          );
           // The project goes to the workspace's trash, so Undo brings it back whole.
           if (!report(deleteProject(project.id))) return;
           toast({
             message: `Deleted ${project.name}`,
             action: {
               label: "Undo",
-              onAction: () =>
-                void report(
+              // Focus goes to the restored card, not to the page as the toast leaves.
+              onAction: () => {
+                const restored = report(
                   restoreProject(project, comments, snapshots),
                   `Restored ${project.name}`,
-                ),
+                );
+                if (restored) focusProjectCard(project.id);
+              },
             },
           });
         }}
