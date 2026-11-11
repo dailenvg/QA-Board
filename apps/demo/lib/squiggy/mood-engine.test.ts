@@ -56,6 +56,7 @@ const summary = (over: Partial<WorkspaceSummary>): WorkspaceSummary => ({
   active: 0,
   resolved: 0,
   busiestFolder: null,
+  storage: null,
   ...over,
 });
 
@@ -77,6 +78,7 @@ describe("squiggySummary", () => {
       active: 3,
       resolved: 1,
       busiestFolder: { id: "b", name: "B", active: 2 },
+      storage: null,
     });
   });
 
@@ -93,6 +95,26 @@ describe("squiggySummary", () => {
     );
     expect(result.active).toBe(2);
     expect(result.busiestFolder?.id).toBe("a");
+  });
+
+  it("leaves archived projects and their comments out, as the Overview does", () => {
+    const result = squiggySummary(
+      data(
+        [project("p1", "a"), { ...project("p2", "b"), archivedAt: 1, deleteAfter: 2 }],
+        [comment("1", "p1", "resolved"), comment("2", "p2", "active")],
+      ),
+    );
+    expect(result).toMatchObject({ projects: 1, active: 0, resolved: 1, busiestFolder: null });
+  });
+
+  it("reads storage as strained from 80% of the quota, and over once it's used up", () => {
+    const at = (bytes: number) =>
+      squiggySummary(data([], []), { bytes, blobCount: 1, quotaBytes: 1000 }).storage;
+    expect(at(799)).toBeNull();
+    expect(at(800)).toEqual({ level: "near", percent: 80 });
+    expect(at(999)).toEqual({ level: "near", percent: 99 });
+    expect(at(1000)).toEqual({ level: "over", percent: 100 });
+    expect(squiggySummary(data([], [])).storage).toBeNull();
   });
 
   it("has no busiest folder when nothing is active", () => {
@@ -113,6 +135,16 @@ describe("ambientMood", () => {
     expect(ambientMood(summary({ active: BUSY_COMMENTS }), true)).toBe("surprised");
   });
 
+  it("is stressed while storage is strained, whatever the workspace looks like", () => {
+    const near = { level: "near", percent: 85 } as const;
+    expect(ambientMood(summary({ storage: near }), true)).toBe("stressed");
+    expect(ambientMood(summary({ storage: near, resolved: 3 }), true)).toBe("stressed");
+    expect(ambientMood(summary({ storage: near, projects: 0 }), false)).toBe("stressed");
+    expect(
+      ambientMood(summary({ storage: { level: "over", percent: 100 }, active: 20 }), true),
+    ).toBe("stressed");
+  });
+
   it("is happy once everything is resolved, and idles with only fresh projects", () => {
     expect(ambientMood(summary({ resolved: 2 }), true)).toBe("happy");
     expect(ambientMood(summary({ active: 1, resolved: 2 }), true)).toBe("thinking");
@@ -129,6 +161,11 @@ describe("resolveMood", () => {
 
   it("sleeps after a long quiet, over the ambient mood", () => {
     expect(resolveMood({ ...base, asleep: true })).toBe("sleeping");
+  });
+
+  it("lets the archive nap beat a stressed workspace while it lasts", () => {
+    expect(resolveMood({ ...base, ambient: "stressed", reaction: "sleeping" })).toBe("sleeping");
+    expect(resolveMood({ ...base, ambient: "stressed" })).toBe("stressed");
   });
 
   it("lets attention beat sleep and ambient, and a reaction beat everything", () => {
@@ -171,6 +208,7 @@ describe("reactionMood", () => {
     expect(reactionMood({ type: "signed-in", first: false })).toBe("happy");
     expect(reactionMood({ type: "item-deleted", item: "comment" })).toBe("surprised");
     expect(reactionMood({ type: "save-failed" })).toBe("surprised");
+    expect(reactionMood({ type: "project-archived" })).toBe("sleeping");
     expect(reactionMood({ type: "imported", partial: false })).toBe("happy");
   });
 });

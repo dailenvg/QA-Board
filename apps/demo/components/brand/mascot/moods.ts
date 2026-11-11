@@ -16,6 +16,7 @@ export const MOODS = [
   "sleeping",
   "resolved",
   "searching",
+  "stressed",
 ] as const;
 
 export type Mood = (typeof MOODS)[number];
@@ -27,6 +28,9 @@ export type EyeShape = { scaleX?: number; scaleY: number; rotate?: number };
 
 /** Something the mascot can hold. */
 export type Accessory = "magnifier";
+
+/** Brows drawn over the eyes; most moods have none. */
+export type Brows = "worried";
 
 export type MoodSpec = {
   label: string;
@@ -49,6 +53,8 @@ export type MoodSpec = {
   enter?: Transition;
   /** Held while in this mood. */
   accessory?: Accessory;
+  /** Worn over the eyes while in this mood. */
+  brows?: Brows;
 };
 
 const open: EyeShape = { scaleY: 1 };
@@ -189,6 +195,31 @@ export const MOOD_SPECS: Record<Mood, MoodSpec> = {
     },
     accessory: "magnifier",
   },
+  stressed: {
+    label: "Stressed",
+    // Hunched a little lower, then a nervous shiver side to side and a beat of rest. Held still
+    // (reduced motion, `still`), the brows and the sweat drop (MoodProps) carry the mood alone.
+    float: {
+      x: [0, -3, 3, -3, 3, 0, 0],
+      y: 2,
+      rotate: [0, -1.5, 1.5, -1.5, 1.5, 0, 0],
+    },
+    squash: { scaleX: 1.03, scaleY: 0.97 },
+    eyes: { y: 8, scale: 1 },
+    shadow: { scaleX: 1.03, opacity: 0.22 },
+    // Smaller, tense eyes under worried brows. No tilt: each eye mirrors toward its gaze, which
+    // would flip a tilt (worried into cross), so the brows set the angle instead.
+    leftEye: { scaleX: 0.86, scaleY: 0.86 },
+    rightEye: { scaleX: 0.86, scaleY: 0.86 },
+    gaze: { x: 0, y: 4 },
+    blinks: true,
+    loop: {
+      duration: 1.6,
+      times: [0, 0.08, 0.16, 0.24, 0.32, 0.4, 1],
+      ease: "easeInOut",
+    },
+    brows: "worried",
+  },
 };
 
 /**
@@ -216,7 +247,7 @@ const restOf = (pose: Pose) =>
   Object.fromEntries(Object.entries(pose).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v]));
 
 /** Values only some moods animate, so every other mood returns them to rest. */
-const LAYER_REST: Partial<Record<Layer, Pose>> = { eyes: { x: 0 } };
+const LAYER_REST: Partial<Record<Layer, Pose>> = { float: { x: 0 }, eyes: { x: 0 } };
 
 /**
  * Each mood gets two variants per layer:

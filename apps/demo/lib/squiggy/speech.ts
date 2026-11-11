@@ -1,9 +1,14 @@
 import type { SquiggyEvent } from "./events";
-import type { BusiestFolder, WorkspaceSummary } from "./mood-engine";
+import type { BusiestFolder, StorageStrain, WorkspaceSummary } from "./mood-engine";
 
-/** Squiggy's line about the workspace: comments waiting (a link to their folder), or all resolved. */
+/**
+ * Squiggy's line about the workspace: storage running out (a link to the
+ * Storage page), comments waiting (a link to their folder), or all resolved.
+ */
 export type AmbientSpeech =
-  { kind: "waiting"; folder: BusiestFolder; total: number } | { kind: "resolved" };
+  | ({ kind: "storage" } & StorageStrain)
+  | { kind: "waiting"; folder: BusiestFolder; total: number }
+  | { kind: "resolved" };
 
 /** A one-off line for the event Squiggy is reacting to. Never a link. */
 export type ReactionSpeech =
@@ -11,6 +16,7 @@ export type ReactionSpeech =
   | { kind: "just-resolved" }
   | { kind: "just-created"; projectName: string }
   | { kind: "just-deleted"; undoable: boolean }
+  | { kind: "just-archived" }
   | { kind: "save-failed" }
   | { kind: "just-imported"; partial: boolean };
 
@@ -18,10 +24,12 @@ export type SquiggySpeech = AmbientSpeech | ReactionSpeech;
 
 /**
  * What Squiggy has to say about the workspace, from the same summary as the
- * ambient mood. Null when there's nothing specific: no projects (the welcome
- * and the empty state already ask for one), or only projects without comments.
+ * ambient mood: storage running out first, as that's why it's stressed. Null
+ * when there's nothing specific: no projects (the welcome and the empty state
+ * already ask for one), or only projects without comments.
  */
 export function squiggySpeech(summary: WorkspaceSummary): AmbientSpeech | null {
+  if (summary.storage) return { kind: "storage", ...summary.storage };
   if (summary.projects === 0) return null;
   if (summary.busiestFolder) {
     return { kind: "waiting", folder: summary.busiestFolder, total: summary.active };
@@ -40,6 +48,8 @@ export function reactionSpeech(event: SquiggyEvent): ReactionSpeech {
       return { kind: "just-created", projectName: event.projectName };
     case "item-deleted":
       return { kind: "just-deleted", undoable: event.item !== "folder" };
+    case "project-archived":
+      return { kind: "just-archived" };
     case "save-failed":
       return { kind: "save-failed" };
     case "imported":

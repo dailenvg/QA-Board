@@ -48,3 +48,15 @@ export const LENS = {
 export const LENS_HANDLE_PATH = "M424 576L472 624";
 /** The glint on the glass, a short arc at the top left. */
 export const LENS_GLINT_PATH = "M303.7 492.8A62 62 0 0 1 340.8 455.7";
+
+/**
+ * Worried brows over the eyes (Stressed): their inner ends raised, steep
+ * enough to read at the Overview's smallest size (about 96px).
+ */
+export const BROW_LEFT_PATH = "M184 450L248 420";
+export const BROW_RIGHT_PATH = "M326 420L390 450";
+
+/** A sweat drop, pointed end up, drawn around 0,0; Stressed wears it at the top right. */
+export const SWEAT_DROP_PATH = "M0 -30C6 -18 16 -6 16 6A16 16 0 0 1 -16 6C-16 -6 -6 -18 0 -30Z";
+/** The drop's glint, a short arc on its lower left. */
+export const SWEAT_GLINT_PATH = "M-6 0A8 8 0 0 0 0 8";

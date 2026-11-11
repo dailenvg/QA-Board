@@ -5,13 +5,13 @@ import { mix } from "@/lib/color";
 import { duration, ease, spring } from "@/lib/motion";
 import { useTheme } from "@/lib/use-theme";
 import { RESOLVED_APEX, RESOLVED_HOP, type Mood } from "./moods";
-import { BRAND, CONFETTI_COLORS } from "./paths";
+import { BRAND, CONFETTI_COLORS, SWEAT_DROP_PATH, SWEAT_GLINT_PATH } from "./paths";
 
 type Props = { mood: Mood; color: string; reduce: boolean };
 
 const fadeOut = { opacity: 0, scale: 0.4, transition: { duration: duration.micro } };
 
-/** Little extras that sell a mood: thought bubbles, snores, sparkles, confetti. */
+/** Little extras that sell a mood: thought bubbles, snores, sparkles, confetti, a sweat drop. */
 export function MoodProps({ mood, color, reduce }: Props) {
   return (
     <AnimatePresence>
@@ -19,6 +19,7 @@ export function MoodProps({ mood, color, reduce }: Props) {
       {mood === "sleeping" && <Snores key="sleeping" color={color} reduce={reduce} />}
       {mood === "happy" && <Sparkles key="happy" color={color} reduce={reduce} />}
       {mood === "resolved" && <Resolved key="resolved" reduce={reduce} />}
+      {mood === "stressed" && <SweatDrop key="stressed" color={color} reduce={reduce} />}
     </AnimatePresence>
   );
 }
@@ -128,6 +129,61 @@ function Sparkles({ color, reduce }: Omit<Props, "mood">) {
         </g>
       ))}
     </motion.g>
+  );
+}
+
+/** Where the drop sits (the bubble's top right corner) and how large, in stage units. */
+const DROP = { x: 468, y: 352, scale: 1.5 } as const;
+/** The drop's fill: the body color washed toward white, outlined in the body color itself. */
+const DROP_TINT = 0.5;
+/** How far it slides down its corner before it fades and forms again. */
+const DROP_SLIDE = 16;
+
+/**
+ * A sweat drop at the bubble's top right: it pops in, then over and over forms,
+ * slides down a little and fades. Reduced motion just shows it.
+ */
+function SweatDrop({ color, reduce }: Omit<Props, "mood">) {
+  return (
+    <g transform={`translate(${DROP.x} ${DROP.y}) scale(${DROP.scale})`}>
+      <motion.g
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={fadeOut}
+        transition={reduce ? { duration: duration.micro } : spring.jelly}
+      >
+        <motion.g
+          animate={
+            reduce ? { y: 0, opacity: 1 } : { y: [0, 0, 0, DROP_SLIDE], opacity: [0, 1, 1, 0] }
+          }
+          transition={
+            reduce
+              ? { duration: 0 }
+              : {
+                  duration: duration.loop,
+                  times: [0, 0.15, 0.6, 1],
+                  ease: "easeIn",
+                  repeat: Infinity,
+                  repeatDelay: duration.loop / 2,
+                }
+          }
+        >
+          <path
+            d={SWEAT_DROP_PATH}
+            fill={mix(color, "#FFFFFF", DROP_TINT)}
+            stroke={color}
+            strokeWidth={4}
+          />
+          <path
+            d={SWEAT_GLINT_PATH}
+            fill="none"
+            stroke="#FFFFFF"
+            strokeWidth={3.5}
+            strokeLinecap="round"
+          />
+        </motion.g>
+      </motion.g>
+    </g>
   );
 }
 

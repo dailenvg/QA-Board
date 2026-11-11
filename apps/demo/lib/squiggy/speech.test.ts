@@ -13,6 +13,7 @@ const summary = (over: Partial<WorkspaceSummary>): WorkspaceSummary => ({
   active: 0,
   resolved: 0,
   busiestFolder: null,
+  storage: null,
   ...over,
 });
 
@@ -24,6 +25,17 @@ describe("squiggySpeech", () => {
       folder: busiestFolder,
       total: 5,
     });
+  });
+
+  it("says storage is running out first, as that's why Squiggy is stressed", () => {
+    const busiestFolder = { id: "a", name: "A", active: 3 };
+    const storage = { level: "near", percent: 86 } as const;
+    expect(squiggySpeech(summary({ active: 5, busiestFolder, storage }))).toEqual({
+      kind: "storage",
+      level: "near",
+      percent: 86,
+    });
+    expect(squiggySpeech(summary({ projects: 0, storage }))).toMatchObject({ kind: "storage" });
   });
 
   it("praises an all-resolved workspace, and says nothing when there's nothing specific", () => {
@@ -45,6 +57,7 @@ describe("reactionSpeech", () => {
       projectName: "Homepage",
     });
     expect(reactionSpeech({ type: "save-failed" })).toEqual({ kind: "save-failed" });
+    expect(reactionSpeech({ type: "project-archived" })).toEqual({ kind: "just-archived" });
     expect(reactionSpeech({ type: "imported", partial: false })).toEqual({
       kind: "just-imported",
       partial: false,

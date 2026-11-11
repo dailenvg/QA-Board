@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Mood } from "@/components/brand/mascot/moods";
 import { useSquint } from "../store/use-squint";
 import { useTimedFlag } from "../use-timed-flag";
+import { useWorkspaceStorage } from "../workspace-client/use-workspace-storage";
 import { useActivity } from "./activity";
 import { useSquiggyAttention } from "./attention";
 import {
@@ -69,9 +70,10 @@ function useSettled(value: boolean, onDelay: number, offDelay: number): boolean 
 /** The main Squiggy's mood (see `mood-engine.ts` for the layers), and its speech line. */
 export function useSquiggyMood(): SquiggyMood {
   const state = useSquint();
+  const storage = useWorkspaceStorage();
   const summary = useMemo(
-    () => (state.status === "ready" ? squiggySummary(state.data) : null),
-    [state],
+    () => (state.status === "ready" ? squiggySummary(state.data, storage) : null),
+    [state, storage],
   );
   const { engaged, asleep } = useActivity();
   const listening = useSettled(useSquiggyAttention(), ATTENTION_SETTLE_MS, ATTENTION_RELEASE_MS);
