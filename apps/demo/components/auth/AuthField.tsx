@@ -1,14 +1,15 @@
 "use client";
 
 import { motion, useReducedMotion } from "motion/react";
-import { useId, type Ref } from "react";
+import { useId, type ReactNode, type Ref } from "react";
 import { press } from "@/lib/motion";
 import { FieldError } from "../ui/FieldError";
 import { FIELD_CLASS } from "../ui/field-styles";
 import { useReportedReveal } from "./password-reveal";
 
 interface AuthFieldProps {
-  label: string;
+  /** Usually plain text; a node when part of it needs emphasis (such as the text to type). */
+  label: ReactNode;
   type: "text" | "email" | "password";
   autoComplete:
     "name" | "organization" | "off" | "username" | "email" | "current-password" | "new-password";
@@ -25,6 +26,13 @@ interface AuthFieldProps {
   hint?: string;
   inputRef?: Ref<HTMLInputElement>;
   autoFocus?: boolean;
+  /** Takes focus when the Dialog it's in opens (`data-autofocus`), instead of the first control. */
+  dialogAutofocus?: boolean;
+  /**
+   * Defaults to "words" for text, "none" otherwise. "none" for text that must be typed exactly
+   * (a case-sensitive confirmation), so a phone's keyboard doesn't capitalise it.
+   */
+  autoCapitalize?: "words" | "none";
   /** False for a field that may be left blank. */
   required?: boolean;
   testId?: string;
@@ -43,6 +51,8 @@ export function AuthField({
   hint,
   inputRef,
   autoFocus = false,
+  dialogAutofocus = false,
+  autoCapitalize,
   required = true,
   testId,
 }: AuthFieldProps) {
@@ -54,7 +64,8 @@ export function AuthField({
   const isPassword = type === "password";
   return (
     <div>
-      <label htmlFor={inputId} className="mb-2 block text-body font-semibold">
+      {/* wrap-anywhere: a label can hold a long email or workspace name, wider than a phone. */}
+      <label htmlFor={inputId} className="mb-2 block text-body font-semibold wrap-anywhere">
         {label}
       </label>
       <div className="relative">
@@ -65,13 +76,14 @@ export function AuthField({
           // From the field's kind, not the rendered type, so showing the password keeps its name.
           name={name ?? (autoComplete === "new-password" ? undefined : type)}
           autoComplete={autoComplete}
-          autoCapitalize={type === "text" ? "words" : "none"}
+          autoCapitalize={autoCapitalize ?? (type === "text" ? "words" : "none")}
           autoCorrect="off"
           spellCheck={false}
           inputMode={type === "email" ? "email" : undefined}
           required={required}
           // Only on pages that are nothing but this form.
           autoFocus={autoFocus}
+          data-autofocus={dialogAutofocus || undefined}
           value={value}
           aria-invalid={error ? true : undefined}
           aria-describedby={hint ? `${hintId} ${errorId}` : errorId}

@@ -12,7 +12,7 @@ import { SettingsCard } from "./SettingsCard";
  * Deleting the account, behind a dialog that asks for the workspace's name
  * (a member: their email) and the current password. Never shown to the admin.
  */
-export function DeleteAccount({ confirm }: { confirm: DeletionConfirm }) {
+export function DeleteAccount({ confirm, email }: { confirm: DeletionConfirm; email: string }) {
   const [open, setOpen] = useState(false);
   const description =
     confirm.kind === "workspace"
@@ -34,7 +34,12 @@ export function DeleteAccount({ confirm }: { confirm: DeletionConfirm }) {
         <Icon name="trash" className="size-5" />
         {DELETE_ACCOUNT_COPY.open}
       </Button>
-      <DeleteAccountDialog open={open} confirm={confirm} onClose={() => setOpen(false)} />
+      <DeleteAccountDialog
+        open={open}
+        confirm={confirm}
+        email={email}
+        onClose={() => setOpen(false)}
+      />
     </SettingsCard>
   );
 }

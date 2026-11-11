@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { accountErrorMessage, deleteAccount } from "@/lib/account/account-client";
 import {
   currentPasswordError,
@@ -22,14 +22,18 @@ const COPY = DELETE_ACCOUNT_COPY.dialog;
 interface DeleteAccountDialogProps {
   open: boolean;
   confirm: DeletionConfirm;
+  /** The sign-in email, for password managers: which account the password belongs to. */
+  email: string;
   onClose: () => void;
 }
 
 /**
  * Asks for the workspace's name (a member: their email) and the current
- * password, then deletes the account. Stays up while it's deleting.
+ * password, then deletes the account. Stays up while it's deleting. Focus
+ * starts in the field to type the confirmation in (as in ConfirmDialog's
+ * typed confirm): the delete button can't act until it matches.
  */
-export function DeleteAccountDialog({ open, confirm, onClose }: DeleteAccountDialogProps) {
+export function DeleteAccountDialog({ open, confirm, email, onClose }: DeleteAccountDialogProps) {
   const [pending, setPending] = useState(false);
   const close = () => {
     if (!pending) onClose();
@@ -50,6 +54,7 @@ export function DeleteAccountDialog({ open, confirm, onClose }: DeleteAccountDia
     >
       <DeleteAccountForm
         confirm={confirm}
+        email={email}
         pending={pending}
         onPending={setPending}
         onCancel={close}
@@ -60,6 +65,7 @@ export function DeleteAccountDialog({ open, confirm, onClose }: DeleteAccountDia
 
 interface DeleteAccountFormProps {
   confirm: DeletionConfirm;
+  email: string;
   pending: boolean;
   onPending: (pending: boolean) => void;
   onCancel: () => void;
@@ -70,7 +76,26 @@ function confirmError(value: string, confirm: DeletionConfirm): string | null {
   return deletionConfirmMatches(value, confirm) ? null : COPY.confirmMismatch(confirm.text);
 }
 
-function DeleteAccountForm({ confirm, pending, onPending, onCancel }: DeleteAccountFormProps) {
+/** `sentence`, with `part` in it (if it's there) in bold, so the text to type stands out. */
+function emphasized(sentence: string, part: string): ReactNode {
+  const at = sentence.indexOf(part);
+  if (!part || at < 0) return sentence;
+  return (
+    <>
+      {sentence.slice(0, at)}
+      <strong className="font-bold">{part}</strong>
+      {sentence.slice(at + part.length)}
+    </>
+  );
+}
+
+function DeleteAccountForm({
+  confirm,
+  email,
+  pending,
+  onPending,
+  onCancel,
+}: DeleteAccountFormProps) {
   const typed = useCheckedField((value) => confirmError(value, confirm));
   const password = useCheckedField(currentPasswordError);
   const [formError, setFormError] = useState<string | null>(null);
@@ -118,12 +143,29 @@ function DeleteAccountForm({ confirm, pending, onPending, onCancel }: DeleteAcco
       aria-busy={pending}
       className="flex flex-col gap-4"
     >
+      {/*
+        For password managers: which account the password belongs to, so none takes the field
+        below for a username and fills it in. tabIndex -1 keeps it out of the Dialog's focus trap,
+        which counts tab stops by tabIndex.
+      */}
+      <input
+        type="email"
+        name="username"
+        autoComplete="username"
+        value={email}
+        readOnly
+        hidden
+        tabIndex={-1}
+      />
       <AuthField
-        label={COPY.confirmLabel(confirm.text)}
+        label={emphasized(COPY.confirmLabel(confirm.text), confirm.text)}
         type={confirm.kind === "email" ? "email" : "text"}
         autoComplete="off"
+        // Typed exactly (a workspace's name is case-sensitive): no capitalising keyboard.
+        autoCapitalize="none"
         name="confirmText"
         inputRef={typedRef}
+        dialogAutofocus
         hint={COPY.confirmHint[confirm.kind]}
         {...typed.field}
         testId="delete-account-confirm"

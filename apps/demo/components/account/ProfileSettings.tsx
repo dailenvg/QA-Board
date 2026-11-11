@@ -28,7 +28,7 @@ export function ProfileSettings({ name, email, avatarVersion, deletion }: Profil
       <EmailForm currentEmail={email} />
       <PasswordForm email={email} />
       <LogOutEverywhere />
-      {deletion ? <DeleteAccount confirm={deletion} /> : null}
+      {deletion ? <DeleteAccount confirm={deletion} email={email} /> : null}
     </div>
   );
 }
