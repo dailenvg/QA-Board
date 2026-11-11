@@ -46,17 +46,17 @@ export async function mockCapture(
  */
 export const DEFAULT_FOLDER = { id: "default", name: "My projects" } as const;
 
-/** `path` below this test's workspace API (`/api/w/<id>`). */
-async function workspaceApi(path: string): Promise<string> {
-  return `/api/w/${await e2eWorkspaceId()}${path}`;
+/** `path` below a workspace's API (`/api/w/<id>`): this test's, unless `workspaceId` names another. */
+async function workspaceApi(path: string, workspaceId?: string): Promise<string> {
+  return `/api/w/${workspaceId ?? (await e2eWorkspaceId())}${path}`;
 }
 
 /**
  * Adds DEFAULT_FOLDER to the signed-in workspace through the server, oldest so it comes
  * first, keeping everything else. Takes effect on the next page load.
  */
-export async function addDefaultFolder(page: Page): Promise<void> {
-  const response = await page.request.post(await workspaceApi("/folders"), {
+export async function addDefaultFolder(page: Page, workspaceId?: string): Promise<void> {
+  const response = await page.request.post(await workspaceApi("/folders", workspaceId), {
     data: { ...DEFAULT_FOLDER, parentId: null, createdAt: 0 },
   });
   // 409: it's already there.
@@ -80,17 +80,19 @@ export async function skipReviewGuide(page: Page): Promise<void> {
 
 /**
  * A website project named `name` in DEFAULT_FOLDER with a review link, made
- * through the server as the Share dialog makes it. Returns the link's token
+ * through the server as the Share dialog makes it, in the e2e workspace (or
+ * `workspaceId`, which `page` must be signed in to). Returns the link's token
  * and the project's id.
  */
 export async function shareWorkspaceProject(
   page: Page,
   name: string,
+  workspaceId?: string,
 ): Promise<{ token: string; projectId: string }> {
-  await addDefaultFolder(page);
+  await addDefaultFolder(page, workspaceId);
   const id = `shared-${Date.now().toString(36)}`;
   const source = { kind: "url", url: "https://example.com/" } as const;
-  const project = await page.request.post(await workspaceApi("/projects"), {
+  const project = await page.request.post(await workspaceApi("/projects", workspaceId), {
     data: { id, folderId: DEFAULT_FOLDER.id, name, source },
   });
   expect(project.status()).toBe(201);
@@ -102,9 +104,10 @@ export async function shareWorkspaceProject(
   });
   expect(created.status()).toBe(201);
   const { shareId, token, ownerKey } = (await created.json()) as Record<string, string>;
-  const linked = await page.request.put(await workspaceApi(`/projects/${id}/share-link`), {
-    data: { shareId, token, ownerKey },
-  });
+  const linked = await page.request.put(
+    await workspaceApi(`/projects/${id}/share-link`, workspaceId),
+    { data: { shareId, token, ownerKey } },
+  );
   expect(linked.status()).toBe(200);
   return { token: token ?? "", projectId: id };
 }

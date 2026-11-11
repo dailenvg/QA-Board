@@ -85,3 +85,85 @@ export async function spareSessions(): Promise<number> {
     return rows[0]?.count ?? 0;
   });
 }
+
+/** A throwaway account for the specs that delete one: never the e2e owner, the spare or the admin. */
+export interface DisposableAccount {
+  email: string;
+  password: string;
+  workspaceId: string;
+  workspaceName: string;
+}
+
+let disposables = 0;
+
+/** A unique tag per call: the run's time, a counter, and `label` (the Playwright project). */
+function disposableTag(label: string): string {
+  disposables += 1;
+  return `${label}-${Date.now().toString(36)}-${disposables}`.toLowerCase();
+}
+
+/**
+ * A new company account that owns a workspace of its own, made straight in
+ * the e2e database as the seed script makes one. Each call makes another, so
+ * deleting it never touches what other specs share.
+ */
+export async function createDisposableOwner(label: string): Promise<DisposableAccount> {
+  const tag = disposableTag(label);
+  const account = {
+    email: `delete-${tag}@e2e.test`,
+    password: "e2e disposable password",
+    workspaceName: `Delete Me ${tag}`,
+  };
+  const passwordHash = await hashPassword(account.password);
+  return withClient(async (client) => {
+    const { rows: users } = await client.query<{ id: string }>(
+      "INSERT INTO users (email, password_hash, role) VALUES ($1, $2, 'company') RETURNING id",
+      [account.email, passwordHash],
+    );
+    const { rows: workspaces } = await client.query<{ id: string }>(
+      "INSERT INTO workspaces (slug, name) VALUES ($1, $2) RETURNING id",
+      [`e2e-delete-${tag}`.replace(/[^a-z0-9-]/g, "-").slice(0, 48), account.workspaceName],
+    );
+    const workspaceId = workspaces[0]?.id ?? "";
+    await client.query(
+      "INSERT INTO memberships (user_id, workspace_id, role) VALUES ($1, $2, 'owner')",
+      [users[0]?.id, workspaceId],
+    );
+    return { ...account, workspaceId };
+  });
+}
+
+/** A new member of `owner`'s workspace, who can sign in. */
+export async function addDisposableMember(
+  owner: DisposableAccount,
+  label: string,
+): Promise<DisposableAccount> {
+  const email = `member-${disposableTag(label)}@e2e.test`;
+  const passwordHash = await hashPassword(owner.password);
+  await withClient(async (client) => {
+    const { rows } = await client.query<{ id: string }>(
+      "INSERT INTO users (email, password_hash, role) VALUES ($1, $2, 'company') RETURNING id",
+      [email, passwordHash],
+    );
+    await client.query(
+      "INSERT INTO memberships (user_id, workspace_id, role) VALUES ($1, $2, 'member')",
+      [rows[0]?.id, owner.workspaceId],
+    );
+  });
+  return { ...owner, email };
+}
+
+/** When the account with `email` and its workspace are due to be deleted for good (null: they aren't). */
+export async function deletionDates(
+  email: string,
+  workspaceId: string,
+): Promise<{ user: Date | null; workspace: Date | null }> {
+  return withClient(async (client) => {
+    const { rows } = await client.query<{ user: Date | null; workspace: Date | null }>(
+      `SELECT (SELECT delete_after FROM users WHERE email = $1) AS user,
+              (SELECT delete_after FROM workspaces WHERE id = $2) AS workspace`,
+      [email, workspaceId],
+    );
+    return rows[0] ?? { user: null, workspace: null };
+  });
+}
