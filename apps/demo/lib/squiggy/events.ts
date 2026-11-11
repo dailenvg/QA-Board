@@ -11,6 +11,7 @@ export type SquiggyEvent =
   | { type: "comment-resolved" }
   | { type: "project-created"; projectName: string }
   | { type: "item-deleted"; item: "project" | "folder" | "comment" }
+  | { type: "project-archived" }
   | { type: "save-failed" }
   | { type: "imported"; partial: boolean };
 

@@ -1,3 +1,4 @@
+import { isArchived, withArchived, withLabel } from "./archive";
 import { folderMoveProblem, subtreeIds } from "./folders";
 import { placeComment } from "./pages";
 import { prunableSnapshotIds } from "./snapshots";
@@ -25,6 +26,10 @@ export type Action =
   | { type: "project/move"; id: string; folderId: string; at: number }
   | { type: "project/replace-source"; id: string; source: ProjectSource; at: number }
   | { type: "project/delete"; id: string; at: number }
+  /** Archives a project (an archived one keeps its dates) or unarchives it. */
+  | { type: "project/archive"; id: string; archived: boolean; at: number }
+  /** Gives a project a label, or takes it away (null). */
+  | { type: "project/label"; id: string; label: string | null }
   /** Undo for a delete: puts the project, its comments and snapshots back exactly as they were. */
   | { type: "project/restore"; project: Project; comments: Comment[]; snapshots: Snapshot[] }
   | { type: "comment/add"; comment: Comment }
@@ -119,6 +124,21 @@ function replaceSource(
   };
 }
 
+/** Applies `change` to the project `id`; the same data when it's unknown or `change` says null. */
+function updateProject(
+  data: SquintData,
+  id: string,
+  change: (project: Project) => Project | null,
+): SquintData {
+  const target = data.projects.find((project) => project.id === id);
+  const changed = target ? change(target) : null;
+  if (!changed) return data;
+  return {
+    ...data,
+    projects: data.projects.map((project) => (project.id === id ? changed : project)),
+  };
+}
+
 function touchProject(projects: Project[], id: string, at: number): Project[] {
   return projects.map((project) => (project.id === id ? { ...project, updatedAt: at } : project));
 }
@@ -210,6 +230,16 @@ export function reduce(data: SquintData, action: Action): SquintData {
         comments: data.comments.filter((comment) => comment.projectId !== action.id),
         snapshots: data.snapshots.filter((snapshot) => snapshot.projectId !== action.id),
       };
+    case "project/archive":
+      return updateProject(data, action.id, (project) =>
+        isArchived(project) === action.archived
+          ? null
+          : withArchived(project, action.archived, action.at),
+      );
+    case "project/label":
+      return updateProject(data, action.id, (project) =>
+        (project.label ?? null) === action.label ? null : withLabel(project, action.label),
+      );
     case "project/restore":
       if (data.projects.some((project) => project.id === action.project.id)) return data;
       if (!data.folders.some((folder) => folder.id === action.project.folderId)) return data;

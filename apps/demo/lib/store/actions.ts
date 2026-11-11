@@ -1,5 +1,6 @@
 import { pageImageKey } from "../blob-store/keys";
 import { emitSquiggy } from "../squiggy/events";
+import { cleanLabel } from "./archive";
 import { discardWorkspaceBlob, storeWorkspaceBlob } from "../workspace-client/blob-upload";
 import { newId } from "./id";
 import { fitPicture } from "../image";
@@ -292,6 +293,19 @@ export async function replaceWithImage(
     },
     added,
   );
+}
+
+/** Archives a project, and Squiggy takes a nap; or brings it back from the archive. */
+export function setProjectArchived(id: string, archived: boolean): Result {
+  const result = commit({ type: "project/archive", id, archived, at: Date.now() });
+  if (result.ok && archived) emitSquiggy({ type: "project-archived" });
+  return result;
+}
+
+/** Gives a project a label (trimmed and capped), or takes it away with null. */
+export function setProjectLabel(id: string, label: string | null): Result {
+  const cleaned = label === null ? null : cleanLabel(label);
+  return commit({ type: "project/label", id, label: cleaned || null });
 }
 
 export const deleteProject = (id: string) =>
