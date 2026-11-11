@@ -77,7 +77,8 @@ function BucketRow({ bucket, total }: { bucket: Bucket; total: number }) {
           <span className="text-meta text-muted">{fileCount(bucket.files)}</span>
         </div>
       </div>
-      <GrowBar share={total > 0 ? bucket.bytes / total : 0} fill="bg-brand" />
+      {/* brand-text, as the usage meter's: cobalt is 2.1:1 on the dark track, this 6.7:1. */}
+      <GrowBar share={total > 0 ? bucket.bytes / total : 0} fill="bg-brand-text" />
     </>
   );
 }
