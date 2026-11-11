@@ -110,6 +110,9 @@ test("the owner names the workspace and picks a color and sender name, previewed
   await card.getByLabel("Workspace name").fill("Northwind Studio");
   await expect(preview.getByTestId("invite-preview-name")).toHaveText("Northwind Studio");
   await expect(preview.getByTestId("brand-monogram")).toHaveText("NS");
+  await expect(preview.getByTestId("invite-preview-invitation")).toHaveText(
+    "Northwind Studio has invited you to review Homepage refresh. Choose Comment (or press C), then click or tap anywhere to leave feedback.",
+  );
 
   const color = card.getByLabel("Brand color", { exact: true });
   await color.fill("#e1fd73");

@@ -27,16 +27,22 @@ async function openAsGuest(page: Page, baseURL: string | undefined, token: strin
 test("a guest sees the company that shared the link, with its logo once it has one", async ({
   page,
   baseURL,
+  isMobile,
 }) => {
   const { token } = await shareWorkspaceProject(page, PROJECT);
   const { guest, close } = await openAsGuest(page, baseURL, token);
 
-  // The first visit opens How it works, saying who invited them.
+  // The first visit opens How it works, saying who invited them to which project.
+  const invitation = `${E2E_COMPANY.name} has invited you to review ${PROJECT}. Choose Comment (or press C), then click or tap anywhere to leave feedback.`;
   const guide = guest.getByRole("dialog", { name: "How it works" });
-  await expect(guide).toHaveAccessibleDescription(
-    `${E2E_COMPANY.name} invited you to leave feedback on this project. Here's how.`,
-  );
+  await expect(guide).toHaveAccessibleDescription(invitation);
   await guest.keyboard.press("Escape");
+  // The comments panel's notice opens with the same invitation (phones show a shorter note).
+  if (!isMobile) {
+    await expect(guest.getByTestId("client-notice")).toHaveText(
+      `${invitation} Only ${E2E_COMPANY.name} can resolve, edit or delete comments.`,
+    );
+  }
 
   const brand = guest.getByTestId("guest-brand");
   await expect(brand.getByTestId("guest-brand-name")).toHaveText(E2E_COMPANY.name);
@@ -69,7 +75,7 @@ test("a guest sees the company that shared the link, with its logo once it has o
   await close();
 });
 
-test("an anonymous link keeps Squint's own name and look", async ({ page, baseURL }) => {
+test("an anonymous link keeps Squint's own name and look", async ({ page, baseURL, isMobile }) => {
   const created = await page.request.post("/api/shares", {
     headers: { "x-forwarded-for": "203.0.113.21" },
     data: {
@@ -85,6 +91,11 @@ test("an anonymous link keeps Squint's own name and look", async ({ page, baseUR
   const guide = guest.getByRole("dialog", { name: "How it works" });
   await expect(guide).toHaveAccessibleDescription("Here's how to leave feedback on this project.");
   await guest.keyboard.press("Escape");
+  if (!isMobile) {
+    await expect(guest.getByTestId("client-notice")).toHaveText(
+      "You can browse this project and add comments. Only the project owner can resolve, edit or delete them.",
+    );
+  }
   await expect(guest.getByTestId("guest-brand-name")).toHaveText("Squint");
   await expect(guest.getByTestId("brand-logo")).toHaveCount(0);
   // Squint's own mark, not a monogram: an anonymous link has no company to stand in for.

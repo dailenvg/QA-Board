@@ -10,6 +10,7 @@ import { WelcomeStories } from "../overview/welcome/WelcomeStories";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
 import { BrandMark } from "./BrandMark";
+import { GENERIC_INVITATION, invitationLine } from "./invitation-copy";
 
 const stagger = staggerGroup(0.07, 0.12);
 
@@ -18,17 +19,21 @@ interface ReviewGuideProps {
   onClose: () => void;
   token: string;
   brand: ClientBrand;
+  /** The shared project's name. */
+  project: string;
 }
 
 /** Who invited the reviewer, beside the company's logo; the generic line on an anonymous link. */
-function Invitation({ token, brand }: Pick<ReviewGuideProps, "token" | "brand">) {
-  if (!brand.custom) return "Here's how to leave feedback on this project.";
+function Invitation({
+  token,
+  brand,
+  project,
+}: Pick<ReviewGuideProps, "token" | "brand" | "project">) {
+  if (!brand.custom) return GENERIC_INVITATION;
   return (
     <span className="flex items-center gap-3 pt-2" data-testid="review-guide-invitation">
       <BrandMark token={token} brand={brand} />
-      <span className="min-w-0">
-        {brand.name} invited you to leave feedback on this project. Here&apos;s how.
-      </span>
+      <span className="min-w-0">{invitationLine(brand.name, project)}</span>
     </span>
   );
 }
@@ -36,15 +41,15 @@ function Invitation({ token, brand }: Pick<ReviewGuideProps, "token" | "brand">)
 /**
  * How a shared review works, for the client: the welcome's looping stories,
  * told from the reviewer's side, with the same Pause and reduced-motion rules.
- * It opens with who invited them (the company's name and logo).
+ * It opens with who invited them to which project (the company's name and logo).
  */
-export function ReviewGuide({ open, onClose, token, brand }: ReviewGuideProps) {
+export function ReviewGuide({ open, onClose, token, brand, project }: ReviewGuideProps) {
   return (
     <Dialog
       open={open}
       onClose={onClose}
       title="How it works"
-      description={<Invitation token={token} brand={brand} />}
+      description={<Invitation token={token} brand={brand} project={project} />}
       size="lg"
       testId="review-guide"
     >

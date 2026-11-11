@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { BlobSourceContext } from "@/lib/blob-store/blob-source";
 import { createClientBackend } from "@/lib/share-client/client-backend";
 import { createClientStore, toViewerData } from "@/lib/share-client/client-store";
 import { createDraftStorage } from "@/lib/share-client/draft-storage";
+import { linkNameMemory } from "@/lib/share-client/reviewer-name";
 import { createServerBlobs } from "@/lib/share-client/server-blobs";
 import { useClientRefresh } from "@/lib/share-client/use-client-refresh";
 import { useReviewWindow } from "@/lib/share-client/use-review-window";
@@ -16,6 +17,7 @@ import { ViewerSkeleton } from "../viewer/ViewerSkeleton";
 import { ViewerView } from "../viewer/ViewerView";
 import { accentStyle } from "./brand-accent";
 import { BrandLockup } from "./BrandLockup";
+import { invitationLine } from "./invitation-copy";
 import { ReviewCountdown } from "./ReviewCountdown";
 import { ReviewGuideTrigger } from "./ReviewGuideTrigger";
 import { ShareUnavailable } from "./ShareUnavailable";
@@ -23,18 +25,27 @@ import { ShareUnavailable } from "./ShareUnavailable";
 interface SharedReviewProps {
   token: string;
   initial: ClientView;
+  /** The reviewer's name remembered for this link (its cookie), so the page renders with it. */
+  authorName: string | null;
 }
 
 /**
  * While the review is open: the phone note (under the comments sheet's
- * header) and the notice. A workspace's link names its company as the one who
- * moderates; an anonymous link says "the project owner".
+ * header) and the notice. A workspace's link opens the notice with its
+ * invitation and names its company as the one who moderates; an anonymous
+ * link says "the project owner".
  */
-function clientCopy(brand: ClientBrand) {
-  const moderator = brand.custom ? brand.name : "the project owner";
+function clientCopy(brand: ClientBrand, project: string) {
+  if (!brand.custom) {
+    return {
+      note: "You can add comments. Only the project owner can resolve or edit them.",
+      notice:
+        "You can browse this project and add comments. Only the project owner can resolve, edit or delete them.",
+    };
+  }
   return {
-    note: `You can add comments. Only ${moderator} can resolve or edit them.`,
-    notice: `You can browse this project and add comments. Only ${moderator} can resolve, edit or delete them.`,
+    note: `You can add comments. Only ${brand.name} can resolve or edit them.`,
+    notice: `${invitationLine(brand.name, project)} Only ${brand.name} can resolve, edit or delete comments.`,
   };
 }
 
@@ -52,8 +63,10 @@ const CLOSED = {
  * into a workspace, under the brand of the company that shared it. Nothing is saved to this browser's Squint workspace.
  * Comments are taken until the review window closes; then it's read-only.
  */
-export function SharedReview({ token, initial }: SharedReviewProps) {
-  const [store] = useState(() => createClientStore(initial));
+export function SharedReview({ token, initial, authorName }: SharedReviewProps) {
+  const [store] = useState(() =>
+    createClientStore(initial, { authorName, names: linkNameMemory(token) }),
+  );
   const [blobs] = useState(() => createServerBlobs(token));
   const backend = useMemo(
     () => createClientBackend({ token, store, blobs }),
@@ -65,8 +78,9 @@ export function SharedReview({ token, initial }: SharedReviewProps) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot);
   const { data, project } = useMemo(() => toViewerData(state), [state]);
   useClientRefresh(token, store);
+  useEffect(() => store.carryOverAuthorName(), [store]);
   const { reviewEndsAt, expiresAt, brand } = state.view;
-  const openCopy = clientCopy(brand);
+  const openCopy = clientCopy(brand, state.view.project.name);
   // A project deleted before its review window ends can't take comments past deletion, so the
   // countdown ends then too: it never promises more time than the deletion notice allows.
   const review = useReviewWindow(
@@ -91,7 +105,12 @@ export function SharedReview({ token, initial }: SharedReviewProps) {
             actions={
               <>
                 <ReviewCountdown left={review.left} />
-                <ReviewGuideTrigger reviewClosed={review.closed} token={token} brand={brand} />
+                <ReviewGuideTrigger
+                  reviewClosed={review.closed}
+                  token={token}
+                  brand={brand}
+                  project={state.view.project.name}
+                />
               </>
             }
             panelNote={review.closed ? CLOSED.note : openCopy.note}
@@ -108,7 +127,10 @@ export function SharedReview({ token, initial }: SharedReviewProps) {
                   name={review.closed ? "clock" : "message"}
                   className="mt-0.5 size-4 shrink-0 text-ink-2"
                 />
-                {review.closed ? CLOSED.notice : openCopy.notice}
+                {/* A real flex item, so it can shrink and break a very long company or project name. */}
+                <span className="min-w-0 wrap-break-word">
+                  {review.closed ? CLOSED.notice : openCopy.notice}
+                </span>
               </p>
             }
           />

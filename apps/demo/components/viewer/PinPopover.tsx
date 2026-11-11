@@ -8,6 +8,7 @@ import type { Comment } from "@/lib/store/types";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
+import { ClientMark } from "./ClientMark";
 import { CommentBadge } from "./CommentBadge";
 import { PlacementChip } from "./PlacementChip";
 import type { Placement } from "./surface";
@@ -19,7 +20,7 @@ interface PinPopoverProps {
   number: number;
   placement: Placement | null;
   now: number;
-  /** Shows Resolve or Reopen (the owner only). */
+  /** The owner only: shows Resolve or Reopen, and marks client comments. */
   canModerate: boolean;
   onResolve: (id: string) => void;
   onReopen: (id: string) => void;
@@ -213,9 +214,16 @@ export function PinPopover({
         <span aria-hidden="true" className="flex">
           <CommentBadge comment={comment} number={number} />
         </span>
-        <h2 id={titleId} className="min-w-0 flex-1 truncate text-body font-semibold">
-          <span className="sr-only">Comment {number} by </span>
-          {comment.author}
+        <h2 id={titleId} className="flex min-w-0 flex-1 items-center gap-2 text-body font-semibold">
+          {/*
+           * Two lines, not one: with the Client chip, a single line left room for about
+           * seven characters of the name in the 304px popover, where the comment is read in full.
+           */}
+          <span className="line-clamp-2 min-w-0 wrap-break-word">
+            <span className="sr-only">Comment {number} by </span>
+            {comment.author}
+          </span>
+          <ClientMark comment={comment} owner={canModerate} />
           {resolved ? <span className="sr-only">, resolved</span> : null}
         </h2>
         <time

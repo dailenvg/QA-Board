@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { COMMENT, STATE, VIEW } from "@/test/share-fixture";
+import { COMMENT, namesInMemory, STATE, VIEW } from "@/test/share-fixture";
 import { createClientStore, SHARED_PROJECT_ID, toViewerData } from "./client-store";
+
+const anonymous = () => ({ authorName: null, names: namesInMemory() });
 
 describe("client store", () => {
   it("shows the shared project in the viewer's shape", () => {
-    const store = createClientStore(VIEW);
+    const store = createClientStore(VIEW, anonymous());
     const { data, project } = toViewerData(store.getServerSnapshot());
     expect(project).toMatchObject({
       id: SHARED_PROJECT_ID,
@@ -40,7 +42,9 @@ describe("client store", () => {
       reviewEndsAt: VIEW.reviewEndsAt,
       expiresAt: VIEW.expiresAt,
     };
-    const { data, project } = toViewerData(createClientStore(view).getServerSnapshot());
+    const { data, project } = toViewerData(
+      createClientStore(view, anonymous()).getServerSnapshot(),
+    );
     expect(project.source).toEqual({
       ...view.project.source,
       pages: [
@@ -53,7 +57,7 @@ describe("client store", () => {
   });
 
   it("adds an accepted comment once, even if a refresh brought it first", () => {
-    const store = createClientStore({ ...VIEW, comments: [] });
+    const store = createClientStore({ ...VIEW, comments: [] }, anonymous());
     const accepted = {
       id: "k",
       x: 1,
@@ -67,5 +71,42 @@ describe("client store", () => {
     store.setView({ ...VIEW, comments: [accepted] });
     store.addComment(accepted);
     expect(toViewerData(store.getSnapshot()).data.comments.map((c) => c.id)).toEqual(["k"]);
+  });
+});
+
+describe("the reviewer's name", () => {
+  it("is in the state the server renders with, so the name isn't asked for again", () => {
+    const store = createClientStore(VIEW, { authorName: "Cleo", names: namesInMemory() });
+    expect(store.getServerSnapshot().authorName).toBe("Cleo");
+    expect(store.getSnapshot()).toBe(store.getServerSnapshot());
+    expect(toViewerData(store.getServerSnapshot()).data.authorName).toBe("Cleo");
+  });
+
+  it("is remembered for the link when set", () => {
+    const names = namesInMemory();
+    const store = createClientStore(VIEW, { authorName: null, names });
+    store.setAuthorName("Cleo");
+    expect(names.saved).toEqual(["Cleo"]);
+    expect(store.getSnapshot().authorName).toBe("Cleo");
+  });
+
+  it("carries the browser's old name over once, when the link has none", () => {
+    const names = namesInMemory("Ana");
+    const store = createClientStore(VIEW, { authorName: null, names });
+    let changes = 0;
+    store.subscribe(() => (changes += 1));
+    store.carryOverAuthorName();
+    store.carryOverAuthorName();
+    expect(store.getSnapshot().authorName).toBe("Ana");
+    expect(names.saved).toEqual(["Ana"]);
+    expect(changes).toBe(1);
+  });
+
+  it("keeps the link's own name over the old one", () => {
+    const names = namesInMemory("Ana");
+    const store = createClientStore(VIEW, { authorName: "Cleo", names });
+    store.carryOverAuthorName();
+    expect(store.getSnapshot().authorName).toBe("Cleo");
+    expect(names.saved).toEqual([]);
   });
 });

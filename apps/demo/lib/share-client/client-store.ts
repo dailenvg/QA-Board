@@ -2,6 +2,7 @@ import { cropBlobKey, snapshotBlobKey } from "../blob-store/keys";
 import { pageBlobKey } from "../share/keys";
 import type { ClientView, SharedComment, SharedSnapshot, SharedSource } from "../share/types";
 import type { Comment, Project, ProjectSource, Snapshot, SquintData } from "../store/types";
+import type { ReviewerNameMemory } from "./reviewer-name";
 
 /** The single project a shared link shows, under a fixed local id. */
 export const SHARED_PROJECT_ID = "shared";
@@ -18,37 +19,36 @@ export interface ClientState {
 export interface ClientStore {
   subscribe: (listener: () => void) => () => void;
   getSnapshot: () => ClientState;
-  /** The state the server rendered with (no remembered name), for hydration. */
+  /** The state the server rendered with (the link's remembered name included), for hydration. */
   getServerSnapshot: () => ClientState;
   setView: (view: ClientView) => void;
   /** A comment the server accepted (ignored if a refresh already brought it). */
   addComment: (comment: SharedComment) => void;
   addSnapshot: (snapshot: SharedSnapshot) => void;
   setAuthorName: (name: string) => void;
+  /** Without a name for this link, takes the one this browser kept for every link before. */
+  carryOverAuthorName: () => void;
   markGone: () => void;
   markReviewClosed: () => void;
 }
 
-/** A reviewer's name, remembered in this browser apart from any Squint workspace. */
-const NAME_KEY = "squint:reviewer-name";
-
-function readName(): string | null {
-  try {
-    return localStorage.getItem(NAME_KEY);
-  } catch {
-    return null;
-  }
+interface ClientStoreOptions {
+  /** The name remembered for this link, as the server read it from the link's cookie. */
+  authorName: string | null;
+  names: ReviewerNameMemory;
 }
 
-export function createClientStore(initial: ClientView): ClientStore {
+export function createClientStore(
+  initial: ClientView,
+  { authorName, names }: ClientStoreOptions,
+): ClientStore {
   const rendered: ClientState = {
     view: initial,
-    authorName: null,
+    authorName,
     gone: false,
     reviewClosed: false,
   };
   let state = rendered;
-  let nameRead = false;
   const listeners = new Set<() => void>();
   const set = (change: Partial<ClientState>) => {
     state = { ...state, ...change };
@@ -60,13 +60,7 @@ export function createClientStore(initial: ClientView): ClientStore {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    getSnapshot() {
-      if (!nameRead && typeof window !== "undefined") {
-        nameRead = true;
-        state = { ...state, authorName: readName() };
-      }
-      return state;
-    },
+    getSnapshot: () => state,
     getServerSnapshot: () => rendered,
     setView: (view) => set({ view }),
     addComment(comment) {
@@ -76,12 +70,13 @@ export function createClientStore(initial: ClientView): ClientStore {
     addSnapshot: (snapshot) =>
       set({ view: { ...state.view, snapshots: [...state.view.snapshots, snapshot] } }),
     setAuthorName(name) {
-      try {
-        localStorage.setItem(NAME_KEY, name);
-      } catch {
-        // Not remembered; asked again next visit.
-      }
+      names.save(name);
       set({ authorName: name });
+    },
+    carryOverAuthorName() {
+      if (state.authorName) return;
+      const name = names.carryOver();
+      if (name) set({ authorName: name });
     },
     markGone: () => set({ gone: true }),
     markReviewClosed: () => set({ reviewClosed: true }),

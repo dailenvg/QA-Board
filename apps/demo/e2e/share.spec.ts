@@ -1,9 +1,10 @@
-import type { Locator, Page } from "@playwright/test";
+import type { Browser, BrowserContext, Locator, Page } from "@playwright/test";
 import { expect, test } from "./test";
 import { SIGNED_OUT } from "./auth-fixtures";
 import {
   createImageProject,
   createUrlProject,
+  dropPin,
   hideComments,
   mockCapture,
   mockFrameCheck,
@@ -112,11 +113,16 @@ test("an owner shares a project, a client comments, and the owner resolves and r
     client.getByRole("button", { name: "Comment 2 by Cleo", exact: true }),
   ).toBeVisible();
 
-  // Owner: the client's comment arrives with its screenshot.
+  // The guest's own view never marks comments as a client's.
+  await expect(client.getByTestId("client-chip")).toHaveCount(0);
+
+  // Owner: the client's comment arrives with its screenshot, marked as a client's.
   const clientNote = card(page, "Client note");
   await pullUntil(page, clientNote);
   await expect(clientNote).toContainText("Cleo");
   await expect(clientNote.getByTestId("comment-crop").locator("img")).toBeVisible();
+  await expect(clientNote.getByTestId("client-chip")).toHaveText("Client");
+  await expect(card(page, "Owner note").getByTestId("client-chip")).toHaveCount(0);
 
   // Owner resolves it; the change is pushed.
   const pushed = page.waitForResponse(
@@ -394,6 +400,111 @@ test("an image project is shared as its page, and a client's comment comes back 
   await pullUntil(page, card(page, "Client note"));
   await expect(page.getByRole("button", { name: "Comment 2 by Cleo", exact: true })).toBeVisible();
   await clientContext.close();
+});
+
+/**
+ * An image project in DEFAULT_FOLDER with a review link, made in the owner's
+ * viewer. Its share is created from an address of its own, so these links stay
+ * out of the 10-a-minute budget the other specs' browsers share.
+ */
+async function sharedImage(page: Page, fileName: string): Promise<string> {
+  await page.route("**/api/shares", (route) =>
+    route.continue({
+      headers: {
+        ...route.request().headers(),
+        "x-forwarded-for": `198.51.100.${Math.floor(Math.random() * 250) + 1}`,
+      },
+    }),
+  );
+  await openFolder(page);
+  await createImageProject(page, fileName);
+  await page.getByTestId("share-button").click();
+  const dialog = page.getByTestId("share-dialog");
+  await dialog.getByTestId("create-share-link").click();
+  const link = await dialog.getByTestId("share-url").inputValue();
+  await expect(dialog.getByTestId("sync-status")).toContainText("Synced");
+  await page.keyboard.press("Escape");
+  await page.unroute("**/api/shares");
+  return link;
+}
+
+/** Drops a pin on the open link's image; the composer asks for a name, or says whose it posts as. */
+async function composerOn(client: Page, position = { x: 140, y: 110 }): Promise<Locator> {
+  await expect(client.getByRole("img", { name: /the image under review/ })).toBeVisible();
+  return dropPin(client, position);
+}
+
+/** A guest's browser: signed out, with How it works already seen. */
+async function guestBrowser(browser: Browser): Promise<{ client: Page; context: BrowserContext }> {
+  const context = await browser.newContext({ storageState: SIGNED_OUT });
+  const client = await context.newPage();
+  await skipReviewGuide(client);
+  return { client, context };
+}
+
+test("a client is asked for a name once per link, and again on another link", async ({
+  page,
+  browser,
+}) => {
+  const first = await sharedImage(page, "first.png");
+  const second = await sharedImage(page, "second.png");
+  const { client, context } = await guestBrowser(browser);
+
+  await client.goto(first);
+  let composer = await composerOn(client);
+  await expect(composer.getByLabel("Your name")).toBeVisible();
+  await composer.getByLabel("Your name").fill("Cleo");
+  await composer.getByLabel("Comment", { exact: true }).fill("First thoughts");
+  await composer.getByLabel("Comment", { exact: true }).press("Enter");
+  await expect(composer).toHaveCount(0);
+
+  // Kept for this link only, for 90 days: a cookie its page can read, scoped to its path.
+  const names = (await context.cookies()).filter(
+    (cookie) => cookie.name === "squint_reviewer_name",
+  );
+  expect(names).toEqual([
+    expect.objectContaining({
+      value: "Cleo",
+      path: new URL(first).pathname,
+      httpOnly: false,
+      sameSite: "Lax",
+    }),
+  ]);
+  const days = ((names[0]?.expires ?? 0) * 1000 - Date.now()) / (24 * 60 * 60 * 1000);
+  expect(days).toBeGreaterThan(89.9);
+  expect(days).toBeLessThanOrEqual(90);
+  expect(await client.evaluate(() => localStorage.getItem("squint:reviewer-name"))).toBeNull();
+
+  // A reload keeps the name: the next pin posts as Cleo without asking.
+  await client.reload();
+  composer = await composerOn(client, { x: 200, y: 140 });
+  await expect(composer).toContainText("Posting as Cleo");
+  await expect(composer.getByLabel("Your name")).toHaveCount(0);
+  await client.keyboard.press("Escape");
+  await expect(composer).toHaveCount(0);
+
+  // Another link asks again.
+  await client.goto(second);
+  composer = await composerOn(client);
+  await expect(composer.getByLabel("Your name")).toHaveValue("");
+  await context.close();
+
+  // A name an earlier version kept for every link moves to the first link opened, once.
+  const returning = await guestBrowser(browser);
+  await returning.client.goto(second);
+  await expect(returning.client.getByRole("img", { name: /the image under review/ })).toBeVisible();
+  await returning.client.evaluate(() => localStorage.setItem("squint:reviewer-name", "Ana"));
+  await returning.client.reload();
+  composer = await composerOn(returning.client);
+  await expect(composer).toContainText("Posting as Ana");
+  expect(
+    await returning.client.evaluate(() => localStorage.getItem("squint:reviewer-name")),
+  ).toBeNull();
+  await returning.client.keyboard.press("Escape");
+  await returning.client.goto(first);
+  composer = await composerOn(returning.client);
+  await expect(composer.getByLabel("Your name")).toHaveValue("");
+  await returning.context.close();
 });
 
 test("a client's first visit opens How it works once, and its button opens it again", async ({

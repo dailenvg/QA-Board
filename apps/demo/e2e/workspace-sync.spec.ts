@@ -4,11 +4,13 @@ import { endSession, sessionCookie, signIn, SIGNED_OUT } from "./auth-fixtures";
 import { E2E_ADMIN, E2E_COMPANY } from "./e2e-env";
 import {
   DEFAULT_FOLDER,
+  hideComments,
   mockFrameCheck,
   openFolder,
   openOverview,
   samplePng,
   seedWorkspace,
+  showComments,
   openNewTopLevelFolder,
 } from "./squint-fixtures";
 import { WORKSPACE_SEED } from "./workspace-seed";
@@ -230,4 +232,66 @@ test("live-frame pins stay on the screenshot's page after a reload", async ({ pa
   await page.reload();
   await expect(image).toBeVisible();
   await expect(pin).toBeVisible();
+});
+
+test("a client's comment pulled into the workspace is marked Client in the viewer", async ({
+  page,
+  baseURL,
+}) => {
+  await mockFrameCheck(page, {
+    verdict: "embeddable",
+    finalUrl: `${baseURL}/sandbox`,
+    status: 200,
+  });
+  const comment = {
+    projectId: "site",
+    status: "active" as const,
+    x: 20,
+    y: 30,
+  };
+  await seedWorkspace(
+    page,
+    {
+      version: 3,
+      folders: [{ ...DEFAULT_FOLDER, createdAt: 0, parentId: null }],
+      projects: [
+        {
+          id: "site",
+          folderId: DEFAULT_FOLDER.id,
+          name: "Client review",
+          source: { kind: "url", url: `${baseURL}/sandbox` },
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+      comments: [
+        { ...comment, id: "c1", body: "Team note", author: "Ana", createdAt: 2, updatedAt: 2 },
+        {
+          ...comment,
+          id: "c2",
+          x: 60,
+          body: "Client note",
+          author: "Cleo",
+          createdAt: 3,
+          updatedAt: 3,
+          fromClient: true,
+        },
+      ],
+      snapshots: [],
+      authorName: "Ana",
+    },
+    "/p/site",
+  );
+  await showComments(page);
+  const cards = page.getByTestId("comment-card");
+  await expect(cards.filter({ hasText: "Client note" }).getByTestId("client-chip")).toHaveText(
+    "Client",
+  );
+  await expect(cards.filter({ hasText: "Team note" }).getByTestId("client-chip")).toHaveCount(0);
+
+  await hideComments(page);
+  await page.getByRole("button", { name: "Comment 2 by Cleo", exact: true }).click();
+  // Heard with the name (Chrome puts a space before the comma between flex items).
+  const popover = page.getByRole("dialog", { name: /^Comment 2 by Cleo ?, Client$/ });
+  await expect(popover.getByTestId("client-chip")).toHaveText("Client");
 });

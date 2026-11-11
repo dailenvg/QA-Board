@@ -58,3 +58,22 @@ export const VIEW: ClientView = {
 /** The smallest valid PNG and JPEG headers, padded: enough for type sniffing. */
 export const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
 export const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0]);
+
+/**
+ * A reviewer-name memory kept in a list, for client store tests: `saved` is
+ * every name remembered, and `legacy` is carried over once, as from the old key.
+ */
+export function namesInMemory(legacy: string | null = null) {
+  const saved: string[] = [];
+  let old = legacy;
+  return {
+    saved,
+    save: (name: string) => void saved.push(name),
+    carryOver() {
+      const name = old;
+      old = null;
+      if (name) saved.push(name);
+      return name;
+    },
+  };
+}

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { VIEW } from "@/test/share-fixture";
+import { namesInMemory, VIEW } from "@/test/share-fixture";
 import { createClientBackend } from "./client-backend";
 import { createClientStore } from "./client-store";
 import { createServerBlobs } from "./server-blobs";
@@ -21,7 +21,10 @@ function setup(answers: Array<() => Response>) {
     const answer = answers.shift();
     return answer ? Promise.resolve(answer()) : Promise.reject(new TypeError("offline"));
   });
-  const store = createClientStore({ ...VIEW, comments: [] });
+  const store = createClientStore(
+    { ...VIEW, comments: [] },
+    { authorName: null, names: namesInMemory() },
+  );
   const backend = createClientBackend({ token: TOKEN, store, blobs: createServerBlobs(TOKEN) });
   return { store, backend, calls };
 }
