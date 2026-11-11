@@ -68,6 +68,11 @@ interface ViewerViewProps {
   expiresAt?: number;
   /** Draws the top bar's rule in `guest-accent`: a shared link's company color. */
   accentRule?: boolean;
+  /**
+   * A bar under the top bar, such as the owner's archived notice. A keyed motion element with
+   * an exit: it enters and leaves in the same AnimatePresence as the deletion notice.
+   */
+  notice?: ReactNode;
 }
 
 type ScrollRequest = { id: string; target: "pin" | "card"; nonce: number } | null;
@@ -90,6 +95,7 @@ export function ViewerView({
   commentLocked,
   expiresAt,
   accentRule,
+  notice,
 }: ViewerViewProps) {
   const toast = useToast();
   const backend = useViewerBackend();
@@ -503,6 +509,7 @@ export function ViewerView({
         }
       />
       <AnimatePresence>
+        {notice}
         {deletion ? (
           <DeletionNotice
             key="deletion-notice"
