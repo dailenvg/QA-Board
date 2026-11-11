@@ -3,7 +3,6 @@
 import { useId, useMemo, type CSSProperties, type ReactNode } from "react";
 import { commenterColor, type CommenterColor } from "@/lib/brand-palette";
 import { LIST_ROWS, type ClientNews } from "@/lib/overview/activity";
-import type { Visit } from "@/lib/overview/last-seen";
 import { FOLDERS_HREF, projectHref } from "@/lib/routes";
 import { HIGHLIGHT_TAG } from "../../ui/highlight-tag";
 import { Skeleton } from "../../ui/Skeleton";
@@ -23,7 +22,6 @@ import { useFitRows } from "./use-fit-rows";
 interface ClientsTileProps {
   /** Null until this look's last visit is known (just after the page shows). */
   news: ClientNews | null;
-  visit: Visit | null;
   now: number;
   /** A project's thumbnail, by id. */
   thumb: (projectId: string) => ReactNode;
@@ -34,11 +32,6 @@ function waitingLine(count: number): string {
   return count === 1
     ? "1 comment is still on its review link. Open the project to bring it in."
     : `${count} comments are still on review links. Open their projects to bring them in.`;
-}
-
-function sinceLabel(visit: Visit | null): string {
-  if (!visit) return "Since last visit";
-  return visit.firstVisit ? "Last 7 days" : "Since last visit";
 }
 
 /** Each project's color: its pins on the board, and the dot on its row. */
@@ -59,7 +52,7 @@ function boardPins(news: ClientNews): CommenterColor[] {
  * each project with news, opening the project (which also brings in any still
  * waiting on its review link). Each project's dot matches its pins.
  */
-export function ClientsTile({ news, visit, now, thumb }: ClientsTileProps) {
+export function ClientsTile({ news, now, thumb }: ClientsTileProps) {
   const headingId = useId();
   const rows = news?.rows ?? [];
   const { ref, shown, more } = useFitRows(rows.length, LIST_ROWS.clients.natural);
@@ -76,9 +69,7 @@ export function ClientsTile({ news, visit, now, thumb }: ClientsTileProps) {
     >
       <TileHeading
         id={headingId}
-        icon="user"
         title="New from clients"
-        subtitle={sinceLabel(visit)}
         tag={
           news ? (
             <TileTag>

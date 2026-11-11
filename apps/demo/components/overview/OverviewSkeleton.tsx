@@ -12,18 +12,13 @@ interface TileSkeletonProps {
 }
 
 /**
- * A tile's placeholder: its heading (icon square, title and subtitle, tag), its scene's room,
- * then rows.
+ * A tile's placeholder: its heading (title and tag), its scene's room, then rows.
  */
 function TileSkeleton({ rows, scene, className = "" }: TileSkeletonProps) {
   return (
     <div className={`${TILE_SURFACE} ${className}`}>
-      <div className="flex items-center gap-3">
-        <Skeleton className="size-10 shrink-0 rounded-field" />
-        <div className="flex flex-1 flex-col gap-1.5">
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-3 w-20" />
-        </div>
+      <div className="flex items-center justify-between gap-3">
+        <Skeleton className="h-4 w-32" />
         <Skeleton className="h-6 w-16 rounded-pill" />
       </div>
       {scene ? <Skeleton className={`${scene} w-full shrink-0`} /> : null}

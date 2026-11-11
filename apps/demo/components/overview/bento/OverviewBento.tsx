@@ -115,7 +115,7 @@ export function OverviewBento({ workspace, workspaceId }: OverviewBentoProps) {
         <WaitingTile {...totals} oldest={oldest} now={now} thumb={thumb} />
       </BentoTile>
       <BentoTile order={3} className="xl:col-span-2">
-        <ClientsTile news={news} visit={visit} now={now} thumb={thumb} />
+        <ClientsTile news={news} now={now} thumb={thumb} />
       </BentoTile>
       <BentoTile order={4}>
         <RecentTile

@@ -62,7 +62,7 @@ export function BusiestTile({ folder, swatch, thumbs }: BusiestTileProps) {
   if (!folder) {
     return (
       <section aria-labelledby={headingId} data-testid="tile-busiest" className={TILE_SURFACE}>
-        <TileHeading id={headingId} icon="folder" title="Busiest folder" />
+        <TileHeading id={headingId} title="Busiest folder" />
         <TileEmpty title="No busy folders yet">
           The folder with the most going on shows up here.
         </TileEmpty>
@@ -101,9 +101,7 @@ export function BusiestTile({ folder, swatch, thumbs }: BusiestTileProps) {
     >
       <TileHeading
         id={headingId}
-        icon="folder"
         title="Busiest folder"
-        subtitle={folder.measure === "comments" ? "Most comments waiting" : "Most projects"}
         tag={
           <TileTag>
             <AnimatedNumber value={folder.count} />{" "}

@@ -168,7 +168,6 @@ test("the bento counts comments, client news, recent projects and the busiest fo
   // A first visit: the last week's client comments, pulled and still on the review link.
   const clients = tile(page, "clients");
   await expect(clients).toHaveAttribute("data-count", "2");
-  await expect(clients).toContainText("Last 7 days");
   await expect(clients.getByTestId("clients-waiting")).toHaveText(
     "1 comment is still on its review link. Open the project to bring it in.",
   );
@@ -205,7 +204,6 @@ test("what came in before the last visit isn't new any more", async ({ page }) =
   await page.reload();
   await expect(tile(page, "clients")).toHaveAttribute("data-count", "0");
   await expect(tile(page, "clients")).toContainText("No new client comments");
-  await expect(tile(page, "clients")).toContainText("Since last visit");
   await expect(tile(page, "recent").getByTestId("new-mark")).toHaveCount(0);
 });
 

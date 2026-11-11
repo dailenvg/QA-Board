@@ -49,8 +49,6 @@ export function writeLastSeen(
 export interface Visit {
   /** Anything after this (epoch ms) is new. */
   since: number;
-  /** Nothing was remembered: `since` is the first-visit window. */
-  firstVisit: boolean;
 }
 
 /**
@@ -66,6 +64,6 @@ export function beginVisit(
   const previous = readLastSeen(workspaceId, storage);
   writeLastSeen(workspaceId, now, storage);
   return previous === null
-    ? { since: now - FIRST_VISIT_WINDOW_MS, firstVisit: true }
-    : { since: Math.min(previous, now), firstVisit: false };
+    ? { since: now - FIRST_VISIT_WINDOW_MS }
+    : { since: Math.min(previous, now) };
 }

@@ -43,15 +43,13 @@ export function RecentTile({ projects, total, week, now, thumb }: RecentTileProp
     >
       <TileHeading
         id={headingId}
-        icon="history"
         title="Recently updated"
-        subtitle="Last 7 days"
         tag={
           <TileTag>
             <AnimatedNumber value={thisWeek} />
             {/*
               Narrow tiles (phones, lg's two columns, xl's three) show the number alone, so the
-              title isn't cut short; the subtitle already says "Last 7 days". Still read out.
+              title isn't cut short. Still read out.
             */}
             <span className="sr-only @[19rem]:not-sr-only"> updated</span>
           </TileTag>
