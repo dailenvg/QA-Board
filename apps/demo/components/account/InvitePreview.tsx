@@ -5,6 +5,7 @@ import { senderDisplayName } from "@/lib/email/from-header";
 import { instant, spring } from "@/lib/motion";
 import { accentStyle } from "../share/brand-accent";
 import { BrandFrame } from "../share/BrandMark";
+import { invitationLine } from "../share/invitation-copy";
 import { Icon } from "../ui/Icon";
 
 interface InvitePreviewProps {
@@ -19,6 +20,8 @@ interface InvitePreviewProps {
 
 /** Stands in while the name field is blank, so the preview never shows an empty lockup. */
 const UNNAMED = "Your company";
+/** A stand-in project: the preview shows the invitation a guest reads on any link. */
+const SAMPLE_PROJECT = "Homepage refresh";
 
 /**
  * How a guest meets the workspace, from the settings as typed (saved or
@@ -64,8 +67,8 @@ export function InvitePreview({ name, color, senderName, logoSrc }: InvitePrevie
               <span className="text-meta text-muted">Shared review</span>
             </span>
           </div>
-          <p className="px-4 pb-4 text-body text-pretty">
-            {company} invited you to leave feedback on this project. Here&apos;s how.
+          <p className="px-4 pb-4 text-body text-pretty" data-testid="invite-preview-invitation">
+            {invitationLine(company, SAMPLE_PROJECT)}
           </p>
         </div>
       </div>

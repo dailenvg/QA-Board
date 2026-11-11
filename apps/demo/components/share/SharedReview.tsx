@@ -16,6 +16,7 @@ import { ViewerSkeleton } from "../viewer/ViewerSkeleton";
 import { ViewerView } from "../viewer/ViewerView";
 import { accentStyle } from "./brand-accent";
 import { BrandLockup } from "./BrandLockup";
+import { invitationLine } from "./invitation-copy";
 import { ReviewCountdown } from "./ReviewCountdown";
 import { ReviewGuideTrigger } from "./ReviewGuideTrigger";
 import { ShareUnavailable } from "./ShareUnavailable";
@@ -27,14 +28,21 @@ interface SharedReviewProps {
 
 /**
  * While the review is open: the phone note (under the comments sheet's
- * header) and the notice. A workspace's link names its company as the one who
- * moderates; an anonymous link says "the project owner".
+ * header) and the notice. A workspace's link opens the notice with its
+ * invitation and names its company as the one who moderates; an anonymous
+ * link says "the project owner".
  */
-function clientCopy(brand: ClientBrand) {
-  const moderator = brand.custom ? brand.name : "the project owner";
+function clientCopy(brand: ClientBrand, project: string) {
+  if (!brand.custom) {
+    return {
+      note: "You can add comments. Only the project owner can resolve or edit them.",
+      notice:
+        "You can browse this project and add comments. Only the project owner can resolve, edit or delete them.",
+    };
+  }
   return {
-    note: `You can add comments. Only ${moderator} can resolve or edit them.`,
-    notice: `You can browse this project and add comments. Only ${moderator} can resolve, edit or delete them.`,
+    note: `You can add comments. Only ${brand.name} can resolve or edit them.`,
+    notice: `${invitationLine(brand.name, project)} Only ${brand.name} can resolve, edit or delete comments.`,
   };
 }
 
@@ -66,7 +74,7 @@ export function SharedReview({ token, initial }: SharedReviewProps) {
   const { data, project } = useMemo(() => toViewerData(state), [state]);
   useClientRefresh(token, store);
   const { reviewEndsAt, expiresAt, brand } = state.view;
-  const openCopy = clientCopy(brand);
+  const openCopy = clientCopy(brand, state.view.project.name);
   // A project deleted before its review window ends can't take comments past deletion, so the
   // countdown ends then too: it never promises more time than the deletion notice allows.
   const review = useReviewWindow(
@@ -91,7 +99,12 @@ export function SharedReview({ token, initial }: SharedReviewProps) {
             actions={
               <>
                 <ReviewCountdown left={review.left} />
-                <ReviewGuideTrigger reviewClosed={review.closed} token={token} brand={brand} />
+                <ReviewGuideTrigger
+                  reviewClosed={review.closed}
+                  token={token}
+                  brand={brand}
+                  project={state.view.project.name}
+                />
               </>
             }
             panelNote={review.closed ? CLOSED.note : openCopy.note}
