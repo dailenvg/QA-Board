@@ -35,9 +35,9 @@ const BATCH = 50;
 
 /**
  * Which projects a purge may delete: one in the trash (trashed at or before
- * `by`, when given), or one archived whose deletion date has come by `by`
- * (archived or not trashed alike: the date is the promise). Never one that was
- * restored, unarchived, or whose date is still to come.
+ * `by`, when given), or one archived whose deletion date has come by `by`,
+ * in the trash or not (the date shown on it is the promise). Never one that
+ * was restored, unarchived, or whose date is still to come.
  */
 export type PurgeReason = { kind: "trashed"; by?: number } | { kind: "archive-due"; by: number };
 
