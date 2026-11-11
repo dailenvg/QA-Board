@@ -3,7 +3,7 @@ import { SHARE_LIMITS } from "../share/limits";
 /**
  * A reviewer's name, remembered for one review link. The cookie is scoped to
  * the link's path, so each link asks once and no link sees another's name.
- * It's readable by the page (not HttpOnly) and never identifies anyone: the
+ * It's readable by the page (not HttpOnly) and never vouches for anyone: the
  * server only reads it to render the page with the name already filled in.
  */
 export const REVIEWER_NAME_COOKIE = "squint_reviewer_name";

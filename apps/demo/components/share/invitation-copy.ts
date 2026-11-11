@@ -4,7 +4,7 @@
  * them, to what, and how to start.
  */
 export function invitationLine(company: string, project: string): string {
-  return `${company} has invited you to review ${project}. Click anywhere to leave feedback.`;
+  return `${company} has invited you to review ${project}. Choose Comment (or press C), then click or tap anywhere to leave feedback.`;
 }
 
 /** The same place on an anonymous or legacy link, which has no company to name. */

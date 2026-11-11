@@ -33,7 +33,7 @@ test("a guest sees the company that shared the link, with its logo once it has o
   const { guest, close } = await openAsGuest(page, baseURL, token);
 
   // The first visit opens How it works, saying who invited them to which project.
-  const invitation = `${E2E_COMPANY.name} has invited you to review ${PROJECT}. Click anywhere to leave feedback.`;
+  const invitation = `${E2E_COMPANY.name} has invited you to review ${PROJECT}. Choose Comment (or press C), then click or tap anywhere to leave feedback.`;
   const guide = guest.getByRole("dialog", { name: "How it works" });
   await expect(guide).toHaveAccessibleDescription(invitation);
   await guest.keyboard.press("Escape");
