@@ -36,7 +36,7 @@ export const STORAGE_COPY = {
     snapshots: { label: "Snapshots", hint: "Captures of website projects" },
     crops: { label: "Crops", hint: "Close-ups saved with comments" },
     videos: { label: "Videos", hint: "Video projects" },
-    other: { label: "Other", hint: "Your logo and files from deleted projects" },
+    other: { label: "Other", hint: "Your workspace's logo" },
   } satisfies Record<StorageBucket, { label: string; hint: string }>,
   large: {
     title: "Large projects",
