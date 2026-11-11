@@ -22,6 +22,8 @@ const COPY = {
   suggestions: "Used in this workspace",
   empty: "Enter a label.",
   emptyWithRemove: "Enter a label, or remove the one it has.",
+  /** A suggestion's accessible name; its visible text stays the label. */
+  useLabel: (label: string) => `Use label: ${label}`,
   remove: "Remove label",
   cancel: "Cancel",
   save: "Save label",
@@ -150,6 +152,7 @@ function LabelForm({ current, labels, onClose, onSave }: LabelFormProps) {
                     variant="secondary"
                     size="sm"
                     onClick={() => onSave(label)}
+                    aria-label={COPY.useLabel(label)}
                     data-testid="label-suggestion"
                     className="max-w-full"
                   >
