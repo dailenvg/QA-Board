@@ -13,7 +13,7 @@ import {
 const MB = 1024 * 1024;
 /** Noon UTC, so the date reads the same in any US time zone. */
 const ARCHIVED = "2026-12-01T12:00:00Z";
-const DELETES_ON = "Deletes on Dec 31, 2026";
+const DELETES_ON = "Deletes for good on Dec 31, 2026";
 
 /** 990 MB in all: a PDF (archived), a website, images, and a website in the trash. */
 const PROJECTS: StoredProject[] = [
@@ -144,7 +144,7 @@ test("an archived project shows its delete date and its review link still opens"
   await openStorage(page);
   const row = page.getByTestId("large-project").filter({ hasText: "Archived launch" });
   await expect(row.getByTestId("large-project-chip")).toHaveText("Archived");
-  await expect(row.getByTestId("large-project-deletes")).toContainText("Deletes on");
+  await expect(row.getByTestId("large-project-deletes")).toContainText("Deletes for good on");
 
   const restored = await page.request.put(archive, { data: { archived: false } });
   expect((await restored.json()) as { deleteAfter: number | null }).toMatchObject({

@@ -34,7 +34,7 @@ export function AccountLayout({ sections, children, aside = null }: AccountLayou
           <h1 className="text-display font-bold">Account</h1>
           <p className="text-body text-muted" data-testid="account-summary">
             {hasWorkspace
-              ? "Your profile, how you sign in, your workspace and its storage."
+              ? "Your profile, how you sign in and your workspace."
               : "Your profile and how you sign in."}
           </p>
         </div>

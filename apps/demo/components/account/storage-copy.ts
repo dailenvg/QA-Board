@@ -17,17 +17,18 @@ export const STORAGE_COPY = {
     used: (quota: string) => `of ${quota} used`,
     near: {
       title: "Running low on space",
-      body: "Your workspace has used most of its space. Deleted projects free theirs when they leave the trash, 30 days later, so clear out what you no longer need early. For more space, ask your Squint admin.",
+      body: "Your workspace has used most of its space. Projects in the trash keep using space for 30 days, so clear out what you don't need soon. For more space, ask your Squint admin.",
     },
     over: {
       title: "Out of space",
-      body: "New uploads and snapshots won't save until there's room again. Deleted projects free their space when they leave the trash, 30 days later. For more space now, ask your Squint admin.",
+      body: "New uploads and snapshots won't save until there's room again. Projects in the trash keep using space for 30 days. For more space now, ask your Squint admin.",
     },
   },
   breakdown: {
     title: "What's using space",
     description: "Your workspace's files, by kind.",
-    empty: "Nothing stored yet. Page images, snapshots and crops show up here once you add them.",
+    empty:
+      "Nothing stored yet. Page images, PDFs, snapshots and crops show up here once you add them.",
   },
   buckets: {
     images: { label: "Images", hint: "Pages uploaded as images" },
@@ -35,7 +36,7 @@ export const STORAGE_COPY = {
     snapshots: { label: "Snapshots", hint: "Captures of website projects" },
     crops: { label: "Crops", hint: "Close-ups saved with comments" },
     videos: { label: "Videos", hint: "Video projects" },
-    other: { label: "Other", hint: "Your logo, and files from deleted projects" },
+    other: { label: "Other", hint: "Your logo and files from deleted projects" },
   } satisfies Record<StorageBucket, { label: string; hint: string }>,
   large: {
     title: "Large projects",
@@ -43,9 +44,9 @@ export const STORAGE_COPY = {
       "Your projects that use the most space, biggest first. Archived projects and projects in the trash still count until they're deleted for good.",
     archived: "Archived",
     trashed: "In trash",
-    /** "Deletes on Dec 10, 2026". */
-    deletesOn: (date: string) => `Deletes on ${date}`,
+    /** "Deletes for good on Dec 10, 2026". */
+    deletesOn: (date: string) => `Deletes for good on ${date}`,
     emptyTitle: "No projects are using space yet",
-    emptyBody: "Projects show up here once they hold page images, snapshots or crops.",
+    emptyBody: "Projects show up here once they hold page images, PDFs, snapshots or crops.",
   },
 } as const;
