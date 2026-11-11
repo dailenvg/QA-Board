@@ -168,6 +168,44 @@ describe("purgeDeletedAccounts", () => {
     expect(rows).toEqual([{ author_name: "Bo", author_user_id: memberId, origin: "team" }]);
   });
 
+  it("keeps a due account that still owns an open workspace, says so, and deletes it once that's resolved", async () => {
+    const { db, owner, workspaceId } = world;
+    await remove(owner, WORKSPACE_NAME);
+    // The workspace restored by hand, without its owner.
+    await db.query("UPDATE workspaces SET delete_after = NULL WHERE id = $1", [workspaceId]);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { services, discarded } = recordingServices();
+
+    expect(await purgeDeletedAccounts(db, services, DUE, DEADLINE)).toEqual({
+      count: 0,
+      done: true,
+    });
+    const kept = await userRow(owner.id);
+    expect(kept?.email).toBe(OWNER_EMAIL);
+    expect(kept?.delete_after).not.toBeNull();
+    expect(await countRows(db, "memberships", "user_id", owner.id)).toBe(1);
+    expect(await countRows(db, "user_blobs", "user_id", owner.id)).toBe(1);
+    expect(discarded).toEqual([]);
+    expect(await purgeAudit()).toEqual([]);
+    expect(warn.mock.calls).toEqual([
+      ["squint purge: 1 due account(s) kept: they still own an open workspace"],
+    ]);
+
+    // Resolved: the workspace is due again, and the next run deletes both.
+    warn.mockClear();
+    await db.query("UPDATE workspaces SET delete_after = $2 WHERE id = $1", [
+      workspaceId,
+      new Date(DUE),
+    ]);
+    expect(await purgeDeletedAccounts(db, services, DUE, DEADLINE)).toEqual({
+      count: 1,
+      done: true,
+    });
+    expect((await userRow(owner.id))?.email).toBe(tombstoneEmail(owner.id));
+    expect(await countRows(db, "workspaces", "id", workspaceId)).toBe(0);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
   it("keeps an account restored before the cron reached it", async () => {
     const { db, owner, workspaceId } = world;
     await remove(owner, WORKSPACE_NAME);
