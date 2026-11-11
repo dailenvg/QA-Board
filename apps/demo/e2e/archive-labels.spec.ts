@@ -110,7 +110,10 @@ test("a project's label is set from its menu, suggested for others, filtered by 
   await expect(card(page, "Mockups").getByTestId("label-chip")).toContainText("Client review");
 
   await chooseFromMenu(page, "Pitch deck", "Add label");
-  await page.getByRole("dialog", { name: "Add a label" }).getByLabel("Label").fill("Internal");
+  await page
+    .getByRole("dialog", { name: "Add a label" })
+    .getByLabel("Label", { exact: true })
+    .fill("Internal");
   await page.keyboard.press("Enter");
   await expect(card(page, "Pitch deck").getByTestId("label-chip")).toContainText("Internal");
 
