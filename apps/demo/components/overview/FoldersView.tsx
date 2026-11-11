@@ -16,15 +16,17 @@ function plural(count: number, noun: string): string {
 
 /**
  * `/folders`: every top-level folder as a glass folder (its count includes its
- * subfolders' projects), in the order chosen above them. With no projects at
- * all, the short guide the Overview shows replaces the grid.
+ * subfolders' projects, archived ones aside), in the order chosen above them.
+ * With no projects at all, archived or not, the short guide the Overview shows
+ * replaces the grid.
  */
 export function FoldersView() {
   const workspace = useWorkspace();
   const reveal = useRevealVariants();
   if (!workspace) return <FoldersSkeleton />;
-  const { data, folders } = workspace;
-  const empty = data.projects.length === 0;
+  const { data, allData, folders } = workspace;
+  // Only archived projects: the grid stays, so its Archived filter can show them.
+  const empty = allData.projects.length === 0;
   const chips = [
     plural(childFolders(folders, null).length, "folder"),
     plural(data.projects.length, "project"),

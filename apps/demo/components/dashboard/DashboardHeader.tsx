@@ -3,16 +3,20 @@
 import type { ReactNode } from "react";
 import type { Folder } from "@/lib/store/types";
 import { Menu, type MenuItem } from "../ui/Menu";
+import { LabelFilter } from "./LabelFilter";
 import { PROJECT_SORT, type ProjectSort, type SortKey } from "./project-sort";
 import { SortControls } from "./SortControls";
-import type { StatusFilterValue } from "./status-filter";
+import type { ProjectFilter, StatusFilterValue } from "./status-filter";
 import { StatusFilter } from "./StatusFilter";
 
 interface DashboardHeaderProps {
   folder: Folder;
   chips: readonly string[];
-  filter: StatusFilterValue;
-  onFilter: (value: StatusFilterValue) => void;
+  filter: ProjectFilter;
+  /** The labels of the folder's projects, for the label filter. */
+  labels: readonly string[];
+  onStatus: (value: StatusFilterValue) => void;
+  onLabel: (label: string | null) => void;
   sort: ProjectSort;
   onSortKey: (key: SortKey) => void;
   onReverseSort: () => void;
@@ -22,12 +26,17 @@ interface DashboardHeaderProps {
   breadcrumb: ReactNode;
 }
 
-/** Folder title with summary chips, folder actions, the status filter and the sort controls. */
+/**
+ * Folder title with summary chips, folder actions, the status and label filters and the sort
+ * controls.
+ */
 export function DashboardHeader({
   folder,
   chips,
   filter,
-  onFilter,
+  labels,
+  onStatus,
+  onLabel,
   sort,
   onSortKey,
   onReverseSort,
@@ -55,11 +64,13 @@ export function DashboardHeader({
         </ul>
       </div>
       {/*
-        Wraps on narrow screens: the filter scrolls across the full width, sort drops below it on
-        the right (its menu opens leftward from there, staying on screen).
+        Wraps on narrow screens: the status filter scrolls across the full width, the label
+        filter and sort drop below it (sort on the right; its menu opens leftward from there,
+        staying on screen).
       */}
       <div className="flex max-w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-        <StatusFilter value={filter} onChange={onFilter} />
+        <StatusFilter value={filter.status} onChange={onStatus} />
+        <LabelFilter labels={labels} value={filter.label} onChange={onLabel} />
         <div className="ml-auto">
           <SortControls
             sort={sort}

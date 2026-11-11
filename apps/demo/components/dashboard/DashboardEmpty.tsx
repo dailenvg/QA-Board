@@ -6,12 +6,16 @@ import { Squiggy } from "../brand/mascot/Squiggy";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 
+/**
+ * `folder`: nothing in this folder yet. `filter`: none of its projects matches the status
+ * filter, `archived`: none is archived, `label`: none matches the label (and status) chosen.
+ * `folders`, `foldersArchived` and `foldersLabel`: the same, for the folders on Folders.
+ */
+export type DashboardEmptyKind =
+  "folder" | "filter" | "archived" | "label" | "folders" | "foldersArchived" | "foldersLabel";
+
 interface DashboardEmptyProps {
-  /**
-   * `folder`: nothing in this folder yet. `filter`: none of its projects matches the status
-   * filter. `folders`: no folder on Folders holds a project that matches it.
-   */
-  kind: "folder" | "filter" | "folders";
+  kind: DashboardEmptyKind;
   onAction: () => void;
 }
 
@@ -31,7 +35,27 @@ const COPY = {
     body: "Try another filter, or show every folder.",
     action: "Show all",
   },
-} as const;
+  archived: {
+    title: "No archived projects",
+    body: "Projects you archive in this folder wait here until they're deleted for good.",
+    action: "Show all",
+  },
+  foldersArchived: {
+    title: "No archived projects",
+    body: "Projects you archive wait here until they're deleted for good.",
+    action: "Show all",
+  },
+  label: {
+    title: "No projects match these filters",
+    body: "Try another label or status, or show every project in this folder.",
+    action: "Show all",
+  },
+  foldersLabel: {
+    title: "No projects match these filters",
+    body: "Try another label or status, or show every folder.",
+    action: "Show all",
+  },
+} as const satisfies Record<DashboardEmptyKind, { title: string; body: string; action: string }>;
 
 /** Empty folder or empty filter result, with the mascot idling or asleep. */
 export function DashboardEmpty({ kind, onAction }: DashboardEmptyProps) {

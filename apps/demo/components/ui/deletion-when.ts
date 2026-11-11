@@ -68,6 +68,15 @@ function calendarDaysUntil(at: number, now: number): number {
   return Math.round((startOfDay(at) - startOfDay(now)) / DAY_MS);
 }
 
+/** "Nov 3" (or "3 Nov", by locale), with the year when it isn't `now`'s. */
+export function shortDate(at: number, now: number): string {
+  const date = new Date(at);
+  const sameYear = date.getFullYear() === new Date(now).getFullYear();
+  const options: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
+  if (!sameYear) options.year = "numeric";
+  return date.toLocaleDateString(undefined, options);
+}
+
 /**
  * What the "deletes on" notice says for something deleted at `expiresAt`, or
  * null outside the notice window (and on the server, where `now` is 0). Once
@@ -77,10 +86,7 @@ function calendarDaysUntil(at: number, now: number): number {
 export function deletionWhen(expiresAt: number, now: number): DeletionWhen | null {
   if (!now || !Number.isFinite(expiresAt) || now < deletionNoticeFrom(expiresAt)) return null;
   const at = new Date(expiresAt);
-  const sameYear = at.getFullYear() === new Date(now).getFullYear();
-  const dateOptions: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
-  if (!sameYear) dateOptions.year = "numeric";
-  const date = at.toLocaleDateString(undefined, dateOptions);
+  const date = shortDate(expiresAt, now);
   const time = at.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
   const base = {
     iso: at.toISOString(),

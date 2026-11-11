@@ -12,6 +12,7 @@ import {
 } from "@/lib/routes";
 import { useAttentionWhile } from "@/lib/squiggy/attention";
 import { createFolder, deleteFolder, moveFolder, renameFolder } from "@/lib/store/actions";
+import { activeData } from "@/lib/store/archive";
 import {
   canDeleteFolder,
   folderContents,
@@ -90,12 +91,16 @@ function WorkspaceShell({ data, account, children }: WorkspaceShellProps) {
   const leavingFolderId = leaving?.folderId ?? null;
 
   const folders = useMemo(() => (data ? sortedFolders(data) : []), [data]);
+  // Archived projects stay out of counts, search and the Overview; the Archived filter shows them.
+  const active = useMemo(() => (data ? activeData(data) : null), [data]);
   const counts = useMemo(
     () =>
       new Map(
-        data ? folders.map((folder) => [folder.id, projectsInside(data, folder.id).length]) : [],
+        active
+          ? folders.map((folder) => [folder.id, projectsInside(active, folder.id).length])
+          : [],
       ),
-    [data, folders],
+    [active, folders],
   );
 
   const newProject = useDialogState<{ folderId?: string }>();
@@ -131,7 +136,7 @@ function WorkspaceShell({ data, account, children }: WorkspaceShellProps) {
   );
 
   const workspace = useMemo<WorkspaceValue | null>(() => {
-    if (!data) return null;
+    if (!data || !active) return null;
     const deleteFolder = (folder: Folder) =>
       showDelete({ folder, contents: folderContents(data, folder.id) });
     const deletable = (folder: Folder) => canDeleteFolder(folders, folder.id);
@@ -141,7 +146,8 @@ function WorkspaceShell({ data, account, children }: WorkspaceShellProps) {
         (parentId) => !folderMoveProblem(folders, folder.id, parentId),
       );
     return {
-      data,
+      data: active,
+      allData: data,
       folders,
       openNewProject: (folderId) => showNewProject({ folderId }),
       newFolder: (parentId) => showNewFolder({ parentId }),
@@ -179,6 +185,7 @@ function WorkspaceShell({ data, account, children }: WorkspaceShellProps) {
     };
   }, [
     data,
+    active,
     folders,
     showNewProject,
     showNewFolder,

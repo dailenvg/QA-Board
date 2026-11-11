@@ -2,31 +2,36 @@ import { projectsInside } from "@/lib/store/folders";
 import { summarize } from "@/lib/store/selectors";
 import type { Folder, Project, SquintData } from "@/lib/store/types";
 import { displayHost } from "@/lib/url";
-import type { StatusFilterValue } from "../dashboard/status-filter";
+import {
+  isFiltered,
+  matchesFilter,
+  NO_FILTER,
+  type ProjectFilter,
+} from "../dashboard/status-filter";
 import type { FolderFile } from "./glass-folder/GlassFolder";
 
 /**
- * The projects in a folder and its subfolders with `status` ("all": every one), as a folder
- * card counts them.
+ * The projects in a folder and its subfolders that `filter` shows (by default every one that
+ * isn't archived), as a folder card counts them.
  */
-export function projectsWithStatus(
+export function projectsMatching(
   data: SquintData,
   folderId: string,
-  status: StatusFilterValue = "all",
+  filter: ProjectFilter = NO_FILTER,
 ): Project[] {
-  const inside = projectsInside(data, folderId);
-  if (status === "all") return inside;
-  return inside.filter((project) => summarize(data, project).status === status);
+  return projectsInside(data, folderId).filter((project) =>
+    matchesFilter(project, summarize(data, project).status, filter),
+  );
 }
 
-/** Of `folders`, those holding a project with `status` anywhere inside; all of them for "all". */
-export function foldersWithStatus(
+/** Of `folders`, those holding a project `filter` shows anywhere inside; all of them unfiltered. */
+export function foldersMatching(
   data: SquintData,
   folders: readonly Folder[],
-  status: StatusFilterValue,
+  filter: ProjectFilter,
 ): Folder[] {
-  if (status === "all") return [...folders];
-  return folders.filter((folder) => projectsWithStatus(data, folder.id, status).length > 0);
+  if (!isFiltered(filter)) return [...folders];
+  return folders.filter((folder) => projectsMatching(data, folder.id, filter).length > 0);
 }
 
 function toFile(data: SquintData, project: Project): FolderFile {
@@ -46,15 +51,15 @@ function toFile(data: SquintData, project: Project): FolderFile {
 }
 
 /**
- * The projects in a folder and its subfolders (with `status`, when filtered) as glass-folder
- * files, newest first (by creation, so edits don't reshuffle).
+ * The projects in a folder and its subfolders that `filter` shows, as glass-folder files,
+ * newest first (by creation, so edits don't reshuffle).
  */
 export function folderFiles(
   data: SquintData,
   folderId: string,
-  status: StatusFilterValue = "all",
+  filter: ProjectFilter = NO_FILTER,
 ): FolderFile[] {
-  return projectsWithStatus(data, folderId, status)
+  return projectsMatching(data, folderId, filter)
     .sort((a, b) => b.createdAt - a.createdAt)
     .map((project) => toFile(data, project));
 }

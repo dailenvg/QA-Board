@@ -13,6 +13,18 @@ const ICONS = {
     ["circle", { cx: 12, cy: 12, r: 10 }],
     ["path", { d: "M12 8v4M12 16h.01" }],
   ],
+  archive: [
+    ["rect", { width: 20, height: 5, x: 2, y: 3, rx: 1 }],
+    ["path", { d: "M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" }],
+    ["path", { d: "M10 12h4" }],
+  ],
+  archiveRestore: [
+    ["rect", { width: 20, height: 5, x: 2, y: 3, rx: 1 }],
+    ["path", { d: "M4 8v11a2 2 0 0 0 2 2h2" }],
+    ["path", { d: "M20 8v11a2 2 0 0 1-2 2h-2" }],
+    ["path", { d: "m9 15 3-3 3 3" }],
+    ["path", { d: "M12 12v9" }],
+  ],
   arrowDown: [
     ["path", { d: "M12 5v14" }],
     ["path", { d: "m19 12-7 7-7-7" }],
@@ -231,6 +243,15 @@ const ICONS = {
   tablet: [
     ["rect", { x: 4, y: 2, width: 16, height: 20, rx: 2 }],
     ["path", { d: "M12 18h.01" }],
+  ],
+  tag: [
+    [
+      "path",
+      {
+        d: "M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z",
+      },
+    ],
+    ["circle", { cx: 7.5, cy: 7.5, r: 0.5, fill: "currentColor" }],
   ],
   trash: [
     ["path", { d: "M3 6h18" }],

@@ -42,9 +42,14 @@ export function cleanLabel(label: string): string {
   return label.trim().replace(/\s+/g, " ").slice(0, WORKSPACE_LIMITS.label);
 }
 
-/** Every label used in the workspace (archived projects' included), A to Z, each once. */
-export function workspaceLabels(data: SquintData): string[] {
+/** The labels `projects` have, A to Z, each once. */
+export function labelsOf(projects: readonly Project[]): string[] {
   const labels = new Set<string>();
-  for (const project of data.projects) if (project.label) labels.add(project.label);
+  for (const project of projects) if (project.label) labels.add(project.label);
   return [...labels].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+}
+
+/** Every label used in the workspace, archived projects' included, A to Z. */
+export function workspaceLabels(data: SquintData): string[] {
+  return labelsOf(data.projects);
 }

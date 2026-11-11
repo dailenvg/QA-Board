@@ -3,7 +3,13 @@ import type { Folder, SquintData } from "@/lib/store/types";
 import type { MenuItem } from "../ui/Menu";
 
 export interface Workspace {
+  /**
+   * The workspace without its archived projects (`activeData`): what counts,
+   * search and the Overview read.
+   */
   data: SquintData;
+  /** Everything, archived projects included: for the Archived filter and what a delete takes. */
+  allData: SquintData;
   /** Oldest first, as in the sidebar. Empty until the person creates their first folder. */
   folders: readonly Folder[];
   /**

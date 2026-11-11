@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Comment, Folder, Project, SquintData } from "@/lib/store/types";
-import { folderFiles, foldersWithStatus, projectsWithStatus } from "./folder-files";
+import type { ProjectFilter, StatusFilterValue } from "../dashboard/status-filter";
+import { folderFiles, foldersMatching, projectsMatching } from "./folder-files";
 import { folderStats } from "./folder-sort";
 
 function folder(id: string, parentId: string | null = null): Folder {
@@ -32,29 +33,60 @@ const DATA: SquintData = {
   authorName: null,
 };
 const TOP = DATA.folders.filter((entry) => entry.parentId === null);
+const by = (status: StatusFilterValue, label: string | null = null): ProjectFilter => ({
+  status,
+  label,
+});
 const ids = (items: ReadonlyArray<{ id: string }>) => items.map((item) => item.id);
 
 describe("folders by status", () => {
   it("counts a folder's projects with a status, subfolders included", () => {
-    expect(ids(projectsWithStatus(DATA, "alpha"))).toEqual(["ready", "busy"]);
-    expect(ids(projectsWithStatus(DATA, "alpha", "comments"))).toEqual(["busy"]);
-    expect(ids(projectsWithStatus(DATA, "alpha", "resolved"))).toEqual([]);
-    expect(ids(folderFiles(DATA, "alpha", "ready"))).toEqual(["ready"]);
+    expect(ids(projectsMatching(DATA, "alpha"))).toEqual(["ready", "busy"]);
+    expect(ids(projectsMatching(DATA, "alpha", by("comments")))).toEqual(["busy"]);
+    expect(ids(projectsMatching(DATA, "alpha", by("resolved")))).toEqual([]);
+    expect(ids(folderFiles(DATA, "alpha", by("ready")))).toEqual(["ready"]);
   });
 
   it("keeps the folders that hold a project with the status; all of them for All", () => {
-    expect(ids(foldersWithStatus(DATA, TOP, "all"))).toEqual(["alpha", "gamma"]);
-    expect(ids(foldersWithStatus(DATA, TOP, "comments"))).toEqual(["alpha"]);
-    expect(ids(foldersWithStatus(DATA, TOP, "resolved"))).toEqual(["gamma"]);
-    expect(ids(foldersWithStatus(DATA, [folder("empty")], "ready"))).toEqual([]);
+    expect(ids(foldersMatching(DATA, TOP, by("all")))).toEqual(["alpha", "gamma"]);
+    expect(ids(foldersMatching(DATA, TOP, by("comments")))).toEqual(["alpha"]);
+    expect(ids(foldersMatching(DATA, TOP, by("resolved")))).toEqual(["gamma"]);
+    expect(ids(foldersMatching(DATA, [folder("empty")], by("ready")))).toEqual([]);
   });
 
   it("sorts filtered folders by their matching projects only", () => {
-    expect(folderStats(DATA, TOP, "comments").map((entry) => entry.projects)).toEqual([1, 0]);
-    expect(folderStats(DATA, TOP, "comments")[0]).toMatchObject({
+    expect(folderStats(DATA, TOP, by("comments")).map((entry) => entry.projects)).toEqual([1, 0]);
+    expect(folderStats(DATA, TOP, by("comments"))[0]).toMatchObject({
       updatedAt: 2,
       openComments: true,
     });
     expect(folderStats(DATA, TOP).map((entry) => entry.projects)).toEqual([2, 1]);
+  });
+});
+
+describe("folders with archived and labelled projects", () => {
+  /** Busy is archived; Done and Ready carry labels. */
+  const TAGGED: SquintData = {
+    ...DATA,
+    projects: [
+      { ...project("ready", "alpha", 1), label: "Draft" },
+      { ...project("busy", "beta", 2), archivedAt: 5, deleteAfter: 9, label: "Draft" },
+      { ...project("done", "gamma", 3), label: "Final" },
+    ],
+  };
+
+  it("leaves archived projects out of every choice but Archived, which shows only them", () => {
+    expect(ids(projectsMatching(TAGGED, "alpha"))).toEqual(["ready"]);
+    expect(ids(projectsMatching(TAGGED, "alpha", by("comments")))).toEqual([]);
+    expect(ids(projectsMatching(TAGGED, "alpha", by("archived")))).toEqual(["busy"]);
+    expect(ids(foldersMatching(TAGGED, TOP, by("archived")))).toEqual(["alpha"]);
+    expect(folderStats(TAGGED, TOP).map((entry) => entry.projects)).toEqual([1, 1]);
+  });
+
+  it("narrows any status to one label", () => {
+    expect(ids(projectsMatching(TAGGED, "alpha", by("all", "Draft")))).toEqual(["ready"]);
+    expect(ids(projectsMatching(TAGGED, "alpha", by("archived", "Draft")))).toEqual(["busy"]);
+    expect(ids(foldersMatching(TAGGED, TOP, by("all", "Final")))).toEqual(["gamma"]);
+    expect(ids(foldersMatching(TAGGED, TOP, by("resolved", "Draft")))).toEqual([]);
   });
 });
