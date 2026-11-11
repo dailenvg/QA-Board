@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { describeError } from "../auth/http";
 import {
   AccountEmailRefused,
+  deletionNoticeLines,
+  deletionNoticeSender,
   EMAIL_CHANGED_NOTICE,
   emailChangedNoticeSender,
   emailChangeLinkHtml,
@@ -53,6 +55,33 @@ describe("account emails", () => {
       }),
     );
     expect(JSON.stringify(send.mock.calls)).not.toMatch(/https?:/);
+  });
+
+  it("tell an owner when their account and workspace go for good, with no link in it", async () => {
+    const deleteAfter = Date.UTC(2026, 11, 2, 12);
+    const notice = { to: "ana@acme.test", deleteAfter, workspaceName: "Acme & Co" };
+    await deletionNoticeSender(ENV)(notice);
+    const lines = deletionNoticeLines(notice);
+    expect(lines.join(" ")).toContain("December 2, 2026");
+    expect(lines.join(" ")).toContain("Acme & Co workspace");
+    expect(lines.join(" ")).toMatch(/administrator can restore it/);
+    expect(send).toHaveBeenCalledWith({
+      from: "Squint <noreply@squint.test>",
+      to: "ana@acme.test",
+      subject: "Your Squint account is scheduled for deletion",
+      text: lines.join("\n\n"),
+      html: expect.stringContaining("Acme &amp; Co workspace") as unknown,
+    });
+    expect(JSON.stringify(send.mock.calls)).not.toMatch(/https?:/);
+  });
+
+  it("leave the workspace out of a member's notice", () => {
+    const lines = deletionNoticeLines({
+      to: "bo@acme.test",
+      deleteAfter: Date.UTC(2026, 11, 2),
+      workspaceName: null,
+    });
+    expect(lines.join(" ")).not.toMatch(/workspace/);
   });
 
   it("skip sending without Resend settings, logging neither address nor link", async () => {

@@ -1,3 +1,4 @@
+import * as account from "@/app/api/account/route";
 import * as avatar from "@/app/api/account/avatar/route";
 import * as email from "@/app/api/account/email/route";
 import * as password from "@/app/api/account/password/route";
@@ -11,6 +12,7 @@ type Handler = (request: Request) => Promise<Response>;
 
 /** Every account route: its path and its methods. */
 const ROUTES: Array<[string, Partial<Record<string, unknown>>]> = [
+  ["/api/account", account],
   ["/api/account/profile", profile],
   ["/api/account/password", password],
   ["/api/account/email", email],

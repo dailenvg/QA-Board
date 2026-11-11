@@ -42,6 +42,15 @@ export const passwordChangeSchema = z.object({ currentPassword, newPassword });
 /** `POST /api/account/email`. */
 export const emailChangeSchema = z.object({ currentPassword, newEmail: email });
 
+/**
+ * `DELETE /api/account`: what the dialog asked to be typed (checked against
+ * the account by the route, not here) and the current password.
+ */
+export const accountDeletionSchema = z.object({
+  confirmText: z.string().max(320),
+  currentPassword,
+});
+
 /** `POST /api/auth/email-change/confirm`: the emailed link's token. */
 export const emailConfirmSchema = z.object({
   token: z.string().refine(isSecretShape, "invalid token"),
