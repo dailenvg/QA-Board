@@ -126,7 +126,9 @@ export function Composer({
               maxLength={80}
               required
               autoComplete="name"
-              autoFocus={!authorName}
+              // Whenever it appears: on a first visit, after Change (whose button it
+              // replaces, so focus would drop to the page), and when a post finds no name.
+              autoFocus
               aria-invalid={nameError ? true : undefined}
               aria-describedby={nameErrorId}
               onChange={(event) => {

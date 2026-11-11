@@ -215,7 +215,11 @@ export function PinPopover({
           <CommentBadge comment={comment} number={number} />
         </span>
         <h2 id={titleId} className="flex min-w-0 flex-1 items-center gap-2 text-body font-semibold">
-          <span className="min-w-0 truncate">
+          {/*
+           * Two lines, not one: with the Client chip, a single line left room for about
+           * seven characters of the name in the 304px popover, where the comment is read in full.
+           */}
+          <span className="line-clamp-2 min-w-0 wrap-break-word">
             <span className="sr-only">Comment {number} by </span>
             {comment.author}
           </span>

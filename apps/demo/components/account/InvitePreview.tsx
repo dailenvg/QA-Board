@@ -67,7 +67,10 @@ export function InvitePreview({ name, color, senderName, logoSrc }: InvitePrevie
               <span className="text-meta text-muted">Shared review</span>
             </span>
           </div>
-          <p className="px-4 pb-4 text-body text-pretty" data-testid="invite-preview-invitation">
+          <p
+            className="px-4 pb-4 text-body text-pretty wrap-break-word"
+            data-testid="invite-preview-invitation"
+          >
             {invitationLine(company, SAMPLE_PROJECT)}
           </p>
         </div>

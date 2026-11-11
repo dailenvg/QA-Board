@@ -127,7 +127,10 @@ export function SharedReview({ token, initial, authorName }: SharedReviewProps) 
                   name={review.closed ? "clock" : "message"}
                   className="mt-0.5 size-4 shrink-0 text-ink-2"
                 />
-                {review.closed ? CLOSED.notice : openCopy.notice}
+                {/* A real flex item, so it can shrink and break a very long company or project name. */}
+                <span className="min-w-0 wrap-break-word">
+                  {review.closed ? CLOSED.notice : openCopy.notice}
+                </span>
               </p>
             }
           />
