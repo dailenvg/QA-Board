@@ -123,7 +123,7 @@ test("an empty workspace says nothing is stored yet", async ({ page }) => {
   );
 });
 
-test("an archived project shows its delete date and its review link still opens", async ({
+test("an archived project shows its delete date, and its review link reopens once unarchived", async ({
   page,
   playwright,
   baseURL,
@@ -137,9 +137,9 @@ test("an archived project shows its delete date and its review link still opens"
     deleteAfter: expect.any(Number),
   });
 
+  // Closed while archived, as in the trash.
   const guest = await playwright.request.newContext({ baseURL, storageState: SIGNED_OUT });
-  expect((await guest.get(`/api/s/${token}`)).status()).toBe(200);
-  await guest.dispose();
+  expect((await guest.get(`/api/s/${token}`)).status()).toBe(404);
 
   await openStorage(page);
   const row = page.getByTestId("large-project").filter({ hasText: "Archived launch" });
@@ -153,4 +153,6 @@ test("an archived project shows its delete date and its review link still opens"
   await page.reload();
   await expect(row.getByTestId("large-project-chip")).toHaveCount(0);
   await expect(row.getByTestId("large-project-deletes")).toHaveCount(0);
+  expect((await guest.get(`/api/s/${token}`)).status()).toBe(200);
+  await guest.dispose();
 });
