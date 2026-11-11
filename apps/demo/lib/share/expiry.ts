@@ -37,7 +37,9 @@ export async function expireShares(
 
 /**
  * Deletes Blob files a failed revoke left behind: uploaded more than a day
- * past retention, under a share that's gone. Safe whether or not
+ * past retention, under a share whose row is gone (`exists`). A share that's
+ * only closed (its project in the trash, its workspace archived or waiting to
+ * be deleted) keeps its files, to open with them again. Safe whether or not
  * `expireShares` finished: a share it hasn't reached yet still counts as
  * live. Null when images aren't kept in Vercel Blob.
  */
@@ -47,6 +49,5 @@ export async function sweepOrphanedBlobs(
   deadline: number,
 ): Promise<SweepResult | null> {
   if (!blobs.sweep) return null;
-  const isLive = async (shareId: string) => (await store.byId(shareId)) !== null;
-  return blobs.sweep(now - ORPHAN_BLOB_MS, isLive, deadline);
+  return blobs.sweep(now - ORPHAN_BLOB_MS, (shareId) => store.exists(shareId), deadline);
 }

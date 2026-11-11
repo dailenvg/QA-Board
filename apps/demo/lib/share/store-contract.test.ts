@@ -46,6 +46,8 @@ describe.each(stores)("%s share store", (_name, make) => {
     expect(await store.byId(RECORD.id)).toEqual(RECORD);
     expect(await store.byTokenHash(RECORD.tokenHash)).toEqual(RECORD);
     expect(await store.byTokenHash("c".repeat(64))).toBeNull();
+    expect(await store.exists(RECORD.id)).toBe(true);
+    expect(await store.exists("no-such-share")).toBe(false);
     const project = { name: "Renamed", source: RECORD.project.source };
     await store.setProject(RECORD.id, project, 9, 12);
     expect(await store.byId(RECORD.id)).toMatchObject({ project, updatedAt: 9, expiresAt: 12 });
@@ -215,6 +217,7 @@ describe.each(stores)("%s share store", (_name, make) => {
       { kind: "vercel", url: "https://blob.example/x" },
     ]);
     expect(await store.byId(RECORD.id)).toBeNull();
+    expect(await store.exists(RECORD.id)).toBe(false);
     expect(await store.comments(RECORD.id)).toEqual([]);
   });
 });

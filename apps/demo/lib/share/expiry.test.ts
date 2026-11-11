@@ -2,10 +2,23 @@ import type { PinDraft } from "@pinpoint/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as cronRoute from "@/app/api/cron/expire/route";
 import { storageFromEnv } from "@/lib/pinpoint-storage";
-import { RECORD } from "@/test/share-fixture";
+import { RECORD, STATE } from "@/test/share-fixture";
+import {
+  addFolder,
+  NOW,
+  seat,
+  TEST_AUTH_SECRET,
+  twoWorkspaces,
+  URL_PROJECT,
+} from "@/test/workspace-fixture";
+import { createProject, trashProject } from "../workspace/projects";
+import { attachShare } from "../workspace/share-links";
 import { inlineBackend, type BlobBackend } from "./blob-backend";
-import { EXPIRY_BATCH, expireShares } from "./expiry";
+import { EXPIRY_BATCH, expireShares, sweepOrphanedBlobs } from "./expiry";
 import { createMemoryStore } from "./memory-store";
+import { sweepOrphanBlobs } from "./orphan-blobs";
+import { createPostgresStore } from "./postgres-store";
+import { createShare } from "./service";
 import { ORPHAN_BLOB_MS, RETENTION_MS, shareExpiresAt } from "./retention";
 import type { ShareServices } from "./server";
 import type { ShareStore } from "./store";
@@ -319,5 +332,73 @@ describe("expireShares", () => {
     const discard = vi.fn<BlobBackend["discard"]>(() => Promise.resolve());
     await expireShares({ store, blobs: { ...inlineBackend, discard } }, Date.now(), Infinity);
     expect(discard).toHaveBeenCalledWith([location]);
+  });
+});
+
+describe("the orphaned Blob sweep", () => {
+  /** A shared project for each state to tell apart, named after it, in three workspaces. */
+  async function workspaceShares() {
+    const { db, a, b } = await twoWorkspaces();
+    const c = await seat(db, "charlie");
+    const store = createPostgresStore(db);
+    const shareIn = async (workspaceId: string, projectId: string) => {
+      await addFolder(db, workspaceId, `f-${projectId}`);
+      await createProject(db, workspaceId, URL_PROJECT(projectId, `f-${projectId}`), NOW);
+      const share = await createShare({ store, blobs: inlineBackend }, STATE, NOW);
+      const input = { shareId: share.shareId, token: share.token, ownerKey: share.ownerKey };
+      await db.transaction((tx) =>
+        attachShare(tx, workspaceId, projectId, input, NOW, TEST_AUTH_SECRET),
+      );
+      return share.shareId;
+    };
+    return {
+      db,
+      store,
+      ids: {
+        open: await shareIn(a.workspaceId, "open"),
+        trashed: await shareIn(a.workspaceId, "trashed"),
+        archived: await shareIn(b.workspaceId, "archived"),
+        pending: await shareIn(c.workspaceId, "pending"),
+        revoked: await shareIn(a.workspaceId, "revoked"),
+      },
+      workspaces: { a: a.workspaceId, b: b.workspaceId, c: c.workspaceId },
+    };
+  }
+
+  it("keeps the files of a share that's only closed, and deletes those of one that's gone", async () => {
+    const { db, store, ids, workspaces } = await workspaceShares();
+    await trashProject(db, workspaces.a, "trashed", NOW);
+    await db.query("UPDATE workspaces SET archived_at = now() WHERE id = $1", [workspaces.b]);
+    await db.query("UPDATE workspaces SET delete_after = now() WHERE id = $1", [workspaces.c]);
+    await store.remove(ids.revoked);
+    for (const id of [ids.trashed, ids.archived, ids.pending, ids.revoked]) {
+      expect(await store.byId(id)).toBeNull();
+    }
+
+    const now = Date.now();
+    const uploadedAt = new Date(now - ORPHAN_BLOB_MS - DAY);
+    const files = Object.values(ids).map((id) => ({
+      url: `https://blob.test/squint/${id}/page-1.png`,
+      pathname: `squint/${id}/page-1.png`,
+      uploadedAt,
+    }));
+    const deleted: string[] = [];
+    const api = {
+      list: () => Promise.resolve({ blobs: files, hasMore: false }),
+      del: (urls: string[]) => {
+        deleted.push(...urls);
+        return Promise.resolve();
+      },
+    };
+    const blobs: BlobBackend = {
+      ...inlineBackend,
+      sweep: (before, isLive, deadline) => sweepOrphanBlobs(api, before, isLive, deadline),
+    };
+
+    expect(await sweepOrphanedBlobs({ store, blobs }, now, Infinity)).toEqual({
+      deleted: 1,
+      done: true,
+    });
+    expect(deleted).toEqual([`https://blob.test/squint/${ids.revoked}/page-1.png`]);
   });
 });

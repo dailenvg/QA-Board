@@ -155,6 +155,10 @@ export function createPostgresStore(db: Queryable): ShareStore {
     },
     byId: (id) => one("id", id),
     byTokenHash: (tokenHash) => one("token_hash", tokenHash),
+    async exists(id) {
+      const { rows } = await db.query("SELECT 1 FROM squint_shares WHERE id = $1", [id]);
+      return rows.length === 1;
+    },
     async setProject(id, project, at, expiresAt) {
       // A share moved into a workspace since the caller read it keeps no deletion date.
       await db.query(
