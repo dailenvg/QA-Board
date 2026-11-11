@@ -1,10 +1,12 @@
 import { cache } from "react";
 import { requireMember, requireSession } from "../auth/guards";
 import { describeError } from "../auth/http";
-import { findOwnWorkspace } from "../auth/memberships";
-import { database } from "../db/database";
+import { findOwnWorkspace, type Membership } from "../auth/memberships";
+import { database, type Database } from "../db/database";
 import { avatarSrc, workspaceLogoSrc } from "../routes";
 import { avatarVersion } from "./avatar";
+import type { StorageReport } from "./schemas";
+import { loadStorageReport } from "./storage";
 import { loadWorkspaceSettings, type WorkspaceSettings } from "./workspace-settings";
 
 /**
@@ -68,17 +70,19 @@ export const sessionWorkspaceIdentity = cache(
   },
 );
 
-/**
- * The workspace settings page: the settings of the signed-in user's
- * workspace and whether they own it; none (the admin, in no workspace); or
- * unavailable, when reading failed (logged by kind only).
- */
-export type WorkspaceSettingsPage =
-  | { kind: "ready"; settings: WorkspaceSettings; isOwner: boolean }
-  | { kind: "none" }
-  | { kind: "unavailable" };
+/** A settings page's data: ready; none (the admin, in no workspace); or unavailable, when reading failed. */
+type PageRead<T> = ({ kind: "ready" } & T) | { kind: "none" } | { kind: "unavailable" };
 
-export async function loadWorkspaceSettingsPage(): Promise<WorkspaceSettingsPage> {
+/**
+ * Reads a workspace settings page for the signed-in user: `read` gets the
+ * workspace they belong to, once `requireMember` has checked it (outside the
+ * try, so its redirect isn't taken for a failure). `read` answers null when
+ * the workspace has gone. A failure is logged by kind only, with `what`.
+ */
+async function readOwnWorkspacePage<T>(
+  what: string,
+  read: (db: Database, membership: Membership) => Promise<T | null>,
+): Promise<PageRead<T>> {
   const user = await requireSession();
   const pending = database();
   if (!pending) return { kind: "unavailable" };
@@ -86,17 +90,35 @@ export async function loadWorkspaceSettingsPage(): Promise<WorkspaceSettingsPage
   try {
     membership = await findOwnWorkspace(await pending, user.id);
   } catch (error) {
-    console.error(`squint account: workspace settings read failed (${describeError(error)})`);
+    console.error(`squint account: ${what} read failed (${describeError(error)})`);
     return { kind: "unavailable" };
   }
   if (!membership) return { kind: "none" };
   await requireMember(membership.workspaceId);
   try {
-    const settings = await loadWorkspaceSettings(await pending, membership.workspaceId);
-    if (!settings) return { kind: "none" };
-    return { kind: "ready", settings, isOwner: membership.role === "owner" };
+    const value = await read(await pending, membership);
+    return value ? { kind: "ready", ...value } : { kind: "none" };
   } catch (error) {
-    console.error(`squint account: workspace settings read failed (${describeError(error)})`);
+    console.error(`squint account: ${what} read failed (${describeError(error)})`);
     return { kind: "unavailable" };
   }
+}
+
+/** The workspace settings page: the settings of the signed-in user's workspace and whether they own it. */
+export type WorkspaceSettingsPage = PageRead<{ settings: WorkspaceSettings; isOwner: boolean }>;
+
+export function loadWorkspaceSettingsPage(): Promise<WorkspaceSettingsPage> {
+  return readOwnWorkspacePage("workspace settings", async (db, membership) => {
+    const settings = await loadWorkspaceSettings(db, membership.workspaceId);
+    return settings && { settings, isOwner: membership.role === "owner" };
+  });
+}
+
+/** The Storage page: the report on the signed-in user's workspace, for any member. */
+export type StoragePage = PageRead<{ report: StorageReport }>;
+
+export function loadStoragePage(): Promise<StoragePage> {
+  return readOwnWorkspacePage("storage", async (db, membership) => ({
+    report: await loadStorageReport(db, membership.workspaceId),
+  }));
 }

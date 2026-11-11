@@ -3,6 +3,7 @@ import * as email from "@/app/api/account/email/route";
 import * as password from "@/app/api/account/password/route";
 import * as profile from "@/app/api/account/profile/route";
 import * as sessions from "@/app/api/account/sessions/route";
+import * as storage from "@/app/api/account/storage/route";
 import * as logo from "@/app/api/account/workspace/logo/route";
 import * as workspace from "@/app/api/account/workspace/route";
 
@@ -17,6 +18,7 @@ const ROUTES: Array<[string, Partial<Record<string, unknown>>]> = [
   ["/api/account/avatar", avatar],
   ["/api/account/workspace", workspace],
   ["/api/account/workspace/logo", logo],
+  ["/api/account/storage", storage],
 ];
 
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;

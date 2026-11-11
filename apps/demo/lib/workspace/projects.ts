@@ -2,6 +2,7 @@ import type { Database } from "../db/database";
 import type { Queryable } from "../share/migrate";
 import type { Page, PagesSource, ProjectSource } from "../store/types";
 import { placeFrameComments } from "./comments";
+import { ARCHIVE_GRACE_MS } from "./limits";
 import { pagesByProject, replacePages } from "./pages";
 import type { ProjectCreate, ProjectPatch, SourceInput } from "./schemas";
 import { toDate, toMs, toMsOrNull } from "./times";
@@ -15,6 +16,7 @@ interface ProjectRow {
   source: StoredSource;
   label: string | null;
   archived_at: Date | null;
+  delete_after: Date | null;
   created_at: Date;
   updated_at: Date;
   deleted_at: Date | null;
@@ -26,7 +28,7 @@ interface ProjectRow {
 
 /** A project row with its review link, if it has one (never the link's secrets). */
 const SELECT = `SELECT project.id, project.folder_id, project.name, project.source, project.label,
-    project.archived_at, project.created_at, project.updated_at, project.deleted_at,
+    project.archived_at, project.delete_after, project.created_at, project.updated_at, project.deleted_at,
     link.share_id, share.created_at AS share_created_at, link.cursor AS share_cursor,
     link.last_synced_at AS share_synced_at
   FROM projects AS project
@@ -60,6 +62,7 @@ function toProject(row: ProjectRow, pages: Map<string, Page[]>): WorkspaceProjec
     updatedAt: toMs(row.updated_at),
     label: row.label,
     archivedAt: toMsOrNull(row.archived_at),
+    deleteAfter: toMsOrNull(row.delete_after),
   };
   if (row.share_id) {
     project.share = {
@@ -256,7 +259,11 @@ async function updateLive(
   return rows.length === 1 ? getProject(db, workspaceId, id) : null;
 }
 
-/** Archives (or unarchives) a project: it stays, out of the main list. Archiving twice keeps the first date. */
+/**
+ * Archives (or unarchives) a project: it stays, out of the main list, and is
+ * due to be deleted `ARCHIVE_GRACE_MS` after it was archived. Archiving twice
+ * keeps the first dates; unarchiving clears both. (SET reads the row as it was.)
+ */
 export function setArchived(
   db: Queryable,
   workspaceId: string,
@@ -268,8 +275,11 @@ export function setArchived(
     db,
     workspaceId,
     id,
-    "archived_at = CASE WHEN $3::boolean THEN COALESCE(archived_at, $4) END",
-    [archived, toDate(now)],
+    `archived_at = CASE WHEN $3::boolean THEN COALESCE(archived_at, $4) END,
+     delete_after = CASE WHEN $3::boolean THEN COALESCE(
+       delete_after, COALESCE(archived_at, $4) + $5::bigint * interval '1 millisecond'
+     ) END`,
+    [archived, toDate(now), ARCHIVE_GRACE_MS],
   );
 }
 

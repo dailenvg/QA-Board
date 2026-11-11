@@ -18,6 +18,7 @@ const project = (id: string, folderId: string | null, share = false): WorkspaceP
   updatedAt: 2,
   label: null,
   archivedAt: null,
+  deleteAfter: null,
   ...(share ? { share: { id: `share-${id}`, createdAt: 3, cursor: 4, lastSyncedAt: 5 } } : {}),
 });
 

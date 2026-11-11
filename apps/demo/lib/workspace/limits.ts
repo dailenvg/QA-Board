@@ -39,6 +39,9 @@ export const UPLOAD_TOKEN_MS = 10 * 60 * 1000;
 /** A project stays in the trash this long before the daily cron deletes it for good. */
 export const TRASH_GRACE_MS = 30 * DAY_MS;
 
+/** An archived project is due to be deleted for good this long after it was archived. */
+export const ARCHIVE_GRACE_MS = 30 * DAY_MS;
+
 /**
  * A file under `ws/` with no row is swept once this old: well past its upload
  * token, so an upload still waiting for its commit is never touched.

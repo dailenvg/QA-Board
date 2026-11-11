@@ -10,7 +10,7 @@ interface GrowBarProps {
   /** The fill's color class (`bg-…`). */
   fill: string;
   /** The bar's height class. */
-  height?: "h-1.5" | "h-2";
+  height?: "h-1.5" | "h-2" | "h-3";
   className?: string;
 }
 

@@ -9,10 +9,12 @@ import {
   senderNameError,
   workspaceNameError,
 } from "./field-rules";
+import { STORAGE_BUCKETS } from "./storage-buckets";
 
 /**
- * What the account routes accept. Never a user or workspace id: the routes act
- * on the session's user, and on the workspace the session's user belongs to.
+ * What the account routes accept, and the one report they answer
+ * (`storageReportSchema`). Never a user or workspace id: the routes act on the
+ * session's user, and on the workspace the session's user belongs to.
  */
 
 const displayName = z
@@ -72,3 +74,33 @@ export const workspaceSettingsSchema = z.object({
 });
 
 export type WorkspaceSettingsInput = z.infer<typeof workspaceSettingsSchema>;
+
+const bytes = z.number().int().nonnegative();
+const epochMs = z.number().int().nonnegative();
+
+/** One project in the Storage page's "large projects" list. */
+const largeProject = z.object({
+  id: z.string().min(1),
+  name: z.string(),
+  bytes,
+  files: bytes,
+  /** `archived` and `trashed` projects are due to be deleted for good at `deleteAfter`. */
+  status: z.enum(["live", "archived", "trashed"]),
+  deleteAfter: epochMs.nullable(),
+});
+
+/**
+ * `GET /api/account/storage`, and what the Storage page renders: the
+ * workspace's usage and quota, its usage by kind of file (every bucket, in
+ * order, zero or not), and its largest projects, biggest first.
+ */
+export const storageReportSchema = z.object({
+  usedBytes: bytes,
+  quotaBytes: bytes,
+  files: bytes,
+  buckets: z.array(z.object({ bucket: z.enum(STORAGE_BUCKETS), bytes, files: bytes })),
+  largeProjects: z.array(largeProject),
+});
+
+export type StorageReport = z.infer<typeof storageReportSchema>;
+export type LargeProject = z.infer<typeof largeProject>;
