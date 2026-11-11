@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useId, useMemo, useState, type FormEvent } from "react";
 import { usePopVariants } from "@/lib/motion";
 import { WORKSPACE_LIMITS } from "@/lib/workspace/limits";
@@ -84,6 +84,7 @@ function LabelForm({ current, labels, onClose, onSave }: LabelFormProps) {
   const errorId = useId();
   const listId = useId();
   const variants = usePopVariants();
+  const reduce = useReducedMotion();
   const suggestions = useMemo(
     () => suggestionsFor(labels, value, current),
     [labels, value, current],
@@ -131,12 +132,14 @@ function LabelForm({ current, labels, onClose, onSave }: LabelFormProps) {
           <p id={listId} className="mb-2 text-label font-semibold text-ink-2">
             {COPY.suggestions}
           </p>
-          <ul aria-labelledby={listId} className="flex min-h-11 flex-wrap gap-2">
+          {/* `relative`: popLayout positions leaving suggestions against this list. */}
+          <ul aria-labelledby={listId} className="relative flex min-h-11 flex-wrap gap-2">
             <AnimatePresence initial={false} mode="popLayout">
               {suggestions.map((label) => (
                 <motion.li
                   key={label}
-                  layout
+                  // The rest close ranks as typing narrows them; with reduced motion they jump.
+                  layout={!reduce}
                   variants={variants}
                   initial="hidden"
                   animate="visible"

@@ -66,6 +66,7 @@ export function DashboardEmpty({ kind, onAction }: DashboardEmptyProps) {
       variants={variants}
       initial="hidden"
       animate="visible"
+      exit="exit"
       data-testid="dashboard-empty"
       className="grid flex-1 place-items-center rounded-panel bg-tile px-6 py-14 text-center"
     >

@@ -32,7 +32,9 @@ export function SourcePanel({ active, testId, children }: SourcePanelProps) {
       inert={!active}
       data-testid={testId}
       data-active={active || undefined}
-      className="col-start-1 row-start-1 min-w-0"
+      // A column, so a panel shorter than the cell can grow a part into the room left (the
+      // Website panel's browser window).
+      className="col-start-1 row-start-1 flex min-w-0 flex-col"
     >
       {children}
     </motion.div>

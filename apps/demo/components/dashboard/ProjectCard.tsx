@@ -80,6 +80,7 @@ export function ProjectCard({ summary, canMove, now, ...actions }: ProjectCardPr
       exit="exit"
       {...(reduce ? {} : hoverLift)}
       data-testid="project-card"
+      data-project-id={project.id}
       data-archived={isArchived(project) || undefined}
       // Hover draws a 2px brand line (pointers only: Tailwind's hover skips touch). brand-text is
       // the brand blue as each theme draws lines and text: cobalt in light; in dark the lighter
@@ -135,9 +136,10 @@ export function ProjectCard({ summary, canMove, now, ...actions }: ProjectCardPr
       {deletesOn !== null ? (
         <p
           data-testid="archived-deletes"
-          className="flex items-center gap-1.5 px-2 text-meta text-muted"
+          className="flex items-start gap-1 px-2 text-meta text-muted"
         >
-          <Icon name="clock" className="size-3.5 shrink-0" />
+          {/* Top-aligned (nudged to the first line's middle), so a wrapped line keeps its icon. */}
+          <Icon name="clock" className="mt-0.5 size-3.5 shrink-0" />
           <span>
             Deletes for good on{" "}
             <time dateTime={new Date(deletesOn).toISOString()}>{shortDate(deletesOn, now)}</time>

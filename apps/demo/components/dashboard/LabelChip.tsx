@@ -9,7 +9,7 @@ export function LabelChip({ label }: { label: string }) {
     <span
       data-testid="label-chip"
       title={label}
-      className="inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-pill bg-card px-3 py-1 text-label font-medium text-ink-2"
+      className="inline-flex max-w-full min-w-0 items-center gap-2 rounded-pill bg-card px-3 py-1 text-label font-medium text-ink-2"
     >
       <Icon name="tag" className="size-3.5 shrink-0" />
       <span className="sr-only">Label: </span>

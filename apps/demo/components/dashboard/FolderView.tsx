@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence } from "motion/react";
 import { useMemo } from "react";
 import {
   deleteProject,
@@ -23,7 +24,7 @@ import { DashboardHeader } from "./DashboardHeader";
 import { FolderNotFound } from "./FolderNotFound";
 import { FolderSkeleton } from "./FolderSkeleton";
 import { ProjectDialogs } from "./ProjectDialogs";
-import { ProjectGrid } from "./ProjectGrid";
+import { cardFocusHandoff, focusProjectCard, ProjectGrid } from "./ProjectGrid";
 import { sortProjects } from "./project-sort";
 import { isFiltered, matchesFilter, noMatchKind } from "./status-filter";
 import { focusStatusFilter } from "./StatusFilter";
@@ -90,14 +91,20 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
   // Nothing to review here (archived projects aside): the folder's own empty state.
   const empty = active.length === 0 && !isFiltered(filter);
 
+  // Either way the card leaves the list it's in (archived ones show under Archived only), so
+  // focus moves to its neighbour; Undo brings it back and puts focus on it again.
   const archive = (project: Project) => {
     const archiving = !isArchived(project);
+    const handOffFocus = cardFocusHandoff(project.id);
     if (!report(setProjectArchived(project.id, archiving))) return;
+    handOffFocus();
     toast({
       message: archiving ? `Archived ${project.name}` : `Unarchived ${project.name}`,
       action: {
         label: "Undo",
-        onAction: () => void report(setProjectArchived(project.id, !archiving)),
+        onAction: () => {
+          if (report(setProjectArchived(project.id, !archiving))) focusProjectCard(project.id);
+        },
       },
     });
   };
@@ -139,28 +146,40 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
       <p className="sr-only" aria-live="polite">
         {isFiltered(filter) ? `${plural(visible.length, "project")} shown` : ""}
       </p>
-      {empty ? (
-        <DashboardEmpty kind="folder" onAction={() => workspace.openNewProject(folder.id)} />
-      ) : visible.length === 0 ? (
-        <DashboardEmpty
-          kind={noMatchKind(filter, "folder")}
-          onAction={() => {
-            reset();
-            focusStatusFilter();
-          }}
-        />
-      ) : (
-        <ProjectGrid
-          summaries={visible}
-          canMove={folders.length > 1}
-          now={now}
-          onRename={projectRename.show}
-          onMove={projectMove.show}
-          onLabel={projectLabel.show}
-          onArchive={archive}
-          onDelete={projectDelete.show}
-        />
-      )}
+      {/*
+        One at a time: when the last card is archived (or filtered away) the grid fades out
+        with it before the empty state comes in, rather than vanishing.
+      */}
+      <AnimatePresence mode="wait">
+        {empty ? (
+          <DashboardEmpty
+            key="empty-folder"
+            kind="folder"
+            onAction={() => workspace.openNewProject(folder.id)}
+          />
+        ) : visible.length === 0 ? (
+          <DashboardEmpty
+            key="empty-filter"
+            kind={noMatchKind(filter, "folder")}
+            onAction={() => {
+              reset();
+              focusStatusFilter();
+            }}
+          />
+        ) : (
+          <ProjectGrid
+            key="grid"
+            summaries={visible}
+            canMove={folders.length > 1}
+            now={now}
+            onRename={projectRename.show}
+            onMove={projectMove.show}
+            onLabel={projectLabel.show}
+            onArchive={archive}
+            onDelete={projectDelete.show}
+          />
+        )}
+      </AnimatePresence>
 
       <ProjectDialogs
         folders={folders}
@@ -199,11 +218,14 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
             message: `Deleted ${project.name}`,
             action: {
               label: "Undo",
-              onAction: () =>
-                void report(
+              // Focus goes to the restored card, not to the page as the toast leaves.
+              onAction: () => {
+                const restored = report(
                   restoreProject(project, comments, snapshots),
                   `Restored ${project.name}`,
-                ),
+                );
+                if (restored) focusProjectCard(project.id);
+              },
             },
           });
         }}

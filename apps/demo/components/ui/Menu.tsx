@@ -40,6 +40,19 @@ const PLACEMENT_ORIGIN: Record<MenuPlacement, string> = {
   above: "bottom right",
 };
 
+/**
+ * Which of the trigger's edges the menu lines up with: its right edge (`end`), or its left
+ * edge (`start`) for a trigger near the left of the screen, such as the label filter once it
+ * wraps under the status filter on a phone.
+ */
+type MenuAlign = "end" | "start";
+
+const ALIGN_CLASS: Record<MenuAlign, string> = { end: "right-0", start: "left-0" };
+
+function menuOrigin(side: MenuPlacement, align: MenuAlign): string {
+  return `${side === "below" ? "top" : "bottom"} ${align === "end" ? "right" : "left"}`;
+}
+
 /** The gap between the trigger and the menu (`mt-1` / `mb-1`). */
 const GAP = 4;
 /** Room the menu keeps from the edge of the screen (or its dialog). */
@@ -79,6 +92,25 @@ function fittingSide(
   };
   const other: MenuPlacement = preferred === "above" ? "below" : "above";
   return !fits[preferred] && fits[other] ? other : preferred;
+}
+
+/**
+ * Lined up with the trigger's right edge, unless the menu would then cross the left edge of the
+ * screen (or its dialog) and fits lined up with the trigger's left edge instead.
+ */
+function fittingAlign(anchor: HTMLElement | null, menu: HTMLElement | null): MenuAlign {
+  if (!anchor || !menu) return "end";
+  const box = anchor.getBoundingClientRect();
+  if (!box.width) return "end";
+  const bounds = anchor.closest('[role="dialog"]')?.getBoundingClientRect() ?? {
+    left: 0,
+    right: window.innerWidth,
+  };
+  // offsetWidth ignores the pop-in's scale, so this is the menu's full width.
+  const width = menu.offsetWidth;
+  const fitsEnd = box.right - width >= bounds.left + EDGE;
+  const fitsStart = box.left + width <= bounds.right - EDGE;
+  return !fitsEnd && fitsStart ? "start" : "end";
 }
 
 interface MenuProps {
@@ -151,6 +183,8 @@ export function Menu({
    */
   const [placedSide, setPlacedSide] = useState<MenuPlacement | null>(null);
   const side = placedSide ?? placement;
+  /** Which edge of the trigger the open menu lines up with, measured with its side. */
+  const [align, setAlign] = useState<MenuAlign>("end");
 
   const openMenu = (from: HTMLElement | null = null) => {
     if (disabledReason) return;
@@ -163,6 +197,9 @@ export function Menu({
   useLayoutEffect(() => {
     if (!open) return;
     setPlacedSide(fittingSide(placement, root.current, menu.current));
+    // Kept after closing (no reset), so the menu fades out where it was; the next opening
+    // measures again before it paints.
+    setAlign(fittingAlign(root.current, menu.current));
     return () => setPlacedSide(null);
   }, [open, placement]);
 
@@ -313,8 +350,8 @@ export function Menu({
             initial="hidden"
             animate="visible"
             exit="exit"
-            style={{ transformOrigin: PLACEMENT_ORIGIN[side] }}
-            className={`absolute right-0 z-30 ${PLACEMENT_CLASS[side]} flex w-max max-w-72 min-w-52 flex-col rounded-tile bg-card p-2 shadow-pop ring-1 ring-line`}
+            style={{ transformOrigin: menuOrigin(side, align) }}
+            className={`absolute ${ALIGN_CLASS[align]} z-30 ${PLACEMENT_CLASS[side]} flex w-max max-w-72 min-w-52 flex-col rounded-tile bg-card p-2 shadow-pop ring-1 ring-line`}
           >
             {items.map((item) => (
               <Fragment key={item.id ?? item.label}>
