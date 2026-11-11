@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, type CSSProperties, type ReactNode } from "react";
+import { useId, type CSSProperties, type ReactNode } from "react";
 import { commenterColor, type CommenterColor } from "@/lib/brand-palette";
 import { LIST_ROWS, type ClientNews } from "@/lib/overview/activity";
 import { FOLDERS_HREF, projectHref } from "@/lib/routes";
@@ -8,7 +8,7 @@ import { HIGHLIGHT_TAG } from "../../ui/highlight-tag";
 import { Skeleton } from "../../ui/Skeleton";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { MoreLink } from "./MoreLink";
-import { ClientsScene, SCENE_PINS } from "./scenes/ClientsScene";
+import { ClientsScene } from "./scenes/ClientsScene";
 import { SceneBox } from "./scenes/SceneBox";
 import { useScene } from "./scenes/use-scene";
 import { TileEmpty } from "./TileEmpty";
@@ -34,29 +34,21 @@ function waitingLine(count: number): string {
     : `${count} comments are still on review links. Open their projects to bring them in.`;
 }
 
-/** Each project's color: its pins on the board, and the dot on its row. */
+/** Each project's color: the dot on its row. */
 function projectColor(projectName: string): CommenterColor {
   return commenterColor(projectName);
-}
-
-/** The board's pins: each project's new comments in its color, busiest project first. */
-function boardPins(news: ClientNews): CommenterColor[] {
-  return news.rows
-    .flatMap((row) => Array.from({ length: row.count }, () => projectColor(row.projectName)))
-    .slice(0, SCENE_PINS);
 }
 
 /**
  * Client comments since the last look: a client's cursor dropping their pins
  * onto a page while Squiggy listens (again on hover or focus), then
  * each project with news, opening the project (which also brings in any still
- * waiting on its review link). Each project's dot matches its pins.
+ * waiting on its review link), marked with its own colored dot.
  */
 export function ClientsTile({ news, now, thumb }: ClientsTileProps) {
   const headingId = useId();
   const rows = news?.rows ?? [];
   const { ref, shown, more } = useFitRows(rows.length, LIST_ROWS.clients.natural);
-  const pins = useMemo(() => (news ? boardPins(news) : []), [news]);
   const [sceneRef, scene] = useScene();
   return (
     <section
@@ -101,7 +93,7 @@ export function ClientsTile({ news, now, thumb }: ClientsTileProps) {
             scene={scene}
             className="mx-auto aspect-[4/3] w-32 self-start @[24rem]:mx-0 @[24rem]:w-full"
           >
-            <ClientsScene pins={pins} still={scene.still} />
+            <ClientsScene count={news.total} still={scene.still} />
           </SceneBox>
           <div className="flex min-w-0 flex-col gap-1 bento-fit:min-h-0">
             {news.waiting > 0 ? (

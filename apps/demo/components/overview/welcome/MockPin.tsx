@@ -6,8 +6,11 @@ import type { CommenterColor } from "@/lib/brand-palette";
 import { duration, spring } from "@/lib/motion";
 import { Icon } from "../../ui/Icon";
 
+/** What a pin is drawn in: a commenter's color, or any fill and ink (`id` names it). */
+export type PinColor = Pick<CommenterColor, "id" | "hex" | "ink">;
+
 interface MockPinProps {
-  color: CommenterColor;
+  color: PinColor;
   /** Fills green with a check, as resolved pins do. */
   resolved?: boolean;
   /** Its pin number (1 in the stories). */

@@ -1,14 +1,9 @@
 import { motion } from "motion/react";
-import type { CSSProperties } from "react";
-import { commenterColor } from "@/lib/brand-palette";
 import { duration, ease, sceneStep } from "@/lib/motion";
 import { StoryMascot } from "../../welcome/StoryMascot";
 
 /** The most bubbles the stack shows; a bigger count still shows in the tag. */
 const STACK = 4;
-
-/** Whose bubbles: a few commenter colors, so the stack reads as several people. */
-const VOICES = ["Sam", "Ana", "Cleo", "Mia"].map(commenterColor);
 
 interface WaitingSceneProps {
   open: number;
@@ -16,12 +11,12 @@ interface WaitingSceneProps {
 
 /**
  * Comment bubbles piling up beside a thinking Squiggy: one per open comment, up to four,
- * each rising in after the one before. Decorative.
+ * each rising in after the one before. In greys, Squiggy apart. Decorative.
  */
 export function WaitingScene({ open }: WaitingSceneProps) {
   const bubbles = Math.min(open, STACK);
   return (
-    <span className="relative block h-full overflow-hidden rounded-tile bg-comments-soft">
+    <span className="relative block h-full overflow-hidden rounded-tile bg-scene-stage">
       {Array.from({ length: bubbles }, (_, index) => (
         <motion.span
           key={index}
@@ -32,10 +27,7 @@ export function WaitingScene({ open }: WaitingSceneProps) {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: duration.component, ease: ease.out, delay: index * sceneStep }}
         >
-          <span
-            style={{ "--dot": VOICES[index % VOICES.length]?.hex } as CSSProperties}
-            className="size-2 shrink-0 rounded-pill bg-(--dot)"
-          />
+          <span className="size-2 shrink-0 rounded-pill bg-scene-mark" />
           <span className="h-1.5 flex-1 rounded-pill bg-line-strong" />
           <span className="h-1.5 w-4 rounded-pill bg-line" />
         </motion.span>
