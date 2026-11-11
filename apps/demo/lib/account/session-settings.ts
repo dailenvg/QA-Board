@@ -2,9 +2,12 @@ import { cache } from "react";
 import { requireMember, requireSession } from "../auth/guards";
 import { describeError } from "../auth/http";
 import { findOwnWorkspace, type Membership } from "../auth/memberships";
+import type { SessionUser } from "../auth/users";
 import { database, type Database } from "../db/database";
 import { avatarSrc, workspaceLogoSrc } from "../routes";
+import { sessionDeletionConfirm } from "./account-deletion";
 import { avatarVersion } from "./avatar";
+import type { DeletionConfirm } from "./field-rules";
 import type { StorageReport } from "./schemas";
 import { loadStorageReport } from "./storage";
 import { loadWorkspaceSettings, type WorkspaceSettings } from "./workspace-settings";
@@ -29,6 +32,23 @@ export const sessionAvatarVersion = cache(async (userId: string): Promise<string
     return null;
   }
 });
+
+/**
+ * What deleting the signed-in account asks to be typed, or null when it
+ * can't be deleted from its settings (the admin's, or one without an open
+ * workspace), without a database, or when reading it fails (logged by kind
+ * only): the page leaves the card out then.
+ */
+export async function sessionDeletion(user: SessionUser): Promise<DeletionConfirm | null> {
+  const pending = database();
+  if (!pending || user.role === "admin") return null;
+  try {
+    return await sessionDeletionConfirm(await pending, user);
+  } catch (error) {
+    console.error(`squint account: deletion read failed (${describeError(error)})`);
+    return null;
+  }
+}
 
 /** `sessionAvatarVersion`, as the avatar's URL. */
 export async function sessionAvatarSrc(userId: string): Promise<string | null> {

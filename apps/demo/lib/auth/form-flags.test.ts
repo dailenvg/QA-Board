@@ -24,7 +24,8 @@ describe("form flags", () => {
     expect(loginNotice({ reset: "done" })).toMatch(/Password changed/);
     expect(loginNotice({ email: "changed" })).toMatch(/Email changed/);
     expect(loginNotice({ signedOut: "everywhere" })).toMatch(/every device/);
-    expect(loginNotice({ reset: "x", email: "y", signedOut: "z" })).toBeNull();
+    expect(loginNotice({ account: "deleted" })).toMatch(/scheduled for deletion/);
+    expect(loginNotice({ reset: "x", email: "y", signedOut: "z", account: "w" })).toBeNull();
   });
 
   it("ignores anything else, so the address can't put words on the page", () => {

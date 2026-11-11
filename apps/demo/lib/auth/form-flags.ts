@@ -59,14 +59,21 @@ export function emailChangeFlagMessage(error: string | undefined): string | null
   return known(EMAIL_CHANGE_MESSAGES, error);
 }
 
-/** What the sign-in page says on arrival, from `?reset=done`, `?email=changed` or `?signed-out=everywhere`. */
+/**
+ * What the sign-in page says on arrival, from `?reset=done`, `?email=changed`,
+ * `?signed-out=everywhere` or `?account=deleted`.
+ */
 export function loginNotice(params: {
   reset?: string;
   email?: string;
   signedOut?: string;
+  account?: string;
 }): string | null {
   if (params.reset === "done") return "Password changed. Sign in with your new password.";
   if (params.email === "changed") return "Email changed. Sign in with your new email address.";
   if (params.signedOut === "everywhere") return "You're signed out on every device.";
+  if (params.account === "deleted") {
+    return "Your account is scheduled for deletion, and you're signed out on every device.";
+  }
   return null;
 }

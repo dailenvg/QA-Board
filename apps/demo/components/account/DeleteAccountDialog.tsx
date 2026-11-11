@@ -1,0 +1,164 @@
+"use client";
+
+import { useRef, useState, type FormEvent } from "react";
+import { accountErrorMessage, deleteAccount } from "@/lib/account/account-client";
+import {
+  currentPasswordError,
+  deletionConfirmMatches,
+  type DeletionConfirm,
+} from "@/lib/account/field-rules";
+import { AuthField } from "../auth/AuthField";
+import { FormAlert } from "../auth/FormAlert";
+import { Button } from "../ui/Button";
+import { Dialog } from "../ui/Dialog";
+import { DELETE_ACCOUNT_COPY } from "./delete-account-copy";
+import { useCheckedField } from "./use-checked-field";
+
+/** Where the browser goes once the account is deleted and every session has ended. */
+const DELETED_HREF = "/login?account=deleted";
+
+const COPY = DELETE_ACCOUNT_COPY.dialog;
+
+interface DeleteAccountDialogProps {
+  open: boolean;
+  confirm: DeletionConfirm;
+  onClose: () => void;
+}
+
+/**
+ * Asks for the workspace's name (a member: their email) and the current
+ * password, then deletes the account. Stays up while it's deleting.
+ */
+export function DeleteAccountDialog({ open, confirm, onClose }: DeleteAccountDialogProps) {
+  const [pending, setPending] = useState(false);
+  const close = () => {
+    if (!pending) onClose();
+  };
+  const description =
+    confirm.kind === "workspace"
+      ? COPY.description.workspace(confirm.text)
+      : COPY.description.email;
+  return (
+    <Dialog
+      open={open}
+      onClose={close}
+      title={COPY.title}
+      description={description}
+      size="sm"
+      dismissible={!pending}
+      testId="delete-account-dialog"
+    >
+      <DeleteAccountForm
+        confirm={confirm}
+        pending={pending}
+        onPending={setPending}
+        onCancel={close}
+      />
+    </Dialog>
+  );
+}
+
+interface DeleteAccountFormProps {
+  confirm: DeletionConfirm;
+  pending: boolean;
+  onPending: (pending: boolean) => void;
+  onCancel: () => void;
+}
+
+function confirmError(value: string, confirm: DeletionConfirm): string | null {
+  if (!value.trim()) return COPY.confirmEmpty(confirm.text);
+  return deletionConfirmMatches(value, confirm) ? null : COPY.confirmMismatch(confirm.text);
+}
+
+function DeleteAccountForm({ confirm, pending, onPending, onCancel }: DeleteAccountFormProps) {
+  const typed = useCheckedField((value) => confirmError(value, confirm));
+  const password = useCheckedField(currentPasswordError);
+  const [formError, setFormError] = useState<string | null>(null);
+  const typedRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const ready = deletionConfirmMatches(typed.value, confirm) && password.value !== "";
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (pending) return;
+    const checks = [
+      [typed.check(), typedRef],
+      [password.check(), passwordRef],
+    ] as const;
+    const first = checks.find(([problem]) => problem);
+    if (first) {
+      first[1].current?.focus();
+      return;
+    }
+    onPending(true);
+    setFormError(null);
+    const outcome = await deleteAccount(typed.value, password.value);
+    if (outcome.ok) {
+      // A full page load, not a client navigation: nothing of the ended session carries over.
+      window.location.assign(DELETED_HREF);
+      return;
+    }
+    onPending(false);
+    if (outcome.error === "wrong-password") {
+      password.setError(accountErrorMessage(outcome.error));
+      passwordRef.current?.focus();
+    } else if (outcome.error === "confirm-mismatch") {
+      typed.setError(COPY.confirmMismatch(confirm.text));
+      typedRef.current?.focus();
+    } else {
+      setFormError(accountErrorMessage(outcome.error, outcome.retryAfterSeconds));
+    }
+  };
+
+  return (
+    <form
+      method="post"
+      onSubmit={(event) => void submit(event)}
+      noValidate
+      aria-busy={pending}
+      className="flex flex-col gap-4"
+    >
+      <AuthField
+        label={COPY.confirmLabel(confirm.text)}
+        type={confirm.kind === "email" ? "email" : "text"}
+        autoComplete="off"
+        name="confirmText"
+        inputRef={typedRef}
+        hint={COPY.confirmHint[confirm.kind]}
+        {...typed.field}
+        testId="delete-account-confirm"
+      />
+      <AuthField
+        label={COPY.password}
+        type="password"
+        autoComplete="current-password"
+        name="currentPassword"
+        inputRef={passwordRef}
+        {...password.field}
+        testId="delete-account-password"
+      />
+      <div className="flex flex-col">
+        <FormAlert message={formError} testId="delete-account-error" className="has-[p]:mb-4" />
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button
+            variant="secondary"
+            onClick={onCancel}
+            aria-disabled={pending || undefined}
+            data-testid="delete-account-cancel"
+          >
+            {COPY.cancel}
+          </Button>
+          {/* aria-disabled, not disabled: it stays focusable, and a press explains what's missing. */}
+          <Button
+            type="submit"
+            variant="danger"
+            aria-disabled={pending || !ready || undefined}
+            data-testid="delete-account-submit"
+          >
+            {pending ? COPY.submitting : COPY.submit}
+          </Button>
+        </div>
+      </div>
+    </form>
+  );
+}

@@ -24,6 +24,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         reset: single(params.reset),
         email: single(params.email),
         signedOut: single(params["signed-out"]),
+        account: single(params.account),
       })}
       initialError={loginFlagMessage(single(params.error), single(params.retry))}
     />

@@ -9,6 +9,12 @@ export type AccountError =
   | "wrong-password"
   /** A workspace setting, from a member who doesn't own the workspace. */
   | "owner-only"
+  /** Deleting the admin's account, which isn't done from the settings. */
+  | "admin-account"
+  /** Deleting an owner's account while others still work in the workspace. */
+  | "owner-has-members"
+  /** Deleting an account with the wrong workspace name or email typed. */
+  | "confirm-mismatch"
   | "same-email"
   | "rate-limited"
   | "too-many-requests"
@@ -55,14 +61,22 @@ async function outcomeOf(response: Response | null): Promise<AccountOutcome> {
       return { ok: false, error: "invalid" };
     case 401:
       return { ok: false, error: "signed-out" };
-    case 403:
-      return (await errorCode(response)) === "owner-only"
-        ? { ok: false, error: "owner-only" }
+    case 403: {
+      const code = await errorCode(response);
+      return code === "owner-only" || code === "admin-account"
+        ? { ok: false, error: code }
         : { ok: false, error: "failed" };
-    case 422:
-      return (await errorCode(response)) === "same-email"
-        ? { ok: false, error: "same-email" }
+    }
+    case 409:
+      return (await errorCode(response)) === "owner-has-members"
+        ? { ok: false, error: "owner-has-members" }
+        : { ok: false, error: "failed" };
+    case 422: {
+      const code = await errorCode(response);
+      return code === "same-email" || code === "confirm-mismatch"
+        ? { ok: false, error: code }
         : { ok: false, error: "wrong-password" };
+    }
     case 429:
       if ((await errorCode(response)) === "too-many-requests") {
         return { ok: false, error: "too-many-requests" };
@@ -116,6 +130,18 @@ export async function logOutEverywhere(): Promise<AccountOutcome> {
   return outcomeOf(await send("DELETE", "/api/account/sessions", {}));
 }
 
+/**
+ * Deletes the account: `confirmText` is what the dialog asked for (the
+ * workspace's name, or a member's email). On success every session has ended,
+ * this browser's included.
+ */
+export async function deleteAccount(
+  confirmText: string,
+  currentPassword: string,
+): Promise<AccountOutcome> {
+  return outcomeOf(await send("DELETE", "/api/account", { confirmText, currentPassword }));
+}
+
 export async function confirmEmailChange(token: string): Promise<ConfirmOutcome> {
   const response = await send("POST", "/api/auth/email-change/confirm", { token });
   if (!response) return { ok: false, error: "offline" };
@@ -134,6 +160,12 @@ export function accountErrorMessage(error: AccountError, retryAfterSeconds = 0):
       return "Only the workspace's owner can change its settings. Ask them to make the change.";
     case "same-email":
       return "That's already your email address.";
+    case "admin-account":
+      return "The admin account can't be deleted from here.";
+    case "owner-has-members":
+      return "Other people still work in this workspace. Make one of them its owner before you delete your account. Your Squint administrator can help.";
+    case "confirm-mismatch":
+      return "That doesn't match. Check what you typed and try again.";
     case "rate-limited":
       return loginErrorMessage("rate-limited", retryAfterSeconds);
     case "too-many-requests":
