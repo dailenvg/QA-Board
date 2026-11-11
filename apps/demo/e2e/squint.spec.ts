@@ -118,7 +118,7 @@ test("an image project accepts a keyboard-placed pin and shows Comments in on th
   await newProjectButton(page).click();
   const dialog = page.getByRole("dialog", { name: "New project" });
   await dialog.getByRole("radio", { name: "Image" }).click();
-  await dialog.locator('input[type="file"]').setInputFiles({
+  await dialog.getByTestId("image-input").setInputFiles({
     name: "checkout-mockup.png",
     mimeType: "image/png",
     buffer: png,

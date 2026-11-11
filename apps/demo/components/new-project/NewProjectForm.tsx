@@ -12,6 +12,7 @@ import type { ImageGrouping } from "./CombineChoice";
 import { FolderPicker, NEW_FOLDER } from "./FolderPicker";
 import { ImagesField } from "./ImagesField";
 import { PdfPicker } from "./PdfPicker";
+import { SourcePanel } from "./SourcePanel";
 import { UrlField } from "./UrlField";
 import { imagesProblem, pdfProblem, readyImages, type SourceDraft } from "./source-draft";
 import { useCreateProjects } from "./use-create-projects";
@@ -180,38 +181,43 @@ export function NewProjectForm({
         stretch
       />
 
-      {kind === "url" ? (
-        <UrlField
-          value={url}
-          error={urlError}
-          onChange={(value) => {
-            setUrl(value);
-            if (urlError) setUrlError(null);
-          }}
-          onBlur={() => {
-            if (url.trim()) checkUrl();
-          }}
-        />
-      ) : kind === "image" ? (
-        <ImagesField
-          picked={picked}
-          grouping={grouping}
-          onGrouping={setGrouping}
-          error={sourceError}
-          onChange={() => setSourceError(null)}
-        />
-      ) : (
-        <PdfPicker
-          state={pdf.state}
-          error={sourceError}
-          onFile={(file) => {
-            setSourceError(null);
-            void pdf.choose(file);
-          }}
-          onTakeFirstPages={pdf.takeFirstPages}
-          onCancel={pdf.cancel}
-        />
-      )}
+      {/* Every source's fields share one cell, so the dialog keeps one height across them. */}
+      <div className="grid">
+        <SourcePanel active={kind === "url"} testId="source-panel-url">
+          <UrlField
+            value={url}
+            error={urlError}
+            onChange={(value) => {
+              setUrl(value);
+              if (urlError) setUrlError(null);
+            }}
+            onBlur={() => {
+              if (url.trim()) checkUrl();
+            }}
+          />
+        </SourcePanel>
+        <SourcePanel active={kind === "image"} testId="source-panel-image">
+          <ImagesField
+            picked={picked}
+            grouping={grouping}
+            onGrouping={setGrouping}
+            error={kind === "image" ? sourceError : null}
+            onChange={() => setSourceError(null)}
+          />
+        </SourcePanel>
+        <SourcePanel active={kind === "pdf"} testId="source-panel-pdf">
+          <PdfPicker
+            state={pdf.state}
+            error={kind === "pdf" ? sourceError : null}
+            onFile={(file) => {
+              setSourceError(null);
+              void pdf.choose(file);
+            }}
+            onTakeFirstPages={pdf.takeFirstPages}
+            onCancel={pdf.cancel}
+          />
+        </SourcePanel>
+      </div>
 
       {named ? (
         <div>

@@ -65,6 +65,7 @@ export function ImageDropzone({ hasImages, error, onFiles }: ImageDropzoneProps)
           aria-labelledby={`${inputId}-label`}
           aria-describedby={`${hintId} ${errorId}`}
           aria-invalid={error ? true : undefined}
+          data-testid="image-input"
           onChange={(event) => {
             const files = [...(event.target.files ?? [])];
             if (files.length) onFiles(files);
