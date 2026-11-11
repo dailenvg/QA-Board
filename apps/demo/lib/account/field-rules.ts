@@ -68,6 +68,14 @@ export function workspaceNameError(value: string): string | null {
   return null;
 }
 
+/** As the database checks it (009's CHECK on `workspaces.slug`). */
+export const WORKSPACE_SLUG_MAX_LENGTH = 48;
+
+/** Lowercase letters, digits and single hyphens, as in `acme-studio`. */
+export function isWorkspaceSlug(value: string): boolean {
+  return /^[a-z0-9]+(-[a-z0-9]+)*$/.test(value) && value.length <= WORKSPACE_SLUG_MAX_LENGTH;
+}
+
 const HEX = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i;
 
 /**

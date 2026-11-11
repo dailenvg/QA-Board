@@ -8,6 +8,8 @@ import { checkCurrentPassword, type CurrentPasswordCheck } from "./current-passw
 import {
   ACCOUNT_DELETION_GRACE_DAYS,
   deletionConfirmMatches,
+  isWorkspaceSlug,
+  workspaceNameError,
   type DeletionConfirm,
 } from "./field-rules";
 
@@ -16,7 +18,8 @@ import {
  * schedules: the user can't sign in from then on, and is deleted for good
  * `ACCOUNT_DELETION_GRACE_MS` later by the daily cron (`account-purge.ts`),
  * with the workspace they own alone. Until then nothing is lost, so
- * `restoreAccount` (or `restore-account.sql`, by hand) brings it all back.
+ * `restoreAccount` (or `restore-account.sql`, by hand) brings it all back,
+ * except to a member whose workspace is being deleted too: they get a new one.
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -206,51 +209,176 @@ export async function scheduleAccountDeletion(
   return db.transaction((tx) => schedule(tx, user, checked.membership, confirmText, now));
 }
 
+/** The workspace a restored member gets when theirs is being deleted too. */
+export interface NewWorkspace {
+  name: string;
+  slug: string;
+}
+
+/** Why an account wasn't restored. Nothing changed. */
+export type RestoreRefusal =
+  /** The member needs a new workspace, and no `NewWorkspace` was given. */
+  | "workspace-missing"
+  /** Its name or slug breaks the rules (`workspaceNameError`, `isWorkspaceSlug`). */
+  | "workspace-invalid"
+  /** Another workspace has its slug. */
+  | "slug-taken";
+
+export interface RestoredAccount {
+  /** The workspace made for a member whose own is being deleted; null otherwise. */
+  newWorkspaceId: string | null;
+}
+
+/** `restored` is null when there was nothing to restore. */
+export type RestoreResult =
+  { ok: true; restored: RestoredAccount | null } | { ok: false; reason: RestoreRefusal };
+
+/**
+ * The workspaces `userId` is a member of (not the owner) that are waiting to
+ * be deleted, locked: restoring them doesn't reopen those, so they leave
+ * them for a new workspace of their own.
+ */
+async function lockClosingMemberships(tx: Queryable, userId: string): Promise<string[]> {
+  const { rows } = await tx.query<{ workspace_id: string }>(
+    `SELECT m.workspace_id FROM memberships AS m JOIN workspaces AS w ON w.id = m.workspace_id
+     WHERE m.user_id = $1 AND m.role = 'member' AND w.delete_after IS NOT NULL
+     ORDER BY m.workspace_id
+     FOR UPDATE OF m, w`,
+    [userId],
+  );
+  return rows.map((row) => row.workspace_id);
+}
+
+/** Creates `workspace`, empty and with 009's defaults, or says why not: nothing written then. */
+async function createWorkspace(
+  tx: Queryable,
+  workspace: NewWorkspace | undefined,
+): Promise<{ ok: true; id: string } | { ok: false; reason: RestoreRefusal }> {
+  if (!workspace) return { ok: false, reason: "workspace-missing" };
+  const name = workspace.name.trim();
+  const slug = workspace.slug.trim();
+  if (workspaceNameError(name) !== null || !isWorkspaceSlug(slug)) {
+    return { ok: false, reason: "workspace-invalid" };
+  }
+  const { rows } = await tx.query<{ id: string }>(
+    "INSERT INTO workspaces (slug, name) VALUES ($1, $2) ON CONFLICT (slug) DO NOTHING RETURNING id",
+    [slug, name],
+  );
+  const id = rows[0]?.id;
+  return id ? { ok: true, id } : { ok: false, reason: "slug-taken" };
+}
+
+/** Opens again the workspaces `userId` owned, waiting to be deleted with them. */
+async function reopenOwnedWorkspaces(
+  tx: Queryable,
+  userId: string,
+  now: number,
+  actorUserId: string | null,
+): Promise<void> {
+  const { rows } = await tx.query<{ id: string }>(
+    `UPDATE workspaces AS w SET delete_after = NULL FROM memberships AS m
+     WHERE m.workspace_id = w.id AND m.user_id = $1 AND m.role = 'owner'
+       AND w.delete_after > $2
+     RETURNING w.id`,
+    [userId, toDate(now)],
+  );
+  for (const { id } of rows) {
+    await audit(
+      tx,
+      {
+        actorUserId,
+        workspaceId: id,
+        action: "workspace.restored",
+        target: { type: "workspace", id },
+        fields: ["delete_after"],
+      },
+      now,
+    );
+  }
+}
+
+/**
+ * Makes `userId` the owner of the workspace just created for them, and takes
+ * them out of the closing ones, which are still deleted on their date.
+ */
+async function moveToNewWorkspace(
+  tx: Queryable,
+  userId: string,
+  { workspaceId, closing }: { workspaceId: string; closing: readonly string[] },
+  now: number,
+  actorUserId: string | null,
+): Promise<void> {
+  const member = { type: "user", id: userId } as const;
+  const workspace = { type: "workspace", id: workspaceId } as const;
+  const fields = ["membership"];
+  await audit(
+    tx,
+    {
+      actorUserId,
+      workspaceId,
+      action: "workspace.created",
+      target: workspace,
+      fields: ["workspace"],
+    },
+    now,
+  );
+  await tx.query("INSERT INTO memberships (user_id, workspace_id, role) VALUES ($1, $2, 'owner')", [
+    userId,
+    workspaceId,
+  ]);
+  await audit(
+    tx,
+    { actorUserId, workspaceId, action: "membership.added", target: member, fields },
+    now,
+  );
+  await tx.query("DELETE FROM memberships WHERE user_id = $1 AND workspace_id = ANY($2)", [
+    userId,
+    [...closing],
+  ]);
+  for (const id of closing) {
+    await audit(
+      tx,
+      { actorUserId, workspaceId: id, action: "membership.removed", target: member, fields },
+      now,
+    );
+  }
+}
+
 /**
  * Undoes a deletion while it can still be undone (its date hasn't come): the
  * user can sign in again with the password they had, and the workspace they
- * owned opens again with its share links. `actorUserId` is whoever restored
- * it (the admin, from M4's panel); null by default. False when there's
- * nothing to restore.
+ * owned opens again with its share links. A member whose workspace is being
+ * deleted too doesn't reopen it: they leave it for `newWorkspace`, empty and
+ * theirs, required then and ignored otherwise. `actorUserId` is whoever
+ * restored it (the admin, from M4's panel); null by default. The same as
+ * `restore-account.sql`, which the admin runs by hand until then.
  */
 export async function restoreAccount(
   db: Database,
   userId: string,
   now: number,
   actorUserId: string | null = null,
-): Promise<boolean> {
-  return db.transaction(async (tx) => {
+  newWorkspace?: NewWorkspace,
+): Promise<RestoreResult> {
+  return db.transaction(async (tx): Promise<RestoreResult> => {
     const { rows } = await tx.query(
       "SELECT 1 FROM users WHERE id = $1 AND delete_after > $2 FOR UPDATE",
       [userId, toDate(now)],
     );
-    if (rows.length === 0) return false;
+    if (rows.length === 0) return { ok: true, restored: null };
+    const closing = await lockClosingMemberships(tx, userId);
+    const created = closing.length > 0 ? await createWorkspace(tx, newWorkspace) : null;
+    if (created && !created.ok) return created;
     await tx.query("UPDATE users SET deleted_at = NULL, delete_after = NULL WHERE id = $1", [
       userId,
     ]);
     const target = { type: "user", id: userId } as const;
     const fields = ["deleted_at", "delete_after"];
     await audit(tx, { actorUserId, action: "user.restored", target, fields }, now);
-    const { rows: workspaces } = await tx.query<{ id: string }>(
-      `UPDATE workspaces AS w SET delete_after = NULL FROM memberships AS m
-       WHERE m.workspace_id = w.id AND m.user_id = $1 AND m.role = 'owner'
-         AND w.delete_after > $2
-       RETURNING w.id`,
-      [userId, toDate(now)],
-    );
-    for (const { id } of workspaces) {
-      await audit(
-        tx,
-        {
-          actorUserId,
-          workspaceId: id,
-          action: "workspace.restored",
-          target: { type: "workspace", id },
-          fields: ["delete_after"],
-        },
-        now,
-      );
+    await reopenOwnedWorkspaces(tx, userId, now, actorUserId);
+    if (created) {
+      await moveToNewWorkspace(tx, userId, { workspaceId: created.id, closing }, now, actorUserId);
     }
-    return true;
+    return { ok: true, restored: { newWorkspaceId: created?.id ?? null } };
   });
 }

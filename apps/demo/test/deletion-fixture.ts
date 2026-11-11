@@ -1,3 +1,4 @@
+import { scheduleAccountDeletion } from "@/lib/account/account-deletion";
 import { createSession } from "@/lib/auth/sessions";
 import type { SessionUser } from "@/lib/auth/users";
 import type { Database } from "@/lib/db/database";
@@ -8,7 +9,7 @@ import { createShare, type CreatedShare } from "@/lib/share/service";
 import { createProject } from "@/lib/workspace/projects";
 import { attachShare } from "@/lib/workspace/share-links";
 import { storeInline } from "@/lib/workspace/uploads";
-import { insertUser } from "./accounts-fixture";
+import { insertUser, PASSWORD } from "./accounts-fixture";
 import { migratedPglite } from "./pglite";
 import { seedLogo } from "./brand-fixture";
 import { STATE } from "./share-fixture";
@@ -85,6 +86,29 @@ export async function addMember(db: Queryable, workspaceId: string, email: strin
     [id, workspaceId],
   );
   return id;
+}
+
+export const MEMBER_EMAIL = "bo@acme.test";
+const IP = "203.0.113.9";
+
+/**
+ * A member of the world's workspace who deleted their account, and then its
+ * owner, so the workspace is waiting to be deleted too: restoring the member
+ * doesn't reopen it. Both deleted at `now`. Returns the member.
+ */
+export async function closingMember(world: DeletionWorld, now: number): Promise<SessionUser> {
+  const { db, owner, workspaceId } = world;
+  const id = await addMember(db, workspaceId, MEMBER_EMAIL);
+  const member: SessionUser = { id, email: MEMBER_EMAIL, name: null, role: "company" };
+  const request = (confirmText: string) => ({ confirmText, currentPassword: PASSWORD, ip: IP });
+  for (const [user, confirmText] of [
+    [member, MEMBER_EMAIL],
+    [owner, WORKSPACE_NAME],
+  ] as const) {
+    const result = await scheduleAccountDeletion(db, user, request(confirmText), now);
+    if (!result.ok) throw new Error(`not deleted: ${JSON.stringify(result)}`);
+  }
+  return member;
 }
 
 export async function deletionWorld(): Promise<DeletionWorld> {

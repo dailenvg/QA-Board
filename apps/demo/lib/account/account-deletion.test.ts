@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { NOW, PASSWORD } from "@/test/accounts-fixture";
 import {
   addMember,
+  closingMember,
   countRows,
   deletionWorld,
+  MEMBER_EMAIL,
   OWNER_EMAIL,
   WORKSPACE_NAME,
   type DeletionWorld,
@@ -74,6 +76,40 @@ async function loginAttempts(): Promise<number> {
     "SELECT count(*)::int AS count FROM login_attempts",
   );
   return rows[0]?.count ?? 0;
+}
+
+/** What a restore answers when it brings an account back without a new workspace, or nothing. */
+const RESTORED = { ok: true, restored: { newWorkspaceId: null } };
+const NOTHING = { ok: true, restored: null };
+
+const NEW_WORKSPACE = { name: " Bo Studio ", slug: " bo-studio " };
+
+/** What a refused restore must leave as it was: accounts, memberships, workspaces, audit log. */
+async function restoreState() {
+  const read = async (sql: string) => (await world.db.query(sql)).rows;
+  return {
+    users: await read("SELECT id, deleted_at, delete_after FROM users ORDER BY id"),
+    memberships: await read(
+      "SELECT user_id, workspace_id, role FROM memberships ORDER BY user_id, workspace_id",
+    ),
+    workspaces: await read("SELECT id, slug, name, delete_after FROM workspaces ORDER BY id"),
+    audit: await read("SELECT action, target_id FROM audit_log ORDER BY id"),
+  };
+}
+
+async function workspaceRow(id: string) {
+  const { rows } = await world.db.query<{
+    slug: string;
+    name: string;
+    storage_quota_bytes: string;
+    archived_at: Date | null;
+    delete_after: Date | null;
+  }>(
+    `SELECT slug, name, storage_quota_bytes::text, archived_at, delete_after
+     FROM workspaces WHERE id = $1`,
+    [id],
+  );
+  return rows[0];
 }
 
 describe("scheduleAccountDeletion", () => {
@@ -272,7 +308,7 @@ describe("restoreAccount", () => {
   it("brings the account, its workspace and its share links back, and records it", async () => {
     const { db, owner, workspaceId, share } = world;
     await remove(owner, WORKSPACE_NAME);
-    expect(await restoreAccount(db, owner.id, NOW + DAY_MS, world.other.userId)).toBe(true);
+    expect(await restoreAccount(db, owner.id, NOW + DAY_MS, world.other.userId)).toEqual(RESTORED);
     expect((await userRow(owner.id))?.deleted_at).toBeNull();
     expect(await workspaceDeleteAfter(workspaceId)).toBeNull();
     const signedIn = await logIn(db, { email: OWNER_EMAIL, password: PASSWORD, ip: IP }, NOW);
@@ -290,16 +326,134 @@ describe("restoreAccount", () => {
 
   it("restores nothing once the date has come, nor an account that was never deleted", async () => {
     const { db, owner } = world;
-    expect(await restoreAccount(db, owner.id, NOW)).toBe(false);
+    expect(await restoreAccount(db, owner.id, NOW)).toEqual(NOTHING);
     await remove(owner, WORKSPACE_NAME);
-    expect(await restoreAccount(db, owner.id, NOW + ACCOUNT_DELETION_GRACE_MS)).toBe(false);
+    expect(await restoreAccount(db, owner.id, NOW + ACCOUNT_DELETION_GRACE_MS)).toEqual(NOTHING);
     expect((await userRow(owner.id))?.deleted_at).not.toBeNull();
+  });
+
+  it("gives a member whose workspace is being deleted a new one of their own, and records it", async () => {
+    const { db, workspaceId } = world;
+    const member = await closingMember(world, NOW);
+    const before = (await auditActions()).length;
+
+    const result = await restoreAccount(
+      db,
+      member.id,
+      NOW + DAY_MS,
+      world.other.userId,
+      NEW_WORKSPACE,
+    );
+
+    const newWorkspaceId = result.ok ? result.restored?.newWorkspaceId : null;
+    expect(newWorkspaceId).toEqual(expect.any(String));
+    expect(await findOwnWorkspace(db, member.id)).toEqual({
+      workspaceId: newWorkspaceId,
+      slug: "bo-studio",
+      name: "Bo Studio",
+      role: "owner",
+    });
+    expect(await workspaceRow(newWorkspaceId ?? "")).toEqual({
+      slug: "bo-studio",
+      name: "Bo Studio",
+      storage_quota_bytes: "5368709120",
+      archived_at: null,
+      delete_after: null,
+    });
+    expect(await countRows(db, "storage_usage", "workspace_id", newWorkspaceId ?? "")).toBe(1);
+    expect(await countRows(db, "memberships", "workspace_id", newWorkspaceId ?? "")).toBe(1);
+    expect(await countRows(db, "projects", "workspace_id", newWorkspaceId ?? "")).toBe(0);
+    // The old workspace stays closed, without them, and is still deleted on its date.
+    expect(await countRows(db, "memberships", "user_id", member.id)).toBe(1);
+    expect(await workspaceDeleteAfter(workspaceId)).toBe(NOW + ACCOUNT_DELETION_GRACE_MS);
+    expect(await findOwnWorkspace(db, world.owner.id)).toBeNull();
+    const signedIn = await logIn(db, { email: MEMBER_EMAIL, password: PASSWORD, ip: IP }, NOW);
+    expect(signedIn.ok).toBe(true);
+    const actor = world.other.userId;
+    expect((await auditActions()).slice(before)).toEqual([
+      { action: "user.restored", actor_user_id: actor, workspace_id: null },
+      { action: "workspace.created", actor_user_id: actor, workspace_id: newWorkspaceId },
+      { action: "membership.added", actor_user_id: actor, workspace_id: newWorkspaceId },
+      { action: "membership.removed", actor_user_id: actor, workspace_id: workspaceId },
+    ]);
+
+    // Again: nothing left to restore, so no second workspace and no more entries.
+    const after = await restoreState();
+    expect(
+      await restoreAccount(db, member.id, NOW + DAY_MS, actor, { name: "Again", slug: "again" }),
+    ).toEqual(NOTHING);
+    expect(await restoreState()).toEqual(after);
+  });
+
+  it("refuses a member who needs a new workspace without a usable one, changing nothing", async () => {
+    const { db } = world;
+    const member = await closingMember(world, NOW);
+    const before = await restoreState();
+    const restore = (workspace?: { name: string; slug: string }) =>
+      restoreAccount(db, member.id, NOW + DAY_MS, null, workspace);
+
+    expect(await restore()).toEqual({ ok: false, reason: "workspace-missing" });
+    for (const workspace of [
+      { name: "", slug: "" },
+      { name: "  ", slug: "bo-studio" },
+      { name: "x".repeat(81), slug: "bo-studio" },
+      { name: "Bo Studio", slug: "Bo-Studio" },
+      { name: "Bo Studio", slug: "bo--studio" },
+      { name: "Bo Studio", slug: "b".repeat(49) },
+    ]) {
+      expect(await restore(workspace)).toEqual({ ok: false, reason: "workspace-invalid" });
+    }
+    // Taken by an open workspace, and by the closing one, whose slug stays taken till it goes.
+    for (const slug of ["bravo", "acme"]) {
+      expect(await restore({ name: "Bo Studio", slug })).toEqual({
+        ok: false,
+        reason: "slug-taken",
+      });
+    }
+    expect(await restoreState()).toEqual(before);
+  });
+
+  it("ignores the new workspace for an owner, and for a member whose workspace is open or archived", async () => {
+    const { db, owner, workspaceId } = world;
+    await remove(owner, WORKSPACE_NAME);
+    expect(await restoreAccount(db, owner.id, NOW + DAY_MS, null, NEW_WORKSPACE)).toEqual(RESTORED);
+    expect(await findOwnWorkspace(db, owner.id)).toMatchObject({ workspaceId, role: "owner" });
+
+    const memberId = await addMember(db, workspaceId, MEMBER_EMAIL);
+    const member: SessionUser = { id: memberId, email: MEMBER_EMAIL, name: null, role: "company" };
+    await remove(member, MEMBER_EMAIL);
+    expect(await restoreAccount(db, memberId, NOW + DAY_MS, null, NEW_WORKSPACE)).toEqual(RESTORED);
+    expect(await findOwnWorkspace(db, memberId)).toMatchObject({ workspaceId, role: "member" });
+
+    // Archived by the admin, not deleted: the member goes back to it.
+    await remove(member, MEMBER_EMAIL);
+    await db.query("UPDATE workspaces SET archived_at = now() WHERE id = $1", [workspaceId]);
+    expect(await restoreAccount(db, memberId, NOW + DAY_MS, null, NEW_WORKSPACE)).toEqual(RESTORED);
+    await db.query("UPDATE workspaces SET archived_at = NULL WHERE id = $1", [workspaceId]);
+    expect(await findOwnWorkspace(db, memberId)).toMatchObject({ workspaceId, role: "member" });
+
+    expect(await countRows(db, "workspaces", "slug", "bo-studio")).toBe(0);
+    const actions = (await auditActions()).map((entry) => entry.action);
+    expect(actions.filter((action) => action.startsWith("membership."))).toEqual([]);
   });
 });
 
 describe("restore-account.sql", () => {
   const sql = readFileSync(new URL("./restore-account.sql", import.meta.url), "utf8");
-  const forEmail = (email: string) => sql.replace("'person@example.com'", `'${email}'`);
+  /** The script with its numbered values filled in as the admin does: between their quotes. */
+  const filled = (...values: string[]) =>
+    values.reduce(
+      (text, value, index) =>
+        text.replace(new RegExp(`'[^']*'(?=,? *-- ${index + 1}\\. )`), `'${value}'`),
+      sql,
+    );
+  const run = async (...values: string[]) =>
+    (await world.db.query<{ action: string }>(filled(...values))).rows.map((row) => row.action);
+
+  it("leaves its three values for the admin to fill in, the last two empty", () => {
+    expect(filled("a", "b", "c").match(/'[abc]',? *-- [123]\. /g)).toHaveLength(3);
+    expect(filled("person@example.com", "", "")).toBe(sql);
+  });
 
   it("does what restoreAccount does, by email", async () => {
     const { db, owner, workspaceId } = world;
@@ -310,10 +464,80 @@ describe("restore-account.sql", () => {
       { confirmText: WORKSPACE_NAME, currentPassword: PASSWORD, ip: IP },
       Date.now(),
     );
-    const { rows } = await db.query<{ action: string }>(forEmail(" Ana@ACME.test "));
-    expect(rows.map((row) => row.action)).toEqual(["user.restored", "workspace.restored"]);
+    expect(await run(" Ana@ACME.test ")).toEqual(["user.restored", "workspace.restored"]);
     expect((await userRow(owner.id))?.deleted_at).toBeNull();
     expect(await workspaceDeleteAfter(workspaceId)).toBeNull();
-    expect(await db.query(forEmail(OWNER_EMAIL))).toEqual({ rows: [] });
+    expect(await run(OWNER_EMAIL)).toEqual([]);
+  });
+
+  it("gives a member whose workspace is being deleted a new one, once", async () => {
+    const { db, workspaceId } = world;
+    const member = await closingMember(world, Date.now());
+
+    expect(await run(MEMBER_EMAIL, " Bo Studio ", " bo-studio ")).toEqual([
+      "user.restored",
+      "workspace.created",
+      "membership.added",
+      "membership.removed",
+    ]);
+    const own = await findOwnWorkspace(db, member.id);
+    expect(own).toMatchObject({ slug: "bo-studio", name: "Bo Studio", role: "owner" });
+    expect(await workspaceRow(own?.workspaceId ?? "")).toMatchObject({
+      storage_quota_bytes: "5368709120",
+      archived_at: null,
+      delete_after: null,
+    });
+    expect(await countRows(db, "storage_usage", "workspace_id", own?.workspaceId ?? "")).toBe(1);
+    expect(await countRows(db, "memberships", "user_id", member.id)).toBe(1);
+    expect(await workspaceDeleteAfter(workspaceId)).not.toBeNull();
+    const { rows: logged } = await db.query(
+      `SELECT action, actor_user_id, workspace_id, target_type, target_id, meta FROM audit_log
+       WHERE action LIKE 'membership.%' OR action = 'workspace.created' ORDER BY id`,
+    );
+    const target = { target_type: "user", target_id: member.id, actor_user_id: null };
+    const fields = { fields: ["membership"] };
+    expect(logged).toEqual([
+      {
+        action: "workspace.created",
+        actor_user_id: null,
+        workspace_id: own?.workspaceId,
+        target_type: "workspace",
+        target_id: own?.workspaceId,
+        meta: { fields: ["workspace"] },
+      },
+      { action: "membership.added", workspace_id: own?.workspaceId, ...target, meta: fields },
+      { action: "membership.removed", workspace_id: workspaceId, ...target, meta: fields },
+    ]);
+
+    // Again, as the admin might: nothing left to restore, so nothing changes.
+    const after = await restoreState();
+    expect(await run(MEMBER_EMAIL, "Bo Studio", "bo-studio-2")).toEqual([]);
+    expect(await restoreState()).toEqual(after);
+  });
+
+  it("stops with an error and changes nothing while the new workspace's values aren't usable", async () => {
+    await closingMember(world, Date.now());
+    const before = await restoreState();
+    for (const [name, slug, error] of [
+      ["", "", /check constraint/],
+      ["Bo Studio", "", /check constraint/],
+      ["", "bo-studio", /check constraint/],
+      ["Bo Studio", "Bo Studio", /check constraint/],
+      ["Bo Studio", "bravo", /duplicate key|unique/],
+      ["Bo Studio", "acme", /duplicate key|unique/],
+    ] as const) {
+      await expect(run(MEMBER_EMAIL, name, slug)).rejects.toThrow(error);
+      expect(await restoreState()).toEqual(before);
+    }
+  });
+
+  it("needs no new workspace for a member whose workspace is open", async () => {
+    const { db, workspaceId } = world;
+    const memberId = await addMember(db, workspaceId, MEMBER_EMAIL);
+    const member: SessionUser = { id: memberId, email: MEMBER_EMAIL, name: null, role: "company" };
+    await remove(member, MEMBER_EMAIL, PASSWORD, Date.now());
+    expect(await run(MEMBER_EMAIL)).toEqual(["user.restored"]);
+    expect(await findOwnWorkspace(db, memberId)).toMatchObject({ workspaceId, role: "member" });
+    expect(await countRows(db, "workspaces", "slug", "bo-studio")).toBe(0);
   });
 });
