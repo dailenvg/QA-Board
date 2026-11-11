@@ -11,6 +11,8 @@ const sqlAsText = {
 
 export default defineConfig({
   plugins: [sqlAsText],
+  // tsconfig keeps JSX for Next to compile; tests that render components need it compiled here.
+  oxc: { jsx: { runtime: "automatic" } },
   resolve: { alias: { "@": fileURLToPath(new URL(".", import.meta.url)) } },
   test: {
     environment: "node",

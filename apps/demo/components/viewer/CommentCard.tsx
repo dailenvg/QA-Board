@@ -7,6 +7,7 @@ import { absoluteTime, relativeTime } from "@/lib/relative-time";
 import type { Comment } from "@/lib/store/types";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
+import { ClientMark } from "./ClientMark";
 import { CommentBadge } from "./CommentBadge";
 import { CommentCropThumb } from "./CommentCropThumb";
 import { CommentEditor } from "./CommentEditor";
@@ -28,7 +29,10 @@ interface CommentCardProps extends CommentCardActions {
   placement: Placement | null;
   /** The page it's on, on projects with several pages. */
   pageNumber: number | null;
-  /** Shows Resolve/Reopen, Edit and Delete. Off on a shared link. */
+  /**
+   * The workspace's viewer: shows Resolve/Reopen, Edit and Delete, and marks
+   * client comments. Off on a shared link.
+   */
   canModerate: boolean;
   selected: boolean;
   now: number;
@@ -120,9 +124,12 @@ export function CommentCard({
             className="flex w-full items-center gap-2 text-left after:absolute after:inset-0 after:rounded-tile focus-visible:outline-none"
           >
             <CommentBadge comment={comment} number={number} />
-            <span className="min-w-0 flex-1 truncate text-body font-semibold">
-              <span className="sr-only">by </span>
-              {comment.author}
+            <span className="flex min-w-0 flex-1 items-center gap-2">
+              <span className="min-w-0 truncate text-body font-semibold">
+                <span className="sr-only">by </span>
+                {comment.author}
+              </span>
+              <ClientMark comment={comment} owner={canModerate} />
             </span>
             <time
               dateTime={new Date(comment.createdAt).toISOString()}
