@@ -100,6 +100,15 @@ export async function fitsQuota(db: Queryable, workspaceId: string, size: number
   return bytes + size <= quotaBytes;
 }
 
+/** Whether the workspace is waiting to be deleted (033): nothing new is stored in it. */
+async function isPendingDeletion(db: Queryable, workspaceId: string): Promise<boolean> {
+  const { rows } = await db.query(
+    "SELECT 1 FROM workspaces WHERE id = $1 AND delete_after IS NOT NULL",
+    [workspaceId],
+  );
+  return rows.length === 1;
+}
+
 export interface NewBlob {
   projectId: string;
   key: string;
@@ -110,9 +119,11 @@ export interface NewBlob {
 
 /**
  * Records a stored file under a live project of the workspace, within its
- * quota. Run inside a transaction: the usage row is locked, so two commits
- * can't both squeeze into the last bytes. Never replaces a row: a second
- * commit of the same file (the upload callback racing the browser) is `exists`.
+ * quota; `not-found` once the workspace is waiting to be deleted (an upload
+ * token issued before that). Run inside a transaction: the usage row is
+ * locked, so two commits can't both squeeze into the last bytes. Never
+ * replaces a row: a second commit of the same file (the upload callback
+ * racing the browser) is `exists`.
  */
 export async function recordBlob(
   tx: Queryable,
@@ -127,6 +138,8 @@ export async function recordBlob(
     [workspaceId],
   );
   if (await blobRowExists(tx, workspaceId, path)) return done("exists");
+  // Its own statement, so it sees a deletion scheduled while this waited for the lock.
+  if (await isPendingDeletion(tx, workspaceId)) return refuse("not-found");
   const used = usage[0];
   if (!used || Number(used.bytes) + blob.size > Number(used.quota)) return refuse("quota");
   const inline = blob.location.kind === "inline" ? blob.location.bytes : null;

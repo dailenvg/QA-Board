@@ -8,11 +8,46 @@ export type AccountAction =
   | "user.email_changed"
   | "user.signed_out_everywhere"
   | "user.avatar_changed"
-  | "user.avatar_removed";
+  | "user.avatar_removed"
+  | "user.deletion_scheduled"
+  | "user.restored"
+  | "user.deleted";
 
 /** What the workspace settings record in the audit log. */
 export type WorkspaceAction =
-  "workspace.settings_changed" | "workspace.logo_changed" | "workspace.logo_removed";
+  | "workspace.settings_changed"
+  | "workspace.logo_changed"
+  | "workspace.logo_removed"
+  | "workspace.deletion_scheduled"
+  | "workspace.restored"
+  | "workspace.deleted";
+
+/** One audit entry, by whoever did it: a user, or null for Squint itself (the daily cron). */
+export interface AuditEntry {
+  actorUserId: string | null;
+  /** Set for a workspace's entries, so they outlive it (021: no foreign key). */
+  workspaceId?: string | null;
+  action: AccountAction | WorkspaceAction;
+  target: { type: "user" | "workspace"; id: string };
+  /** The fields that changed: never a value, an email, a hash or a token. */
+  fields: readonly string[];
+}
+
+export async function audit(db: Queryable, entry: AuditEntry, now: number): Promise<void> {
+  await db.query(
+    `INSERT INTO audit_log (actor_user_id, workspace_id, action, target_type, target_id, meta, at)
+     VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)`,
+    [
+      entry.actorUserId,
+      entry.workspaceId ?? null,
+      entry.action,
+      entry.target.type,
+      entry.target.id,
+      JSON.stringify({ fields: entry.fields }),
+      new Date(now),
+    ],
+  );
+}
 
 /**
  * Records a change the user made to their own account. `meta` names the
@@ -25,10 +60,10 @@ export async function auditAccount(
   fields: readonly string[],
   now: number,
 ): Promise<void> {
-  await db.query(
-    `INSERT INTO audit_log (actor_user_id, action, target_type, target_id, meta, at)
-     VALUES ($1, $2, 'user', $3, $4::jsonb, $5)`,
-    [userId, action, userId, JSON.stringify({ fields }), new Date(now)],
+  await audit(
+    db,
+    { actorUserId: userId, action, target: { type: "user", id: userId }, fields },
+    now,
   );
 }
 
@@ -43,9 +78,6 @@ export async function auditWorkspace(
   fields: readonly string[],
   now: number,
 ): Promise<void> {
-  await db.query(
-    `INSERT INTO audit_log (actor_user_id, workspace_id, action, target_type, target_id, meta, at)
-     VALUES ($1, $2, $3, 'workspace', $4, $5::jsonb, $6)`,
-    [userId, workspaceId, action, workspaceId, JSON.stringify({ fields }), new Date(now)],
-  );
+  const target = { type: "workspace", id: workspaceId } as const;
+  await audit(db, { actorUserId: userId, workspaceId, action, target, fields }, now);
 }

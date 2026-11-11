@@ -37,6 +37,25 @@ export function isCurrentEmail(value: string, currentEmail: string): boolean {
   return normalizeEmail(value) === normalizeEmail(currentEmail);
 }
 
+/** How many days a deleted account (and a workspace deleted with it) can still be restored. */
+export const ACCOUNT_DELETION_GRACE_DAYS = 30;
+
+/**
+ * What deleting an account asks to be typed: an owner, their workspace's
+ * name; a member, who leaves the workspace behind, their own email.
+ */
+export interface DeletionConfirm {
+  kind: "workspace" | "email";
+  text: string;
+}
+
+/** Whether `typed` confirms the deletion: the name exactly once trimmed, the email in any case. */
+export function deletionConfirmMatches(typed: string, confirm: DeletionConfirm): boolean {
+  return confirm.kind === "email"
+    ? isCurrentEmail(typed, confirm.text)
+    : typed.trim() === confirm.text.trim();
+}
+
 /** As the database checks it (009's CHECK on `workspaces.name`). */
 export const WORKSPACE_NAME_MAX_LENGTH = 80;
 
