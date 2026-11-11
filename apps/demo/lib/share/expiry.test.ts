@@ -11,7 +11,7 @@ import {
   twoWorkspaces,
   URL_PROJECT,
 } from "@/test/workspace-fixture";
-import { createProject, trashProject } from "../workspace/projects";
+import { createProject, setArchived, trashProject } from "../workspace/projects";
 import { attachShare } from "../workspace/share-links";
 import { inlineBackend, type BlobBackend } from "./blob-backend";
 import { EXPIRY_BATCH, expireShares, sweepOrphanedBlobs } from "./expiry";
@@ -179,11 +179,12 @@ describe("expiry cron: what it deletes", () => {
 });
 
 describe("expiry cron: each step on its own", () => {
-  type Step = "shares" | "blobs" | "trash" | "accounts" | "workspaceBlobs" | "pins";
+  type Step = "shares" | "blobs" | "trash" | "archived" | "accounts" | "workspaceBlobs" | "pins";
   const failed = (steps: Partial<Record<Step, boolean>>) => ({
     shares: false,
     blobs: false,
     trash: false,
+    archived: false,
     accounts: false,
     workspaceBlobs: false,
     pins: false,
@@ -217,6 +218,7 @@ describe("expiry cron: each step on its own", () => {
       blobs: 2,
       // No DATABASE_URL: the workspace steps are skipped.
       trash: null,
+      archived: null,
       accounts: null,
       workspaceBlobs: null,
       pins: 0,
@@ -243,6 +245,7 @@ describe("expiry cron: each step on its own", () => {
       shares: 2,
       blobs: null,
       trash: null,
+      archived: null,
       accounts: null,
       workspaceBlobs: null,
       pins: null,
@@ -357,6 +360,7 @@ describe("the orphaned Blob sweep", () => {
       ids: {
         open: await shareIn(a.workspaceId, "open"),
         trashed: await shareIn(a.workspaceId, "trashed"),
+        archivedProject: await shareIn(a.workspaceId, "archived-project"),
         archived: await shareIn(b.workspaceId, "archived"),
         pending: await shareIn(c.workspaceId, "pending"),
         revoked: await shareIn(a.workspaceId, "revoked"),
@@ -368,10 +372,11 @@ describe("the orphaned Blob sweep", () => {
   it("keeps the files of a share that's only closed, and deletes those of one that's gone", async () => {
     const { db, store, ids, workspaces } = await workspaceShares();
     await trashProject(db, workspaces.a, "trashed", NOW);
+    await setArchived(db, workspaces.a, "archived-project", true, NOW);
     await db.query("UPDATE workspaces SET archived_at = now() WHERE id = $1", [workspaces.b]);
     await db.query("UPDATE workspaces SET delete_after = now() WHERE id = $1", [workspaces.c]);
     await store.remove(ids.revoked);
-    for (const id of [ids.trashed, ids.archived, ids.pending, ids.revoked]) {
+    for (const id of [ids.trashed, ids.archivedProject, ids.archived, ids.pending, ids.revoked]) {
       expect(await store.byId(id)).toBeNull();
     }
 

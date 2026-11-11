@@ -9,8 +9,8 @@ import type { Database } from "../db/database";
 import { inlineBackend } from "../share/blob-backend";
 import { createPostgresStore } from "../share/postgres-store";
 import type { ShareServices } from "../share/server";
-import { TRASH_GRACE_MS } from "./limits";
-import { createProject, listTrash, trashProject } from "./projects";
+import { ARCHIVE_GRACE_MS, TRASH_GRACE_MS } from "./limits";
+import { createProject, listProjects, listTrash, setArchived, trashProject } from "./projects";
 import { storeInline } from "./uploads";
 
 const holder = vi.hoisted(() => ({ db: null as Database | null }));
@@ -60,6 +60,32 @@ describe("expiry cron: workspace steps", () => {
       failed: { trash: false, workspaceBlobs: false },
     });
     expect((await listTrash(db, a.workspaceId)).map((project) => project.id)).toEqual(["recent"]);
+    const { rows } = await db.query("SELECT project_id FROM workspace_blobs");
+    expect(rows).toEqual([{ project_id: "recent" }]);
+  });
+
+  it("deletes archived projects whose date has come, with their files, and keeps the rest", async () => {
+    const { db, a } = await twoWorkspaces();
+    holder.db = db;
+    shares.squintShares = Promise.resolve({ store: createPostgresStore(db), blobs: inlineBackend });
+    await addFolder(db, a.workspaceId);
+    for (const id of ["due", "recent"]) {
+      await createProject(db, a.workspaceId, URL_PROJECT(id), NOW);
+      await storeInline(db, a.workspaceId, { projectId: id, key: "crop:c1" }, PNG);
+    }
+    await setArchived(db, a.workspaceId, "due", true, Date.now() - ARCHIVE_GRACE_MS - 1);
+    await setArchived(db, a.workspaceId, "recent", true, Date.now());
+
+    const response = await cronRoute.GET(
+      new Request("http://localhost/api/cron/expire", {
+        headers: { authorization: `Bearer ${SECRET}` },
+      }),
+    );
+
+    expect(await response.json()).toMatchObject({ archived: 1, failed: { archived: false } });
+    expect((await listProjects(db, a.workspaceId)).map((project) => project.id)).toEqual([
+      "recent",
+    ]);
     const { rows } = await db.query("SELECT project_id FROM workspace_blobs");
     expect(rows).toEqual([{ project_id: "recent" }]);
   });

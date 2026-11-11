@@ -1,3 +1,4 @@
+import { audit } from "../account/audit";
 import { avatarRowExists, parseAvatarPath, USER_BLOB_PREFIX } from "../account/avatar";
 import type { Database } from "../db/database";
 import type { BlobBackend } from "../share/blob-backend";
@@ -33,31 +34,47 @@ export interface PurgeResult {
 const BATCH = 50;
 
 /**
- * Deletes one trashed project of the workspace for good, if it's still in
- * the trash (and was trashed at or before `trashedBy`, when given): its
- * shares, its rows (pages, snapshots, comments, review link, file rows), then
- * its files. The trash state is confirmed under a lock on the project's row,
- * in the same transaction as the deletes, so a restore that lands first
- * wins and one that comes later waits and finds nothing. False when it was
- * no longer there to delete. Files go only after the rows are committed; one
- * a failed delete leaves behind has no row, so the daily sweep removes it.
+ * Which projects a purge may delete: one in the trash (trashed at or before
+ * `by`, when given), or one archived whose deletion date has come by `by`
+ * (archived or not trashed alike: the date is the promise). Never one that was
+ * restored, unarchived, or whose date is still to come.
+ */
+export type PurgeReason = { kind: "trashed"; by?: number } | { kind: "archive-due"; by: number };
+
+const DUE: Record<PurgeReason["kind"], string> = {
+  trashed: "deleted_at IS NOT NULL AND ($3::timestamptz IS NULL OR deleted_at <= $3)",
+  "archive-due": "archived_at IS NOT NULL AND delete_after IS NOT NULL AND delete_after <= $3",
+};
+
+/** Locks the project if `reason` still holds for it; false once it doesn't (or it's gone). */
+async function lockDue(tx: Queryable, workspaceId: string, projectId: string, reason: PurgeReason) {
+  const { rows } = await tx.query(
+    `SELECT 1 FROM projects WHERE workspace_id = $1 AND id = $2 AND ${DUE[reason.kind]} FOR UPDATE`,
+    [workspaceId, projectId, reason.by === undefined ? null : toDate(reason.by)],
+  );
+  return rows.length === 1;
+}
+
+/**
+ * Deletes one project of the workspace for good, if `reason` still holds for
+ * it (still in the trash, or still archived and due): its shares, its rows
+ * (pages, snapshots, comments, review link, file rows), then its files. The
+ * reason is confirmed under a lock on the project's row, in the same
+ * transaction as the deletes, so a restore or unarchive that lands first
+ * wins and one that comes later waits and finds nothing. An archived project
+ * leaves an audit entry, since nobody deleted it but the date. False when it
+ * was no longer there to delete. Files go only after the rows are committed;
+ * one a failed delete leaves behind has no row, so the daily sweep removes it.
  */
 export async function purgeProject(
   db: Database,
   services: PurgeServices,
   workspaceId: string,
   projectId: string,
-  trashedBy?: number,
+  reason: PurgeReason = { kind: "trashed" },
 ): Promise<boolean> {
   const removed = await db.transaction(async (tx) => {
-    const { rows: trashed } = await tx.query(
-      `SELECT 1 FROM projects
-       WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NOT NULL
-         AND ($3::timestamptz IS NULL OR deleted_at <= $3)
-       FOR UPDATE`,
-      [workspaceId, projectId, trashedBy === undefined ? null : toDate(trashedBy)],
-    );
-    if (trashed.length === 0) return null;
+    if (!(await lockDue(tx, workspaceId, projectId, reason))) return null;
     const shares = createPostgresStore(tx);
     const shareFiles = [];
     for (const id of await projectShareIds(tx, workspaceId, projectId)) {
@@ -74,6 +91,19 @@ export async function purgeProject(
        RETURNING bytes, blob_url`,
       [workspaceId, projectBlobPrefix(workspaceId, projectId)],
     );
+    if (reason.kind === "archive-due") {
+      await audit(
+        tx,
+        {
+          actorUserId: null,
+          workspaceId,
+          action: "project.deleted",
+          target: { type: "project", id: projectId },
+          fields: ["archive-expired"],
+        },
+        reason.by,
+      );
+    }
     return { shareFiles, files: files.map(toLocation) };
   });
   if (!removed) return false;
@@ -82,28 +112,69 @@ export async function purgeProject(
   return true;
 }
 
+/**
+ * Deletes, oldest first and `BATCH` at a time, the projects `candidates`
+ * lists for `reason`, until `deadline`. A project whose reason no longer
+ * holds by the time it's locked (restored, unarchived) is skipped.
+ */
+async function purgeDue(
+  db: Database,
+  services: PurgeServices,
+  reason: PurgeReason,
+  candidates: string,
+  deadline: number,
+): Promise<PurgeResult> {
+  let count = 0;
+  for (;;) {
+    const { rows } = await db.query<{ workspace_id: string; id: string }>(candidates, [
+      toDate(reason.by ?? 0),
+      BATCH,
+    ]);
+    for (const row of rows) {
+      if (Date.now() >= deadline) return { count, done: false };
+      if (await purgeProject(db, services, row.workspace_id, row.id, reason)) count += 1;
+    }
+    if (rows.length < BATCH) return { count, done: true };
+  }
+}
+
 /** Deletes projects trashed more than `TRASH_GRACE_MS` before `now`, oldest first, until `deadline`. */
-export async function purgeTrash(
+export function purgeTrash(
   db: Database,
   services: PurgeServices,
   now: number,
   deadline: number,
 ): Promise<PurgeResult> {
-  let count = 0;
-  for (;;) {
-    const cutoff = now - TRASH_GRACE_MS;
-    const { rows } = await db.query<{ workspace_id: string; id: string }>(
-      `SELECT workspace_id, id FROM projects WHERE deleted_at IS NOT NULL AND deleted_at <= $1
-       ORDER BY deleted_at, id LIMIT $2`,
-      [toDate(cutoff), BATCH],
-    );
-    for (const row of rows) {
-      if (Date.now() >= deadline) return { count, done: false };
-      // Restored (or trashed again) since the list was read: purgeProject skips it.
-      if (await purgeProject(db, services, row.workspace_id, row.id, cutoff)) count += 1;
-    }
-    if (rows.length < BATCH) return { count, done: true };
-  }
+  return purgeDue(
+    db,
+    services,
+    { kind: "trashed", by: now - TRASH_GRACE_MS },
+    `SELECT workspace_id, id FROM projects WHERE deleted_at IS NOT NULL AND deleted_at <= $1
+     ORDER BY deleted_at, id LIMIT $2`,
+    deadline,
+  );
+}
+
+/**
+ * Deletes archived projects whose deletion date (`delete_after`, 30 days
+ * after archiving) is at or before `now`, soonest due first, until `deadline`.
+ * No warning goes out: the date shows on the project from the day it's archived.
+ */
+export function purgeArchived(
+  db: Database,
+  services: PurgeServices,
+  now: number,
+  deadline: number,
+): Promise<PurgeResult> {
+  return purgeDue(
+    db,
+    services,
+    { kind: "archive-due", by: now },
+    `SELECT workspace_id, id FROM projects
+     WHERE archived_at IS NOT NULL AND delete_after IS NOT NULL AND delete_after <= $1
+     ORDER BY delete_after, id LIMIT $2`,
+    deadline,
+  );
 }
 
 /** Rows whose project is gone (a folder deleted with trashed projects, a failed purge): files, then rows. */

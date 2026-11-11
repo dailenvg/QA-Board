@@ -15,9 +15,23 @@ import { createShare } from "../share/service";
 import type { ClientUploadDriver, ListedFile } from "./blob-driver";
 import { blobPath, brandLogoPath } from "./blob-paths";
 import { storageSummary } from "./blobs";
-import { TRASH_GRACE_MS, UNCOMMITTED_BLOB_MS } from "./limits";
-import { createProject, getProject, listTrash, restoreProject, trashProject } from "./projects";
-import { purgeProject, purgeTrash, sweepWorkspaceBlobs, type PurgeServices } from "./purge";
+import { ARCHIVE_GRACE_MS, TRASH_GRACE_MS, UNCOMMITTED_BLOB_MS } from "./limits";
+import {
+  createProject,
+  getProject,
+  listProjects,
+  listTrash,
+  restoreProject,
+  setArchived,
+  trashProject,
+} from "./projects";
+import {
+  purgeArchived,
+  purgeProject,
+  purgeTrash,
+  sweepWorkspaceBlobs,
+  type PurgeServices,
+} from "./purge";
 import { attachShare } from "./share-links";
 import { storeInline } from "./uploads";
 
@@ -137,11 +151,154 @@ describe("purge and restore racing", () => {
     await restoreProject(db, a.workspaceId, "p1");
     expect(await purgeProject(db, services(driver), a.workspaceId, "p1")).toBe(false);
     await trashProject(db, a.workspaceId, "p1", NOW);
-    const cutoff = NOW - TRASH_GRACE_MS;
-    expect(await purgeProject(db, services(driver), a.workspaceId, "p1", cutoff)).toBe(false);
+    const reason = { kind: "trashed", by: NOW - TRASH_GRACE_MS } as const;
+    expect(await purgeProject(db, services(driver), a.workspaceId, "p1", reason)).toBe(false);
     expect((await listTrash(db, a.workspaceId)).map((project) => project.id)).toEqual(["p1"]);
     expect(await purgeProject(db, services(driver), a.workspaceId, "p1")).toBe(true);
     expect(await listTrash(db, a.workspaceId)).toEqual([]);
+  });
+});
+
+describe("purgeArchived", () => {
+  /** Archived at `NOW - age`: due to go `ARCHIVE_GRACE_MS` later. */
+  const archive = (db: Database, workspaceId: string, id: string, age: number) =>
+    setArchived(db, workspaceId, id, true, NOW - age);
+
+  const ids = async (db: Database, workspaceId: string) =>
+    (await listProjects(db, workspaceId)).map((project) => project.id).sort();
+
+  async function archivedWorld() {
+    const fixture = await twoWorkspaces();
+    const { db, a, b } = fixture;
+    await addFolder(db, a.workspaceId);
+    await addFolder(db, b.workspaceId);
+    for (const id of ["due", "soon", "unarchived", "live"]) {
+      await createProject(db, a.workspaceId, URL_PROJECT(id), NOW);
+      await storeInline(db, a.workspaceId, { projectId: id, key: "snapshot:s1" }, PNG);
+    }
+    await createProject(db, b.workspaceId, URL_PROJECT("theirs"), NOW);
+    await archive(db, a.workspaceId, "due", ARCHIVE_GRACE_MS + 1);
+    await archive(db, a.workspaceId, "soon", ARCHIVE_GRACE_MS - 60_000);
+    await archive(db, a.workspaceId, "unarchived", ARCHIVE_GRACE_MS + 1);
+    await setArchived(db, a.workspaceId, "unarchived", false, NOW);
+    await archive(db, b.workspaceId, "theirs", ARCHIVE_GRACE_MS - 60_000);
+    return fixture;
+  }
+
+  it("deletes archived projects whose date has come, with their share, rows and files", async () => {
+    const { db, a } = await archivedWorld();
+    const store = createPostgresStore(db);
+    const share = await createShare({ store, blobs: inlineBackend }, STATE, NOW);
+    await db.transaction((tx) =>
+      attachShare(
+        tx,
+        a.workspaceId,
+        "due",
+        { shareId: share.shareId, token: share.token, ownerKey: share.ownerKey },
+        NOW,
+        TEST_AUTH_SECRET,
+      ),
+    );
+
+    const { driver, discarded } = fakeStore();
+    expect(await purgeArchived(db, services(driver), NOW, DEADLINE)).toEqual({
+      count: 1,
+      done: true,
+    });
+    expect(await ids(db, a.workspaceId)).toEqual(["live", "soon", "unarchived"]);
+    expect(await db.query("SELECT id FROM squint_shares")).toMatchObject({ rows: [] });
+    expect(discarded).toEqual(["inline"]);
+    expect(await storageSummary(db, a.workspaceId)).toMatchObject({
+      blobCount: 3,
+      bytes: 3 * PNG.length,
+    });
+    const { rows: entries } = await db.query(
+      "SELECT actor_user_id, workspace_id, action, target_type, target_id, meta FROM audit_log",
+    );
+    expect(entries).toEqual([
+      {
+        actor_user_id: null,
+        workspace_id: a.workspaceId,
+        action: "project.deleted",
+        target_type: "project",
+        target_id: "due",
+        meta: { fields: ["archive-expired"] },
+      },
+    ]);
+  });
+
+  it("never touches a project not yet due, unarchived, or never archived", async () => {
+    const { db, a, b } = await archivedWorld();
+    const { driver } = fakeStore();
+    // A minute before "soon" is due, only "due" goes.
+    await purgeArchived(db, services(driver), NOW, DEADLINE);
+    expect(await purgeArchived(db, services(driver), NOW, DEADLINE)).toEqual({
+      count: 0,
+      done: true,
+    });
+    expect(await ids(db, a.workspaceId)).toEqual(["live", "soon", "unarchived"]);
+    expect(await getProject(db, a.workspaceId, "unarchived")).toMatchObject({
+      archivedAt: null,
+      deleteAfter: null,
+    });
+    // Once their dates come, the archived ones go, in either workspace.
+    expect(await purgeArchived(db, services(driver), NOW + 60_000, DEADLINE)).toEqual({
+      count: 2,
+      done: true,
+    });
+    expect(await ids(db, a.workspaceId)).toEqual(["live", "unarchived"]);
+    expect(await listProjects(db, b.workspaceId)).toEqual([]);
+  });
+
+  it("deletes an archived project that's also in the trash once its date comes", async () => {
+    const { db, a } = await archivedWorld();
+    await trashProject(db, a.workspaceId, "soon", NOW);
+    const { driver } = fakeStore();
+    // "due", "soon" (trashed) and the other workspace's "theirs".
+    expect(await purgeArchived(db, services(driver), NOW + 60_000, DEADLINE)).toMatchObject({
+      count: 3,
+    });
+    expect(await listTrash(db, a.workspaceId)).toEqual([]);
+  });
+
+  it("works through more than one batch, and stops at the deadline", async () => {
+    const { db, a } = await twoWorkspaces();
+    await addFolder(db, a.workspaceId);
+    const old = Array.from({ length: 53 }, (_, index) => `old-${index}`);
+    for (const id of old) {
+      await createProject(db, a.workspaceId, URL_PROJECT(id), NOW);
+      await archive(db, a.workspaceId, id, ARCHIVE_GRACE_MS + 1);
+    }
+    const { driver } = fakeStore();
+    expect(await purgeArchived(db, services(driver), NOW, 0)).toEqual({ count: 0, done: false });
+    expect(await purgeArchived(db, services(driver), NOW, DEADLINE)).toEqual({
+      count: old.length,
+      done: true,
+    });
+    expect(await listProjects(db, a.workspaceId)).toEqual([]);
+  });
+
+  it("keeps a project unarchived after the cron listed it", async () => {
+    const { db, a } = await archivedWorld();
+    // The unarchive lands between the cron's list of candidates and its delete.
+    const racing: Database = {
+      async query(text, params) {
+        const result = await db.query(text, params);
+        if (text.includes("ORDER BY delete_after, id LIMIT")) {
+          await setArchived(db, a.workspaceId, "due", false, NOW);
+        }
+        return result as never;
+      },
+      transaction: (run) => db.transaction(run),
+    };
+    const { driver, discarded } = fakeStore();
+    expect(await purgeArchived(racing, services(driver), NOW, DEADLINE)).toEqual({
+      count: 0,
+      done: true,
+    });
+    expect(await getProject(db, a.workspaceId, "due")).toMatchObject({ archivedAt: null });
+    expect(discarded).toEqual([]);
+    expect(await db.query("SELECT 1 FROM audit_log")).toMatchObject({ rows: [] });
   });
 });
 
