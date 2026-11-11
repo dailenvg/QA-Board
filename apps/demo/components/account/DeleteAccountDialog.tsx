@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { accountErrorMessage, deleteAccount } from "@/lib/account/account-client";
 import {
   currentPasswordError,
@@ -99,6 +99,9 @@ function DeleteAccountForm({
   const typed = useCheckedField((value) => confirmError(value, confirm));
   const password = useCheckedField(currentPasswordError);
   const [formError, setFormError] = useState<string | null>(null);
+  // Not a mistake to fix but a reason it can't go ahead: told calmly, as a status.
+  const [formNotice, setFormNotice] = useState<string | null>(null);
+  const hintId = useId();
   const typedRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   const ready = deletionConfirmMatches(typed.value, confirm) && password.value !== "";
@@ -117,6 +120,7 @@ function DeleteAccountForm({
     }
     onPending(true);
     setFormError(null);
+    setFormNotice(null);
     const outcome = await deleteAccount(typed.value, password.value);
     if (outcome.ok) {
       // A full page load, not a client navigation: nothing of the ended session carries over.
@@ -130,6 +134,8 @@ function DeleteAccountForm({
     } else if (outcome.error === "confirm-mismatch") {
       typed.setError(COPY.confirmMismatch(confirm.text));
       typedRef.current?.focus();
+    } else if (outcome.error === "owner-has-members") {
+      setFormNotice(accountErrorMessage(outcome.error));
     } else {
       setFormError(accountErrorMessage(outcome.error, outcome.retryAfterSeconds));
     }
@@ -166,6 +172,7 @@ function DeleteAccountForm({
         name="confirmText"
         inputRef={typedRef}
         dialogAutofocus
+        readOnly={pending}
         hint={COPY.confirmHint[confirm.kind]}
         {...typed.field}
         testId="delete-account-confirm"
@@ -176,11 +183,23 @@ function DeleteAccountForm({
         autoComplete="current-password"
         name="currentPassword"
         inputRef={passwordRef}
+        readOnly={pending}
         {...password.field}
         testId="delete-account-password"
       />
       <div className="flex flex-col">
         <FormAlert message={formError} testId="delete-account-error" className="has-[p]:mb-4" />
+        <FormAlert
+          tone="info"
+          message={formNotice}
+          testId="delete-account-notice"
+          className="has-[p]:mb-4"
+        />
+        {ready ? null : (
+          <p id={hintId} className="mb-4 text-meta text-pretty text-muted wrap-anywhere">
+            {COPY.submitHint(confirm.text)}
+          </p>
+        )}
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button
             variant="secondary"
@@ -195,6 +214,7 @@ function DeleteAccountForm({
             type="submit"
             variant="danger"
             aria-disabled={pending || !ready || undefined}
+            aria-describedby={ready ? undefined : hintId}
             data-testid="delete-account-submit"
           >
             {pending ? COPY.submitting : COPY.submit}

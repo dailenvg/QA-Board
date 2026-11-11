@@ -35,6 +35,8 @@ interface AuthFieldProps {
   autoCapitalize?: "words" | "none";
   /** False for a field that may be left blank. */
   required?: boolean;
+  /** Shown but not editable, such as while the form's request is in flight. */
+  readOnly?: boolean;
   testId?: string;
 }
 
@@ -54,6 +56,7 @@ export function AuthField({
   dialogAutofocus = false,
   autoCapitalize,
   required = true,
+  readOnly = false,
   testId,
 }: AuthFieldProps) {
   const inputId = useId();
@@ -81,6 +84,7 @@ export function AuthField({
           spellCheck={false}
           inputMode={type === "email" ? "email" : undefined}
           required={required}
+          readOnly={readOnly}
           // Only on pages that are nothing but this form.
           autoFocus={autoFocus}
           data-autofocus={dialogAutofocus || undefined}
