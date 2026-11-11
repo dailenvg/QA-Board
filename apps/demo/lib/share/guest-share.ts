@@ -7,8 +7,9 @@ import type { ClientView } from "./types";
 
 /**
  * What a guest's link opens at this moment, or null when its token is
- * unknown, revoked or expired, or its project is in the trash. Read once per
- * request: the page and its metadata both ask.
+ * unknown, revoked or expired, or its project is in the trash, or its
+ * workspace is archived or waiting to be deleted. Read once per request: the
+ * page and its metadata both ask.
  */
 export const openGuestShare = cache(async (token: string): Promise<ClientView | null> => {
   const { store } = await shareServices();

@@ -10,7 +10,8 @@ type Params = { params: Promise<{ token: string }> };
 /**
  * `GET ?v=<logoVersion>`: the logo of the company that shared the link,
  * through the token. 404 like an unknown link when there's no logo, and for
- * an unknown, revoked or expired link, or one whose project is in the trash.
+ * an unknown, revoked or expired link, or one whose project is in the trash or
+ * whose workspace is archived or waiting to be deleted.
  */
 export async function GET(request: Request, { params }: Params) {
   const { token } = await params;
