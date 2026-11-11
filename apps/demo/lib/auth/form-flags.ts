@@ -1,5 +1,6 @@
 import type { LoginError } from "./auth-client";
 import { loginErrorMessage } from "./auth-client";
+import { ACCOUNT_DELETION_GRACE_DAYS } from "../account/field-rules";
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "./field-rules";
 
 /**
@@ -73,7 +74,7 @@ export function loginNotice(params: {
   if (params.email === "changed") return "Email changed. Sign in with your new email address.";
   if (params.signedOut === "everywhere") return "You're signed out on every device.";
   if (params.account === "deleted") {
-    return "Your account is scheduled for deletion, and you're signed out on every device.";
+    return `Your account is scheduled for deletion, and you're signed out on every device. Your Squint admin can restore it within ${ACCOUNT_DELETION_GRACE_DAYS} days.`;
   }
   return null;
 }

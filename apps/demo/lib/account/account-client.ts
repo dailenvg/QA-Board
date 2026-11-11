@@ -163,7 +163,7 @@ export function accountErrorMessage(error: AccountError, retryAfterSeconds = 0):
     case "admin-account":
       return "The admin account can't be deleted from here.";
     case "owner-has-members":
-      return "Other people still work in this workspace. Make one of them its owner before you delete your account. Your Squint administrator can help.";
+      return "Other people still work in this workspace, so you can't delete your account yet. To go ahead, ask your Squint admin.";
     case "confirm-mismatch":
       return "That doesn't match. Check what you typed and try again.";
     case "rate-limited":

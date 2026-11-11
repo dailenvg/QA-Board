@@ -37,7 +37,7 @@ async function openDeleteDialog(page: Page) {
 async function expectDeleted(page: Page, account: DisposableAccount) {
   await expect(page).toHaveURL(/\/login\?account=deleted$/);
   await expect(page.getByTestId("login-notice")).toHaveText(
-    "Your account is scheduled for deletion, and you're signed out on every device.",
+    "Your account is scheduled for deletion, and you're signed out on every device. Your Squint admin can restore it within 30 days.",
   );
   await signIn(page, account);
   await expect(page.getByTestId("login-error")).toContainText("Invalid email or password.");

@@ -74,12 +74,12 @@ const deletionDate = new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZ
 export function deletionNoticeLines({ deleteAfter, workspaceName }: DeletionNotice): string[] {
   const date = deletionDate.format(deleteAfter);
   return [
-    "Your Squint account was deleted, and you've been signed out everywhere.",
+    "Your Squint account is scheduled for deletion, and you've been signed out everywhere.",
     ...(workspaceName === null
       ? []
       : [`The ${workspaceName} workspace, with its projects and review links, goes with it.`]),
-    `It will be deleted for good on ${date}. Until then, your Squint administrator can restore it.`,
-    "If this wasn't you, contact your Squint administrator.",
+    `Your account will be deleted for good on ${date} (UTC). Until then, your Squint admin can restore it.`,
+    "If this wasn't you, contact your Squint admin.",
   ];
 }
 

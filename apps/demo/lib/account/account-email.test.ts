@@ -64,7 +64,7 @@ describe("account emails", () => {
     const lines = deletionNoticeLines(notice);
     expect(lines.join(" ")).toContain("December 2, 2026");
     expect(lines.join(" ")).toContain("Acme & Co workspace");
-    expect(lines.join(" ")).toMatch(/administrator can restore it/);
+    expect(lines.join(" ")).toMatch(/admin can restore it/);
     expect(send).toHaveBeenCalledWith({
       from: "Squint <noreply@squint.test>",
       to: "ana@acme.test",
