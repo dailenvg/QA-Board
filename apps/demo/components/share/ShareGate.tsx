@@ -5,14 +5,13 @@ import { useCallback, useRef, useState } from "react";
 import { useScreenVariants } from "@/lib/motion";
 import { createDraftStorage, type DraftStorage } from "@/lib/share-client/draft-storage";
 import { reviewerNameOf } from "@/lib/share-client/reviewer-name";
-import type { ClientBrand, ClientView } from "@/lib/share/types";
+import type { ClientView, LockedShare } from "@/lib/share/types";
 import { SharedReview } from "./SharedReview";
 import { ShareLocked } from "./ShareLocked";
 import { ShareUnavailable } from "./ShareUnavailable";
 
 /** What the server found the link open to for this request. */
-export type GuestOpening =
-  { locked: true; brand: ClientBrand } | { locked: false; view: ClientView };
+export type GuestOpening = ({ locked: true } & LockedShare) | { locked: false; view: ClientView };
 
 interface ShareGateProps {
   token: string;
@@ -22,7 +21,7 @@ interface ShareGateProps {
 }
 
 type Screen =
-  | { kind: "locked"; brand: ClientBrand; notice: string | null }
+  | ({ kind: "locked"; notice: string | null } & LockedShare)
   | { kind: "review"; view: ClientView; authorName: string | null; drafts: DraftStorage }
   | { kind: "gone" };
 
@@ -53,7 +52,7 @@ export function ShareGate({ token, initial, authorName }: ShareGateProps) {
   const [drafts] = useState(() => createDraftStorage(token));
   const [screen, setScreen] = useState<Screen>(() =>
     initial.locked
-      ? { kind: "locked", brand: initial.brand, notice: null }
+      ? { kind: "locked", brand: initial.brand, projectName: initial.projectName, notice: null }
       : { kind: "review", view: initial.view, authorName, drafts },
   );
   /** Set once the screen has changed in this tab: the first one is the server's, already shown. */
@@ -61,13 +60,13 @@ export function ShareGate({ token, initial, authorName }: ShareGateProps) {
   const reviewRoot = useRef<HTMLDivElement>(null);
 
   const lock = useCallback(
-    (brand: ClientBrand) => {
+    (locked: LockedShare) => {
       setSwitched(true);
       setScreen((current) =>
         current.kind === "review"
           ? {
               kind: "locked",
-              brand,
+              ...locked,
               notice: drafts.load()?.body.trim() ? RELOCKED_WITH_DRAFT : RELOCKED,
             }
           : current,
@@ -101,6 +100,7 @@ export function ShareGate({ token, initial, authorName }: ShareGateProps) {
           <ShareLocked
             token={token}
             brand={screen.brand}
+            projectName={screen.projectName}
             notice={screen.notice}
             onUnlocked={(view) => open(view, screen.notice !== null)}
             onGone={() => setScreen({ kind: "gone" })}

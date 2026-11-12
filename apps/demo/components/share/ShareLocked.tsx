@@ -11,17 +11,17 @@ import {
   unlockPasswordError,
 } from "@/lib/share-client/unlock";
 import { useRetryWait } from "@/lib/share-client/use-retry-wait";
-import type { ClientBrand, ClientView } from "@/lib/share/types";
+import type { ClientView, LockedShare } from "@/lib/share/types";
 import { AuthField } from "../auth/AuthField";
 import { FormAlert } from "../auth/FormAlert";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { accentStyle } from "./brand-accent";
 import { BrandMark } from "./BrandMark";
+import { invitedToReview } from "./invitation-copy";
 
-interface ShareLockedProps {
+interface ShareLockedProps extends LockedShare {
   token: string;
-  brand: ClientBrand;
   /** Why the screen is back, such as the review having been open a moment ago; null on arrival. */
   notice: string | null;
   /** The right password: the review, read with the guest pass it earned. */
@@ -32,11 +32,6 @@ interface ShareLockedProps {
 
 const STAGGER = staggerGroup();
 
-/** Who's inviting: the company's name, or a neutral line on a link without one. */
-function headingFor(brand: ClientBrand): string {
-  return brand.custom ? `${brand.name} has invited you to review` : "You've been invited to review";
-}
-
 function submitLabel(submitting: boolean, failedToReach: boolean): string {
   if (submitting) return "Opening…";
   return failedToReach ? "Try again" : "Open review";
@@ -44,11 +39,19 @@ function submitLabel(submitting: boolean, failedToReach: boolean): string {
 
 /**
  * A password-protected link opened without a valid guest pass: the company's
- * name and logo, and its password. Shows nothing of the project (no name,
- * pages or comments) and no way into anyone's workspace. The password is
- * sent once, by `fetch`, and never kept: not in storage, the address or a log.
+ * name and logo, the project's name, and its password. Shows nothing else of
+ * the project (no pages or comments) and no way into anyone's workspace. The
+ * password is sent once, by `fetch`, and never kept: not in storage, the
+ * address or a log.
  */
-export function ShareLocked({ token, brand, notice, onUnlocked, onGone }: ShareLockedProps) {
+export function ShareLocked({
+  token,
+  brand,
+  projectName,
+  notice,
+  onUnlocked,
+  onGone,
+}: ShareLockedProps) {
   const reveal = useRevealVariants();
   const titleId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -141,7 +144,7 @@ export function ShareLocked({ token, brand, notice, onUnlocked, onGone }: ShareL
               </span>
               <div>
                 <h1 id={titleId} className="text-title font-bold text-balance wrap-break-word">
-                  {headingFor(brand)}
+                  {invitedToReview(brand.custom ? brand.name : null, projectName)}
                 </h1>
                 <p className="mt-2 flex items-center justify-center gap-2 text-body text-pretty text-muted">
                   <Icon name="lock" className="size-4 shrink-0" />
