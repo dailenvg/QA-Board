@@ -13,7 +13,18 @@ import {
 import { e2eWorkspaceId } from "./workspace-db";
 
 const PROJECT = "Secret launch";
-const INVITED = `${E2E_COMPANY.name} has invited you to review`;
+/** The site the project reviews: shown to a guest only once the link is unlocked. */
+const SITE = "https://example.com/";
+
+/** The password screen's heading for `project`. */
+function invitedTo(project: string): string {
+  return `${E2E_COMPANY.name} has invited you to review ${project}`;
+}
+
+/** The review's own heading: the project's name alone, not the password screen's invitation. */
+function reviewHeading(guest: Page): Locator {
+  return guest.getByRole("heading", { level: 1, name: PROJECT, exact: true });
+}
 
 /**
  * A documentation-range address of the guest's own, so its wrong passwords count against no
@@ -40,12 +51,16 @@ async function guestBrowser(browser: Browser, address = guestAddress()) {
   return { context, guest };
 }
 
-/** The locked page: it says so, and shows nothing of the project. */
+/** The locked page: it says so and names the project, and shows nothing else of it. */
 async function expectLocked(guest: Page, request: APIRequestContext, token: string) {
   await expect(guest.getByTestId("share-locked")).toBeVisible();
-  await expect(guest.getByRole("heading", { level: 1, name: INVITED })).toBeVisible();
+  await expect(
+    guest.getByRole("heading", { level: 1, name: invitedTo(PROJECT), exact: true }),
+  ).toBeVisible();
+  await expect(guest.getByText("Enter the password to open it.")).toBeVisible();
   await expect(guest.getByTestId("guest-brand-name")).toHaveText(E2E_COMPANY.name);
-  expect(await guest.content()).not.toContain(PROJECT);
+  await expect(guest.getByTestId("pin")).toHaveCount(0);
+  expect(await guest.content()).not.toContain(SITE);
   const api = await request.get(`/api/s/${token}`);
   expect(api.status()).toBe(401);
   expect(await api.json()).toEqual({ error: "password-required" });
@@ -72,10 +87,10 @@ test("a password locks a link until it's entered, and a new password locks it ag
   const { request } = context;
   expect((await guest.goto(`/s/${token}`))?.status()).toBe(200);
   await expectLocked(guest, request, token);
-  // The preview names the company, never the project.
+  // The preview names the company and the project, as an open link's does, and nothing else.
   const html = await (await request.get(`/s/${token}`)).text();
-  expect(html).toContain(`${E2E_COMPANY.name} invited you to review`);
-  expect(html).not.toContain(PROJECT);
+  expect(html).toContain(`${E2E_COMPANY.name} invited you to review ${PROJECT}`);
+  expect(html).not.toContain(SITE);
 
   const wrong = await unlock(request, token, "not the password");
   expect(wrong.status()).toBe(401);
@@ -88,7 +103,7 @@ test("a password locks a link until it's entered, and a new password locks it ag
   const pass = (await context.cookies()).find((cookie) => cookie.name.startsWith("squint_pass_"));
   expect(pass).toMatchObject({ httpOnly: true, sameSite: "Lax", path: "/" });
   await guest.reload();
-  await expect(guest.getByRole("heading", { level: 1, name: PROJECT })).toBeVisible();
+  await expect(reviewHeading(guest)).toBeVisible();
   expect((await request.get(`/api/s/${token}`)).status()).toBe(200);
 
   // A new password voids the pass at once.
@@ -98,13 +113,13 @@ test("a password locks a link until it's entered, and a new password locks it ag
   expect((await unlock(request, token, "first password")).status()).toBe(401);
   expect((await unlock(request, token, "second password")).status()).toBe(200);
   await guest.reload();
-  await expect(guest.getByRole("heading", { level: 1, name: PROJECT })).toBeVisible();
+  await expect(reviewHeading(guest)).toBeVisible();
 
   // Without a password the link opens to anyone again.
   await setLinkPassword(page, projectId, null);
   await context.clearCookies();
   await guest.reload();
-  await expect(guest.getByRole("heading", { level: 1, name: PROJECT })).toBeVisible();
+  await expect(reviewHeading(guest)).toBeVisible();
   await context.close();
 });
 
@@ -156,7 +171,7 @@ test("a guest's wrong password is cleared and said, and the right one opens the 
     (window as Window & { unlockMarker?: boolean }).unlockMarker = true;
   });
   await lock.field.press("Enter");
-  await expect(guest.getByRole("heading", { level: 1, name: PROJECT })).toBeVisible();
+  await expect(reviewHeading(guest)).toBeVisible();
   await expect(guest.getByTestId("share-locked")).toHaveCount(0);
   await expect(guest.getByTestId("guest-brand")).toBeVisible();
   expect(
@@ -264,7 +279,9 @@ test("the owner adds, changes and removes the password in the Share dialog; an o
   // A guest unlocks and starts a comment.
   const { context, guest } = await guestBrowser(browser);
   await guest.goto(link);
-  await expect(guest.getByRole("heading", { level: 1, name: INVITED })).toBeVisible();
+  await expect(
+    guest.getByRole("heading", { level: 1, name: invitedTo("launch"), exact: true }),
+  ).toBeVisible();
   const lock = lockScreen(guest);
   await lock.field.fill("first password");
   await lock.submit.click();
