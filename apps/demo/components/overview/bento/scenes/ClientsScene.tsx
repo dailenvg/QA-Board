@@ -1,11 +1,10 @@
 import { motion } from "motion/react";
-import type { CommenterColor } from "@/lib/brand-palette";
 import { duration, ease, sceneStep } from "@/lib/motion";
 import { MockCursor } from "../../welcome/MockCursor";
 import { MockPage } from "../../welcome/MockPage";
-import { STORY_COMMENTER } from "../../welcome/story-script";
 import { StoryMascot } from "../../welcome/StoryMascot";
 import { StoryStage } from "../../welcome/StoryStage";
+import { SCENE_TINT } from "./scene-colors";
 import { PIN_SPOTS } from "./scene-spots";
 import { ScenePin } from "./ScenePin";
 
@@ -13,25 +12,25 @@ import { ScenePin } from "./ScenePin";
 export const SCENE_PINS = PIN_SPOTS.length;
 
 interface ClientsSceneProps {
-  /** One color per pin, in drop order (each project's comments in its color). */
-  pins: readonly CommenterColor[];
+  /** New client comments: one pin each, up to `SCENE_PINS`. */
+  count: number;
   still: boolean;
 }
 
 /**
  * A client's cursor dropping numbered pins on a page, one per new comment, while Squiggy
- * peeks in to listen: the welcome's Pin story, cut down to its key beat.
+ * peeks in to listen: the welcome's Pin story, cut down to its key beat. In greys
+ * (`.scene-grey`), Squiggy apart.
  */
-export function ClientsScene({ pins, still }: ClientsSceneProps) {
-  const shown = pins.slice(0, SCENE_PINS);
-  const last = PIN_SPOTS[Math.max(0, shown.length - 1)] ?? [50, 50];
+export function ClientsScene({ count, still }: ClientsSceneProps) {
+  const shown = Math.min(count, SCENE_PINS);
+  const last = PIN_SPOTS[Math.max(0, shown - 1)] ?? [50, 50];
   return (
-    <StoryStage tint={STORY_COMMENTER.hex} still={still}>
+    <StoryStage tint={SCENE_TINT} still={still}>
       <MockPage>
-        {shown.map((color, index) => (
+        {Array.from({ length: shown }, (_, index) => (
           <ScenePin
             key={index}
-            color={color}
             number={index + 1}
             delay={index * sceneStep * 0.5}
             at={PIN_SPOTS[index] ?? [50, 50]}

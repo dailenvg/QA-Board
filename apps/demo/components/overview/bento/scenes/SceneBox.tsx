@@ -16,7 +16,8 @@ interface SceneBoxProps {
 /**
  * Where a card's scene draws: decorative (the card says the same in words),
  * empty until it's on screen, then the scene, remounted on each replay so it
- * plays from the start, its animations skipped with reduced motion.
+ * plays from the start, its animations skipped with reduced motion. Its art is in greys
+ * (`.scene-grey`), so Squiggy is the one color in it.
  */
 export function SceneBox({ sceneRef, scene, className = "", children }: SceneBoxProps) {
   return (
@@ -25,7 +26,7 @@ export function SceneBox({ sceneRef, scene, className = "", children }: SceneBox
       aria-hidden="true"
       data-testid="tile-scene"
       data-run={scene.run}
-      className={`pointer-events-none relative ${className}`}
+      className={`scene-grey pointer-events-none relative ${className}`}
     >
       {scene.shown ? (
         <MotionConfig skipAnimations={scene.still}>

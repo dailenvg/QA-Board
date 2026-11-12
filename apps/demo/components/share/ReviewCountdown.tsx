@@ -13,7 +13,7 @@ interface ReviewCountdownProps {
 /**
  * Open: the brand lime under ink (15.7:1, the same in both themes), so the
  * deadline stands out in the bar. The last day turns to the solid danger fill
- * (6.3:1 light, 7.7:1 dark), and the wording drops to hours. Closed is neutral.
+ * (7.7:1 light, 6.9:1 dark), and the wording drops to hours. Closed is neutral.
  */
 const TONE = {
   open: "bg-highlight text-on-highlight",

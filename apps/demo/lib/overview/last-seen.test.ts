@@ -8,7 +8,7 @@ import {
 } from "./last-seen";
 
 const NOW = Date.UTC(2026, 10, 9, 12);
-const FIRST = { since: NOW - FIRST_VISIT_WINDOW_MS, firstVisit: true };
+const FIRST = { since: NOW - FIRST_VISIT_WINDOW_MS };
 
 function memoryStorage(): LastSeenStorage & { items: Map<string, string> } {
   const items = new Map<string, string>();
@@ -38,8 +38,8 @@ describe("last seen", () => {
   it("returns the previous visit, then moves it on", () => {
     const storage = memoryStorage();
     writeLastSeen("w1", NOW - 3_600_000, storage);
-    expect(beginVisit("w1", NOW, storage)).toEqual({ since: NOW - 3_600_000, firstVisit: false });
-    expect(beginVisit("w1", NOW + 60_000, storage)).toEqual({ since: NOW, firstVisit: false });
+    expect(beginVisit("w1", NOW, storage)).toEqual({ since: NOW - 3_600_000 });
+    expect(beginVisit("w1", NOW + 60_000, storage)).toEqual({ since: NOW });
   });
 
   it("keeps each workspace apart", () => {
@@ -52,7 +52,7 @@ describe("last seen", () => {
   it("never starts the window in the future, and ignores what it can't read", () => {
     const storage = memoryStorage();
     writeLastSeen("w1", NOW + 86_400_000, storage);
-    expect(beginVisit("w1", NOW, storage)).toEqual({ since: NOW, firstVisit: false });
+    expect(beginVisit("w1", NOW, storage)).toEqual({ since: NOW });
     for (const junk of ["", "soon", "-5", "Infinity"]) {
       storage.items.set("squint:last-seen:w1", junk);
       expect(readLastSeen("w1", storage)).toBeNull();

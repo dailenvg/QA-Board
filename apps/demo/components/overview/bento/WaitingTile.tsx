@@ -50,9 +50,7 @@ export function WaitingTile({ open, resolved, oldest, now, thumb }: WaitingTileP
     >
       <TileHeading
         id={headingId}
-        icon="message"
         title="Comments waiting"
-        subtitle="Oldest first"
         tag={
           <TileTag>
             <AnimatedNumber value={open} testId="tile-count" /> open

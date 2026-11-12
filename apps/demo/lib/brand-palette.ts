@@ -60,8 +60,19 @@ export function paletteEntry(id: string): PaletteEntry {
   return entry;
 }
 
-/** Allergy green: resolved pins, badges and the Resolved mascot. */
-export const RESOLVED_GREEN = paletteEntry("allergy");
+/**
+ * Resolved's jade: resolved pins, badges and the Resolved mascot (`--resolved-pin` in
+ * globals.css, kept equal by a test). Not a product color: a calm jade, a clear step lighter
+ * than open comments' crimson so the two tell apart by lightness as well as hue. Navy numbers
+ * read 5.1:1 on it (white would be 2.6:1). Folders still wear the Allergy green.
+ */
+export const RESOLVED_GREEN: PaletteEntry = {
+  id: "resolved",
+  name: "Resolved",
+  hex: "#35B28F",
+  light: true,
+  ink: NAVY,
+};
 
 /**
  * The folder palette in the order folders are given it, without The Daily: its

@@ -168,7 +168,6 @@ test("the bento counts comments, client news, recent projects and the busiest fo
   // A first visit: the last week's client comments, pulled and still on the review link.
   const clients = tile(page, "clients");
   await expect(clients).toHaveAttribute("data-count", "2");
-  await expect(clients).toContainText("Last 7 days");
   await expect(clients.getByTestId("clients-waiting")).toHaveText(
     "1 comment is still on its review link. Open the project to bring it in.",
   );
@@ -205,7 +204,6 @@ test("what came in before the last visit isn't new any more", async ({ page }) =
   await page.reload();
   await expect(tile(page, "clients")).toHaveAttribute("data-count", "0");
   await expect(tile(page, "clients")).toContainText("No new client comments");
-  await expect(tile(page, "clients")).toContainText("Since last visit");
   await expect(tile(page, "recent").getByTestId("new-mark")).toHaveCount(0);
 });
 
@@ -290,6 +288,57 @@ test("each card has an illustrated scene, hidden from screen readers, that plays
   await tile(page, "clients").hover({ position: { x: 20, y: 20 } });
   await expect(clients).toHaveAttribute("data-run", "1");
   await expect(clients.getByTestId("story-pin")).toHaveCount(2);
+});
+
+/**
+ * Every color drawn in the scenes, outside Squiggy, that isn't a grey (`.scene-grey`), and
+ * whether Squiggy, in the scenes it peeks into, still has its own colors.
+ */
+async function sceneColors(page: Page): Promise<{ colored: string[]; squiggy: boolean }> {
+  return page.evaluate(() => {
+    /** How far a computed color is from grey: its channel spread, or its oklab chroma. */
+    const chroma = (value: string): number => {
+      const numbers = (value.match(/-?\d*\.?\d+/g) ?? []).map(Number);
+      if (value.startsWith("oklab")) return Math.hypot(numbers[1] ?? 0, numbers[2] ?? 0) * 255;
+      if (!value.startsWith("rgb")) return 0;
+      const [r = 0, g = 0, b = 0, alpha = 1] = numbers;
+      return alpha === 0 ? 0 : Math.max(r, g, b) - Math.min(r, g, b);
+    };
+    const colored: string[] = [];
+    let squiggy = false;
+    for (const scene of document.querySelectorAll('[data-testid="tile-scene"]')) {
+      for (const element of scene.querySelectorAll("*")) {
+        const style = getComputedStyle(element);
+        const paints = [style.backgroundColor, style.color, style.fill, style.stroke];
+        if (element.closest('[data-testid="story-mascot"]')) {
+          squiggy ||= paints.some((paint) => chroma(paint) > 40);
+        } else {
+          colored.push(...paints.filter((paint) => chroma(paint) > 12));
+        }
+      }
+    }
+    return { colored, squiggy };
+  });
+}
+
+test("the scenes are drawn in greys, Squiggy the only color in them", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "Phones hide the hero's project page.");
+  await seedActivity(page);
+  await openOverview(page);
+  for (const name of SCENE_TILES) await tile(page, name).scrollIntoViewIfNeeded();
+  // Open pins and the resolved one on the hero's page, client pins, the waiting bubbles.
+  const hero = page.getByTestId("overview-hero").getByTestId("tile-scene");
+  await expect(hero.getByTestId("story-pin")).toHaveCount(4);
+  await expect(hero.locator('[data-testid="story-pin"][data-resolved]')).toHaveCount(1);
+  await expect(tile(page, "clients").getByTestId("story-pin")).toHaveCount(2);
+  await expect(tile(page, "waiting").getByTestId("scene-bubble")).toHaveCount(3);
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate((value) => (document.documentElement.dataset.theme = value), theme);
+    expect(await sceneColors(page), theme).toEqual({ colored: [], squiggy: true });
+  }
 });
 
 /** React's hydration failures (#418 text, #423 recovery, #425 text content) or warnings. */

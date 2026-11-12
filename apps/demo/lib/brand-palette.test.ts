@@ -188,12 +188,15 @@ describe("resolved pin tokens", () => {
   const token = (name: string) =>
     new RegExp(`(?<![\\w-])--${name}:\\s*([^;]+);`).exec(css)?.[1]?.trim().toLowerCase();
 
-  it("fills resolved pins with the palette's Allergy green", () => {
+  it("fills resolved pins with RESOLVED_GREEN, the resolved jade", () => {
     expect(token("resolved-pin")).toBe(RESOLVED_GREEN.hex.toLowerCase());
+    expect(RESOLVED_GREEN.hex.toLowerCase()).toBe("#35b28f");
   });
 
-  it("numbers resolved pins in navy", () => {
+  it("numbers resolved pins in navy, at 4.5:1 or more", () => {
     expect(token("on-resolved-pin")).toBe(NAVY.toLowerCase());
+    expect(RESOLVED_GREEN.ink).toBe(NAVY);
+    expect(contrast(RESOLVED_GREEN.hex, NAVY)).toBeGreaterThanOrEqual(MIN_NUMBER_CONTRAST);
   });
 });
 

@@ -24,9 +24,7 @@ export function StatusTile({ open, resolved }: CommentTotals) {
     >
       <TileHeading
         id={headingId}
-        icon="check"
         title="Open vs resolved"
-        subtitle="All comments"
         tag={
           total > 0 ? (
             <TileTag>
@@ -34,7 +32,7 @@ export function StatusTile({ open, resolved }: CommentTotals) {
               {/*
                 Shows "4 total"; read as "4 comments in total". Narrow tiles (phones, lg's two
                 columns, xl's three) show the number alone, as Recently updated does, so the
-                title isn't cut short; the subtitle says what it counts.
+                title isn't cut short.
               */}
               <span className="sr-only">{total === 1 ? " comment in" : " comments in"}</span>
               <span className="sr-only @[19rem]:not-sr-only"> total</span>

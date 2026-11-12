@@ -62,7 +62,7 @@ export function BusiestTile({ folder, swatch, thumbs }: BusiestTileProps) {
   if (!folder) {
     return (
       <section aria-labelledby={headingId} data-testid="tile-busiest" className={TILE_SURFACE}>
-        <TileHeading id={headingId} icon="folder" title="Busiest folder" />
+        <TileHeading id={headingId} title="Busiest folder" />
         <TileEmpty title="No busy folders yet">
           The folder with the most going on shows up here.
         </TileEmpty>
@@ -101,9 +101,7 @@ export function BusiestTile({ folder, swatch, thumbs }: BusiestTileProps) {
     >
       <TileHeading
         id={headingId}
-        icon="folder"
         title="Busiest folder"
-        subtitle={folder.measure === "comments" ? "Most comments waiting" : "Most projects"}
         tag={
           <TileTag>
             <AnimatedNumber value={folder.count} />{" "}
@@ -111,7 +109,11 @@ export function BusiestTile({ folder, swatch, thumbs }: BusiestTileProps) {
           </TileTag>
         }
       />
-      <div className="flex min-h-0 flex-1 items-end gap-3">
+      {/*
+        Not flex-1: the folder sits right under the heading, as every tile's content does, and
+        the row's leftover height falls below the share line, not between heading and name.
+      */}
+      <div className="flex min-h-0 items-end gap-3">
         <p className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-title font-bold">{folder.name}</span>
           <span className="truncate text-body text-muted">

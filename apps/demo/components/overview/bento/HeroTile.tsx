@@ -9,6 +9,7 @@ import { Highlight } from "../../ui/Highlight";
 import { HERO_MASCOT_SIZE } from "../OverviewHero";
 import { SquiggySpeechLine } from "../SquiggySpeechLine";
 import { StoryGlow } from "../welcome/StoryGlow";
+import { SCENE_TINT } from "./scenes/scene-colors";
 import { HeroScene } from "./scenes/HeroScene";
 import { SceneBox } from "./scenes/SceneBox";
 import { useScene } from "./scenes/use-scene";
@@ -63,11 +64,11 @@ export function HeroTile({ summary, open, resolved }: HeroTileProps) {
       style={{ "--hero-mascot-size": HERO_MASCOT_SIZE } as CSSProperties}
     >
       <StoryGlow
-        color="var(--color-brand)"
+        color={SCENE_TINT}
         className="top-6 left-1/2 -z-10 size-40 -translate-x-1/2 opacity-20 sm:top-1/2 sm:left-6 sm:translate-x-0 sm:-translate-y-1/2 dark:opacity-30"
       />
       <StoryGlow
-        color="var(--color-highlight)"
+        color={SCENE_TINT}
         className="-right-12 -bottom-20 -z-10 size-56 opacity-20 dark:opacity-5"
       />
       <motion.div
