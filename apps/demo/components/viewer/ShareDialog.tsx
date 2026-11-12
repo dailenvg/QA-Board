@@ -64,7 +64,7 @@ function reviewLine(share: ProjectShare, now: number): string {
   const left = timeLeft(share.reviewEndsAt, now);
   return left
     ? `Clients can comment for ${spokenTimeLeft(left)} more.`
-    : "Review window closed. Clients can still open the link and read comments, but can't add new ones. To collect more feedback, choose a longer window or No limit.";
+    : "Review window closed. Clients can still read comments but can't add new ones. To reopen it, choose a longer window or No limit.";
 }
 
 /**

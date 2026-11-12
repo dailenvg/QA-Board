@@ -164,7 +164,7 @@ describe("review window writes", () => {
 
   it("says the link is gone when the server no longer has it", () => {
     expect(refusalMessage({ type: "share/window", id: "p3", hours: 24 }, 404)).toMatch(
-      /review link is no longer here/,
+      /share link is no longer here/,
     );
   });
 });

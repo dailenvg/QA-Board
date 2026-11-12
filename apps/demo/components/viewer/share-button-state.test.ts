@@ -18,12 +18,12 @@ describe("the Share button", () => {
     expect(shareButtonState(SHARE, "idle", HOUR)).toEqual({
       linked: true,
       closed: false,
-      label: "Share (link is on)",
+      label: "Share, link is on",
     });
     expect(shareButtonState(SHARE, "syncing", 25 * HOUR)).toEqual({
       linked: true,
       closed: true,
-      label: "Share (link is on, but the review window has closed)",
+      label: "Share, link is on, review window closed",
     });
   });
 

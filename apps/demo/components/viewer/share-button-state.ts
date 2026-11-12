@@ -24,6 +24,6 @@ export function shareButtonState(
   const linked = Boolean(share) && phase !== "gone";
   const closed = Boolean(linked && share && now && reviewClosed(share.reviewEndsAt, now));
   if (!linked) return { linked, closed, label: "Share" };
-  const label = `Share (link is on${closed ? ", but the review window has closed" : ""})`;
+  const label = `Share, link is on${closed ? ", review window closed" : ""}`;
   return { linked, closed, label };
 }

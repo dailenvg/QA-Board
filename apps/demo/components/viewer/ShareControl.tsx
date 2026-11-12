@@ -274,7 +274,7 @@ export function ShareControl({ data, project }: ShareControlProps) {
         title="Close the review now?"
         description={`This link was created more than ${
           REVIEW_WINDOW_LABELS[shortening.to]
-        } ago, so clients can't add comments as soon as you change it. They can still open the link and read every comment, and a longer window opens it again.`}
+        } ago, so clients can't add comments once you make this change. They can still read every comment. Choose a longer window later to reopen the review.`}
         confirmLabel="Change and close review"
         onConfirm={() => void saveWindow(shortening.to)}
       />

@@ -21,7 +21,7 @@ export interface ServerWrite {
 const PROJECT_GONE = "This project is no longer here. It may have been deleted in another tab.";
 const FOLDER_GONE = "This folder is no longer here. It may have been deleted in another tab.";
 const COMMENT_GONE = "This comment is no longer here. It may have been deleted in another tab.";
-const LINK_GONE = "This review link is no longer here. It may have been revoked in another tab.";
+const LINK_GONE = "This share link is no longer here. It may have been revoked in another tab.";
 export const SAVE_FAILED =
   "That change didn't save and was undone. Check your connection and try again.";
 
