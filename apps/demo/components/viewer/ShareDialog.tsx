@@ -32,6 +32,12 @@ interface ShareDialogProps {
   /** Why the last change of the window didn't save; null when it did. */
   windowError: string | null;
   onReviewWindowChange: (choice: ReviewWindowChoice) => void;
+  /**
+   * The dialog steps aside for a confirmation (closing the review, revoking)
+   * and opens again after it: the control the question came from, which gets
+   * focus back rather than the Close button.
+   */
+  returnFocus?: "window" | "revoke" | null;
   onCreate: () => void;
   onRetry: () => void;
   onRevoke: () => void;
@@ -79,12 +85,14 @@ export function ShareDialog({
   savingWindow,
   windowError,
   onReviewWindowChange,
+  returnFocus = null,
   onCreate,
   onRetry,
   onRevoke,
 }: ShareDialogProps) {
   const now = useNow();
   const errorId = useId();
+  const reviewLineId = useId();
   const gone = status.phase === "gone";
   // Never "Synced" while client additions are held back.
   const failing = status.phase === "error" || status.pullHeld;
@@ -124,6 +132,19 @@ export function ShareDialog({
     wasLinked.current = linked;
   }, [open, linked]);
 
+  // Back from a confirmation: focus returns to the window's selected choice (the new one, if
+  // confirmed) or to Revoke, where the keyboard user left off. Runs after the Dialog's own
+  // first focus (child effects run first), so it wins over the Close button.
+  useEffect(() => {
+    if (!open || !returnFocus) return;
+    const view = linkedView.current;
+    const target =
+      returnFocus === "window"
+        ? view?.querySelector<HTMLElement>('[role="radiogroup"] [role="radio"][tabindex="0"]')
+        : view?.querySelector<HTMLElement>('[data-return-focus="revoke"]');
+    target?.focus();
+  }, [open, returnFocus]);
+
   return (
     <Dialog
       open={open}
@@ -162,8 +183,11 @@ export function ShareDialog({
             onChange={onReviewWindowChange}
             saving={savingWindow}
             error={windowError}
+            disabled={revoking}
+            describedBy={reviewLineId}
           />
           <p
+            id={reviewLineId}
             data-testid="review-window"
             className="-mt-2 flex items-start gap-2 text-meta text-muted"
           >
@@ -176,6 +200,7 @@ export function ShareDialog({
               size="sm"
               aria-disabled={revoking || undefined}
               onClick={revoking ? undefined : onRevoke}
+              data-return-focus="revoke"
             >
               <Icon name="trash" className="size-4" />
               {revoking ? "Revoking…" : "Revoke link"}
@@ -199,6 +224,7 @@ export function ShareDialog({
             onChange={onReviewWindowChange}
             saving={false}
             error={null}
+            disabled={creating}
           />
           {/* aria-disabled while busy, so keyboard focus stays here if creating fails. */}
           <Button

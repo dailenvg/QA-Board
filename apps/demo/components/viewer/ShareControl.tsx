@@ -95,8 +95,14 @@ export function ShareControl({ data, project }: ShareControlProps) {
     to: "24h",
     asking: false,
   });
-  const [savingWindow, setSavingWindow] = useState(false);
+  /**
+   * Window changes still on their way to the server. A count, not a flag: arrowing through the
+   * choices sends one per step, and "Saving…" stays until the last has answered.
+   */
+  const [windowSaves, setWindowSaves] = useState(0);
   const [windowError, setWindowError] = useState<string | null>(null);
+  /** Which of the dialog's controls asked a question, so focus goes back to it after. */
+  const [returnFocus, setReturnFocus] = useState<"window" | "revoke" | null>(null);
   const { share } = project;
   const state = useMemo(
     () => toShareState(project, commentsFor(data, project.id), snapshotsFor(data, project.id)),
@@ -146,10 +152,10 @@ export function ShareControl({ data, project }: ShareControlProps) {
 
   const saveWindow = async (choice: ReviewWindowChoice) => {
     stopAsking();
-    setSavingWindow(true);
+    setWindowSaves((count) => count + 1);
     setWindowError(null);
     const saved = await setReviewWindow(project.id, windowHours(choice));
-    setSavingWindow(false);
+    setWindowSaves((count) => count - 1);
     // Refused: the store has put the window back, and says why.
     if (!saved.ok) setWindowError(saved.error);
   };
@@ -159,8 +165,10 @@ export function ShareControl({ data, project }: ShareControlProps) {
       setNewWindow(choice);
       return;
     }
-    if (closesNow(share, choice, Date.now())) setShortening({ to: choice, asking: true });
-    else void saveWindow(choice);
+    if (closesNow(share, choice, Date.now())) {
+      setReturnFocus("window");
+      setShortening({ to: choice, asking: true });
+    } else void saveWindow(choice);
   };
 
   const revoke = () => {
@@ -218,7 +226,10 @@ export function ShareControl({ data, project }: ShareControlProps) {
       </Button>
       <ShareDialog
         open={open && !confirming && !shortening.asking}
-        onClose={() => setOpen(false)}
+        onClose={() => {
+          setOpen(false);
+          setReturnFocus(null);
+        }}
         share={share}
         url={url}
         status={status}
@@ -227,12 +238,16 @@ export function ShareControl({ data, project }: ShareControlProps) {
         revoking={revoking}
         error={error}
         reviewWindow={linkWindow ?? newWindow}
-        savingWindow={savingWindow}
+        savingWindow={windowSaves > 0}
         windowError={windowError}
         onReviewWindowChange={chooseWindow}
+        returnFocus={returnFocus}
         onCreate={() => void create()}
         onRetry={() => syncNow(project.id)}
-        onRevoke={() => setConfirming(true)}
+        onRevoke={() => {
+          setReturnFocus("revoke");
+          setConfirming(true);
+        }}
       />
       <ConfirmDialog
         open={confirming}
