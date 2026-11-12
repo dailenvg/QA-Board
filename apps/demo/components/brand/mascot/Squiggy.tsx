@@ -54,6 +54,11 @@ export type SquiggyProps = {
   eyeColor?: string;
   /** Strokes drawn over the body, such as the magnifier's rim. Defaults to the eye color. */
   ink?: string;
+  /**
+   * A 1.5px line around the body, any CSS color (a token works): for a body as light as the
+   * surface it sits on, such as resolved Mint on white. None by default.
+   */
+  outline?: string;
   /** Something to hold. Moods can bring their own: Searching holds the magnifier. */
   accessory?: Accessory;
   /** Perks up as if hovered, for a parent that owns the hover or focus. */
@@ -111,6 +116,7 @@ export function Squiggy({
   color = BRAND.body,
   eyeColor = BRAND.eye,
   ink = eyeColor,
+  outline,
   accessory,
   perked: perkedByParent = false,
   averted = false,
@@ -193,6 +199,16 @@ export function Squiggy({
     winkTimer.current = window.setTimeout(() => setWinking(false), 420);
     onPoke?.();
   };
+
+  // Non-scaling, so the outline is 1.5px at every size, squashed or not. Set as a style:
+  // presentation attributes don't take var(), and a token is the usual color here.
+  const bodyOutline = outline
+    ? {
+        style: { stroke: outline, strokeWidth: 1.5 },
+        strokeLinejoin: "round" as const,
+        vectorEffect: "non-scaling-stroke" as const,
+      }
+    : undefined;
 
   const lifted = perked || perkedByParent;
   const eyeBoost = held ? 1.2 : lifted ? 1.06 : 1;
@@ -281,6 +297,7 @@ export function Squiggy({
                       fill={color}
                       fillRule="evenodd"
                       animate={{ fill: color }}
+                      {...bodyOutline}
                     />
 
                     <motion.g style={{ x: gaze.x, y: gaze.y }}>

@@ -23,7 +23,14 @@ function Art() {
       <PreviewPin fill={orange.hex} ink={orange.ink} size={mid} left={320} top={200}>
         3
       </PreviewPin>
-      <PreviewPin fill={resolved.hex} ink={resolved.ink} size={small} left={56} top={360}>
+      <PreviewPin
+        fill={resolved.hex}
+        ink={resolved.ink}
+        line={resolved.ink}
+        size={small}
+        left={56}
+        top={360}
+      >
         <PreviewIcon name="check" color={resolved.ink} size={small / 2} />
       </PreviewPin>
     </>

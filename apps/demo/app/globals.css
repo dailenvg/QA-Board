@@ -87,11 +87,13 @@
   /*
    * Resolved pins and badges: Mint Green (RESOLVED_GREEN in brand-palette.ts), filled, with
    * Forest Green numbers and checks at 10.3:1. Mint is about as light as the white halo
-   * (1.1:1): on light content the pin's shadow draws its edge, and selected, the near-black
-   * band does (15.7:1). Commenters never get a green.
+   * (1.1:1), so a Forest line just inside the halo draws the pin's edge (`--pin-line`): 11.7:1
+   * on the halo, 10.3:1 on the Mint, on any content. Badges and the Resolved tab's mascot wear
+   * it too, so they keep their shape on white cards. Commenters never get a green.
    */
   --resolved-pin: #c8ffc8;
   --on-resolved-pin: #004132;
+  --resolved-pin-line: #004132;
   --favicon-bg: #ffffff;
   /* Behind a company's logo in both themes: a dark logo with no background would vanish on dark. */
   --logo-bg: #ffffff;
@@ -209,13 +211,15 @@
  * The Overview's scenes, in greys: the mock-ups they borrow from the welcome stories draw
  * their button and resolved pins in the scene's greys here, and the scenes pass the greys for
  * what they color themselves (the stage's tint, open pins). Squiggy keeps its own colors.
- * Set again on `.mock-light`, which resets `--resolved-text` in dark mode.
+ * Set again on `.mock-light`, which resets `--resolved-text` in dark mode. Their resolved pins
+ * stay a flat grey: the line takes the fill's color.
  */
 .scene-grey,
 .scene-grey .mock-light {
   --brand: var(--scene-mark);
   --resolved-pin: var(--scene-done);
   --on-resolved-pin: var(--scene-done-ink);
+  --resolved-pin-line: var(--scene-done);
   --resolved-text: var(--scene-check);
 }
 
@@ -276,6 +280,7 @@
   --color-resolved-text: var(--resolved-text);
   --color-resolved-pin: var(--resolved-pin);
   --color-on-resolved-pin: var(--on-resolved-pin);
+  --color-resolved-pin-line: var(--resolved-pin-line);
 
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
@@ -402,10 +407,13 @@
    * Pin marker over arbitrary content. A white halo separates it from any
    * background; selection adds a lime ring with a dark band outside it, and
    * keyboard focus a cobalt ring between two white bands, so both states read
-   * on light, dark and busy content alike.
+   * on light, dark and busy content alike. A pin whose fill is as light as the
+   * halo (resolved Mint) sets `--pin-line`, a line just inside the halo that
+   * draws its edge; every other pin leaves it transparent.
    */
   .pin-marker {
     box-shadow:
+      inset 0 0 0 1.5px var(--pin-line, transparent),
       0 0 0 2px var(--pin-halo),
       var(--shadow-pop);
   }
@@ -414,6 +422,7 @@
     outline: 3px solid var(--highlight);
     outline-offset: 2px;
     box-shadow:
+      inset 0 0 0 1.5px var(--pin-line, transparent),
       0 0 0 2px var(--pin-halo),
       0 0 0 7px var(--pin-band),
       var(--shadow-pop);
@@ -423,10 +432,28 @@
     outline: 2px solid var(--pin-focus);
     outline-offset: 2px;
     box-shadow:
+      inset 0 0 0 1.5px var(--pin-line, transparent),
       0 0 0 2px var(--pin-halo),
       0 0 0 6px var(--pin-halo),
       var(--shadow-pop);
   }
+}
+
+/*
+ * A pin's edge line (see `.pin-marker`). Not inherited, so a pin never picks up
+ * its container's line; transparent unless the pin's tone sets it (comment-tone.ts).
+ * The `transparent` fallbacks keep the halo where `@property` isn't supported:
+ * an unset var() with no fallback would drop the whole box-shadow.
+ */
+@property --pin-line {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+
+/* The same edge line on a pin's badge or mock-up, which have no halo. */
+@utility pin-line {
+  box-shadow: inset 0 0 0 1.5px var(--pin-line, transparent);
 }
 
 /*

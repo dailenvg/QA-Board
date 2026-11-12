@@ -142,7 +142,11 @@ export function ShareLocked({
                   {brand.name}
                 </span>
               </span>
-              <div>
+              {/*
+                Full width: a centered flex item is as wide as its longest word, so a project
+                named with no spaces (a URL, a slug) would run past the card instead of breaking.
+              */}
+              <div className="w-full">
                 <h1 id={titleId} className="text-title font-bold text-balance wrap-break-word">
                   {invitedToReview(brand.custom ? brand.name : null, projectName)}
                 </h1>

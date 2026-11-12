@@ -16,6 +16,8 @@ export interface StoryDefinition {
   body: string;
   /** A palette color for the scene's tinted panel and glow. */
   tint: string;
+  /** The tint is nearly white (resolved Mint): the light theme's panel takes more of it. */
+  pale?: boolean;
   beats: StoryBeats<string>;
   Scene: ComponentType<SceneProps>;
 }

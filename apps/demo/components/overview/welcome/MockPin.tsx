@@ -55,7 +55,8 @@ export function MockPin({ color, resolved = false, number = 1, delay = 0 }: Mock
           {resolved && (
             <motion.span
               key="resolved"
-              className="absolute inset-0 grid place-items-center rounded-pin bg-resolved-pin text-on-resolved-pin"
+              // Edged in Forest as the app's resolved pins are (flat grey in the scenes' greys).
+              className="pin-line absolute inset-0 grid place-items-center rounded-pin bg-resolved-pin text-on-resolved-pin [--pin-line:var(--resolved-pin-line)]"
               style={{ originX: 0, originY: 1 }}
               {...fill}
               transition={spring.snappy}

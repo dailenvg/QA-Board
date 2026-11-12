@@ -7,6 +7,11 @@ import { StoryGlow } from "./StoryGlow";
 interface StoryStageProps {
   /** A palette color for the panel's tint and glow. */
   tint: string;
+  /**
+   * The tint is nearly white (resolved Mint), so 14% of it vanishes into the light panel:
+   * there it takes half. Dark mode keeps 14%, where Mint already shows.
+   */
+  pale?: boolean;
   /** The finished frame: the scene's animations jump to their end. */
   still: boolean;
   /** The scene, positioned inside (`--tint` is its color). */
@@ -17,12 +22,16 @@ interface StoryStageProps {
  * The tinted 4:3 panel a story's scene plays on, with a soft glow behind it.
  * Decorative: whatever shows it says in words what happens.
  */
-export function StoryStage({ tint, still, children }: StoryStageProps) {
+export function StoryStage({ tint, pale = false, still, children }: StoryStageProps) {
   return (
     <span
       aria-hidden="true"
       style={{ "--tint": tint } as CSSProperties}
-      className="relative isolate block aspect-[4/3] w-full overflow-hidden rounded-tile bg-[color-mix(in_oklab,var(--tint)_14%,var(--color-panel))]"
+      className={`relative isolate block aspect-[4/3] w-full overflow-hidden rounded-tile ${
+        pale
+          ? "bg-[color-mix(in_oklab,var(--tint)_50%,var(--color-panel))] dark:bg-[color-mix(in_oklab,var(--tint)_14%,var(--color-panel))]"
+          : "bg-[color-mix(in_oklab,var(--tint)_14%,var(--color-panel))]"
+      }`}
     >
       <StoryGlow
         color={tint}

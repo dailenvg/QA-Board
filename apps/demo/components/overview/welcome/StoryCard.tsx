@@ -50,7 +50,7 @@ export function StoryCard({ step, story, delay, running, still, wide = false }: 
           wide ? "@[34rem]:grid @[34rem]:grid-cols-2 @[34rem]:items-center @[52rem]:flex" : ""
         }`}
       >
-        <StoryStage tint={story.tint} still={still}>
+        <StoryStage tint={story.tint} pale={story.pale} still={still}>
           <Scene beat={beat} playing={playing} still={still} />
         </StoryStage>
         <div className="flex flex-col gap-1 p-3">

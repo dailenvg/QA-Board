@@ -45,6 +45,7 @@ export const reviewerStories = (windowHours: number | null): readonly StoryDefin
   {
     ...sendCopy(windowHours),
     tint: RESOLVED_GREEN.hex,
+    pale: true,
     beats: RESOLVE_BEATS,
     // A link without a deadline shows no countdown chip, as the guest's top bar doesn't; any
     // other shows one within its own window.

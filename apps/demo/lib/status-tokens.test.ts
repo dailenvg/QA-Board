@@ -112,6 +112,14 @@ describe.each([
       contrast(color(tokens, "resolved-pin"), color(tokens, "on-resolved-pin")),
     ).toBeGreaterThanOrEqual(TEXT);
   });
+
+  it("edges resolved pins at 3:1 on their white halo and on their Mint fill", () => {
+    // Mint is about as light as the halo, so this line is what draws the pin's edge.
+    const line = color(tokens, "resolved-pin-line");
+    expect(contrast(color(tokens, "resolved-pin"), color(tokens, "pin-halo"))).toBeLessThan(MARK);
+    expect(contrast(line, color(tokens, "pin-halo"))).toBeGreaterThanOrEqual(MARK);
+    expect(contrast(line, color(tokens, "resolved-pin"))).toBeGreaterThanOrEqual(MARK);
+  });
 });
 
 describe("the brand's status colors", () => {
@@ -129,10 +137,11 @@ describe("the brand's status colors", () => {
     expect(DARK.get("resolved-soft")).toBe(FOREST_GREEN.toLowerCase());
   });
 
-  it("fills resolved pins with Mint and numbers them in Forest, in both themes", () => {
+  it("fills resolved pins with Mint, and numbers and edges them in Forest, in both themes", () => {
     for (const tokens of [LIGHT, DARK]) {
       expect(tokens.get("resolved-pin")).toBe(MINT_GREEN.toLowerCase());
       expect(tokens.get("on-resolved-pin")).toBe(FOREST_GREEN.toLowerCase());
+      expect(tokens.get("resolved-pin-line")).toBe(FOREST_GREEN.toLowerCase());
     }
   });
 });

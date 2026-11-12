@@ -108,7 +108,7 @@ function Toast() {
       exit={{ opacity: 0, y: 8, transition: { duration: duration.micro } }}
       transition={spring.snappy}
     >
-      <span className="grid size-4.5 place-items-center rounded-full bg-resolved-pin text-on-resolved-pin">
+      <span className="pin-line grid size-4.5 place-items-center rounded-full bg-resolved-pin text-on-resolved-pin [--pin-line:var(--resolved-pin-line)]">
         <Icon name="check" className="size-3" />
       </span>
       {STORY_TEXT.toast}
