@@ -10,7 +10,8 @@
 
 /*
  * Squint: soft zinc neutrals, floating panels with large radii, one cobalt
- * accent and three status hues. Light is the default; `data-theme="dark"` on
+ * accent and three status hues (ready cyan, and the brand's Coral Red for open
+ * and Mint and Forest Green for resolved). Light is the default; `data-theme="dark"` on
  * <html> swaps every token. Components reference the Tailwind names below only.
  */
 :root {
@@ -49,24 +50,31 @@
   --ready-soft: rgb(72 192 240 / 0.16);
   --ready-text: #0a6a90;
   /*
-   * Open is a muted crimson, resolved a calm jade, a clear step lighter (L* 42 and 57), so ring
-   * segments and dots tell apart by lightness too, not hue alone. Fills and strokes are 3:1 or
-   * more on --panel and --card (crimson 5.5:1, jade 3.2:1 on --panel); each -text reads 5:1 or
-   * more on --card, --panel and its own -soft.
+   * Open is Coral Red (#ff3c41), resolved Forest Green (#004132), far apart in lightness (L* 57
+   * and 24), so ring segments and dots tell apart by lightness too, not hue alone; side by side
+   * they're 3.3:1. Fills and strokes are 3:1 or more on --card and --panel (coral 3.5:1 and
+   * 3.2:1, 3.0:1 on --tile; forest 11.7:1 and 10.6:1). Coral is too light for marks on --bg
+   * (2.9:1), and a status chip's dot is 2.9:1 on the chip's -soft: its label carries it.
+   * Red text is coral darkened in OKLCH at the same hue (25), the lightest that reads 4.5:1 on
+   * --card, --panel, --bg, --tile and on its -soft over each: 6.6, 6.0, 5.4 and 5.7:1, and 4.5:1
+   * at worst (its -soft over --bg). Resolved badges are Mint Green (#c8ffc8) under forest text,
+   * 10.3:1; forest text reads 9.4:1 or more on every surface. Checked by status-tokens.test.ts.
    */
-  --comments: #b82c46;
-  --comments-soft: rgb(184 44 70 / 0.14);
-  --comments-text: #9e2139;
-  --resolved: #219a7c;
-  --resolved-soft: rgb(33 154 124 / 0.14);
-  --resolved-text: #0d6b55;
+  --comments: #ff3c41;
+  --comments-soft: rgb(255 60 65 / 0.14);
+  --comments-text: #bd001d;
+  --resolved: #004132;
+  --resolved-soft: #c8ffc8;
+  --resolved-text: #004132;
 
   /*
-   * Errors share open comments' crimson, so the app has one red: the review countdown's last
+   * Errors share open comments' red text, so the app has one red: the review countdown's last
    * day (--danger) and the deletion notice's (--comments-text) match, as they always have.
+   * Danger fills (Revoke link, Remove password and every danger button, error toasts, the
+   * countdown's last day) carry --card text: white on it is 6.6:1.
    */
-  --danger: #9e2139;
-  --danger-soft: rgb(184 44 70 / 0.12);
+  --danger: #bd001d;
+  --danger-soft: rgb(255 60 65 / 0.12);
 
   /*
    * Pins and favicons sit on arbitrary site and image content, so these stay
@@ -77,12 +85,13 @@
   --pin-band: #18181b;
   --pin-focus: #0c54cc;
   /*
-   * Resolved pins and badges: the resolved jade a step lighter (RESOLVED_GREEN in
-   * brand-palette.ts), filled. Navy numbers read 5.1:1 on it (white would be 2.6:1).
-   * Commenters never get a green.
+   * Resolved pins and badges: Mint Green (RESOLVED_GREEN in brand-palette.ts), filled, with
+   * Forest Green numbers and checks at 10.3:1. Mint is about as light as the white halo
+   * (1.1:1): on light content the pin's shadow draws its edge, and selected, the near-black
+   * band does (15.7:1). Commenters never get a green.
    */
-  --resolved-pin: #35b28f;
-  --on-resolved-pin: #012d61;
+  --resolved-pin: #c8ffc8;
+  --on-resolved-pin: #004132;
   --favicon-bg: #ffffff;
   /* Behind a company's logo in both themes: a dark logo with no background would vanish on dark. */
   --logo-bg: #ffffff;
@@ -138,19 +147,22 @@
   --ready-soft: rgb(72 192 240 / 0.18);
   --ready-text: #7fd4f7;
   /*
-   * Both lifted to read on dark surfaces, still a clear lightness step apart (L* 56 and 74):
-   * crimson 4.1:1 and jade 7.3:1 on --card. Text 6.9:1 and 8.4:1 on --card, 5.5:1 and 5.9:1
-   * on their -soft over it.
+   * Coral Red stays as it is (4.2:1 on --card, 4.9:1 on --panel); resolved turns Mint Green, a
+   * long lightness step above it (L* 57 and 95), 3.1:1 side by side and 13.2:1 or more on every
+   * surface. Red text is coral lightened in OKLCH at the same hue, the closest to it that reads
+   * 4.5:1 on --card, --panel, --bg, --tile and on its -soft over each: 5.5, 6.3, 7.3 and 5.9:1,
+   * and 4.5:1 at worst (its -soft over --card). Danger fills carry --card text at 5.5:1.
+   * Resolved badges are Forest Green under mint text, 10.3:1.
    */
-  --comments: #e5536b;
-  --comments-soft: rgb(229 83 107 / 0.18);
-  --comments-text: #ff8fa0;
-  --resolved: #4fc9a6;
-  --resolved-soft: rgb(79 201 166 / 0.18);
-  --resolved-text: #6ad6b4;
+  --comments: #ff3c41;
+  --comments-soft: rgb(255 60 65 / 0.18);
+  --comments-text: #ff6f68;
+  --resolved: #c8ffc8;
+  --resolved-soft: #004132;
+  --resolved-text: #c8ffc8;
 
-  --danger: #ff8fa0;
-  --danger-soft: rgb(229 83 107 / 0.18);
+  --danger: #ff6f68;
+  --danger-soft: rgb(255 60 65 / 0.18);
 
   --scene-tint: #a1a1aa;
   --scene-check: #d4d4d8;
@@ -181,12 +193,12 @@
   --brand-text: #0c54cc;
   --brand-soft: rgb(12 84 204 / 0.1);
   --ready-text: #0a6a90;
-  --comments: #b82c46;
-  --comments-soft: rgb(184 44 70 / 0.14);
-  --comments-text: #9e2139;
-  --resolved: #219a7c;
-  --resolved-soft: rgb(33 154 124 / 0.14);
-  --resolved-text: #0d6b55;
+  --comments: #ff3c41;
+  --comments-soft: rgb(255 60 65 / 0.14);
+  --comments-text: #bd001d;
+  --resolved: #004132;
+  --resolved-soft: #c8ffc8;
+  --resolved-text: #004132;
   --scene-check: #3f3f46;
   /* Text that inherits its color (no text-* class) inherits it already resolved: reset it. */
   color: var(--ink);

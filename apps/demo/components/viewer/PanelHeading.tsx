@@ -79,6 +79,7 @@ export function PanelHeading({
         <Squiggy
           mood={selected ? "happy" : "idle"}
           color={RESOLVED_GREEN.hex}
+          eyeColor={RESOLVED_GREEN.ink}
           size={MASCOT_SIZE}
           followCursor={false}
           still={!selected}
