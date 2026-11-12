@@ -30,6 +30,7 @@ import { Button } from "../ui/Button";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { Icon } from "../ui/Icon";
 import { useToast, type ToastInput } from "../ui/ToastProvider";
+import { shareButtonState } from "./share-button-state";
 import { ShareDialog } from "./ShareDialog";
 
 interface ShareControlProps {
@@ -191,13 +192,9 @@ export function ShareControl({ data, project }: ShareControlProps) {
   };
 
   const failing = share && (status.phase === "error" || status.pullHeld);
-  // The dialog says how long is left; the button only whether clients can still comment.
-  const closed = Boolean(share && now && reviewClosed(share.reviewEndsAt, now));
-  const linkWindow =
-    share && status.phase !== "gone" ? windowChoice(share.reviewWindowHours) : null;
-  const shareLabel = share
-    ? `Share (link is on${closed ? ", but the review window has closed" : ""})`
-    : "Share";
+  // The dialog says how long is left; the button only whether the link works and takes comments.
+  const button = shareButtonState(share, status.phase, now);
+  const linkWindow = button.linked && share ? windowChoice(share.reviewWindowHours) : null;
   return (
     <>
       {failing ? (
@@ -219,19 +216,19 @@ export function ShareControl({ data, project }: ShareControlProps) {
         size="sm"
         onClick={() => setOpen(true)}
         className="max-sm:size-11 max-sm:px-0"
-        aria-label={shareLabel}
-        title={closed ? "Review window closed" : undefined}
+        aria-label={button.label}
+        title={button.closed ? "Review window closed" : undefined}
         data-testid="share-button"
       >
         <span className="relative">
           <Icon name="link" className="size-5" />
-          {share ? (
+          {button.linked ? (
             // Closed: a hollow muted ring, not a pale fill, so it differs by shape as well as
             // colour and keeps 3:1 against the button (WCAG 1.4.1, 1.4.11).
             <span
               aria-hidden="true"
               className={`absolute -top-0.5 -right-0.5 size-2 rounded-pill ring-2 ${
-                closed ? "bg-card ring-muted" : "bg-resolved ring-card"
+                button.closed ? "bg-card ring-muted" : "bg-resolved ring-card"
               }`}
             />
           ) : null}
