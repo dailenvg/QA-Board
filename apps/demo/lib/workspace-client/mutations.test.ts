@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { reduce, type Action } from "../store/reducer";
 import type { Comment, Project, SquintData } from "../store/types";
-import { refusalMessage, SAVE_FAILED, writesFor } from "./mutations";
+import { passwordRefusal, refusalMessage, SAVE_FAILED, writesFor } from "./mutations";
 
 const project = (id: string, folderId: string): Project => ({
   id,
@@ -166,6 +166,20 @@ describe("review window writes", () => {
     expect(refusalMessage({ type: "share/window", id: "p3", hours: 24 }, 404)).toMatch(
       /share link is no longer here/,
     );
+  });
+});
+
+describe("link password", () => {
+  it("never sends anything for the store's copy: the password went to the server by itself", () => {
+    expect(writes({ type: "share/password", id: "p3", passwordSetAt: 9 })).toEqual([]);
+    expect(writes({ type: "share/password", id: "p3", passwordSetAt: null })).toEqual([]);
+  });
+
+  it("says why a change didn't happen", () => {
+    expect(passwordRefusal(404, false)).toMatch(/share link is no longer here/);
+    expect(passwordRefusal(400, false)).toBe("Use 8 to 128 characters.");
+    expect(passwordRefusal(0, false)).toMatch(/didn't save/);
+    expect(passwordRefusal(500, true)).toMatch(/wasn't removed/);
   });
 });
 

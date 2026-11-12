@@ -45,6 +45,7 @@ function toProject(project: WorkspaceProject, links: ReadonlyMap<string, ShareLi
             ...(share.lastSyncedAt === undefined ? {} : { lastSyncedAt: share.lastSyncedAt }),
             reviewWindowHours: share.reviewWindowHours,
             reviewEndsAt: share.reviewEndsAt,
+            ...(share.passwordSetAt === null ? {} : { passwordSetAt: share.passwordSetAt }),
           },
         }
       : {}),

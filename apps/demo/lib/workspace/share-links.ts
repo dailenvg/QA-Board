@@ -37,7 +37,7 @@ export function reviewWindowState(createdAt: number, hours: number | null): Revi
 }
 
 /** Whether a link has a password, from when it was set (null without one). */
-function passwordState(setAt: Date | null): SharePasswordState {
+export function passwordState(setAt: Date | null): SharePasswordState {
   return { hasPassword: setAt !== null, passwordSetAt: toMsOrNull(setAt) };
 }
 

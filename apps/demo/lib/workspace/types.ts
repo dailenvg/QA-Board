@@ -14,8 +14,11 @@ export interface ReviewWindowState {
   reviewEndsAt: number | null;
 }
 
-/** A project's review link, without its secrets (those come from `share-link` alone). */
-export interface WorkspaceShareSummary extends ReviewWindowState {
+/**
+ * A project's review link, without its secrets (those come from `share-link`
+ * alone), with whether it asks guests for a password.
+ */
+export interface WorkspaceShareSummary extends ReviewWindowState, SharePasswordState {
   id: string;
   createdAt: number;
   cursor: number;

@@ -70,6 +70,11 @@ export interface ProjectShare {
   reviewWindowHours: number | null;
   /** When clients can no longer comment (epoch ms), as the server counts it; null: never. */
   reviewEndsAt: number | null;
+  /**
+   * When the link's current password was set (epoch ms), while it asks guests
+   * for one. The password itself never reaches the browser.
+   */
+  passwordSetAt?: number;
 }
 
 export interface Project {

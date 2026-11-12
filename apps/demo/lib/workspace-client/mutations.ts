@@ -185,6 +185,7 @@ export function writesFor(action: Action, before: SquintData, after: SquintData)
       return [write("PUT", linkPath(action.id), { shareId: id, token, ownerKey, reviewWindow })];
     }
     case "share/window-restore":
+    case "share/password":
       return [];
     case "share/window":
       return [
@@ -203,6 +204,15 @@ export function writesFor(action: Action, before: SquintData, after: SquintData)
     case "share/merge":
       return mergeWrites(before, after, action.id);
   }
+}
+
+/** What to tell the person when a link's password didn't change (`status` 0: no answer). */
+export function passwordRefusal(status: number, removing: boolean): string {
+  if (status === 404) return LINK_GONE;
+  if (status === 400) return "Use 8 to 128 characters.";
+  return removing
+    ? "The password wasn't removed. Check your connection and try again."
+    : "The password didn't save. Check your connection and try again.";
 }
 
 /** What to tell the person when the server refused `action` with `status` (0: no answer). */
