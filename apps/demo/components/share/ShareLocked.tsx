@@ -1,0 +1,34 @@
+"use client";
+
+import { motion } from "motion/react";
+import { useRevealVariants } from "@/lib/motion";
+import { Logo } from "../brand/Logo";
+import { Squiggy } from "../brand/mascot/Squiggy";
+
+/**
+ * A password-protected link opened without a valid guest pass. Shows nothing
+ * of the project (no name, pages or comments) and no way into anyone's workspace.
+ */
+export function ShareLocked() {
+  const variants = useRevealVariants();
+  return (
+    <main id="main" className="grid min-h-dvh place-items-center p-4">
+      <motion.section
+        variants={variants}
+        initial="hidden"
+        animate="visible"
+        data-testid="share-locked"
+        className="flex w-full max-w-md flex-col items-center gap-4 rounded-panel bg-panel px-6 py-12 text-center"
+      >
+        <Squiggy mood="thinking" size={120} />
+        <div>
+          <h1 className="text-title font-bold">This link needs a password</h1>
+          <p className="mt-2 text-body text-muted">
+            Ask the person who shared it with you for the password.
+          </p>
+        </div>
+        <Logo linked={false} caption="Visual review" />
+      </motion.section>
+    </main>
+  );
+}

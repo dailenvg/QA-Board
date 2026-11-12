@@ -6,7 +6,7 @@ import type { SessionUser } from "../auth/users";
 import { database } from "../db/database";
 import { loadWorkspace } from "./load-workspace";
 import { getShareLink } from "./share-links";
-import type { ShareLink, WorkspaceStart } from "./types";
+import type { OwnerShareLink, WorkspaceStart } from "./types";
 
 /**
  * What a signed-in page shows: the user's workspace, read on the server; none
@@ -47,7 +47,7 @@ export const loadSessionWorkspace = cache(async (): Promise<SessionWorkspace> =>
     return {
       kind: "ready",
       user,
-      start: { data, links: links.filter((link): link is ShareLink => link !== null) },
+      start: { data, links: links.filter((link): link is OwnerShareLink => link !== null) },
     };
   } catch (error) {
     console.error(`squint workspace: page load failed (${describeError(error)})`);

@@ -103,6 +103,17 @@ export interface ShareRecord {
    * or 168; null for no limit. Only a workspace's link is ever set off the 72-hour default.
    */
   reviewWindowHours: number | null;
+  /**
+   * The link's password (036), or null when it's open. Only a workspace's link
+   * ever has one. Server-side only: never sent to an owner or a guest.
+   */
+  password: SharePassword | null;
+}
+
+/** A review link's password as stored: its Argon2id hash, and when it was set (epoch ms). */
+export interface SharePassword {
+  hash: string;
+  setAt: number;
 }
 
 export type BlobLocation = { kind: "inline"; bytes: Uint8Array } | { kind: "vercel"; url: string };

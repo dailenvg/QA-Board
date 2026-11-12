@@ -46,6 +46,7 @@ export const RECORD = {
   updatedAt: 1,
   expiresAt: shareExpiresAt(STATE.project, 1),
   reviewWindowHours: DEFAULT_REVIEW_WINDOW_HOURS,
+  password: null,
 } satisfies ShareRecord;
 
 /** What a client of `RECORD` sees. */

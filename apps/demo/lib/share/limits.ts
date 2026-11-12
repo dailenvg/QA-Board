@@ -25,4 +25,9 @@ export const SHARE_LIMITS = {
   transferBytes: 4 * MB,
   /** Largest batch of owner changes the browser sends in one request (well under `jsonBytes`). */
   changeBatchBytes: 512 * 1024,
+  /**
+   * A workspace link's password, in characters: nothing else is asked of it.
+   * The cap only keeps a request from making Argon2 hash megabytes.
+   */
+  password: { min: 8, max: 128 },
 } as const;

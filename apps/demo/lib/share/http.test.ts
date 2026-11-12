@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { imageResponse, parseRange } from "./http";
+import { imageResponse, parseRange, rateLimit } from "./http";
 import { SHARE_LIMITS } from "./limits";
 
 describe("parseRange", () => {
@@ -34,5 +34,19 @@ describe("imageResponse", () => {
 
   it("refuses ranges outside the image", () => {
     expect(imageResponse(bytes, "image/png", "bytes=999999999-").status).toBe(416);
+  });
+});
+
+describe("rateLimit", () => {
+  const from = (address: string) =>
+    new Request("http://localhost/api/s/t/unlock", { headers: { "x-forwarded-for": address } });
+
+  it("counts unlocks from one IPv6 /64 together, and other limits per address", () => {
+    for (let host = 1; host <= 30; host += 1) {
+      expect(rateLimit(from(`2001:db8:9:9::${host.toString(16)}`), "clientUnlock")).toBeNull();
+    }
+    expect(rateLimit(from("2001:db8:9:9::ffff"), "clientUnlock")?.status).toBe(429);
+    expect(rateLimit(from("2001:db8:9:a::1"), "clientUnlock")).toBeNull();
+    expect(rateLimit(from("2001:db8:9:9::ffff"), "clientRead")).toBeNull();
   });
 });

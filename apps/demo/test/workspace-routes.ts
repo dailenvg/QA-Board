@@ -13,6 +13,7 @@ import * as pages from "@/app/api/w/[workspaceId]/projects/[projectId]/pages/rou
 import * as restore from "@/app/api/w/[workspaceId]/projects/[projectId]/restore/route";
 import * as project from "@/app/api/w/[workspaceId]/projects/[projectId]/route";
 import * as shareLink from "@/app/api/w/[workspaceId]/projects/[projectId]/share-link/route";
+import * as sharePassword from "@/app/api/w/[workspaceId]/projects/[projectId]/share-link/password/route";
 import * as shareSettings from "@/app/api/w/[workspaceId]/projects/[projectId]/share-link/settings/route";
 import * as snapshot from "@/app/api/w/[workspaceId]/projects/[projectId]/snapshots/[snapshotId]/route";
 import * as snapshots from "@/app/api/w/[workspaceId]/projects/[projectId]/snapshots/route";
@@ -43,6 +44,7 @@ const ROUTES: Array<[string, Partial<Record<string, unknown>>]> = [
   ["/projects/:projectId/comments/:commentId", comment],
   ["/projects/:projectId/share-link", shareLink],
   ["/projects/:projectId/share-link/settings", shareSettings],
+  ["/projects/:projectId/share-link/password", sharePassword],
   ["/projects/:projectId/blobs/:key", blob],
   ["/blobs/token", blobToken],
   ["/blobs/commit", blobCommit],

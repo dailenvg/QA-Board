@@ -3,6 +3,7 @@ import { database } from "@/lib/db/database";
 import { storageFromEnv } from "@/lib/pinpoint-storage";
 import { expireShares, sweepOrphanedBlobs } from "@/lib/share/expiry";
 import { json } from "@/lib/share/http";
+import { prunePasswordAttempts } from "@/lib/share/password-attempts";
 import { retentionCutoff } from "@/lib/share/retention";
 import { shareServices } from "@/lib/share/server";
 import { blobDriverFromEnv } from "@/lib/workspace/blob-driver";
@@ -18,7 +19,15 @@ const BUDGET_MS = 45_000;
 
 let pins: StorageAdapter | undefined;
 
-type StepName = "shares" | "blobs" | "trash" | "archived" | "accounts" | "workspaceBlobs" | "pins";
+type StepName =
+  | "shares"
+  | "blobs"
+  | "passwordAttempts"
+  | "trash"
+  | "archived"
+  | "accounts"
+  | "workspaceBlobs"
+  | "pins";
 
 /** What one step did: how many it deleted (null when skipped or failed), and whether it finished. */
 interface StepResult {
@@ -72,6 +81,14 @@ async function shareSteps(now: number, deadline: number): Promise<[StepResult, S
   return [shares, blobs];
 }
 
+/** Wrong review link passwords a day old (037). Skipped without a database. */
+function passwordAttemptSteps(now: number): Promise<StepResult> {
+  return step("passwordAttempts", async () => {
+    const pending = database();
+    return pending ? { count: await prunePasswordAttempts(await pending, now), done: true } : null;
+  });
+}
+
 /**
  * Workspace projects trashed more than 30 days ago, deleted for good, and
  * archived ones whose deletion date has come; then deleted accounts (and the
@@ -114,8 +131,8 @@ function pinSteps(now: number, deadline: number): Promise<StepResult> {
 /**
  * `GET /api/cron/expire`, daily. Independent steps, each with its own error
  * handling: shares past their `expiresAt`, then Blob files a failed delete
- * left behind; workspace projects past their time in the trash or the
- * archive, deleted
+ * left behind; wrong review link passwords a day old; workspace projects
+ * past their time in the trash or the archive, deleted
  * accounts past theirs, then files nothing records; and, alongside them,
  * pinpoint pins 30 days old (when their storage can expire them). Answers
  * each step's count (null when skipped or failed), `done` (false when the
@@ -127,15 +144,27 @@ export async function GET(request: Request) {
   if (refused) return refused;
   const now = Date.now();
   const deadline = now + BUDGET_MS;
-  const [[shares, blobs], [trash, archived, accounts, workspaceBlobs], pinned] = await Promise.all([
-    shareSteps(now, deadline),
-    workspaceSteps(now, deadline),
-    pinSteps(now, deadline),
-  ]);
-  const steps = { shares, blobs, trash, archived, accounts, workspaceBlobs, pins: pinned };
+  const [[shares, blobs], passwordAttempts, [trash, archived, accounts, workspaceBlobs], pinned] =
+    await Promise.all([
+      shareSteps(now, deadline),
+      passwordAttemptSteps(now),
+      workspaceSteps(now, deadline),
+      pinSteps(now, deadline),
+    ]);
+  const steps = {
+    shares,
+    blobs,
+    passwordAttempts,
+    trash,
+    archived,
+    accounts,
+    workspaceBlobs,
+    pins: pinned,
+  };
   const report = {
     shares: shares.count,
     blobs: blobs.count,
+    passwordAttempts: passwordAttempts.count,
     trash: trash.count,
     archived: archived.count,
     accounts: accounts.count,
@@ -145,6 +174,7 @@ export async function GET(request: Request) {
     failed: {
       shares: shares.failed,
       blobs: blobs.failed,
+      passwordAttempts: passwordAttempts.failed,
       trash: trash.failed,
       archived: archived.failed,
       accounts: accounts.failed,

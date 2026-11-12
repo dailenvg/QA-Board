@@ -33,6 +33,8 @@ import projectsDeleteAfter from "../../migrations/032_projects_delete_after.sql"
 import accountDeletion from "../../migrations/033_account_deletion.sql";
 import sharesInviter from "../../migrations/034_squint_shares_inviter_backfill.sql";
 import sharesReviewWindow from "../../migrations/035_squint_shares_review_window.sql";
+import sharesPassword from "../../migrations/036_squint_shares_password.sql";
+import passwordAttempts from "../../migrations/037_squint_share_password_attempts.sql";
 
 /** The slice of `pg.Pool` the stores use (PGlite matches it in tests). */
 export interface Queryable {
@@ -76,6 +78,8 @@ export const MIGRATIONS: ReadonlyArray<{ id: string; sql: string }> = [
   { id: "033_account_deletion", sql: accountDeletion },
   { id: "034_squint_shares_inviter_backfill", sql: sharesInviter },
   { id: "035_squint_shares_review_window", sql: sharesReviewWindow },
+  { id: "036_squint_shares_password", sql: sharesPassword },
+  { id: "037_squint_share_password_attempts", sql: passwordAttempts },
 ];
 
 type Migration = (typeof MIGRATIONS)[number];

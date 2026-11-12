@@ -45,6 +45,16 @@ export interface TrashedProject extends WorkspaceProject {
   deletedAt: number;
 }
 
+/** Whether a workspace link asks guests for a password. The password and its hash never leave the server. */
+export interface SharePasswordState {
+  hasPassword: boolean;
+  /** When the current password was set (epoch ms); null without one. */
+  passwordSetAt: number | null;
+}
+
+/** A link as `GET .../share-link` answers it: with whether it has a password. */
+export type OwnerShareLink = ShareLink & SharePasswordState;
+
 /** The owner's side of a project's review link, as the browser store's `ProjectShare`. */
 export interface ShareLink extends ReviewWindowState {
   id: string;
