@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { clientAddress, createRateLimiter } from "../capture/rate-limit";
+import { clientAddress, createRateLimiter, rateLimitAddress } from "../capture/rate-limit";
 import { SHARE_LIMITS } from "./schemas";
 import type { Failure } from "./service";
 
@@ -25,6 +25,9 @@ const LIMITS = {
 };
 
 export type LimitName = keyof typeof LIMITS;
+
+/** Limits that count an IPv6 address per /64, as the password limit behind them does. */
+const PER_NETWORK: ReadonlySet<LimitName> = new Set(["clientUnlock"]);
 
 export function json(body: unknown, status = 200): Response {
   return Response.json(body, { status, headers: NO_STORE });
@@ -63,7 +66,9 @@ export async function guardStorage(run: () => Promise<Response>): Promise<Respon
 
 /** A 429 when the caller is over `name`'s limit, else null. */
 export function rateLimit(request: Request, name: LimitName): Response | null {
-  const decision = LIMITS[name](clientAddress(request.headers), Date.now());
+  const address = clientAddress(request.headers);
+  const key = PER_NETWORK.has(name) ? rateLimitAddress(address) : address;
+  const decision = LIMITS[name](key, Date.now());
   if (decision.ok) return null;
   return Response.json(
     { error: "rate-limited" },

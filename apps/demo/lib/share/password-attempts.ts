@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import type { RateDecision } from "../capture/rate-limit";
+import { rateLimitAddress, type RateDecision } from "../capture/rate-limit";
 import type { Database } from "../db/database";
 import type { Queryable } from "./migrate";
 import { serverKey } from "./server-key";
@@ -30,9 +30,12 @@ export type PasswordClaim = { ok: true; attemptId: string } | ({ ok: false } & R
 /**
  * How an address is stored: an HMAC keyed from `AUTH_SECRET`, never the
  * address itself (an unkeyed hash of an IPv4 address is quickly reversed).
+ * It's taken as `rateLimitAddress` counts it, so an IPv6 /64 is one address.
  */
 export function addressKey(ip: string, secret: string | undefined = process.env.AUTH_SECRET) {
-  return createHmac("sha256", serverKey(ADDRESS_INFO, secret)).update(ip, "utf8").digest("hex");
+  return createHmac("sha256", serverKey(ADDRESS_INFO, secret))
+    .update(rateLimitAddress(ip), "utf8")
+    .digest("hex");
 }
 
 /**

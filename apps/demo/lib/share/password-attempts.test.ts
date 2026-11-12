@@ -84,6 +84,26 @@ describe("review link password limits", () => {
     expect(await claimPasswordAttempt(db, key(1), NOW)).toMatchObject({ ok: true });
   });
 
+  it("counts an IPv6 /64 as one address: a 6th try from a 6th address in it is refused", async () => {
+    for (let host = 1; host <= MAX_FAILURES_PER_LINK; host += 1) {
+      await fail(db, key(0, `2001:db8:5:6::${host.toString(16)}`), 1);
+    }
+    expect(await claimPasswordAttempt(db, key(0, "2001:db8:5:6:a:b:c:d"), NOW)).toEqual({
+      ok: false,
+      retryAfterSeconds: 15 * 60,
+    });
+    expect(await claimPasswordAttempt(db, key(0, "2001:db8:5:7::1"), NOW)).toMatchObject({
+      ok: true,
+    });
+  });
+
+  it("keys an address as its IPv4 or its IPv6 /64", () => {
+    expect(addressKey("::ffff:198.51.100.7", SECRET)).toBe(addressKey("198.51.100.7", SECRET));
+    expect(addressKey("2001:db8::1", SECRET)).toBe(addressKey("2001:DB8:0:0:ffff::2", SECRET));
+    expect(addressKey("2001:db8::1", SECRET)).not.toBe(addressKey("2001:db8:0:1::1", SECRET));
+    expect(addressKey("not an address", SECRET)).toMatch(/^[0-9a-f]{64}$/);
+  });
+
   it("refuses an address after 30 failures across links, and on every link", async () => {
     for (let share = 0; share < 6; share += 1) await fail(db, key(share), 5);
     expect(await claimPasswordAttempt(db, key(6), NOW + MINUTE)).toEqual({

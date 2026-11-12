@@ -1,6 +1,7 @@
 const BLOCKED_SUFFIXES = [".localhost", ".local", ".internal", ".home.arpa"];
 
-function parseIPv4(address: string): number | null {
+/** An IPv4 address in dotted form as a 32-bit number; null when it isn't one. */
+export function parseIPv4(address: string): number | null {
   const parts = address.split(".");
   if (parts.length !== 4) return null;
   let value = 0;
@@ -40,8 +41,11 @@ function blockedV4(value: number): boolean {
   });
 }
 
-/** Expands an IPv6 address (optionally with a trailing dotted IPv4) into 8 groups. */
-function parseIPv6(address: string): number[] | null {
+/**
+ * Expands an IPv6 address (optionally bracketed, with a zone id or a trailing
+ * dotted IPv4, in any case) into 8 groups; null when it isn't one.
+ */
+export function parseIPv6(address: string): number[] | null {
   let text = address
     .toLowerCase()
     .replace(/^\[|\]$/g, "")
