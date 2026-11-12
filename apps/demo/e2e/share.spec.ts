@@ -10,6 +10,7 @@ import {
   mockFrameCheck,
   openFolder,
   postComment,
+  shareImageProject,
   showComments,
   skipReviewGuide,
 } from "./squint-fixtures";
@@ -402,32 +403,6 @@ test("an image project is shared as its page, and a client's comment comes back 
   await clientContext.close();
 });
 
-/**
- * An image project in DEFAULT_FOLDER with a review link, made in the owner's
- * viewer. Its share is created from an address of its own, so these links stay
- * out of the 10-a-minute budget the other specs' browsers share.
- */
-async function sharedImage(page: Page, fileName: string): Promise<string> {
-  await page.route("**/api/shares", (route) =>
-    route.continue({
-      headers: {
-        ...route.request().headers(),
-        "x-forwarded-for": `198.51.100.${Math.floor(Math.random() * 250) + 1}`,
-      },
-    }),
-  );
-  await openFolder(page);
-  await createImageProject(page, fileName);
-  await page.getByTestId("share-button").click();
-  const dialog = page.getByTestId("share-dialog");
-  await dialog.getByTestId("create-share-link").click();
-  const link = await dialog.getByTestId("share-url").inputValue();
-  await expect(dialog.getByTestId("sync-status")).toContainText("Synced");
-  await page.keyboard.press("Escape");
-  await page.unroute("**/api/shares");
-  return link;
-}
-
 /** Drops a pin on the open link's image; the composer asks for a name, or says whose it posts as. */
 async function composerOn(client: Page, position = { x: 140, y: 110 }): Promise<Locator> {
   await expect(client.getByRole("img", { name: /the image under review/ })).toBeVisible();
@@ -446,8 +421,8 @@ test("a client is asked for a name once per link, and again on another link", as
   page,
   browser,
 }) => {
-  const first = await sharedImage(page, "first.png");
-  const second = await sharedImage(page, "second.png");
+  const first = await shareImageProject(page, "first.png");
+  const second = await shareImageProject(page, "second.png");
   const { client, context } = await guestBrowser(browser);
 
   await client.goto(first);

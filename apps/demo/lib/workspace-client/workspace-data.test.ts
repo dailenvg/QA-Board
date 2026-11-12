@@ -11,6 +11,7 @@ import {
 
 /** The server's window: 24 hours from the link's creation. */
 const WINDOW = { reviewWindowHours: 24, reviewEndsAt: 3 + 24 * 3_600_000 };
+const NO_PASSWORD = { hasPassword: false, passwordSetAt: null };
 
 const project = (id: string, folderId: string | null, share = false): WorkspaceProject => ({
   id,
@@ -23,7 +24,16 @@ const project = (id: string, folderId: string | null, share = false): WorkspaceP
   archivedAt: null,
   deleteAfter: null,
   ...(share
-    ? { share: { id: `share-${id}`, createdAt: 3, cursor: 4, lastSyncedAt: 5, ...WINDOW } }
+    ? {
+        share: {
+          id: `share-${id}`,
+          createdAt: 3,
+          cursor: 4,
+          lastSyncedAt: 5,
+          ...WINDOW,
+          ...NO_PASSWORD,
+        },
+      }
     : {}),
 });
 
@@ -73,6 +83,16 @@ describe("toSquintData", () => {
     });
     expect(projectsMissingLinks(data, links)).toEqual([]);
     expect(toSquintData(data, links)).toMatchObject({ authorName: "Ana" });
+  });
+
+  it("says since when a link asks for a password, and nothing of a link without one", () => {
+    const shared = project("p2", "older", true);
+    const share = shared.share && { ...shared.share, hasPassword: true, passwordSetAt: 9 };
+    const links = new Map([[LINK.id, LINK]]);
+    const locked = toSquintData(workspace([{ ...shared, share }]), links);
+    expect(locked.projects[0]?.share).toMatchObject({ passwordSetAt: 9 });
+    const open = toSquintData(workspace([shared]), links);
+    expect(open.projects[0]?.share).not.toHaveProperty("passwordSetAt");
   });
 });
 

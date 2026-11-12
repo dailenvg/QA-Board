@@ -87,6 +87,18 @@ describe("the review window", () => {
   });
 });
 
+describe("the password", () => {
+  it("locks the review when the link asks for it again, and only then", () => {
+    const store = createClientStore(VIEW, anonymous());
+    expect(store.getServerSnapshot().locked).toBe(false);
+    let told = 0;
+    store.subscribe(() => (told += 1));
+    store.markLocked();
+    expect(store.getSnapshot().locked).toBe(true);
+    expect(told).toBe(1);
+  });
+});
+
 describe("the reviewer's name", () => {
   it("is in the state the server renders with, so the name isn't asked for again", () => {
     const store = createClientStore(VIEW, { authorName: "Cleo", names: namesInMemory() });

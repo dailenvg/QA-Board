@@ -200,6 +200,15 @@ describe("sharing in the reducer", () => {
     });
   });
 
+  it("keeps when the link's password was set, and forgets it once removed", () => {
+    const locked = reduce(shared(), { type: "share/password", id: "site", passwordSetAt: 40 });
+    expect(locked.projects.find((p) => p.id === "site")?.share).toMatchObject({
+      passwordSetAt: 40,
+    });
+    const open = reduce(locked, { type: "share/password", id: "site", passwordSetAt: null });
+    expect(open.projects.find((p) => p.id === "site")?.share).not.toHaveProperty("passwordSetAt");
+  });
+
   it("keeps the owner's copy of a comment it already has", () => {
     const data = reduce(shared(), {
       type: "share/merge",

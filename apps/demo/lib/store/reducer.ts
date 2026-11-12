@@ -60,6 +60,11 @@ export type Action =
    * Nothing to send: the server already has it.
    */
   | { type: "share/window-restore"; id: string; hours: number | null }
+  /**
+   * The link's password as the server now has it: set at `passwordSetAt`, or
+   * none (null). Nothing to send: the server answered the change already.
+   */
+  | { type: "share/password"; id: string; passwordSetAt: number | null }
   /** A push or pull succeeded. */
   | { type: "share/synced"; id: string; at: number }
   /**
@@ -333,6 +338,10 @@ export function reduce(data: SquintData, action: Action): SquintData {
         reviewWindowHours: action.hours,
         reviewEndsAt: reviewDeadline(share.createdAt, action.hours),
       }));
+    case "share/password":
+      return updateShare(data, action.id, ({ passwordSetAt: _previous, ...share }) =>
+        action.passwordSetAt === null ? share : { ...share, passwordSetAt: action.passwordSetAt },
+      );
     case "share/merge":
       return mergeShared(data, action);
   }

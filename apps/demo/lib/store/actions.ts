@@ -6,7 +6,9 @@ import { newId } from "./id";
 import { fitPicture } from "../image";
 import { fitPages, pageByteBudget } from "../page-budget";
 import { findPage, MAX_PAGES } from "./pages";
-import { dispatch, dispatchConfirmed, getSnapshot, type Result } from "./store";
+import { passwordRefusal } from "../workspace-client/mutations";
+import type { SharePasswordState } from "../workspace/types";
+import { dispatch, dispatchConfirmed, getSnapshot, requestDirect, type Result } from "./store";
 import type { Action } from "./reducer";
 import type {
   Comment,
@@ -397,6 +399,23 @@ export const setReviewWindow = (id: string, hours: number | null) =>
 /** Shows the window the server last confirmed again, after a refused change; sends nothing. */
 export const restoreReviewWindow = (id: string, hours: number | null) =>
   dispatch({ type: "share/window-restore", id, hours });
+
+/**
+ * Sets (or, with null, removes) the password guests of the project's link
+ * must enter. The password goes straight to the server, never into an action
+ * or the store; once it answers, the store takes when it was set.
+ */
+export async function setSharePassword(id: string, password: string | null): Promise<Result> {
+  const removing = password === null;
+  const result = await requestDirect<SharePasswordState>(
+    removing ? "DELETE" : "PUT",
+    `/projects/${encodeURIComponent(id)}/share-link/password`,
+    removing ? {} : { password },
+  );
+  if (!result.ok) return { ok: false, error: passwordRefusal(result.status, removing) };
+  dispatch({ type: "share/password", id, passwordSetAt: result.value.passwordSetAt });
+  return { ok: true, value: undefined };
+}
 
 /**
  * Revokes the project's review link on the server (one already gone counts as

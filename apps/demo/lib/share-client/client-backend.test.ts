@@ -95,4 +95,26 @@ describe("client comments", () => {
     expect((await backend.addComment(input, null)).ok).toBe(false);
     expect(store.getSnapshot().gone).toBe(true);
   });
+
+  it("locks the link when it asks for its password again, keeping the draft unsent", async () => {
+    const { store, backend } = setup([
+      () => Response.json({ error: "password-required" }, { status: 401 }),
+    ]);
+    const result = await backend.addComment(input, null);
+    expect(!result.ok && result.error).toContain("needs its password again");
+    expect(store.getSnapshot().locked).toBe(true);
+    expect(store.getSnapshot().view.comments).toEqual([]);
+  });
+});
+
+describe("client snapshots", () => {
+  it("lock the link when it asks for its password again", async () => {
+    const { store, backend } = setup([
+      () => Response.json({ error: "password-required" }, { status: 401 }),
+    ]);
+    const outcome = await backend.captureSnapshot("shared", "", 1280, new AbortController().signal);
+    expect(outcome?.ok).toBe(false);
+    expect(outcome && !outcome.ok && outcome.message).toContain("password");
+    expect(store.getSnapshot().locked).toBe(true);
+  });
 });

@@ -14,6 +14,7 @@ import {
 import { clientApi } from "./api";
 import { SHARED_PROJECT_ID, type ClientStore } from "./client-store";
 import type { ServerBlobs } from "./server-blobs";
+import { isPasswordRequired } from "./unlock";
 
 const GONE = "This link no longer works. Ask the project owner for a new one.";
 const NOT_SENT: Record<number, string> = {
@@ -38,6 +39,9 @@ const NOT_SENT_DEFAULT = "Your comment wasn't sent. Retry in a moment.";
 const REVIEW_CLOSED =
   "Your comment wasn't sent: the review window has closed. Copy your text to keep it.";
 const CAPTURE_CLOSED = "The review window has closed, so new snapshots can't be taken.";
+/** 401 password-required: the link's password changed, or the guest pass ran out. */
+const LOCKED = "Your comment wasn't sent: this link needs its password again. Your text is kept.";
+const CAPTURE_LOCKED = "This link needs its password again before a new snapshot can be taken.";
 
 interface ClientBackendOptions {
   token: string;
@@ -120,6 +124,10 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
         store.markGone();
         return { ok: false, error: GONE };
       }
+      if (isPasswordRequired(result)) {
+        store.markLocked();
+        return { ok: false, error: LOCKED };
+      }
       if (result.error === "review-closed") {
         store.markReviewClosed();
         return { ok: false, error: REVIEW_CLOSED };
@@ -151,6 +159,10 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
       if (result.status === 404) {
         store.markGone();
         return { ok: false, message: GONE };
+      }
+      if (isPasswordRequired(result)) {
+        store.markLocked();
+        return { ok: false, message: CAPTURE_LOCKED };
       }
       if (result.error === "review-closed") {
         store.markReviewClosed();

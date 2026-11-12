@@ -9,12 +9,15 @@ export interface ShareButtonState {
   closed: boolean;
   /** The button's accessible name. */
   label: string;
+  /** Its tooltip: what the dot doesn't say (closed, password), if anything. */
+  title: string | undefined;
 }
 
 /**
  * What the Share button says about the project's link. A link the server no
  * longer has (`gone`: revoked elsewhere, or deleted) reads as no link at all.
- * `now` is 0 before the browser has a clock: never closed then.
+ * `now` is 0 before the browser has a clock: never closed then. A password
+ * shows in the name and tooltip only; the dot stays the link's.
  */
 export function shareButtonState(
   share: ProjectShare | undefined,
@@ -23,7 +26,14 @@ export function shareButtonState(
 ): ShareButtonState {
   const linked = Boolean(share) && phase !== "gone";
   const closed = Boolean(linked && share && now && reviewClosed(share.reviewEndsAt, now));
-  if (!linked) return { linked, closed, label: "Share" };
-  const label = `Share, link is on${closed ? ", review window closed" : ""}`;
-  return { linked, closed, label };
+  if (!linked) return { linked, closed, label: "Share", title: undefined };
+  const notes = [
+    closed ? "review window closed" : null,
+    share?.passwordSetAt === undefined ? null : "password protected",
+  ].filter((note): note is string => note !== null);
+  const label = ["Share, link is on", ...notes].join(", ");
+  const title = notes.length
+    ? notes.join(", ").replace(/^./, (first) => first.toUpperCase())
+    : undefined;
+  return { linked, closed, label, title };
 }

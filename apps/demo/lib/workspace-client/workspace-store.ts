@@ -1,5 +1,5 @@
 import { emitSquiggy } from "../squiggy/events";
-import { call, jsonInit } from "../share-client/api";
+import { call, jsonInit, type ApiResult } from "../share-client/api";
 import { reduce, type Action } from "../store/reducer";
 import type { SquintData } from "../store/types";
 import type {
@@ -203,6 +203,31 @@ export function dispatchSaved(action: Action): Promise<Result> {
 /** Resolves once every request queued so far has been answered. */
 export function whenSaved(): Promise<void> {
   return queue.then(() => undefined);
+}
+
+const DISCONNECTED = { ok: false, status: 0, error: "unavailable" } as const;
+
+/**
+ * A request no action carries, for a write holding a secret the store must
+ * never keep (a review link's password). Sent once every request queued so
+ * far has been answered, so it lands after the link it changes; other tabs
+ * hear of it as of any save. The caller applies the answer.
+ */
+export async function requestWorkspace<T>(
+  method: ServerWrite["method"],
+  path: string,
+  body: unknown,
+): Promise<ApiResult<T>> {
+  await whenSaved();
+  const target = connection;
+  if (!target) return DISCONNECTED;
+  const result = await call<T>(`${base(target.workspaceId)}${path}`, jsonInit(method, body));
+  if (connection !== target) return DISCONNECTED;
+  if (result.ok) {
+    lastSavedAt = Date.now();
+    target.tabs.announce();
+  } else if (result.status === 401) fail("signed-out");
+  return result;
 }
 
 function fileProjects(): void {

@@ -99,6 +99,8 @@ describe("share links", () => {
       cursor: 4,
       lastSyncedAt: NOW,
       ...WINDOW_72,
+      hasPassword: false,
+      passwordSetAt: null,
     });
   });
 
@@ -291,6 +293,11 @@ describe("share links", () => {
     const second = (await store.byId(created.shareId))?.password;
     expect(second?.hash).not.toBe(first?.hash);
     expect(await getShareLink(db, a.workspaceId, "p1", TEST_AUTH_SECRET)).toMatchObject({
+      hasPassword: true,
+      passwordSetAt: NOW + 6,
+    });
+    // The workspace's own read says so too, for every member's Share dialog.
+    expect((await getProject(db, a.workspaceId, "p1"))?.share).toMatchObject({
       hasPassword: true,
       passwordSetAt: NOW + 6,
     });

@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type * as DatabaseModule from "@/lib/db/database";
 import { connectedWorkspace, type Intercept } from "@/test/workspace-client";
-import { PNG, URL_PROJECT, type Seat } from "@/test/workspace-fixture";
+import { STATE } from "@/test/share-fixture";
+import { NOW, PNG, TEST_AUTH_SECRET, URL_PROJECT, type Seat } from "@/test/workspace-fixture";
 import { call } from "@/test/workspace-routes";
 import type { Database } from "../db/database";
+import { inlineBackend } from "../share/blob-backend";
+import { createPostgresStore } from "../share/postgres-store";
+import { createShare } from "../share/service";
 import { deleteFolder, listFolders } from "../workspace/folders";
 import { addComment } from "../workspace/comments";
 import { ARCHIVE_GRACE_MS } from "../workspace/limits";
@@ -14,6 +18,7 @@ import {
   restoreProject,
   trashProject,
 } from "../workspace/projects";
+import { attachShare, getShareLink } from "../workspace/share-links";
 import type { WorkspaceData, WorkspaceStart } from "../workspace/types";
 
 const holder = vi.hoisted(() => ({ db: null as Database | null }));
@@ -255,6 +260,53 @@ describe("the workspace store", () => {
     expect(data().projects[0]).not.toHaveProperty("label");
     await store.whenSaved();
     expect((await getProject(db, owner.workspaceId, "p1"))?.label).toBeNull();
+  });
+
+  it("sets a link's password on the server, keeping only when it was set, and removes it", async () => {
+    const { db, owner, store, actions, data } = await connected(async (db, id) => {
+      await createProject(db, id, URL_PROJECT("p1"), 1);
+      const share = await createShare(
+        { store: createPostgresStore(db), blobs: inlineBackend },
+        STATE,
+        NOW,
+      );
+      const proof = { shareId: share.shareId, token: share.token, ownerKey: share.ownerKey };
+      await db.transaction((tx) => attachShare(tx, id, "p1", proof, NOW, TEST_AUTH_SECRET));
+    });
+    // The link's secrets come from the server's read, as on a first visit.
+    await store.refreshWorkspace();
+    expect(data().projects[0]?.share).not.toHaveProperty("passwordSetAt");
+
+    const secret = "correct horse battery";
+    expect(await actions.setSharePassword("p1", secret)).toEqual({ ok: true, value: undefined });
+    const setAt = data().projects[0]?.share?.passwordSetAt;
+    expect(setAt).toEqual(expect.any(Number));
+    expect(JSON.stringify(data())).not.toContain(secret);
+    expect(await getShareLink(db, owner.workspaceId, "p1", TEST_AUTH_SECRET)).toMatchObject({
+      hasPassword: true,
+      passwordSetAt: setAt,
+    });
+    // Another read keeps it: the server's summary says so too.
+    await store.refreshWorkspace();
+    expect(data().projects[0]?.share?.passwordSetAt).toBe(setAt);
+
+    expect((await actions.setSharePassword("p1", null)).ok).toBe(true);
+    expect(data().projects[0]?.share).not.toHaveProperty("passwordSetAt");
+    expect(await getShareLink(db, owner.workspaceId, "p1", TEST_AUTH_SECRET)).toMatchObject({
+      hasPassword: false,
+    });
+  });
+
+  it("keeps the link as it was when its password is refused, and says why", async () => {
+    const { actions, data } = await connected(async (db, id) => {
+      await createProject(db, id, URL_PROJECT("p1"), 1);
+    });
+    // No link on the server: 404.
+    expect(await actions.setSharePassword("p1", "correct horse battery")).toEqual({
+      ok: false,
+      error: "This share link is no longer here. It may have been revoked in another tab.",
+    });
+    expect(data().projects[0]).not.toHaveProperty("share");
   });
 
   it("rolls back an archive the server refused, and says so", async () => {

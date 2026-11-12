@@ -2,6 +2,7 @@ import {
   dispatchSaved,
   dispatchToWorkspace,
   getWorkspaceState,
+  requestWorkspace,
   subscribeWorkspace,
   type Result,
   type WorkspaceState,
@@ -42,3 +43,9 @@ export function dispatch(action: Action): Result {
 export function dispatchConfirmed(action: Action): Promise<Result> {
   return dispatchSaved(action);
 }
+
+/**
+ * Sends a write no action may carry (a review link's password) after every
+ * save queued so far; the caller applies the answer with a local action.
+ */
+export const requestDirect = requestWorkspace;

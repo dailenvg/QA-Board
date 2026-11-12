@@ -7,7 +7,7 @@ import * as captureRoute from "@/app/api/s/[token]/capture/route";
 import * as commentsRoute from "@/app/api/s/[token]/comments/route";
 import * as unlockRoute from "@/app/api/s/[token]/unlock/route";
 import SharedReviewPage, { generateMetadata } from "@/app/s/[token]/page";
-import { ShareLocked } from "@/components/share/ShareLocked";
+import { ShareGate } from "@/components/share/ShareGate";
 import type * as DatabaseModule from "@/lib/db/database";
 import type * as ShareServerModule from "@/lib/share/server";
 import { seedLogo } from "@/test/brand-fixture";
@@ -329,7 +329,13 @@ describe("a protected link's page, metadata and preview card", () => {
       expect(wire).not.toContain(leak);
     }
     const page = await SharedReviewPage(params({ token: created.token }));
-    expect(page.type).toBe(ShareLocked);
+    expect(page.type).toBe(ShareGate);
+    expect(page.props).toMatchObject({ initial: { locked: true, brand: { name: "acme" } } });
+    // What the page hands the browser: the brand, nothing of the project.
+    const props = JSON.stringify(page.props);
+    for (const leak of [PROJECT_NAME, "snap-1", "Tighten the hero", "acme.example"]) {
+      expect(props).not.toContain(leak);
+    }
   });
 
   it("open with a pass, still saying the link is protected", async () => {
@@ -340,8 +346,11 @@ describe("a protected link's page, metadata and preview card", () => {
     expect(open?.locked === false && open.view.project.name).toBe(PROJECT_NAME);
     holder.cookie = cookie;
     const page = await SharedReviewPage(params({ token: created.token }));
-    expect(page.type).not.toBe(ShareLocked);
-    expect(page.props).toMatchObject({ token: created.token, initial: { project: STATE.project } });
+    expect(page.type).toBe(ShareGate);
+    expect(page.props).toMatchObject({
+      token: created.token,
+      initial: { locked: false, view: { project: STATE.project } },
+    });
   });
 
   it("never name the project in the preview, pass or not; the company stays", async () => {
