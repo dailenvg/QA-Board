@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ownerApi, shareUrl } from "@/lib/share-client/api";
+import { createLatestSaves } from "@/lib/share-client/latest-saves";
 import { pushNow, resetSync, syncNow } from "@/lib/share-client/owner-sync";
 import { toShareState } from "@/lib/share-client/share-state";
 import { useShareFit } from "@/lib/share-client/use-share-fit";
@@ -14,7 +15,12 @@ import {
   windowHours,
   type ReviewWindowChoice,
 } from "@/lib/share/review-window";
-import { setReviewWindow, shareProject, unshareProject } from "@/lib/store/actions";
+import {
+  restoreReviewWindow,
+  setReviewWindow,
+  shareProject,
+  unshareProject,
+} from "@/lib/store/actions";
 import { commentsFor } from "@/lib/store/selectors";
 import { snapshotsFor } from "@/lib/store/snapshots";
 import type { Project, ProjectShare, SquintData } from "@/lib/store/types";
@@ -101,6 +107,7 @@ export function ShareControl({ data, project }: ShareControlProps) {
    */
   const [windowSaves, setWindowSaves] = useState(0);
   const [windowError, setWindowError] = useState<string | null>(null);
+  const [windowSaver] = useState(() => createLatestSaves<number | null>());
   /** Which of the dialog's controls asked a question, so focus goes back to it after. */
   const [returnFocus, setReturnFocus] = useState<"window" | "revoke" | null>(null);
   const { share } = project;
@@ -152,12 +159,19 @@ export function ShareControl({ data, project }: ShareControlProps) {
 
   const saveWindow = async (choice: ReviewWindowChoice) => {
     stopAsking();
+    if (!share) return;
     setWindowSaves((count) => count + 1);
     setWindowError(null);
-    const saved = await setReviewWindow(project.id, windowHours(choice));
+    const hours = windowHours(choice);
+    const settled = await windowSaver.save(share.reviewWindowHours, hours, () =>
+      setReviewWindow(project.id, hours),
+    );
     setWindowSaves((count) => count - 1);
-    // Refused: the store has put the window back, and says why.
-    if (!saved.ok) setWindowError(saved.error);
+    // Only the last save of a burst says how it ended: the newest choice wins.
+    if (!settled) return;
+    setWindowError(settled.error);
+    // Refused: back to the newest window the server confirmed, never to one it refused.
+    if (settled.error) restoreReviewWindow(project.id, settled.value);
   };
 
   const chooseWindow = (choice: ReviewWindowChoice) => {

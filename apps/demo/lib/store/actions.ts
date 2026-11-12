@@ -394,6 +394,10 @@ export const shareProject = (id: string, share: ProjectShare) =>
 export const setReviewWindow = (id: string, hours: number | null) =>
   dispatchConfirmed({ type: "share/window", id, hours });
 
+/** Shows the window the server last confirmed again, after a refused change; sends nothing. */
+export const restoreReviewWindow = (id: string, hours: number | null) =>
+  dispatch({ type: "share/window-restore", id, hours });
+
 /**
  * Revokes the project's review link on the server (one already gone counts as
  * done) and forgets it. Resolves with the server's answer.

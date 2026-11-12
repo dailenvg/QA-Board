@@ -188,6 +188,11 @@ describe("sharing in the reducer", () => {
       reviewWindowHours: 168,
       reviewEndsAt: 1 + 168 * 3_600_000,
     });
+    const restored = reduce(week, { type: "share/window-restore", id: "site", hours: 24 });
+    expect(restored.projects.find((p) => p.id === "site")?.share).toMatchObject({
+      reviewWindowHours: 24,
+      reviewEndsAt: 1 + 24 * 3_600_000,
+    });
     const open = reduce(week, { type: "share/window", id: "site", hours: null });
     expect(open.projects.find((p) => p.id === "site")?.share).toMatchObject({
       reviewWindowHours: null,

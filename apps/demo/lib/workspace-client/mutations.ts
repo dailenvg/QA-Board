@@ -184,6 +184,8 @@ export function writesFor(action: Action, before: SquintData, after: SquintData)
       const reviewWindow = windowChoice(reviewWindowHours);
       return [write("PUT", linkPath(action.id), { shareId: id, token, ownerKey, reviewWindow })];
     }
+    case "share/window-restore":
+      return [];
     case "share/window":
       return [
         write("PATCH", `${linkPath(action.id)}/settings`, {

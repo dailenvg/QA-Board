@@ -158,6 +158,10 @@ describe("review window writes", () => {
     ]);
   });
 
+  it("sends nothing to put back a window the server already has", () => {
+    expect(writes({ type: "share/window-restore", id: "p3", hours: 24 })).toEqual([]);
+  });
+
   it("says the link is gone when the server no longer has it", () => {
     expect(refusalMessage({ type: "share/window", id: "p3", hours: 24 }, 404)).toMatch(
       /review link is no longer here/,
