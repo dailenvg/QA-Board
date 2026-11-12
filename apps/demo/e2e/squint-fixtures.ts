@@ -112,6 +112,32 @@ export async function shareWorkspaceProject(
   return { token: token ?? "", projectId: id };
 }
 
+/**
+ * An image project in DEFAULT_FOLDER with a review link, made in the owner's
+ * viewer. Its share is created from an address of its own, so these links stay
+ * out of the 10-a-minute budget the other specs' browsers share.
+ */
+export async function shareImageProject(page: Page, fileName: string): Promise<string> {
+  await page.route("**/api/shares", (route) =>
+    route.continue({
+      headers: {
+        ...route.request().headers(),
+        "x-forwarded-for": `198.51.100.${Math.floor(Math.random() * 250) + 1}`,
+      },
+    }),
+  );
+  await openFolder(page);
+  await createImageProject(page, fileName);
+  await page.getByTestId("share-button").click();
+  const dialog = page.getByTestId("share-dialog");
+  await dialog.getByTestId("create-share-link").click();
+  const link = await dialog.getByTestId("share-url").inputValue();
+  await expect(dialog.getByTestId("sync-status")).toContainText("Synced");
+  await page.keyboard.press("Escape");
+  await page.unroute("**/api/shares");
+  return link;
+}
+
 /** Revokes a project's review link, as its Share dialog does. */
 export async function revokeWorkspaceLink(page: Page, projectId: string): Promise<void> {
   // Workspace writes must say they're JSON, even without a body (a plain form can't).
