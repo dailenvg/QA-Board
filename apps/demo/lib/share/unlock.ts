@@ -13,7 +13,7 @@ export type UnlockResult =
 /**
  * A guest's try at a protected link's password, from address `ip`. The try is
  * claimed against the rate limit before Argon2 runs (even the right password
- * waits the limit out); a wrong one stays counted, the right one is released
+ * waits the limit out); a wrong one stays counted; the right one is released
  * and earns a guest pass for the password as it stands. A link without a
  * password answers ok with no pass, and counts nothing.
  */
