@@ -21,6 +21,8 @@ interface ShareRow {
   updated_at: string | number;
   /** Null on a workspace's share, which only goes when revoked or with its project. */
   expires_at: string | number | null;
+  /** Null: no limit (035). */
+  review_window_hours: number | null;
 }
 
 interface ItemRow<T> {
@@ -38,7 +40,8 @@ interface BlobRow {
   blob_url: string | null;
 }
 
-const SHARE_COLUMNS = "id, token_hash, owner_key_hash, project, created_at, updated_at, expires_at";
+const SHARE_COLUMNS =
+  "id, token_hash, owner_key_hash, project, created_at, updated_at, expires_at, review_window_hours";
 
 /**
  * A share answers like a revoked one while its workspace project is in the
@@ -84,6 +87,7 @@ function toRecord(row: ShareRow): ShareRecord {
     createdAt: Number(row.created_at),
     updatedAt: Number(row.updated_at),
     expiresAt: row.expires_at === null ? null : Number(row.expires_at),
+    reviewWindowHours: row.review_window_hours === null ? null : Number(row.review_window_hours),
   };
 }
 
@@ -141,7 +145,8 @@ export function createPostgresStore(db: Queryable): ShareStore {
   return {
     async create(record) {
       await db.query(
-        `INSERT INTO squint_shares (${SHARE_COLUMNS}) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7)`,
+        `INSERT INTO squint_shares (${SHARE_COLUMNS})
+         VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8)`,
         [
           record.id,
           record.tokenHash,
@@ -150,6 +155,7 @@ export function createPostgresStore(db: Queryable): ShareStore {
           record.createdAt,
           record.updatedAt,
           record.expiresAt,
+          record.reviewWindowHours,
         ],
       );
     },

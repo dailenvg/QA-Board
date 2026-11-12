@@ -1,6 +1,6 @@
 import { SQUINT_BRAND, toClientBrand } from "@/lib/share/brand";
 import { shareExpiresAt } from "@/lib/share/retention";
-import { reviewDeadline } from "@/lib/share/review-window";
+import { DEFAULT_REVIEW_WINDOW_HOURS, reviewDeadline } from "@/lib/share/review-window";
 import type {
   ClientView,
   SharedComment,
@@ -45,13 +45,15 @@ export const RECORD = {
   createdAt: 1,
   updatedAt: 1,
   expiresAt: shareExpiresAt(STATE.project, 1),
+  reviewWindowHours: DEFAULT_REVIEW_WINDOW_HOURS,
 } satisfies ShareRecord;
 
 /** What a client of `RECORD` sees. */
 export const VIEW: ClientView = {
   ...STATE,
   brand: toClientBrand(SQUINT_BRAND),
-  reviewEndsAt: reviewDeadline(RECORD.createdAt),
+  reviewEndsAt: reviewDeadline(RECORD.createdAt, RECORD.reviewWindowHours),
+  reviewWindowHours: RECORD.reviewWindowHours,
   expiresAt: RECORD.expiresAt,
 };
 

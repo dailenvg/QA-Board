@@ -107,7 +107,15 @@ async function sharedWorkspace(project: Project, state: ShareState) {
   const created = await ownerApi.create(state);
   if (!created.ok) throw new Error(`create failed: ${created.error}`);
   const { shareId, token, ownerKey } = created.value;
-  const share: ProjectShare = { id: shareId, token, ownerKey, createdAt: 0, cursor: 0 };
+  const share: ProjectShare = {
+    id: shareId,
+    token,
+    ownerKey,
+    createdAt: 0,
+    cursor: 0,
+    reviewWindowHours: null,
+    reviewEndsAt: null,
+  };
   const attached = await workspace.actions.shareProject(project.id, share);
   if (!attached.ok) throw new Error(attached.error);
   const sync = await import("./owner-sync");

@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef } from "react";
 import { relativeTime } from "@/lib/relative-time";
-import { reviewDeadline, spokenTimeLeft, timeLeft } from "@/lib/share/review-window";
+import { spokenTimeLeft, timeLeft, type ReviewWindowChoice } from "@/lib/share/review-window";
 import type { SyncStatus } from "@/lib/share-client/owner-sync";
 import type { ShareFit } from "@/lib/share-client/use-share-fit";
 import type { ProjectShare } from "@/lib/store/types";
@@ -12,6 +12,7 @@ import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
 import { FieldError } from "../ui/FieldError";
 import { Icon, type IconName } from "../ui/Icon";
+import { ReviewWindowControl } from "./ReviewWindowControl";
 
 interface ShareDialogProps {
   open: boolean;
@@ -24,6 +25,13 @@ interface ShareDialogProps {
   creating: boolean;
   revoking: boolean;
   error: string | null;
+  /** The link's review window, or the one a new link will get. */
+  reviewWindow: ReviewWindowChoice;
+  /** A change of the link's window is on its way to the server. */
+  savingWindow: boolean;
+  /** Why the last change of the window didn't save; null when it did. */
+  windowError: string | null;
+  onReviewWindowChange: (choice: ReviewWindowChoice) => void;
   onCreate: () => void;
   onRetry: () => void;
   onRevoke: () => void;
@@ -39,12 +47,18 @@ function syncLine(status: SyncStatus, share: ProjectShare, now: number): string 
   return at ? `Synced ${relativeTime(at, now)}` : "Not synced yet";
 }
 
-/** How long clients can still comment through the link (the window starts when it's created). */
+/**
+ * How long clients can still comment through the link, by the server's
+ * deadline (the window starts when the link is created).
+ */
 function reviewLine(share: ProjectShare, now: number): string {
-  const left = timeLeft(reviewDeadline(share.createdAt), now);
+  if (share.reviewEndsAt === null) {
+    return "No time limit. Clients can comment until you revoke the link.";
+  }
+  const left = timeLeft(share.reviewEndsAt, now);
   return left
     ? `Clients can comment for ${spokenTimeLeft(left)} more.`
-    : "Review window closed. Clients can still open the link, but can't add comments. To collect more feedback, revoke this link and create a new one.";
+    : "Review window closed. Clients can still open the link and read comments, but can't add new ones. To collect more feedback, choose a longer window or No limit.";
 }
 
 /**
@@ -61,6 +75,10 @@ export function ShareDialog({
   creating,
   revoking,
   error,
+  reviewWindow,
+  savingWindow,
+  windowError,
+  onReviewWindowChange,
   onCreate,
   onRetry,
   onRevoke,
@@ -93,13 +111,14 @@ export function ShareDialog({
   const wasLinked = useRef(linked);
 
   // Creating the link replaces the focused Create button with the link view; the link going
-  // away (revoked, or gone in another tab) does the reverse. Carry focus to the first button of
-  // whichever view is now shown, so it doesn't fall to the page behind the modal.
+  // away (revoked, or gone in another tab) does the reverse. Carry focus to the view's main
+  // button (Create, or the link view's first), so it doesn't fall to the page behind the modal.
   useEffect(() => {
     if (open && linked !== wasLinked.current) {
       const view = linked ? linkedView.current : createView.current;
       if (view && !view.contains(document.activeElement)) {
-        view.querySelector<HTMLElement>("button")?.focus();
+        const main = view.querySelector<HTMLElement>("[data-view-focus]");
+        (main ?? view.querySelector<HTMLElement>("button"))?.focus();
       }
     }
     wasLinked.current = linked;
@@ -138,6 +157,12 @@ export function ShareDialog({
               </Button>
             ) : null}
           </div>
+          <ReviewWindowControl
+            value={reviewWindow}
+            onChange={onReviewWindowChange}
+            saving={savingWindow}
+            error={windowError}
+          />
           <p
             data-testid="review-window"
             className="-mt-2 flex items-start gap-2 text-meta text-muted"
@@ -169,11 +194,18 @@ export function ShareDialog({
               Anyone with the link can open this project. Their comments come back here.
             </p>
           )}
+          <ReviewWindowControl
+            value={reviewWindow}
+            onChange={onReviewWindowChange}
+            saving={false}
+            error={null}
+          />
           {/* aria-disabled while busy, so keyboard focus stays here if creating fails. */}
           <Button
             onClick={blocked ? undefined : onCreate}
             aria-disabled={blocked || undefined}
             aria-describedby={errorId}
+            data-view-focus
             data-testid="create-share-link"
           >
             <Icon name="link" className="size-4" />

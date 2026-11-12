@@ -12,7 +12,32 @@ import { inlineBackend } from "../share/blob-backend";
 import { createPostgresStore } from "../share/postgres-store";
 import { clientShare, createShare } from "../share/service";
 import { createProject, getProject, restoreProject, setArchived, trashProject } from "./projects";
-import { attachShare, getShareLink, syncShareLink } from "./share-links";
+import { attachShare, changeShareSettings, getShareLink, syncShareLink } from "./share-links";
+
+const HOUR = 60 * 60 * 1000;
+/** A new link's window: 72 hours from its creation at `NOW`. */
+const WINDOW_72 = { reviewWindowHours: 72, reviewEndsAt: NOW + 72 * HOUR };
+
+async function inviterOf(db: Database, shareId: string): Promise<string | null> {
+  const { rows } = await db.query<{ invited_by_user_id: string | null }>(
+    "SELECT invited_by_user_id FROM squint_shares WHERE id = $1",
+    [shareId],
+  );
+  return rows[0]?.invited_by_user_id ?? null;
+}
+
+/** A second member of the workspace, who could attach the link too. */
+async function addMember(db: Database, workspaceId: string): Promise<string> {
+  const { rows } = await db.query<{ id: string }>(
+    "INSERT INTO users (email, password_hash, role) VALUES ('ben@acme.test', 'x', 'company') RETURNING id",
+  );
+  const userId = rows[0]?.id ?? "";
+  await db.query(
+    "INSERT INTO memberships (user_id, workspace_id, role) VALUES ($1, $2, 'member')",
+    [userId, workspaceId],
+  );
+  return userId;
+}
 
 async function setup() {
   const fixture = await twoWorkspaces();
@@ -57,12 +82,14 @@ describe("share links", () => {
       createdAt: NOW,
       cursor: 4,
       lastSyncedAt: NOW,
+      ...WINDOW_72,
     });
     expect((await getProject(db, a.workspaceId, "p1"))?.share).toEqual({
       id: created.shareId,
       createdAt: NOW,
       cursor: 4,
       lastSyncedAt: NOW,
+      ...WINDOW_72,
     });
   });
 
@@ -178,6 +205,80 @@ describe("share links", () => {
     await db.query("UPDATE workspaces SET archived_at = NULL WHERE id = $1", [a.workspaceId]);
     expect(await clientShare(store, created.token, NOW)).not.toBeNull();
     expect(await store.byId(created.shareId)).not.toBeNull();
+  });
+
+  it("records who attached the link, and the first inviter stays when it's attached again", async () => {
+    const { db, a, created, input } = await setup();
+    const ben = await addMember(db, a.workspaceId);
+    await attach(db, a.workspaceId, "p1", { ...input, invitedBy: a.userId });
+    expect(await inviterOf(db, created.shareId)).toBe(a.userId);
+    expect(await attach(db, a.workspaceId, "p1", { ...input, invitedBy: ben })).toEqual({
+      ok: true,
+      value: null,
+    });
+    expect(await inviterOf(db, created.shareId)).toBe(a.userId);
+  });
+
+  it("takes the window chosen when attaching, and keeps it when attached again without one", async () => {
+    const { db, a, store, created, input } = await setup();
+    await attach(db, a.workspaceId, "p1", { ...input, reviewWindow: "24h" });
+    expect(await getShareLink(db, a.workspaceId, "p1", TEST_AUTH_SECRET)).toMatchObject({
+      reviewWindowHours: 24,
+      reviewEndsAt: NOW + 24 * HOUR,
+    });
+    await attach(db, a.workspaceId, "p1", input);
+    expect((await store.byId(created.shareId))?.reviewWindowHours).toBe(24);
+    await attach(db, a.workspaceId, "p1", { ...input, reviewWindow: "none" });
+    expect((await getProject(db, a.workspaceId, "p1"))?.share).toMatchObject({
+      reviewWindowHours: null,
+      reviewEndsAt: null,
+    });
+  });
+
+  it("changes a link's window from its creation, and audits the field and the new window only", async () => {
+    const { db, a, store, created, input } = await setup();
+    await attach(db, a.workspaceId, "p1", input);
+    const actor = { userId: a.userId, workspaceId: a.workspaceId };
+    expect(await changeShareSettings(db, actor, "p1", { reviewWindow: "7d" }, NOW + 5)).toEqual({
+      reviewWindowHours: 168,
+      reviewEndsAt: NOW + 168 * HOUR,
+    });
+    expect((await store.byId(created.shareId))?.reviewWindowHours).toBe(168);
+    expect(await changeShareSettings(db, actor, "p1", { reviewWindow: "none" }, NOW + 6)).toEqual({
+      reviewWindowHours: null,
+      reviewEndsAt: null,
+    });
+    const { rows } = await db.query<Record<string, unknown>>(
+      `SELECT actor_user_id, workspace_id, action, target_type, target_id, meta
+       FROM audit_log ORDER BY id`,
+    );
+    expect(rows).toEqual(
+      ["7d", "none"].map((reviewWindow) => ({
+        actor_user_id: a.userId,
+        workspace_id: a.workspaceId,
+        action: "share.settings_changed",
+        target_type: "project",
+        target_id: "p1",
+        meta: { fields: ["reviewWindow"], reviewWindow },
+      })),
+    );
+    expect(JSON.stringify(rows)).not.toContain(created.token);
+  });
+
+  it("changes nothing for a project without a link, in the trash, or of another workspace", async () => {
+    const { db, a, b, store, created, input } = await setup();
+    await attach(db, a.workspaceId, "p1", input);
+    const settings = { reviewWindow: "24h" } as const;
+    const theirs = { userId: b.userId, workspaceId: b.workspaceId };
+    expect(await changeShareSettings(db, theirs, "p1", settings, NOW)).toBeNull();
+    const ours = { userId: a.userId, workspaceId: a.workspaceId };
+    expect(await changeShareSettings(db, ours, "p2", settings, NOW)).toBeNull();
+    await trashProject(db, a.workspaceId, "p1", NOW);
+    expect(await changeShareSettings(db, ours, "p1", settings, NOW)).toBeNull();
+    await db.query("UPDATE projects SET deleted_at = NULL WHERE id = 'p1'");
+    expect((await store.byId(created.shareId))?.reviewWindowHours).toBe(72);
+    const { rows } = await db.query("SELECT 1 FROM audit_log");
+    expect(rows).toHaveLength(0);
   });
 
   it("keeps a workspace share's missing deletion date through an owner push", async () => {

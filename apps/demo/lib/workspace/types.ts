@@ -6,8 +6,16 @@ import type { Comment, Folder, ProjectSource, Snapshot } from "../store/types";
  * a file's storage path never leaves the server.
  */
 
+/** How long a link's clients can comment, as the server keeps and counts it. */
+export interface ReviewWindowState {
+  /** Hours from the link's creation (24, 72 or 168); null for no limit. */
+  reviewWindowHours: number | null;
+  /** When the window closes (epoch ms, from the server's creation time); null: never. */
+  reviewEndsAt: number | null;
+}
+
 /** A project's review link, without its secrets (those come from `share-link` alone). */
-export interface WorkspaceShareSummary {
+export interface WorkspaceShareSummary extends ReviewWindowState {
   id: string;
   createdAt: number;
   cursor: number;
@@ -38,7 +46,7 @@ export interface TrashedProject extends WorkspaceProject {
 }
 
 /** The owner's side of a project's review link, as the browser store's `ProjectShare`. */
-export interface ShareLink {
+export interface ShareLink extends ReviewWindowState {
   id: string;
   token: string;
   ownerKey: string;

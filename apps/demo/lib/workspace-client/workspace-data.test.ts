@@ -9,6 +9,9 @@ import {
   toSquintData,
 } from "./workspace-data";
 
+/** The server's window: 24 hours from the link's creation. */
+const WINDOW = { reviewWindowHours: 24, reviewEndsAt: 3 + 24 * 3_600_000 };
+
 const project = (id: string, folderId: string | null, share = false): WorkspaceProject => ({
   id,
   folderId,
@@ -19,7 +22,9 @@ const project = (id: string, folderId: string | null, share = false): WorkspaceP
   label: null,
   archivedAt: null,
   deleteAfter: null,
-  ...(share ? { share: { id: `share-${id}`, createdAt: 3, cursor: 4, lastSyncedAt: 5 } } : {}),
+  ...(share
+    ? { share: { id: `share-${id}`, createdAt: 3, cursor: 4, lastSyncedAt: 5, ...WINDOW } }
+    : {}),
 });
 
 function workspace(projects: WorkspaceProject[], folders = true): WorkspaceData {
@@ -46,10 +51,12 @@ const LINK = {
   ownerKey: "owner",
   createdAt: 3,
   cursor: 0,
+  reviewWindowHours: 72,
+  reviewEndsAt: 3 + 72 * 3_600_000,
 };
 
 describe("toSquintData", () => {
-  it("shows a review link once its secrets are known, with the server's sync position", () => {
+  it("shows a review link once its secrets are known, with the server's sync position and window", () => {
     const data = workspace([project("p1", "older"), project("p2", "older", true)]);
     expect(toSquintData(data, new Map()).projects[1]).not.toHaveProperty("share");
     expect(projectsMissingLinks(data, new Map())).toEqual(["p2"]);
@@ -62,6 +69,7 @@ describe("toSquintData", () => {
       createdAt: 3,
       cursor: 4,
       lastSyncedAt: 5,
+      ...WINDOW,
     });
     expect(projectsMissingLinks(data, links)).toEqual([]);
     expect(toSquintData(data, links)).toMatchObject({ authorName: "Ana" });

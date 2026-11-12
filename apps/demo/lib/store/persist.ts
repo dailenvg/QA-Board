@@ -1,4 +1,5 @@
 import { projectImageKey } from "../blob-store/keys";
+import { DEFAULT_REVIEW_WINDOW_HOURS, reviewDeadline } from "../share/review-window";
 import { MIGRATED_PAGE_ID, placeComment } from "./pages";
 import type {
   Comment,
@@ -64,7 +65,12 @@ interface StoredImageSource {
 }
 
 type StoredSource = ProjectSource | InlineImageSource | StoredImageSource;
-type StoredProject = Omit<Project, "source"> & { source: StoredSource };
+/** Shares saved in this browser came before review windows could change. */
+type StoredShare = Omit<ProjectShare, "reviewWindowHours" | "reviewEndsAt">;
+type StoredProject = Omit<Project, "source" | "share"> & {
+  source: StoredSource;
+  share?: StoredShare;
+};
 /** Folders before version 3 had no parent. */
 type StoredFolder = Omit<Folder, "parentId"> & { parentId?: string | null };
 
@@ -124,7 +130,7 @@ const isSource: Guard<StoredSource> = (value): value is StoredSource => {
   return value.kind === "image" && picture;
 };
 
-const isShare: Guard<ProjectShare> = (value): value is ProjectShare =>
+const isShare: Guard<StoredShare> = (value): value is StoredShare =>
   isRecord(value) &&
   isString(value.id) &&
   isString(value.token) &&
@@ -212,11 +218,25 @@ function safeSource(source: ProjectSource): ProjectSource | null {
   return pages;
 }
 
+/**
+ * A share saved in this browser: made without signing in, so its review
+ * window is the one every such share has.
+ */
+function upgradeShare(share: StoredShare): ProjectShare {
+  const hours = DEFAULT_REVIEW_WINDOW_HOURS;
+  return {
+    ...share,
+    reviewWindowHours: hours,
+    reviewEndsAt: reviewDeadline(share.createdAt, hours),
+  };
+}
+
 /** Drops share details that aren't readable; the project stays, no longer shared here. */
-function withSafeShare<T extends { share?: unknown }>(project: T): T {
-  if (project.share === undefined || isShare(project.share)) return project;
-  const { share: _unreadable, ...rest } = project;
-  return rest as T;
+function withSafeShare(
+  project: StoredProject,
+): Omit<StoredProject, "share"> & { share?: ProjectShare } {
+  const { share, ...rest } = project;
+  return share !== undefined && isShare(share) ? { ...rest, share: upgradeShare(share) } : rest;
 }
 
 /** A version 2 image as a one-page project, its picture where it already is (no copy). */

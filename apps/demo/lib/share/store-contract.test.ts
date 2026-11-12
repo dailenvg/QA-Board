@@ -2,6 +2,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { describe, expect, it } from "vitest";
 import { readdirSync } from "node:fs";
 import { COMMENT, JPEG, PNG, RECORD, SNAPSHOT, STATE } from "@/test/share-fixture";
+import { storeBefore035 } from "@/test/legacy-share-store";
 import { adaptPglite, migratedPglite } from "@/test/pglite";
 import { toShareState } from "../share-client/share-state";
 import { parseData } from "../store/persist";
@@ -51,6 +52,16 @@ describe.each(stores)("%s share store", (_name, make) => {
     const project = { name: "Renamed", source: RECORD.project.source };
     await store.setProject(RECORD.id, project, 9, 12);
     expect(await store.byId(RECORD.id)).toMatchObject({ project, updatedAt: 9, expiresAt: 12 });
+  });
+
+  it.each([24, 72, 168, null])("keeps a review window of %s hours", async (hours) => {
+    const store = await make();
+    await store.create({ ...RECORD, reviewWindowHours: hours });
+    expect(await store.byId(RECORD.id)).toMatchObject({ reviewWindowHours: hours });
+    expect(await store.byTokenHash(RECORD.tokenHash)).toMatchObject({ reviewWindowHours: hours });
+    // A push leaves it as it was.
+    await store.setProject(RECORD.id, RECORD.project, 9, 12);
+    expect(await store.byId(RECORD.id)).toMatchObject({ reviewWindowHours: hours });
   });
 
   it("lists shares expired by `now`, soonest first, up to the limit", async () => {
@@ -492,7 +503,7 @@ describe("migration 022 (workspace shares)", () => {
 
   it("keeps a share written before it working, and expires anonymous shares only", async () => {
     const db = await before022();
-    const store = createPostgresStore(db);
+    const store = storeBefore035(db);
     await store.create(RECORD);
     await store.upsertComment(RECORD.id, COMMENT, "owner");
     await store.putBlob(RECORD.id, {

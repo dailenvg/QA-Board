@@ -148,6 +148,7 @@ function attempts(): Array<[string, string, unknown?]> {
     ["GET", "/projects/deck/share-link"],
     ["PUT", "/projects/deck/share-link", share],
     ["PATCH", "/projects/deck/share-link", { cursor: 99, lastSyncedAt: NOW }],
+    ["PATCH", "/projects/deck/share-link/settings", { reviewWindow: "none" }],
     ["DELETE", "/projects/deck/share-link"],
     ["GET", "/projects/deck/blobs/page:page-1"],
     ["DELETE", "/projects/deck/blobs/page:page-1"],

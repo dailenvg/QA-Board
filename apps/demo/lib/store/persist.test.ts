@@ -251,11 +251,15 @@ describe("parseData", () => {
     expect(result.ok).toBe(false);
   });
 
-  it("keeps a project's share details, and drops unreadable ones", () => {
+  it("keeps a project's share details with an anonymous link's 72 hours, and drops unreadable ones", () => {
     const share = { id: "s", token: "t", ownerKey: "k", createdAt: 1, cursor: 4, lastSyncedAt: 9 };
     const [site] = LEGACY_V1.projects;
     expect(parse({ ...LEGACY_V1, projects: [{ ...site, share }] }).data.projects[0]?.share).toEqual(
-      share,
+      {
+        ...share,
+        reviewWindowHours: 72,
+        reviewEndsAt: 1 + 72 * 60 * 60 * 1000,
+      },
     );
     const broken = parse({ ...LEGACY_V1, projects: [{ ...site, share: { id: 3 } }] });
     expect(broken.data.projects[0]).not.toHaveProperty("share");

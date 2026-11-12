@@ -66,6 +66,10 @@ export interface ProjectShare {
   /** Client additions up to here have been pulled into this browser. */
   cursor: number;
   lastSyncedAt?: number;
+  /** How long clients can comment, in hours from `createdAt`: 24, 72 or 168; null for no limit. */
+  reviewWindowHours: number | null;
+  /** When clients can no longer comment (epoch ms), as the server counts it; null: never. */
+  reviewEndsAt: number | null;
 }
 
 export interface Project {

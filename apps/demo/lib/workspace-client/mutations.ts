@@ -1,3 +1,4 @@
+import { windowChoice } from "../share/review-window";
 import type { Action } from "../store/reducer";
 import type { Comment, Snapshot, SquintData } from "../store/types";
 
@@ -20,6 +21,7 @@ export interface ServerWrite {
 const PROJECT_GONE = "This project is no longer here. It may have been deleted in another tab.";
 const FOLDER_GONE = "This folder is no longer here. It may have been deleted in another tab.";
 const COMMENT_GONE = "This comment is no longer here. It may have been deleted in another tab.";
+const LINK_GONE = "This review link is no longer here. It may have been revoked in another tab.";
 export const SAVE_FAILED =
   "That change didn't save and was undone. Check your connection and try again.";
 
@@ -178,9 +180,16 @@ export function writesFor(action: Action, before: SquintData, after: SquintData)
     case "author/set":
       return [write("PUT", "/author", { name: action.name })];
     case "project/share": {
-      const { id, token, ownerKey } = action.share;
-      return [write("PUT", linkPath(action.id), { shareId: id, token, ownerKey })];
+      const { id, token, ownerKey, reviewWindowHours } = action.share;
+      const reviewWindow = windowChoice(reviewWindowHours);
+      return [write("PUT", linkPath(action.id), { shareId: id, token, ownerKey, reviewWindow })];
     }
+    case "share/window":
+      return [
+        write("PATCH", `${linkPath(action.id)}/settings`, {
+          reviewWindow: windowChoice(action.hours),
+        }),
+      ];
     case "project/unshare":
       return [write("DELETE", linkPath(action.id), {}, [404])];
     case "share/synced": {
@@ -205,5 +214,6 @@ export function refusalMessage(action: Action, status: number): string {
   if (action.type.startsWith("comment/") && action.type !== "comment/add") {
     return status === 404 ? COMMENT_GONE : SAVE_FAILED;
   }
+  if (action.type === "share/window") return LINK_GONE;
   return PROJECT_GONE;
 }

@@ -25,18 +25,21 @@ export const GET = withMember<Params>(async (_request, { db, workspaceId }, para
 });
 
 /**
- * `PUT { shareId, token, ownerKey }`: makes a share (from `POST /api/shares`)
- * the project's review link. The owner key and token must match the share;
- * any mismatch answers 404 like an unknown share. 409 `linked` when the
- * project already has another link (delete that first).
+ * `PUT { shareId, token, ownerKey, reviewWindow? }`: makes a share (from
+ * `POST /api/shares`) the project's review link, with the review window
+ * chosen for it (`24h`, `72h`, `7d` or `none`; kept as it is when left out).
+ * The member attaching it is recorded as who invited its reviewers, unless
+ * someone already is. The owner key and token must match the share; any
+ * mismatch answers 404 like an unknown share. 409 `linked` when the project
+ * already has another link (delete that first).
  */
-export const PUT = withMember<Params>(async (request, { db, workspaceId, now }, params) => {
+export const PUT = withMember<Params>(async (request, { db, user, workspaceId, now }, params) => {
   const projectId = param(idSchema, params.projectId);
   if (!projectId) return notFound();
   const body = await readBody(request, shareAttachSchema);
   if (!body.ok) return body.response;
   const attached = await db.transaction((tx) =>
-    attachShare(tx, workspaceId, projectId, body.value, now),
+    attachShare(tx, workspaceId, projectId, { ...body.value, invitedBy: user.id }, now),
   );
   if (!attached.ok) return refusal(attached.reason);
   const link = await getShareLink(db, workspaceId, projectId);

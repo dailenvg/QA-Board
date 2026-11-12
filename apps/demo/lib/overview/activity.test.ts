@@ -28,7 +28,17 @@ const project = (id: string, folderId: string, updatedAt: number, cursor?: numbe
   updatedAt,
   ...(cursor === undefined
     ? {}
-    : { share: { id: `share-${id}`, token: "t", ownerKey: "o", createdAt: 1, cursor } }),
+    : {
+        share: {
+          id: `share-${id}`,
+          token: "t",
+          ownerKey: "o",
+          createdAt: 1,
+          cursor,
+          reviewWindowHours: null,
+          reviewEndsAt: null,
+        },
+      }),
 });
 
 const comment = (

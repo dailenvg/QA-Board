@@ -40,6 +40,7 @@ describe("client store", () => {
       comments: [{ ...COMMENT, id: "k", snapshotId: undefined, pageId: "p2" }],
       brand: VIEW.brand,
       reviewEndsAt: VIEW.reviewEndsAt,
+      reviewWindowHours: VIEW.reviewWindowHours,
       expiresAt: VIEW.expiresAt,
     };
     const { data, project } = toViewerData(
@@ -71,6 +72,18 @@ describe("client store", () => {
     store.setView({ ...VIEW, comments: [accepted] });
     store.addComment(accepted);
     expect(toViewerData(store.getSnapshot()).data.comments.map((c) => c.id)).toEqual(["k"]);
+  });
+});
+
+describe("the review window", () => {
+  it("stays closed once the server said so, until a refresh brings a new deadline", () => {
+    const store = createClientStore(VIEW, anonymous());
+    store.markReviewClosed();
+    store.setView({ ...VIEW, comments: [] });
+    expect(store.getSnapshot().reviewClosed).toBe(true);
+    // The owner chose a longer window, or no limit: the server's new deadline reopens it.
+    store.setView({ ...VIEW, reviewEndsAt: null, reviewWindowHours: null });
+    expect(store.getSnapshot().reviewClosed).toBe(false);
   });
 });
 

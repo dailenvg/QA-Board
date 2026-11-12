@@ -6,7 +6,7 @@ import { COMMENT, PNG, RECORD, STATE } from "@/test/share-fixture";
 import type { Database } from "../db/database";
 import { inlineBackend } from "./blob-backend";
 import { MIGRATIONS, migrate } from "./migrate";
-import { createPostgresStore } from "./postgres-store";
+import { storeBefore035 } from "@/test/legacy-share-store";
 import { clientShare, clientView, createShare } from "./service";
 
 /** Every migration before 023: the schema production had when Milestone 1b shipped. */
@@ -45,7 +45,7 @@ const databases: Array<[string, () => Promise<Database>]> = [
 async function at022(make: () => Promise<Database>) {
   const db = await make();
   expect(await migrate(db, UP_TO_022)).toHaveLength(22);
-  const store = createPostgresStore(db);
+  const store = storeBefore035(db);
   const services = { store, blobs: inlineBackend };
   const anonymous = await createShare(services, STATE, Date.now());
   await store.upsertComment(anonymous.shareId, COMMENT, "owner");

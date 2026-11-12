@@ -388,6 +388,13 @@ export const shareProject = (id: string, share: ProjectShare) =>
   dispatchConfirmed({ type: "project/share", id, share });
 
 /**
+ * Sets how long the project's link takes client comments (`hours` from its
+ * creation; null for no limit). Resolves with the server's answer.
+ */
+export const setReviewWindow = (id: string, hours: number | null) =>
+  dispatchConfirmed({ type: "share/window", id, hours });
+
+/**
  * Revokes the project's review link on the server (one already gone counts as
  * done) and forgets it. Resolves with the server's answer.
  */

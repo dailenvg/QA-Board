@@ -1,16 +1,24 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as DatabaseModule from "@/lib/db/database";
 import {
   addFolder,
   NOW,
   PAGES_PROJECT,
   PNG,
+  TEST_AUTH_SECRET,
   twoWorkspaces,
+  URL_PROJECT,
   type Seat,
 } from "@/test/workspace-fixture";
 import { call, ENDPOINTS, fill, ORIGIN } from "@/test/workspace-routes";
 import type { Database } from "../db/database";
+import { STATE } from "@/test/share-fixture";
+import { inlineBackend } from "../share/blob-backend";
+import { createPostgresStore } from "../share/postgres-store";
+import { createShare } from "../share/service";
 import { createProject } from "./projects";
+
+const HOUR = 60 * 60 * 1000;
 
 const holder = vi.hoisted(() => ({ db: null as Database | null }));
 
@@ -22,6 +30,10 @@ vi.mock("@/lib/db/database", async (importOriginal) => ({
 let db: Database;
 let a: Seat;
 let b: Seat;
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 beforeEach(async () => {
   ({ db, a, b } = await twoWorkspaces());
@@ -123,6 +135,9 @@ describe("request bodies", () => {
       "token",
     ],
     ["PATCH", "/projects/p1/share-link", { cursor: -1, lastSyncedAt: 1 }, "cursor"],
+    ["PATCH", "/projects/p1/share-link/settings", { reviewWindow: "48h" }, "reviewWindow"],
+    ["PATCH", "/projects/p1/share-link/settings", { reviewWindow: 24 }, "reviewWindow"],
+    ["PATCH", "/projects/p1/share-link/settings", {}, "reviewWindow"],
     ["POST", "/blobs/commit", { projectId: "p1", key: "../../etc" }, "key"],
     ["POST", "/blobs/token", { type: "blob.other" }, "type"],
     ["POST", "/import", { folders: [] }, "projects"],
@@ -261,6 +276,54 @@ describe("happy paths", () => {
     expect(trash).toMatchObject([{ id: "binned", folderId: null }]);
     const restored = await call("POST", at("/projects/binned/restore"), { cookie, body: {} });
     expect(await restored.json()).toMatchObject({ id: "binned", folderId: null });
+  });
+
+  it("attaches a link as its inviter with the chosen window, then changes the window and audits it", async () => {
+    vi.stubEnv("AUTH_SECRET", TEST_AUTH_SECRET);
+    const created = await createShare(
+      { store: createPostgresStore(db), blobs: inlineBackend },
+      STATE,
+      NOW,
+    );
+    const link = `/api/w/${a.workspaceId}/projects/p1/share-link`;
+    const proof = { shareId: created.shareId, token: created.token, ownerKey: created.ownerKey };
+    const attached = await call("PUT", link, {
+      cookie: a.cookie,
+      body: { ...proof, reviewWindow: "24h" },
+    });
+    expect(await attached.json()).toMatchObject({
+      id: created.shareId,
+      reviewWindowHours: 24,
+      reviewEndsAt: NOW + 24 * HOUR,
+    });
+    const { rows: shares } = await db.query("SELECT invited_by_user_id FROM squint_shares");
+    expect(shares).toEqual([{ invited_by_user_id: a.userId }]);
+
+    const changed = await call("PATCH", `${link}/settings`, {
+      cookie: a.cookie,
+      body: { reviewWindow: "none" },
+    });
+    expect(changed.status).toBe(200);
+    expect(await changed.json()).toEqual({ reviewWindowHours: null, reviewEndsAt: null });
+    const { rows: entries } = await db.query("SELECT action, target_id, meta FROM audit_log");
+    expect(entries).toEqual([
+      {
+        action: "share.settings_changed",
+        target_id: "p1",
+        meta: { fields: ["reviewWindow"], reviewWindow: "none" },
+      },
+    ]);
+    // Without a link, there's nothing to set.
+    await createProject(db, a.workspaceId, URL_PROJECT("p2"), NOW);
+    const unlinked = await call(
+      "PATCH",
+      `/api/w/${a.workspaceId}/projects/p2/share-link/settings`,
+      {
+        cookie: a.cookie,
+        body: { reviewWindow: "7d" },
+      },
+    );
+    expect(unlinked.status).toBe(404);
   });
 
   it("sets and reads the member's author name", async () => {

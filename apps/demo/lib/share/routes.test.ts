@@ -10,7 +10,7 @@ import * as createRoute from "@/app/api/shares/route";
 import { PNG, STATE } from "@/test/share-fixture";
 import { session } from "@/test/signed-in";
 import { OWNER_KEY_HEADER } from "./http";
-import { REVIEW_WINDOW_MS } from "./review-window";
+import { DEFAULT_REVIEW_WINDOW_HOURS } from "./review-window";
 import type { CreatedShare } from "./service";
 
 vi.mock("@/lib/auth/guards", () => import("@/test/signed-in").then((m) => m.signedInGuards));
@@ -215,7 +215,7 @@ describe("share routes: permissions", () => {
       const opened = (await (await clientCalls(share.token).view()).json()) as {
         reviewEndsAt: number;
       };
-      expect(opened.reviewEndsAt).toBe(Date.now() + REVIEW_WINDOW_MS);
+      expect(opened.reviewEndsAt).toBe(Date.now() + DEFAULT_REVIEW_WINDOW_HOURS * 60 * 60 * 1000);
       vi.setSystemTime(opened.reviewEndsAt);
       const { view, comment, capture } = clientCalls(share.token);
       expect(await statuses({ view, comment, capture })).toEqual({

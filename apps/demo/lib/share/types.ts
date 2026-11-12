@@ -98,6 +98,11 @@ export interface ShareRecord {
    * (migration 022), which never expires on its own.
    */
   expiresAt: number | null;
+  /**
+   * How long clients can add to it, in hours from `createdAt` (035): 24, 72
+   * or 168; null for no limit. Only a workspace's link is ever set off the 72-hour default.
+   */
+  reviewWindowHours: number | null;
 }
 
 export type BlobLocation = { kind: "inline"; bytes: Uint8Array } | { kind: "vercel"; url: string };
@@ -134,8 +139,10 @@ export interface ClientView {
   brand: ClientBrand;
   snapshots: SharedSnapshot[];
   comments: SharedComment[];
-  /** When the review window closes (epoch ms): after it, clients can only read. */
-  reviewEndsAt: number;
+  /** When the review window closes (epoch ms): after it, clients can only read. Null: never. */
+  reviewEndsAt: number | null;
+  /** How long the review window is, in hours from the link's creation; null for no limit. */
+  reviewWindowHours: number | null;
   /** When the share is deleted for good (epoch ms); null when it never expires on its own. */
   expiresAt: number | null;
 }
@@ -157,6 +164,8 @@ export interface CreatedShare {
   /** The owner's secret for every owner route; only its hash is stored. */
   ownerKey: string;
   missingBlobs: string[];
+  /** When the server created it (epoch ms): the review window counts from here. */
+  createdAt: number;
   /** When the share is deleted for good (epoch ms). */
   expiresAt: number;
 }

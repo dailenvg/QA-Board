@@ -9,6 +9,11 @@ import { useRadioGroup } from "./use-radio-group";
 export interface SegmentOption<T extends string> {
   value: T;
   label: string;
+  /**
+   * Shown instead of `label` below the `sm` breakpoint, where the full one
+   * won't fit beside the others ("24h" for "24 hours"). Screen readers always get `label`.
+   */
+  shortLabel?: string;
   icon?: IconName;
   /** Extra hint, such as a keyboard shortcut, shown as a tooltip. */
   title?: string;
@@ -126,7 +131,7 @@ export function SegmentedControl<T extends string>({
             onKeyDown={(event) => group.onKeyDown(event, index)}
             // The focus ring is drawn inside the option, so a scrolling parent can't clip it.
             className={`relative flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-pill text-body whitespace-nowrap transition-colors duration-150 focus-visible:-outline-offset-2 ${
-              labels === "wide" ? "px-3 2xl:px-5" : "px-5"
+              labels === "wide" ? "px-3 2xl:px-5" : option.shortLabel ? "px-3 sm:px-5" : "px-5"
             } ${stretch ? "flex-1" : ""} ${
               disabled
                 ? "cursor-not-allowed font-medium text-muted opacity-50"
@@ -148,7 +153,16 @@ export function SegmentedControl<T extends string>({
                 className={`relative size-4 ${icons === "sm" ? "max-sm:hidden" : ""}`}
               />
             ) : null}
-            <span className={labelClass}>{option.label}</span>
+            {option.shortLabel ? (
+              <>
+                <span aria-hidden="true" className="relative sm:hidden">
+                  {option.shortLabel}
+                </span>
+                <span className={`${labelClass} max-sm:sr-only`}>{option.label}</span>
+              </>
+            ) : (
+              <span className={labelClass}>{option.label}</span>
+            )}
             {option.count ? (
               <span
                 className={`relative min-w-5 rounded-pill px-1.5 text-center text-label font-semibold tabular-nums ${
