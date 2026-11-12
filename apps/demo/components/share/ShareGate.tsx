@@ -30,7 +30,7 @@ type Screen =
 const RELOCKED = "Enter the password again to carry on.";
 const RELOCKED_WITH_DRAFT = "Enter the password again to carry on. Your unsent comment is kept.";
 /** What a draft kept through the password screen says about itself when the review is back. */
-const RESUMED_DRAFT = "This comment wasn't sent yet. Post it now, or cancel it.";
+const RESUMED_DRAFT = "This comment wasn't sent yet. Retry to post it, or cancel it.";
 
 /** After unlocking, focus goes to the review's title rather than falling to the page. */
 function focusTitle(root: HTMLElement | null): void {

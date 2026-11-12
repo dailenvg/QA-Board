@@ -50,12 +50,12 @@ describe("Retry-After", () => {
 
 describe("the wait's message", () => {
   it("counts whole minutes, rounded up", () => {
-    expect(retryMessage(14 * 60 + 1)).toBe("Too many tries. You can try again in 15 minutes.");
-    expect(retryMessage(120)).toBe("Too many tries. You can try again in 2 minutes.");
+    expect(retryMessage(14 * 60 + 1)).toBe("Too many attempts. Try again in 15 minutes.");
+    expect(retryMessage(120)).toBe("Too many attempts. Try again in 2 minutes.");
   });
 
   it("says one minute for anything under it", () => {
-    expect(retryMessage(5)).toBe("Too many tries. You can try again in 1 minute.");
+    expect(retryMessage(5)).toBe("Too many attempts. Try again in 1 minute.");
   });
 
   it("counts down to 0 and stays there", () => {

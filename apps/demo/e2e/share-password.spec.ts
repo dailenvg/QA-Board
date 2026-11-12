@@ -191,7 +191,7 @@ test("too many wrong passwords say how long to wait, and hold the button until t
   const limited = guest.waitForResponse((response) => response.url().endsWith("/unlock"));
   await lock.submit.click();
   expect((await limited).status()).toBe(429);
-  await expect(lock.error).toContainText(/Too many tries\. You can try again in 1[45] minutes\./);
+  await expect(lock.error).toContainText(/Too many attempts\. Try again in 1[45] minutes\./);
   await expect(lock.submit).toHaveAttribute("aria-disabled", "true");
   // Held: pressing it again sends nothing.
   let sent = 0;
@@ -200,7 +200,7 @@ test("too many wrong passwords say how long to wait, and hold the button until t
   });
   await lock.field.press("Enter");
   await lock.submit.click({ force: true });
-  await expect(lock.error).toContainText("Too many tries");
+  await expect(lock.error).toContainText("Too many attempts");
   expect(sent).toBe(0);
   await expect(guest.getByTestId("share-locked")).toBeVisible();
   await context.close();

@@ -113,7 +113,7 @@ export function unlockPasswordError(value: string): string | null {
 /** What the 429 says while it lasts: the wait in whole minutes, rounded up. */
 export function retryMessage(secondsLeft: number): string {
   const minutes = Math.max(1, Math.ceil(secondsLeft / 60));
-  return `Too many tries. You can try again in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`;
+  return `Too many attempts. Try again in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`;
 }
 
 /** Seconds left until `retryAt` (epoch ms), in whole seconds; 0 once it has passed or without one. */
@@ -146,7 +146,7 @@ export const UNLOCK_MESSAGES = {
   invalid: `Enter the password, up to ${SHARE_LIMITS.password.max} characters.`,
   noPass:
     "Your browser didn't keep the pass this link needs. Allow cookies for this site, then try again.",
-  failed: "Couldn't reach Squint. Check your connection and try again.",
+  failed: "Couldn't open the review. Check your connection and try again.",
 } as const;
 
 /** What the password screen shows after a failed try, at `now` (epoch ms). */
