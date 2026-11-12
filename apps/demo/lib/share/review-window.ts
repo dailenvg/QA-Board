@@ -1,19 +1,54 @@
 /**
- * How long clients can add to a share, counted from when its link was created.
- * Owner pushes don't extend it; revoking and sharing again starts a new one.
+ * How long clients can add to a share, counted from when its link was created
+ * (never from a change to the window). Owner pushes don't extend it. A
+ * workspace's link takes any of `REVIEW_WINDOWS`; an anonymous share always
+ * has the default. Null hours: no limit, the review never closes.
  */
-export const REVIEW_WINDOW_HOURS = 72;
-export const REVIEW_WINDOW_MS = REVIEW_WINDOW_HOURS * 60 * 60 * 1000;
+export const DEFAULT_REVIEW_WINDOW_HOURS = 72;
 
+const HOUR = 60 * 60 * 1000;
 const MINUTE = 60_000;
 
-/** When a share created at `createdAt` stops taking client comments and snapshots (epoch ms). */
-export function reviewDeadline(createdAt: number): number {
-  return createdAt + REVIEW_WINDOW_MS;
+/** The windows an owner can pick, as the API names them, shortest first. */
+export const REVIEW_WINDOWS = ["24h", "72h", "7d", "none"] as const;
+export type ReviewWindowChoice = (typeof REVIEW_WINDOWS)[number];
+
+const HOURS: Record<ReviewWindowChoice, number | null> = {
+  "24h": 24,
+  "72h": DEFAULT_REVIEW_WINDOW_HOURS,
+  "7d": 168,
+  none: null,
+};
+
+/** How each choice reads, in the owner's share dialog and the reviewer's guide. */
+export const REVIEW_WINDOW_LABELS: Record<ReviewWindowChoice, string> = {
+  "24h": "24 hours",
+  "72h": "72 hours",
+  "7d": "7 days",
+  none: "No limit",
+};
+
+/** The hours a choice stands for (as `squint_shares.review_window_hours` keeps them); null: no limit. */
+export function windowHours(choice: ReviewWindowChoice): number | null {
+  return HOURS[choice];
 }
 
-export function reviewClosed(createdAt: number, now: number): boolean {
-  return now >= reviewDeadline(createdAt);
+/** The choice for a share's stored hours; anything else reads as the default. */
+export function windowChoice(hours: number | null): ReviewWindowChoice {
+  return REVIEW_WINDOWS.find((choice) => HOURS[choice] === hours) ?? "72h";
+}
+
+/**
+ * When a share created at `createdAt` stops taking client comments and
+ * snapshots (epoch ms), with a window of `hours`; null when it never does.
+ */
+export function reviewDeadline(createdAt: number, hours: number | null): number | null {
+  return hours === null ? null : createdAt + hours * HOUR;
+}
+
+/** Whether a review ending at `endsAt` (null: never) is over at `now`. */
+export function reviewClosed(endsAt: number | null, now: number): boolean {
+  return endsAt !== null && now >= endsAt;
 }
 
 export interface TimeLeft {

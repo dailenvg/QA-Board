@@ -212,6 +212,8 @@ test("imports projects, comments, images and a review link, then clears this bro
     ownerKey: created.ownerKey,
     createdAt: T,
     cursor: 0,
+    reviewWindowHours: 72,
+    reviewEndsAt: T + 72 * 60 * 60 * 1000,
   };
   const dialog = await signInWithLocalData(page, localData(share));
   await expect(dialog).toHaveAccessibleName("Import 3 projects into E2E Agency?");

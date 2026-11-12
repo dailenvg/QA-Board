@@ -82,6 +82,8 @@ describe("big images on Vercel-sized requests", () => {
       ownerKey: share.ownerKey,
       createdAt: 0,
       cursor: 0,
+      reviewWindowHours: null,
+      reviewEndsAt: null,
     };
     const original = bigSnapshot();
 

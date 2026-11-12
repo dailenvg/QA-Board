@@ -1,3 +1,4 @@
+import { reviewDeadline } from "../share/review-window";
 import { isArchived, withArchived, withLabel } from "./archive";
 import { folderMoveProblem, subtreeIds } from "./folders";
 import { placeComment } from "./pages";
@@ -49,6 +50,16 @@ export type Action =
   | { type: "author/set"; name: string }
   | { type: "project/share"; id: string; share: ProjectShare }
   | { type: "project/unshare"; id: string }
+  /**
+   * How long the project's link takes client comments: `hours` from the
+   * link's creation (null for no limit). Ending before now closes it at once.
+   */
+  | { type: "share/window"; id: string; hours: number | null }
+  /**
+   * Puts back the window the server last confirmed, after a refused change.
+   * Nothing to send: the server already has it.
+   */
+  | { type: "share/window-restore"; id: string; hours: number | null }
   /** A push or pull succeeded. */
   | { type: "share/synced"; id: string; at: number }
   /**
@@ -315,6 +326,13 @@ export function reduce(data: SquintData, action: Action): SquintData {
       };
     case "share/synced":
       return updateShare(data, action.id, (share) => ({ ...share, lastSyncedAt: action.at }));
+    case "share/window":
+    case "share/window-restore":
+      return updateShare(data, action.id, (share) => ({
+        ...share,
+        reviewWindowHours: action.hours,
+        reviewEndsAt: reviewDeadline(share.createdAt, action.hours),
+      }));
     case "share/merge":
       return mergeShared(data, action);
   }

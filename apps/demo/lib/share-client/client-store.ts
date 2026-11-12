@@ -12,7 +12,10 @@ export interface ClientState {
   authorName: string | null;
   /** The link stopped working while open (revoked). */
   gone: boolean;
-  /** The server refused an addition because the review window is over (whatever this clock says). */
+  /**
+   * The server refused an addition because the review window is over (whatever
+   * this clock says), until a refresh brings a new deadline.
+   */
   reviewClosed: boolean;
 }
 
@@ -21,6 +24,7 @@ export interface ClientStore {
   getSnapshot: () => ClientState;
   /** The state the server rendered with (the link's remembered name included), for hydration. */
   getServerSnapshot: () => ClientState;
+  /** The server's latest view; a new review deadline (the owner changed the window) reopens it. */
   setView: (view: ClientView) => void;
   /** A comment the server accepted (ignored if a refresh already brought it). */
   addComment: (comment: SharedComment) => void;
@@ -62,7 +66,8 @@ export function createClientStore(
     },
     getSnapshot: () => state,
     getServerSnapshot: () => rendered,
-    setView: (view) => set({ view }),
+    setView: (view) =>
+      set(view.reviewEndsAt === state.view.reviewEndsAt ? { view } : { view, reviewClosed: false }),
     addComment(comment) {
       if (state.view.comments.some((entry) => entry.id === comment.id)) return;
       set({ view: { ...state.view, comments: [...state.view.comments, comment] } });

@@ -36,7 +36,15 @@ const DATA: SquintData = {
     project("p2", "f2"),
     {
       ...project("p3", "f3"),
-      share: { id: "s1", token: "t", ownerKey: "k", createdAt: 1, cursor: 2 },
+      share: {
+        id: "s1",
+        token: "t",
+        ownerKey: "k",
+        createdAt: 1,
+        cursor: 2,
+        reviewWindowHours: 72,
+        reviewEndsAt: 1 + 72 * 3_600_000,
+      },
     },
   ],
   comments: [comment],
@@ -117,18 +125,47 @@ describe("writesFor", () => {
     expect(result[2]?.body).toEqual({ cursor: 5, lastSyncedAt: 11 });
   });
 
-  it("attaches a new link with its secrets, and revoking one already gone counts as done", () => {
-    const share = { id: "s9", token: "tok", ownerKey: "key", createdAt: 3, cursor: 0 };
+  it("attaches a new link with its secrets and window, and revoking one already gone counts as done", () => {
+    const share = {
+      id: "s9",
+      token: "tok",
+      ownerKey: "key",
+      createdAt: 3,
+      cursor: 0,
+      reviewWindowHours: 24,
+      reviewEndsAt: 3 + 24 * 3_600_000,
+    };
     expect(writes({ type: "project/share", id: "p1", share })).toEqual([
       {
         method: "PUT",
         path: "/projects/p1/share-link",
-        body: { shareId: "s9", token: "tok", ownerKey: "key" },
+        body: { shareId: "s9", token: "tok", ownerKey: "key", reviewWindow: "24h" },
       },
     ]);
     expect(writes({ type: "project/unshare", id: "p3" })).toEqual([
       { method: "DELETE", path: "/projects/p3/share-link", body: {}, tolerate: [404] },
     ]);
+  });
+});
+
+describe("review window writes", () => {
+  it("sends the window by name to the link's settings, no limit as none", () => {
+    expect(writes({ type: "share/window", id: "p3", hours: 168 })).toEqual([
+      { method: "PATCH", path: "/projects/p3/share-link/settings", body: { reviewWindow: "7d" } },
+    ]);
+    expect(writes({ type: "share/window", id: "p3", hours: null })).toEqual([
+      { method: "PATCH", path: "/projects/p3/share-link/settings", body: { reviewWindow: "none" } },
+    ]);
+  });
+
+  it("sends nothing to put back a window the server already has", () => {
+    expect(writes({ type: "share/window-restore", id: "p3", hours: 24 })).toEqual([]);
+  });
+
+  it("says the link is gone when the server no longer has it", () => {
+    expect(refusalMessage({ type: "share/window", id: "p3", hours: 24 }, 404)).toMatch(
+      /share link is no longer here/,
+    );
   });
 });
 

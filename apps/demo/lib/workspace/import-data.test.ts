@@ -329,11 +329,18 @@ describe("import", () => {
       1, 1,
     ]);
     expect(result.ok && result.value.projects.unlinked).toEqual(["deck"]);
+    // An anonymous share's 72 hours come with it, and the member importing it invited its reviewers.
     expect(await getShareLink(db, a.workspaceId, "web", TEST_AUTH_SECRET)).toMatchObject({
       id: good.shareId,
       token: good.token,
       cursor: 2,
+      reviewWindowHours: 72,
     });
+    const { rows } = await db.query<{ id: string; invited_by_user_id: string | null }>(
+      "SELECT id, invited_by_user_id FROM squint_shares ORDER BY id = $1 DESC",
+      [good.shareId],
+    );
+    expect(rows.map((row) => row.invited_by_user_id)).toEqual([a.userId, null]);
     expect(await getShareLink(db, a.workspaceId, "deck", TEST_AUTH_SECRET)).toBeNull();
     // The proven share stops its 30-day countdown; the forged one keeps it.
     expect((await store.byId(good.shareId))?.expiresAt).toBeNull();

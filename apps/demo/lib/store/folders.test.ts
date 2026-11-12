@@ -34,7 +34,17 @@ const project = (id: string, folderId: string, shared = false): Project => ({
   createdAt: 1,
   updatedAt: 1,
   ...(shared
-    ? { share: { id: `s-${id}`, token: "t", ownerKey: "k", createdAt: 1, cursor: 0 } }
+    ? {
+        share: {
+          id: `s-${id}`,
+          token: "t",
+          ownerKey: "k",
+          createdAt: 1,
+          cursor: 0,
+          reviewWindowHours: null,
+          reviewEndsAt: null,
+        },
+      }
     : {}),
 });
 

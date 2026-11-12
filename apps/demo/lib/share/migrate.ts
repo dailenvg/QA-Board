@@ -31,6 +31,8 @@ import senderNameLength from "../../migrations/030_workspaces_sender_name_length
 import commentsOrigin from "../../migrations/031_comments_origin.sql";
 import projectsDeleteAfter from "../../migrations/032_projects_delete_after.sql";
 import accountDeletion from "../../migrations/033_account_deletion.sql";
+import sharesInviter from "../../migrations/034_squint_shares_inviter_backfill.sql";
+import sharesReviewWindow from "../../migrations/035_squint_shares_review_window.sql";
 
 /** The slice of `pg.Pool` the stores use (PGlite matches it in tests). */
 export interface Queryable {
@@ -72,6 +74,8 @@ export const MIGRATIONS: ReadonlyArray<{ id: string; sql: string }> = [
   { id: "031_comments_origin", sql: commentsOrigin },
   { id: "032_projects_delete_after", sql: projectsDeleteAfter },
   { id: "033_account_deletion", sql: accountDeletion },
+  { id: "034_squint_shares_inviter_backfill", sql: sharesInviter },
+  { id: "035_squint_shares_review_window", sql: sharesReviewWindow },
 ];
 
 type Migration = (typeof MIGRATIONS)[number];

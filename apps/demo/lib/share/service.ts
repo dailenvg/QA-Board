@@ -9,7 +9,7 @@ import { createSecret, createShareId, hashSecret, isSecretShape, secretMatches }
 import { digest } from "./digest";
 import { pageBlobKey } from "./keys";
 import { isExpired, rescheduledExpiry, shareExpiresAt } from "./retention";
-import { reviewClosed, reviewDeadline } from "./review-window";
+import { DEFAULT_REVIEW_WINDOW_HOURS, reviewClosed, reviewDeadline } from "./review-window";
 import type {
   ClientView,
   CreatedShare,
@@ -180,6 +180,7 @@ export async function createShare(
     createdAt: now,
     updatedAt: now,
     expiresAt,
+    reviewWindowHours: DEFAULT_REVIEW_WINDOW_HOURS,
   };
   await store.create(share);
   for (const snapshot of state.snapshots) await store.upsertSnapshot(share.id, snapshot, "owner");
@@ -189,6 +190,7 @@ export async function createShare(
     token,
     ownerKey,
     missingBlobs: await missingBlobs(store, share),
+    createdAt: now,
     expiresAt,
   };
 }
@@ -378,6 +380,11 @@ export async function readBlob(
   return bytes ? { bytes, contentType: stored.contentType } : null;
 }
 
+/** When the share's review window closes (epoch ms); null when it has no limit. */
+function shareReviewEndsAt(share: ShareRecord): number | null {
+  return reviewDeadline(share.createdAt, share.reviewWindowHours);
+}
+
 export async function clientView(store: ShareStore, share: ShareRecord): Promise<ClientView> {
   const [snapshots, comments, brand] = await Promise.all([
     store.snapshots(share.id),
@@ -389,7 +396,8 @@ export async function clientView(store: ShareStore, share: ShareRecord): Promise
     brand: toClientBrand(brand),
     snapshots: items(snapshots),
     comments: items(comments),
-    reviewEndsAt: reviewDeadline(share.createdAt),
+    reviewEndsAt: shareReviewEndsAt(share),
+    reviewWindowHours: share.reviewWindowHours,
     expiresAt: share.expiresAt,
   };
 }
@@ -488,7 +496,7 @@ export async function addClientComment(
   now: number,
 ): Promise<Outcome<SharedComment>> {
   const { store } = services;
-  if (reviewClosed(share.createdAt, now)) return REVIEW_CLOSED;
+  if (reviewClosed(shareReviewEndsAt(share), now)) return REVIEW_CLOSED;
   if (Boolean(crop) !== Boolean(input.crop)) return fail(400, "crop-mismatch");
   const misplaced = checkPage(share.project, input);
   if (misplaced) return misplaced;
@@ -558,7 +566,7 @@ export async function captureForClient(
   capture: (url: URL, width: number) => Promise<CapturedImage>,
   now: number,
 ): Promise<Outcome<SharedSnapshot>> {
-  if (reviewClosed(share.createdAt, now)) return REVIEW_CLOSED;
+  if (reviewClosed(shareReviewEndsAt(share), now)) return REVIEW_CLOSED;
   const { source } = share.project;
   if (source.kind !== "url") return fail(422, "not-a-website");
   if ((await services.store.snapshots(share.id)).length >= SHARE_LIMITS.snapshots) {

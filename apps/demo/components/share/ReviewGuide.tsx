@@ -1,10 +1,11 @@
 "use client";
 
 import { motion } from "motion/react";
+import { useMemo } from "react";
 import { staggerGroup, useRevealVariants } from "@/lib/motion";
 import type { ClientBrand } from "@/lib/share/types";
 import { PauseToggle } from "../overview/welcome/PauseToggle";
-import { REVIEWER_STORIES } from "../overview/welcome/reviewer-stories";
+import { reviewerStories } from "../overview/welcome/reviewer-stories";
 import { useStoryPlayback } from "../overview/welcome/use-story-playback";
 import { WelcomeStories } from "../overview/welcome/WelcomeStories";
 import { Button } from "../ui/Button";
@@ -21,6 +22,8 @@ interface ReviewGuideProps {
   brand: ClientBrand;
   /** The shared project's name. */
   project: string;
+  /** How long the link takes comments, in hours from its creation; null for no limit. */
+  reviewWindowHours: number | null;
 }
 
 /** Who invited the reviewer, beside the company's logo; the generic line on an anonymous link. */
@@ -43,7 +46,14 @@ function Invitation({
  * told from the reviewer's side, with the same Pause and reduced-motion rules.
  * It opens with who invited them to which project (the company's name and logo).
  */
-export function ReviewGuide({ open, onClose, token, brand, project }: ReviewGuideProps) {
+export function ReviewGuide({
+  open,
+  onClose,
+  token,
+  brand,
+  project,
+  reviewWindowHours,
+}: ReviewGuideProps) {
   return (
     <Dialog
       open={open}
@@ -53,15 +63,19 @@ export function ReviewGuide({ open, onClose, token, brand, project }: ReviewGuid
       size="lg"
       testId="review-guide"
     >
-      <ReviewGuideBody onClose={onClose} />
+      <ReviewGuideBody onClose={onClose} reviewWindowHours={reviewWindowHours} />
     </Dialog>
   );
 }
 
 /** Mounted with the open dialog, so its stories start (and stop) with it. */
-function ReviewGuideBody({ onClose }: { onClose: () => void }) {
+function ReviewGuideBody({
+  onClose,
+  reviewWindowHours,
+}: Pick<ReviewGuideProps, "onClose" | "reviewWindowHours">) {
   const reveal = useRevealVariants();
   const playback = useStoryPlayback();
+  const stories = useMemo(() => reviewerStories(reviewWindowHours), [reviewWindowHours]);
   return (
     <motion.div
       variants={stagger}
@@ -69,7 +83,7 @@ function ReviewGuideBody({ onClose }: { onClose: () => void }) {
       animate="visible"
       className="flex flex-col gap-5"
     >
-      <WelcomeStories playback={playback} stories={REVIEWER_STORIES} />
+      <WelcomeStories playback={playback} stories={stories} />
       {/*
        * Pinned to the dialog's bottom edge (over its padding), so on phones and short screens
        * Pause (WCAG 2.2.2) and the way out stay in reach instead of after three stacked stories.

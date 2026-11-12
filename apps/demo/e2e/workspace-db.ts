@@ -287,3 +287,24 @@ export async function addWaitingClientComment(
     if (rowCount !== 1) throw new Error(`${projectId} has no review link.`);
   });
 }
+
+/** Makes a project's review link `hours` older, as if it had been created that long before. */
+export async function ageShareLink(projectId: string, hours: number): Promise<void> {
+  await withClient(async (client) => {
+    await client.query(
+      "UPDATE squint_shares SET created_at = created_at - $2::bigint WHERE project_id = $1",
+      [projectId, hours * 60 * 60 * 1000],
+    );
+  });
+}
+
+/** A project's review link window as the server keeps it: hours, null for no limit. */
+export async function shareWindowHours(projectId: string): Promise<number | null | undefined> {
+  return withClient(async (client) => {
+    const { rows } = await client.query<{ review_window_hours: number | null }>(
+      "SELECT review_window_hours FROM squint_shares WHERE project_id = $1",
+      [projectId],
+    );
+    return rows[0]?.review_window_hours;
+  });
+}

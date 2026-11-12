@@ -9,6 +9,11 @@ import { useRadioGroup } from "./use-radio-group";
 export interface SegmentOption<T extends string> {
   value: T;
   label: string;
+  /**
+   * Shown instead of `label` below the `sm` breakpoint, where the full one
+   * won't fit beside the others ("24h" for "24 hours"). Screen readers always get `label`.
+   */
+  shortLabel?: string;
   icon?: IconName;
   /** Extra hint, such as a keyboard shortcut, shown as a tooltip. */
   title?: string;
@@ -28,6 +33,8 @@ interface SegmentedControlProps<T extends string> {
   value: T;
   onChange: (value: T) => void;
   label: string;
+  /** Ids of text that explains the group (a hint, an error), read when focus enters it. */
+  describedBy?: string;
   /** Unique per control on the page; the raised thumb glides between options with it. */
   layoutId: string;
   className?: string;
@@ -81,6 +88,7 @@ export function SegmentedControl<T extends string>({
   value,
   onChange,
   label,
+  describedBy,
   layoutId,
   className = "",
   stretch = false,
@@ -100,6 +108,7 @@ export function SegmentedControl<T extends string>({
     <div
       role="radiogroup"
       aria-label={label}
+      aria-describedby={describedBy || undefined}
       className={`flex rounded-pill ${surface === "panel" ? "bg-panel" : "bg-seg"} ${
         stretch ? "w-full" : "w-max"
       } ${className}`}
@@ -125,8 +134,14 @@ export function SegmentedControl<T extends string>({
             }}
             onKeyDown={(event) => group.onKeyDown(event, index)}
             // The focus ring is drawn inside the option, so a scrolling parent can't clip it.
+            // Stretched options grow to share the row anyway, so on phones their padding is only a
+            // minimum: the slimmer one lets four options fit a 320px screen (WCAG 1.4.10).
             className={`relative flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-pill text-body whitespace-nowrap transition-colors duration-150 focus-visible:-outline-offset-2 ${
-              labels === "wide" ? "px-3 2xl:px-5" : "px-5"
+              labels === "wide"
+                ? "px-3 2xl:px-5"
+                : option.shortLabel || stretch
+                  ? "px-3 sm:px-5"
+                  : "px-5"
             } ${stretch ? "flex-1" : ""} ${
               disabled
                 ? "cursor-not-allowed font-medium text-muted opacity-50"
@@ -148,7 +163,16 @@ export function SegmentedControl<T extends string>({
                 className={`relative size-4 ${icons === "sm" ? "max-sm:hidden" : ""}`}
               />
             ) : null}
-            <span className={labelClass}>{option.label}</span>
+            {option.shortLabel ? (
+              <>
+                <span aria-hidden="true" className="relative sm:hidden">
+                  {option.shortLabel}
+                </span>
+                <span className={`${labelClass} max-sm:sr-only`}>{option.label}</span>
+              </>
+            ) : (
+              <span className={labelClass}>{option.label}</span>
+            )}
             {option.count ? (
               <span
                 className={`relative min-w-5 rounded-pill px-1.5 text-center text-label font-semibold tabular-nums ${

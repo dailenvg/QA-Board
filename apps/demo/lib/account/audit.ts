@@ -1,4 +1,5 @@
 import type { Queryable } from "../share/migrate";
+import type { ReviewWindowChoice } from "../share/review-window";
 
 /** What the account settings record in the audit log. */
 export type AccountAction =
@@ -29,15 +30,23 @@ export type MembershipAction = "membership.added" | "membership.removed";
 /** What the daily cron does to a workspace's projects: an archived one deleted once its date came. */
 export type ProjectAction = "project.deleted";
 
+/** A member changed a project's review link settings: targets the project. */
+export type ShareAction = "share.settings_changed";
+
 /** One audit entry, by whoever did it: a user, or null for Squint itself (the daily cron). */
 export interface AuditEntry {
   actorUserId: string | null;
   /** Set for a workspace's entries, so they outlive it (021: no foreign key). */
   workspaceId?: string | null;
-  action: AccountAction | WorkspaceAction | MembershipAction | ProjectAction;
+  action: AccountAction | WorkspaceAction | MembershipAction | ProjectAction | ShareAction;
   target: { type: "user" | "workspace" | "project"; id: string };
   /** The fields that changed: never a value, an email, a hash or a token. */
   fields: readonly string[];
+  /**
+   * The only values an entry keeps besides the field names, each a fixed
+   * choice that says nothing about anyone: a review link's new window.
+   */
+  meta?: { reviewWindow: ReviewWindowChoice };
 }
 
 export async function audit(db: Queryable, entry: AuditEntry, now: number): Promise<void> {
@@ -50,7 +59,7 @@ export async function audit(db: Queryable, entry: AuditEntry, now: number): Prom
       entry.action,
       entry.target.type,
       entry.target.id,
-      JSON.stringify({ fields: entry.fields }),
+      JSON.stringify({ fields: entry.fields, ...entry.meta }),
       new Date(now),
     ],
   );

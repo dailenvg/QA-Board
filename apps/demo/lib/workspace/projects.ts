@@ -7,6 +7,7 @@ import { pagesByProject, replacePages } from "./pages";
 import type { ProjectCreate, ProjectPatch, SourceInput } from "./schemas";
 import { toDate, toMs, toMsOrNull } from "./times";
 import { done, refuse, type QueryResult } from "./query-result";
+import { reviewWindowState } from "./share-links";
 import type { TrashedProject, WorkspaceProject } from "./types";
 
 interface ProjectRow {
@@ -24,13 +25,14 @@ interface ProjectRow {
   share_created_at: string | number | null;
   share_cursor: string | number | null;
   share_synced_at: Date | null;
+  share_review_window_hours: number | null;
 }
 
 /** A project row with its review link, if it has one (never the link's secrets). */
 const SELECT = `SELECT project.id, project.folder_id, project.name, project.source, project.label,
     project.archived_at, project.delete_after, project.created_at, project.updated_at, project.deleted_at,
     link.share_id, share.created_at AS share_created_at, link.cursor AS share_cursor,
-    link.last_synced_at AS share_synced_at
+    link.last_synced_at AS share_synced_at, share.review_window_hours AS share_review_window_hours
   FROM projects AS project
   LEFT JOIN project_share_links AS link
     ON link.workspace_id = project.workspace_id AND link.project_id = project.id
@@ -65,11 +67,13 @@ function toProject(row: ProjectRow, pages: Map<string, Page[]>): WorkspaceProjec
     deleteAfter: toMsOrNull(row.delete_after),
   };
   if (row.share_id) {
+    const createdAt = Number(row.share_created_at);
     project.share = {
       id: row.share_id,
-      createdAt: Number(row.share_created_at),
+      createdAt,
       cursor: Number(row.share_cursor),
       ...(row.share_synced_at ? { lastSyncedAt: toMs(row.share_synced_at) } : {}),
+      ...reviewWindowState(createdAt, row.share_review_window_hours),
     };
   }
   return project;

@@ -33,6 +33,8 @@ interface ReviewGuideTriggerProps {
   brand: ClientBrand;
   /** The shared project's name, for the guide's invitation. */
   project: string;
+  /** The link's review window in hours, for the guide's last step; null for no limit. */
+  reviewWindowHours: number | null;
 }
 
 /**
@@ -46,6 +48,7 @@ export function ReviewGuideTrigger({
   token,
   brand,
   project,
+  reviewWindowHours,
 }: ReviewGuideTriggerProps) {
   const [firstVisit] = useState(() => !reviewClosed && !seenBefore());
   const [open, setOpen] = useState(firstVisit);
@@ -79,6 +82,7 @@ export function ReviewGuideTrigger({
         token={token}
         brand={brand}
         project={project}
+        reviewWindowHours={reviewWindowHours}
       />
     </>
   );

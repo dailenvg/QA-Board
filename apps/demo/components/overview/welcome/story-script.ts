@@ -7,6 +7,7 @@
  */
 
 import { commenterColor, type CommenterColor } from "@/lib/brand-palette";
+import { shortTimeLeft, timeLeft } from "@/lib/share/review-window";
 
 /** One loop of any story, in ms. */
 export const STORY_LOOP_MS = 5600;
@@ -98,9 +99,20 @@ export const STORY_TEXT = {
   /** The message a reviewer gets with the link. */
   shareMessage: "Can you take a look?",
   shareLink: "Open review",
-  /** The review window's chip, part way through. */
-  timeLeft: "2d 23h 12m left",
 } as const;
+
+/** How far into its review window the reviewer's story is: just after the link arrived. */
+const STORY_ELAPSED_MS = 48 * 60_000;
+
+/**
+ * The review window's chip in the reviewer's story, part way through a window
+ * of `windowHours`, worded like the guest's own countdown ("23h 12m left"),
+ * so it never shows more time than the link has.
+ */
+export function storyTimeLeft(windowHours: number): string {
+  const left = timeLeft(windowHours * 60 * 60_000 - STORY_ELAPSED_MS, 0);
+  return left ? `${shortTimeLeft(left)} left` : "";
+}
 
 /** The commenter's color in both Pin and Resolve (pin, dot and the Pin card's tint). */
 export const STORY_COMMENTER: CommenterColor = commenterColor(STORY_TEXT.commenter);

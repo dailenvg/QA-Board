@@ -361,7 +361,7 @@ async function importInto(
       tx,
       workspaceId,
       project.id,
-      { shareId, ...share },
+      { shareId, ...share, invitedBy: userId },
       now,
       secret,
     );

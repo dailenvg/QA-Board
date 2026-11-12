@@ -316,7 +316,14 @@ describe("importing this browser's data", () => {
     if (!deck || !site) throw new Error("fixture");
     const linked: Project = {
       ...site,
-      share: { id: shareId, ...created, createdAt: Date.now(), cursor: 0 },
+      share: {
+        id: shareId,
+        ...created,
+        createdAt: Date.now(),
+        cursor: 0,
+        reviewWindowHours: 72,
+        reviewEndsAt: null,
+      },
     };
     ok(await h.run({ data: { ...data, projects: [deck, linked] }, pendingImages: [] }));
     const { rows } = await h.db.query<{ workspace_id: string; expires_at: unknown }>(

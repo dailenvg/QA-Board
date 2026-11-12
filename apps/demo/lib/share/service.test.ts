@@ -3,7 +3,6 @@ import { COMMENT, JPEG, PNG, SNAPSHOT, STATE } from "@/test/share-fixture";
 import { inlineBackend } from "./blob-backend";
 import { createMemoryStore } from "./memory-store";
 import { DELETION_NOTICE_MS, RETENTION_MS } from "./retention";
-import { REVIEW_WINDOW_MS } from "./review-window";
 import { SHARE_LIMITS } from "./schemas";
 import { batchChange, diffState } from "../share-client/diff";
 import type { ShareServices } from "./server";
@@ -334,8 +333,7 @@ describe("client writes", () => {
 });
 
 describe("review window", () => {
-  /** `shared()` creates the share at 100. */
-  const deadline = 100 + REVIEW_WINDOW_MS;
+  const HOUR = 60 * 60 * 1000;
   const capture = (_url: URL, width: number) =>
     Promise.resolve({
       body: new Uint8Array(JPEG),
@@ -344,46 +342,76 @@ describe("review window", () => {
       height: 900,
       scale: 1,
     });
+  const closed = { ok: false, status: 403, error: "review-closed" };
 
-  it("tells clients when it closes: 72 hours after the link was created", async () => {
+  /** A share created at 100 (`shared()`) with a window of `hours`, and when that ends. */
+  async function windowed(hours: number | null) {
     const { services, share } = await shared();
-    expect((await clientView(services.store, share)).reviewEndsAt).toBe(deadline);
+    const record = { ...share, reviewWindowHours: hours };
+    return { services, share: record, deadline: hours === null ? null : 100 + hours * HOUR };
+  }
+
+  it("is 72 hours on a new share, and tells clients when it closes", async () => {
+    const { services, share } = await shared();
+    expect(share.reviewWindowHours).toBe(72);
+    expect(await clientView(services.store, share)).toMatchObject({
+      reviewEndsAt: 100 + 72 * HOUR,
+      reviewWindowHours: 72,
+    });
   });
 
   it("doesn't move when the owner pushes updates", async () => {
     const { services, share } = await shared();
+    const deadline = 100 + 72 * HOUR;
     await pushState(services, share, { ...STATE, comments: [] }, 0, deadline - 1);
     expect((await clientView(services.store, share)).reviewEndsAt).toBe(deadline);
   });
 
-  it("takes client comments and snapshots until the last moment before the deadline", async () => {
-    const { services, share } = await shared();
-    expect(
-      await addClientComment(services, share, clientComment("k-1"), null, deadline - 1),
-    ).toMatchObject({ ok: true });
-    expect(await captureForClient(services, share, 1024, capture, deadline - 1)).toMatchObject({
-      ok: true,
+  describe.each([24, 72, 168])("of %i hours", (hours) => {
+    it("takes client comments and snapshots until the last moment before the deadline", async () => {
+      const { services, share, deadline } = await windowed(hours);
+      const last = (deadline ?? 0) - 1;
+      expect((await clientView(services.store, share)).reviewEndsAt).toBe(deadline);
+      expect(
+        await addClientComment(services, share, clientComment("k-1"), null, last),
+      ).toMatchObject({ ok: true });
+      expect(await captureForClient(services, share, 1024, capture, last)).toMatchObject({
+        ok: true,
+      });
+    });
+
+    it("refuses client comments and snapshots from the deadline on, leaving the share readable", async () => {
+      const { services, share, deadline } = await windowed(hours);
+      const end = deadline ?? 0;
+      expect(
+        await addClientComment(services, share, clientComment("k-1"), null, end),
+      ).toMatchObject(closed);
+      let captured = false;
+      const watched = (url: URL, width: number) => {
+        captured = true;
+        return capture(url, width);
+      };
+      expect(await captureForClient(services, share, 1024, watched, end + 1)).toMatchObject(closed);
+      expect(captured).toBe(false);
+      const view = await clientView(services.store, share);
+      expect(view.comments.map((comment) => comment.id)).toEqual(["c-1"]);
+      expect(view.snapshots.map((snapshot) => snapshot.id)).toEqual(["snap-1"]);
     });
   });
 
-  it("refuses client comments and snapshots from the deadline on, leaving the share readable", async () => {
-    const { services, share } = await shared();
-    const closed = { ok: false, status: 403, error: "review-closed" };
+  it("never closes without a limit", async () => {
+    const { services, share } = await windowed(null);
+    const muchLater = 100 + 365 * 24 * HOUR;
+    expect(await clientView(services.store, share)).toMatchObject({
+      reviewEndsAt: null,
+      reviewWindowHours: null,
+    });
     expect(
-      await addClientComment(services, share, clientComment("k-1"), null, deadline),
-    ).toMatchObject(closed);
-    let captured = false;
-    const watched = (url: URL, width: number) => {
-      captured = true;
-      return capture(url, width);
-    };
-    expect(await captureForClient(services, share, 1024, watched, deadline + 1)).toMatchObject(
-      closed,
-    );
-    expect(captured).toBe(false);
-    const view = await clientView(services.store, share);
-    expect(view.comments.map((comment) => comment.id)).toEqual(["c-1"]);
-    expect(view.snapshots.map((snapshot) => snapshot.id)).toEqual(["snap-1"]);
+      await addClientComment(services, share, clientComment("k-1"), null, muchLater),
+    ).toMatchObject({ ok: true });
+    expect(await captureForClient(services, share, 1024, capture, muchLater)).toMatchObject({
+      ok: true,
+    });
   });
 });
 

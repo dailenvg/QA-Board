@@ -19,7 +19,15 @@ const project: Project = {
   },
   createdAt: 1,
   updatedAt: 2,
-  share: { id: "s", token: "t".repeat(43), ownerKey: "k".repeat(43), createdAt: 1, cursor: 0 },
+  share: {
+    id: "s",
+    token: "t".repeat(43),
+    ownerKey: "k".repeat(43),
+    createdAt: 1,
+    cursor: 0,
+    reviewWindowHours: null,
+    reviewEndsAt: null,
+  },
 };
 
 const snapshot: Snapshot = {

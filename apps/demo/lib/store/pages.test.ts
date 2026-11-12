@@ -85,7 +85,15 @@ describe("pages in the reducer", () => {
   it("adds, restores and merges comments onto a page the project has", () => {
     const shared: Project = {
       ...deck,
-      share: { id: "s", token: "t", ownerKey: "k", createdAt: 1, cursor: 0 },
+      share: {
+        id: "s",
+        token: "t",
+        ownerKey: "k",
+        createdAt: 1,
+        cursor: 0,
+        reviewWindowHours: null,
+        reviewEndsAt: null,
+      },
     };
     let data = reduce(migrated(), { type: "project/create", project: shared });
     data = reduce(data, { type: "comment/add", comment: note("added", { pageId: "b" }) });

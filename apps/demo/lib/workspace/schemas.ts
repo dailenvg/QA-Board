@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { REVIEW_WINDOWS } from "../share/review-window";
 import { isSecretShape } from "../share/tokens";
 import { BLOB_CONTENT_TYPES, WORKSPACE_LIMITS as LIMITS } from "./limits";
 
@@ -148,8 +149,21 @@ export const commentPatchSchema = z
     message: "Nothing to change",
   });
 
-/** A review link made from the browser (`POST /api/shares`), attached to a workspace project. */
-export const shareAttachSchema = z.object({ shareId: idSchema, token: secret, ownerKey: secret });
+const reviewWindow = z.enum(REVIEW_WINDOWS);
+
+/**
+ * A review link made from the browser (`POST /api/shares`), attached to a
+ * workspace project, with the review window its owner chose (left as it is when missing).
+ */
+export const shareAttachSchema = z.object({
+  shareId: idSchema,
+  token: secret,
+  ownerKey: secret,
+  reviewWindow: reviewWindow.optional(),
+});
+
+/** A workspace link's settings: how long its clients can comment, from the link's creation. */
+export const shareSettingsSchema = z.object({ reviewWindow });
 
 export const shareSyncSchema = z.object({
   cursor: z.number().int().nonnegative(),
@@ -237,6 +251,7 @@ export type CommentCreate = z.infer<typeof commentCreateSchema>;
 export type CommentPatch = z.infer<typeof commentPatchSchema>;
 export type ShareAttach = z.infer<typeof shareAttachSchema>;
 export type ShareSync = z.infer<typeof shareSyncSchema>;
+export type ShareSettings = z.infer<typeof shareSettingsSchema>;
 export type UploadRequest = z.infer<typeof uploadRequestSchema>;
 export type ImportData = z.infer<typeof importSchema>;
 export type ImportProject = ImportData["projects"][number];

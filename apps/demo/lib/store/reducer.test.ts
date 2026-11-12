@@ -152,7 +152,15 @@ describe("snapshots in the reducer", () => {
 });
 
 describe("sharing in the reducer", () => {
-  const share = { id: "s", token: "t", ownerKey: "k", createdAt: 1, cursor: 0 };
+  const share = {
+    id: "s",
+    token: "t",
+    ownerKey: "k",
+    createdAt: 1,
+    cursor: 0,
+    reviewWindowHours: 72,
+    reviewEndsAt: 1 + 72 * 3_600_000,
+  };
   const shared = () => reduce(legacy(), { type: "project/share", id: "site", share });
 
   it("merges pulled client comments once, advancing the cursor", () => {
@@ -171,6 +179,24 @@ describe("sharing in the reducer", () => {
     expect(twice.projects.find((p) => p.id === "site")?.share).toMatchObject({
       cursor: 7,
       lastSyncedAt: 50,
+    });
+  });
+
+  it("sets the link's window from its creation, and no deadline without a limit", () => {
+    const week = reduce(shared(), { type: "share/window", id: "site", hours: 168 });
+    expect(week.projects.find((p) => p.id === "site")?.share).toMatchObject({
+      reviewWindowHours: 168,
+      reviewEndsAt: 1 + 168 * 3_600_000,
+    });
+    const restored = reduce(week, { type: "share/window-restore", id: "site", hours: 24 });
+    expect(restored.projects.find((p) => p.id === "site")?.share).toMatchObject({
+      reviewWindowHours: 24,
+      reviewEndsAt: 1 + 24 * 3_600_000,
+    });
+    const open = reduce(week, { type: "share/window", id: "site", hours: null });
+    expect(open.projects.find((p) => p.id === "site")?.share).toMatchObject({
+      reviewWindowHours: null,
+      reviewEndsAt: null,
     });
   });
 

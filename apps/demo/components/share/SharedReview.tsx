@@ -49,6 +49,12 @@ function clientCopy(brand: ClientBrand, project: string) {
   };
 }
 
+/** The earlier of two moments (epoch ms), ignoring missing ones; null when neither is set. */
+function earliest(a: number | null, b: number | null): number | null {
+  const set = [a, b].filter((at): at is number => at !== null && Number.isFinite(at));
+  return set.length ? Math.min(...set) : null;
+}
+
 /** Once the review window is over: the Comment mode's reason, the phone note and the notice. */
 const CLOSED = {
   reason: "The review window has closed, so new comments can't be added.",
@@ -79,16 +85,11 @@ export function SharedReview({ token, initial, authorName }: SharedReviewProps) 
   const { data, project } = useMemo(() => toViewerData(state), [state]);
   useClientRefresh(token, store);
   useEffect(() => store.carryOverAuthorName(), [store]);
-  const { reviewEndsAt, expiresAt, brand } = state.view;
+  const { reviewEndsAt, reviewWindowHours, expiresAt, brand } = state.view;
   const openCopy = clientCopy(brand, state.view.project.name);
   // A project deleted before its review window ends can't take comments past deletion, so the
   // countdown ends then too: it never promises more time than the deletion notice allows.
-  const review = useReviewWindow(
-    expiresAt !== null && Number.isFinite(expiresAt)
-      ? Math.min(reviewEndsAt, expiresAt)
-      : reviewEndsAt,
-    state.reviewClosed,
-  );
+  const review = useReviewWindow(earliest(reviewEndsAt, expiresAt), state.reviewClosed);
 
   if (state.gone) return <ShareUnavailable />;
   if (!isClient) return <ViewerSkeleton />;
@@ -104,12 +105,14 @@ export function SharedReview({ token, initial, authorName }: SharedReviewProps) 
             accentRule={brand.color !== null}
             actions={
               <>
-                <ReviewCountdown left={review.left} />
+                {/* A link without a deadline has no countdown, unless the server closed it since. */}
+                {review.left || review.closed ? <ReviewCountdown left={review.left} /> : null}
                 <ReviewGuideTrigger
                   reviewClosed={review.closed}
                   token={token}
                   brand={brand}
                   project={state.view.project.name}
+                  reviewWindowHours={reviewWindowHours}
                 />
               </>
             }

@@ -1,11 +1,14 @@
+import { audit } from "../account/audit";
+import type { Database } from "../db/database";
 import type { Queryable } from "../share/migrate";
 import { isExpired } from "../share/retention";
+import { reviewDeadline, windowHours } from "../share/review-window";
 import { secretMatches } from "../share/tokens";
 import { openSecret, sealSecret } from "./sealed-secrets";
-import type { ShareAttach, ShareSync } from "./schemas";
+import type { ShareAttach, ShareSettings, ShareSync } from "./schemas";
 import { toDate, toMs } from "./times";
 import { done, refuse, type QueryResult } from "./query-result";
-import type { ShareLink } from "./types";
+import type { ReviewWindowState, ShareLink } from "./types";
 
 /**
  * A workspace project's review link (023). Its token and owner key are sealed
@@ -23,6 +26,12 @@ interface LinkRow {
   cursor: string | number;
   last_synced_at: Date | null;
   share_created_at: string | number;
+  review_window_hours: number | null;
+}
+
+/** A link's review window as the API sends it, counted from the share's creation. */
+export function reviewWindowState(createdAt: number, hours: number | null): ReviewWindowState {
+  return { reviewWindowHours: hours, reviewEndsAt: reviewDeadline(createdAt, hours) };
 }
 
 /** A live project's link with its secrets, or null when it has none. */
@@ -34,7 +43,7 @@ export async function getShareLink(
 ): Promise<ShareLink | null> {
   const { rows } = await db.query<LinkRow>(
     `SELECT link.share_id, link.token_sealed, link.owner_key_sealed, link.cursor,
-       link.last_synced_at, share.created_at AS share_created_at
+       link.last_synced_at, share.created_at AS share_created_at, share.review_window_hours
      FROM project_share_links AS link
      JOIN projects AS project
        ON project.workspace_id = link.workspace_id AND project.id = link.project_id
@@ -44,6 +53,7 @@ export async function getShareLink(
   );
   const row = rows[0];
   if (!row) return null;
+  const createdAt = Number(row.share_created_at);
   return {
     id: row.share_id,
     token: openSecret(row.token_sealed, context(workspaceId, projectId, "token"), secret),
@@ -52,9 +62,10 @@ export async function getShareLink(
       context(workspaceId, projectId, "owner-key"),
       secret,
     ),
-    createdAt: Number(row.share_created_at),
+    createdAt,
     cursor: Number(row.cursor),
     ...(row.last_synced_at ? { lastSyncedAt: toMs(row.last_synced_at) } : {}),
+    ...reviewWindowState(createdAt, row.review_window_hours),
   };
 }
 
@@ -83,19 +94,31 @@ async function provenShare(tx: Queryable, input: ShareAttach, now: number) {
   return proven ? row : null;
 }
 
+/** What attaching takes besides the proof: the pull position, and who's attaching it. */
+interface AttachExtras {
+  cursor?: number;
+  lastSyncedAt?: number;
+  /**
+   * The member attaching it, recorded as who invited the link's reviewers.
+   * The first one stays: attaching again (a retry, an import) never changes it.
+   */
+  invitedBy?: string;
+}
+
 /**
  * Makes a share the review link of a live project of the workspace. The
  * caller proves it owns the share with its owner key (checked against
  * `owner_key_hash`) and token; a share made without signing in then joins the
- * workspace and stops deleting itself after 30 days. A share already in
- * another workspace, or on another project, answers like an unknown one.
+ * workspace and stops deleting itself after 30 days. With a `reviewWindow`
+ * the link takes it; without one it keeps the window it has. A share already
+ * in another workspace, or on another project, answers like an unknown one.
  * Run inside a transaction.
  */
 export async function attachShare(
   tx: Queryable,
   workspaceId: string,
   projectId: string,
-  input: ShareAttach & { cursor?: number; lastSyncedAt?: number },
+  input: ShareAttach & AttachExtras,
   now: number,
   secret?: string,
 ): Promise<QueryResult<null>> {
@@ -116,8 +139,18 @@ export async function attachShare(
   );
   if (linked[0] && linked[0].share_id !== input.shareId) return refuse("linked");
   await tx.query(
-    `UPDATE squint_shares SET workspace_id = $2, project_id = $3, expires_at = NULL WHERE id = $1`,
-    [input.shareId, workspaceId, projectId],
+    `UPDATE squint_shares SET workspace_id = $2, project_id = $3, expires_at = NULL,
+       invited_by_user_id = COALESCE(invited_by_user_id, $4::uuid),
+       review_window_hours = CASE WHEN $5::boolean THEN $6::integer ELSE review_window_hours END
+     WHERE id = $1`,
+    [
+      input.shareId,
+      workspaceId,
+      projectId,
+      input.invitedBy ?? null,
+      input.reviewWindow !== undefined,
+      input.reviewWindow === undefined ? null : windowHours(input.reviewWindow),
+    ],
   );
   await tx.query(
     `INSERT INTO project_share_links
@@ -156,6 +189,53 @@ export async function syncShareLink(
     [workspaceId, projectId, sync.cursor, toDate(sync.lastSyncedAt)],
   );
   return rows.length === 1;
+}
+
+/**
+ * Sets how long the clients of a live project's review link can comment,
+ * still counted from the link's creation, and records who changed it (the
+ * field and the new window only). Shortened past the time already gone, the
+ * review closes at once; lengthened, a closed review opens again. Only a
+ * workspace's link has these settings. Null without a link.
+ */
+export async function changeShareSettings(
+  db: Database,
+  actor: { userId: string; workspaceId: string },
+  projectId: string,
+  settings: ShareSettings,
+  now: number,
+): Promise<ReviewWindowState | null> {
+  const { workspaceId } = actor;
+  return db.transaction(async (tx) => {
+    const { rows } = await tx.query<{
+      created_at: string | number;
+      review_window_hours: number | null;
+    }>(
+      `UPDATE squint_shares AS share SET review_window_hours = $3
+       FROM project_share_links AS link
+       JOIN projects AS project
+         ON project.workspace_id = link.workspace_id AND project.id = link.project_id
+       WHERE share.id = link.share_id AND link.workspace_id = $1 AND link.project_id = $2
+         AND project.deleted_at IS NULL
+       RETURNING share.created_at, share.review_window_hours`,
+      [workspaceId, projectId, windowHours(settings.reviewWindow)],
+    );
+    const row = rows[0];
+    if (!row) return null;
+    await audit(
+      tx,
+      {
+        actorUserId: actor.userId,
+        workspaceId,
+        action: "share.settings_changed",
+        target: { type: "project", id: projectId },
+        fields: ["reviewWindow"],
+        meta: { reviewWindow: settings.reviewWindow },
+      },
+      now,
+    );
+    return reviewWindowState(Number(row.created_at), row.review_window_hours);
+  });
 }
 
 /** The ids of every share of a project of the workspace (linked or not), to revoke them. */

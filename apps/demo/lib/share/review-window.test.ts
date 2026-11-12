@@ -1,22 +1,37 @@
 import { describe, expect, it } from "vitest";
 import {
-  REVIEW_WINDOW_MS,
+  DEFAULT_REVIEW_WINDOW_HOURS,
+  REVIEW_WINDOWS,
   reviewClosed,
   reviewDeadline,
   shortTimeLeft,
   spokenTimeLeft,
   timeLeft,
+  windowChoice,
+  windowHours,
 } from "./review-window";
 
 const HOUR = 60 * 60 * 1000;
 const MINUTE = 60 * 1000;
 
 describe("review window", () => {
-  it("closes 72 hours after the link was created, on the dot", () => {
-    expect(REVIEW_WINDOW_MS).toBe(72 * HOUR);
-    expect(reviewDeadline(1_000)).toBe(1_000 + 72 * HOUR);
-    expect(reviewClosed(1_000, 1_000 + 72 * HOUR - 1)).toBe(false);
-    expect(reviewClosed(1_000, 1_000 + 72 * HOUR)).toBe(true);
+  it.each([24, 72, 168])("closes %i hours after the link was created, on the dot", (hours) => {
+    const endsAt = reviewDeadline(1_000, hours);
+    expect(endsAt).toBe(1_000 + hours * HOUR);
+    expect(reviewClosed(endsAt, 1_000 + hours * HOUR - 1)).toBe(false);
+    expect(reviewClosed(endsAt, 1_000 + hours * HOUR)).toBe(true);
+  });
+
+  it("never closes without a limit", () => {
+    expect(reviewDeadline(1_000, null)).toBeNull();
+    expect(reviewClosed(null, Number.MAX_SAFE_INTEGER)).toBe(false);
+  });
+
+  it("names each window as the API does, and reads unknown hours as the 72-hour default", () => {
+    expect(DEFAULT_REVIEW_WINDOW_HOURS).toBe(72);
+    expect(REVIEW_WINDOWS.map(windowHours)).toEqual([24, 72, 168, null]);
+    expect([24, 72, 168, null].map(windowChoice)).toEqual(["24h", "72h", "7d", "none"]);
+    expect(windowChoice(48)).toBe("72h");
   });
 
   it("counts down in days, hours and minutes, rounding up to the minute", () => {

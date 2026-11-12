@@ -34,7 +34,7 @@ const STILL_SENDING =
 const PAGE_GONE =
   "Your comment wasn't sent: its page was removed from this review. Copy your text, then reload the page.";
 const NOT_SENT_DEFAULT = "Your comment wasn't sent. Retry in a moment.";
-/** 403 review-closed: the share's 72-hour review window is over. */
+/** 403 review-closed: the share's review window is over. */
 const REVIEW_CLOSED =
   "Your comment wasn't sent: the review window has closed. Copy your text to keep it.";
 const CAPTURE_CLOSED = "The review window has closed, so new snapshots can't be taken.";
