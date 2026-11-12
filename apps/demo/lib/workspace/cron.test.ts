@@ -7,7 +7,9 @@ import { addFolder, NOW, PNG, twoWorkspaces, URL_PROJECT } from "@/test/workspac
 import { ACCOUNT_DELETION_GRACE_MS, scheduleAccountDeletion } from "../account/account-deletion";
 import type { Database } from "../db/database";
 import { inlineBackend } from "../share/blob-backend";
+import { addressKey, claimPasswordAttempt } from "../share/password-attempts";
 import { createPostgresStore } from "../share/postgres-store";
+import { RETENTION_MS } from "../share/retention";
 import type { ShareServices } from "../share/server";
 import { ARCHIVE_GRACE_MS, TRASH_GRACE_MS } from "./limits";
 import { createProject, listProjects, listTrash, setArchived, trashProject } from "./projects";
@@ -88,6 +90,36 @@ describe("expiry cron: workspace steps", () => {
     ]);
     const { rows } = await db.query("SELECT project_id FROM workspace_blobs");
     expect(rows).toEqual([{ project_id: "recent" }]);
+  });
+
+  it("deletes wrong review link passwords a day old, and keeps newer ones", async () => {
+    const { db } = await twoWorkspaces();
+    holder.db = db;
+    shares.squintShares = Promise.resolve({ store: createPostgresStore(db), blobs: inlineBackend });
+    await db.query(
+      `INSERT INTO squint_shares (id, token_hash, owner_key_hash, project, created_at, updated_at,
+         expires_at)
+       VALUES ('locked', 'locked-token', 'locked-owner', '{}'::jsonb, $1, $1, $2)`,
+      [Date.now(), Date.now() + RETENTION_MS],
+    );
+    const attempt = { shareId: "locked", ipHash: addressKey("198.51.100.7", "cron-test-secret") };
+    const day = 24 * 60 * 60 * 1000;
+    for (const at of [Date.now() - day - 1, Date.now() - day - 2, Date.now()]) {
+      expect(await claimPasswordAttempt(db, attempt, at)).toMatchObject({ ok: true });
+    }
+
+    const response = await cronRoute.GET(
+      new Request("http://localhost/api/cron/expire", {
+        headers: { authorization: `Bearer ${SECRET}` },
+      }),
+    );
+
+    expect(await response.json()).toMatchObject({
+      passwordAttempts: 2,
+      failed: { passwordAttempts: false },
+    });
+    const { rows } = await db.query("SELECT share_id FROM squint_share_password_attempts");
+    expect(rows).toEqual([{ share_id: "locked" }]);
   });
 
   it("deletes accounts and workspaces whose 30 days are up, and keeps the rest", async () => {

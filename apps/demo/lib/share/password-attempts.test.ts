@@ -9,6 +9,7 @@ import {
   MAX_FAILURES_PER_ADDRESS,
   MAX_FAILURES_PER_LINK,
   PASSWORD_WINDOW_MS,
+  prunePasswordAttempts,
   releasePasswordClaim,
   type PasswordAttemptKey,
 } from "./password-attempts";
@@ -108,6 +109,18 @@ describe("review link password limits", () => {
     );
     expect(rows.map((row) => row.share_id)).toEqual(["s2", "s2", "s2"]);
     await fail(db, key(0), MAX_FAILURES_PER_LINK);
+  });
+
+  it("prunes rows a day old for the daily cleanup, with no right password needed", async () => {
+    await fail(db, key(0), 2, NOW - 24 * 60 * MINUTE - 1);
+    await fail(db, key(1), 1, NOW - 24 * 60 * MINUTE);
+    await fail(db, key(2), 3, NOW);
+    expect(await prunePasswordAttempts(db, NOW)).toBe(2);
+    const { rows } = await db.query<{ share_id: string }>(
+      "SELECT share_id FROM squint_share_password_attempts ORDER BY share_id",
+    );
+    expect(rows.map((row) => row.share_id)).toEqual(["s1", "s2", "s2", "s2"]);
+    expect(await prunePasswordAttempts(db, NOW)).toBe(0);
   });
 
   it("stores an address only as an HMAC keyed from AUTH_SECRET", async () => {

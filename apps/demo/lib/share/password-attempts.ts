@@ -117,3 +117,19 @@ export async function releasePasswordClaim(
     [attemptId, key.shareId, key.ipHash, new Date(now - KEEP_ATTEMPTS_MS)],
   );
 }
+
+/**
+ * Deletes attempts older than a day, for the daily cleanup, so failures don't
+ * pile up while nobody enters a right password (`releasePasswordClaim` prunes
+ * only after one). Answers how many it deleted.
+ */
+export async function prunePasswordAttempts(db: Queryable, now: number): Promise<number> {
+  const { rows } = await db.query<{ count: number }>(
+    `WITH gone AS (
+       DELETE FROM squint_share_password_attempts WHERE at < $1 RETURNING 1
+     )
+     SELECT count(*)::int AS count FROM gone`,
+    [new Date(now - KEEP_ATTEMPTS_MS)],
+  );
+  return rows[0]?.count ?? 0;
+}
