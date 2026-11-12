@@ -48,15 +48,25 @@
   --ready: #48c0f0;
   --ready-soft: rgb(72 192 240 / 0.16);
   --ready-text: #0a6a90;
-  --comments: #f0543c;
-  --comments-soft: rgb(240 84 60 / 0.14);
-  --comments-text: #b32f19;
-  --resolved: #0ca86c;
-  --resolved-soft: rgb(12 168 108 / 0.14);
-  --resolved-text: #06714a;
+  /*
+   * Open is a muted crimson, resolved a calm jade, a clear step lighter (L* 42 and 57), so ring
+   * segments and dots tell apart by lightness too, not hue alone. Fills and strokes are 3:1 or
+   * more on --panel and --card (crimson 5.5:1, jade 3.2:1 on --panel); each -text reads 5:1 or
+   * more on --card, --panel and its own -soft.
+   */
+  --comments: #b82c46;
+  --comments-soft: rgb(184 44 70 / 0.14);
+  --comments-text: #9e2139;
+  --resolved: #219a7c;
+  --resolved-soft: rgb(33 154 124 / 0.14);
+  --resolved-text: #0d6b55;
 
-  --danger: #b32f19;
-  --danger-soft: rgb(240 84 60 / 0.12);
+  /*
+   * Errors share open comments' crimson, so the app has one red: the review countdown's last
+   * day (--danger) and the deletion notice's (--comments-text) match, as they always have.
+   */
+  --danger: #9e2139;
+  --danger-soft: rgb(184 44 70 / 0.12);
 
   /*
    * Pins and favicons sit on arbitrary site and image content, so these stay
@@ -67,10 +77,11 @@
   --pin-band: #18181b;
   --pin-focus: #0c54cc;
   /*
-   * Resolved pins and badges: Native Pet Allergy green, filled. Navy numbers
-   * read 4.8:1 on it (white would be 2.8:1). Commenters never get a green.
+   * Resolved pins and badges: the resolved jade a step lighter (RESOLVED_GREEN in
+   * brand-palette.ts), filled. Navy numbers read 5.1:1 on it (white would be 2.6:1).
+   * Commenters never get a green.
    */
-  --resolved-pin: #16af74;
+  --resolved-pin: #35b28f;
   --on-resolved-pin: #012d61;
   --favicon-bg: #ffffff;
   /* Behind a company's logo in both themes: a dark logo with no background would vanish on dark. */
@@ -126,13 +137,20 @@
 
   --ready-soft: rgb(72 192 240 / 0.18);
   --ready-text: #7fd4f7;
-  --comments-soft: rgb(240 84 60 / 0.18);
-  --comments-text: #ff9580;
-  --resolved-soft: rgb(12 168 108 / 0.18);
-  --resolved-text: #4cd9a1;
+  /*
+   * Both lifted to read on dark surfaces, still a clear lightness step apart (L* 56 and 74):
+   * crimson 4.1:1 and jade 7.3:1 on --card. Text 6.9:1 and 8.4:1 on --card, 5.5:1 and 5.9:1
+   * on their -soft over it.
+   */
+  --comments: #e5536b;
+  --comments-soft: rgb(229 83 107 / 0.18);
+  --comments-text: #ff8fa0;
+  --resolved: #4fc9a6;
+  --resolved-soft: rgb(79 201 166 / 0.18);
+  --resolved-text: #6ad6b4;
 
-  --danger: #ff9580;
-  --danger-soft: rgb(240 84 60 / 0.18);
+  --danger: #ff8fa0;
+  --danger-soft: rgb(229 83 107 / 0.18);
 
   --scene-tint: #a1a1aa;
   --scene-check: #d4d4d8;
@@ -163,8 +181,12 @@
   --brand-text: #0c54cc;
   --brand-soft: rgb(12 84 204 / 0.1);
   --ready-text: #0a6a90;
-  --comments-text: #b32f19;
-  --resolved-text: #06714a;
+  --comments: #b82c46;
+  --comments-soft: rgb(184 44 70 / 0.14);
+  --comments-text: #9e2139;
+  --resolved: #219a7c;
+  --resolved-soft: rgb(33 154 124 / 0.14);
+  --resolved-text: #0d6b55;
   --scene-check: #3f3f46;
   /* Text that inherits its color (no text-* class) inherits it already resolved: reset it. */
   color: var(--ink);
