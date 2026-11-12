@@ -12,5 +12,5 @@ export const contentType = LINK_PREVIEW_TYPE;
 
 /** The main Squint card, generated once at build time. Every page without its own inherits it. */
 export default function OpenGraphImage() {
-  return renderLinkPreview(<MainPreview />, { cardVersion: 3 });
+  return renderLinkPreview(<MainPreview />, { cardVersion: 4 });
 }
