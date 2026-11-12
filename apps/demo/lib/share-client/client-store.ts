@@ -17,6 +17,11 @@ export interface ClientState {
    * this clock says), until a refresh brings a new deadline.
    */
   reviewClosed: boolean;
+  /**
+   * The link asked for its password again while open (it was changed, or the
+   * guest pass ran out): the review gives way to the password screen.
+   */
+  locked: boolean;
 }
 
 export interface ClientStore {
@@ -34,6 +39,7 @@ export interface ClientStore {
   carryOverAuthorName: () => void;
   markGone: () => void;
   markReviewClosed: () => void;
+  markLocked: () => void;
 }
 
 interface ClientStoreOptions {
@@ -51,6 +57,7 @@ export function createClientStore(
     authorName,
     gone: false,
     reviewClosed: false,
+    locked: false,
   };
   let state = rendered;
   const listeners = new Set<() => void>();
@@ -85,6 +92,7 @@ export function createClientStore(
     },
     markGone: () => set({ gone: true }),
     markReviewClosed: () => set({ reviewClosed: true }),
+    markLocked: () => set({ locked: true }),
   };
 }
 
