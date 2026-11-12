@@ -109,7 +109,11 @@ export function BusiestTile({ folder, swatch, thumbs }: BusiestTileProps) {
           </TileTag>
         }
       />
-      <div className="flex min-h-0 flex-1 items-end gap-3">
+      {/*
+        Not flex-1: the folder sits right under the heading, as every tile's content does, and
+        the row's leftover height falls below the share line, not between heading and name.
+      */}
+      <div className="flex min-h-0 items-end gap-3">
         <p className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-title font-bold">{folder.name}</span>
           <span className="truncate text-body text-muted">

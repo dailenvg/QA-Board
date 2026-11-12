@@ -1,7 +1,6 @@
 "use client";
 
-import { useId, type CSSProperties, type ReactNode } from "react";
-import { commenterColor, type CommenterColor } from "@/lib/brand-palette";
+import { useId, type ReactNode } from "react";
 import { LIST_ROWS, type ClientNews } from "@/lib/overview/activity";
 import { FOLDERS_HREF, projectHref } from "@/lib/routes";
 import { HIGHLIGHT_TAG } from "../../ui/highlight-tag";
@@ -34,16 +33,12 @@ function waitingLine(count: number): string {
     : `${count} comments are still on review links. Open their projects to bring them in.`;
 }
 
-/** Each project's color: the dot on its row. */
-function projectColor(projectName: string): CommenterColor {
-  return commenterColor(projectName);
-}
-
 /**
  * Client comments since the last look: a client's cursor dropping their pins
  * onto a page while Squiggy listens (again on hover or focus), then
  * each project with news, opening the project (which also brings in any still
- * waiting on its review link), marked with its own colored dot.
+ * waiting on its review link), with how many are new. No per-project color: the
+ * scene is in greys, so a colored dot would match nothing on screen.
  */
 export function ClientsTile({ news, now, thumb }: ClientsTileProps) {
   const headingId = useId();
@@ -117,14 +112,7 @@ export function ClientsTile({ news, now, thumb }: ClientsTileProps) {
                       <span className="min-w-0 truncate text-body font-semibold">
                         {row.projectName}
                       </span>
-                      <span className={`${HIGHLIGHT_TAG} tabular-nums`}>
-                        <span
-                          aria-hidden="true"
-                          style={{ "--dot": projectColor(row.projectName).hex } as CSSProperties}
-                          className="size-2 rounded-pill bg-(--dot)"
-                        />
-                        {row.count} new
-                      </span>
+                      <span className={`${HIGHLIGHT_TAG} tabular-nums`}>{row.count} new</span>
                     </span>
                     <span className="text-meta text-muted">
                       <TimeAgo at={row.latestAt} now={now} />
