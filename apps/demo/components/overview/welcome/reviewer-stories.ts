@@ -3,7 +3,7 @@ import { REVIEW_WINDOW_LABELS, windowChoice } from "@/lib/share/review-window";
 import { OpenLinkStory } from "./OpenLinkStory";
 import { PinStory } from "./PinStory";
 import { ResolveStory } from "./ResolveStory";
-import { ReviewResolveStory } from "./ReviewResolveStory";
+import { reviewResolveScene } from "./ReviewResolveStory";
 import type { StoryDefinition } from "./story-scene";
 import { OPEN_LINK_BEATS, PIN_BEATS, RESOLVE_BEATS, STORY_COMMENTER } from "./story-script";
 
@@ -46,7 +46,8 @@ export const reviewerStories = (windowHours: number | null): readonly StoryDefin
     ...sendCopy(windowHours),
     tint: RESOLVED_GREEN.hex,
     beats: RESOLVE_BEATS,
-    // A link without a deadline shows no countdown chip, as the guest's top bar doesn't.
-    Scene: windowHours === null ? ResolveStory : ReviewResolveStory,
+    // A link without a deadline shows no countdown chip, as the guest's top bar doesn't; any
+    // other shows one within its own window.
+    Scene: windowHours === null ? ResolveStory : reviewResolveScene(windowHours),
   },
 ];
