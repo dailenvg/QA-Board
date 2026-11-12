@@ -21,3 +21,8 @@ export function relativeTime(timestamp: number, now: number = Date.now()): strin
 export function absoluteTime(timestamp: number): string {
   return new Date(timestamp).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" });
 }
+
+/** "Nov 12, 2026". */
+export function calendarDate(timestamp: number): string {
+  return new Date(timestamp).toLocaleDateString("en", { dateStyle: "medium" });
+}

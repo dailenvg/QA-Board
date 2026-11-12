@@ -18,6 +18,7 @@ import {
 import {
   restoreReviewWindow,
   setReviewWindow,
+  setSharePassword,
   shareProject,
   unshareProject,
 } from "@/lib/store/actions";
@@ -217,7 +218,7 @@ export function ShareControl({ data, project }: ShareControlProps) {
         onClick={() => setOpen(true)}
         className="max-sm:size-11 max-sm:px-0"
         aria-label={button.label}
-        title={button.closed ? "Review window closed" : undefined}
+        title={button.title}
         data-testid="share-button"
       >
         <span className="relative">
@@ -252,6 +253,7 @@ export function ShareControl({ data, project }: ShareControlProps) {
         savingWindow={windowSaves > 0}
         windowError={windowError}
         onReviewWindowChange={chooseWindow}
+        onPasswordChange={(password) => setSharePassword(project.id, password)}
         returnFocus={returnFocus}
         onCreate={() => void create()}
         onRetry={() => syncNow(project.id)}

@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useId, useRef, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { duration, usePopVariants } from "@/lib/motion";
+import { useLiftAboveKeyboard } from "@/lib/use-fit-above-keyboard";
 import { useIsClient } from "@/lib/use-is-client";
 import { Icon } from "./Icon";
 
@@ -23,6 +24,11 @@ interface DialogProps {
    * half done): no close button, and Escape and the backdrop do nothing.
    */
   dismissible?: boolean;
+  /**
+   * For a dialog with a field to type in: while a phone's keyboard is open, the
+   * dialog sits above it, cut to the screen left, instead of behind it.
+   */
+  fitKeyboard?: boolean;
 }
 
 /** Tab stops only: roving-tabindex items (such as unselected radios) are skipped. */
@@ -131,8 +137,11 @@ export function Dialog({
   size = "md",
   testId,
   dismissible = true,
+  fitKeyboard = false,
 }: DialogProps) {
-  const panel = useRef<HTMLDivElement>(null);
+  const { container: backdrop, panel } = useLiftAboveKeyboard<HTMLDivElement, HTMLDivElement>(
+    open && fitKeyboard,
+  );
   const titleId = useId();
   const descriptionId = useId();
   const variants = usePopVariants();
@@ -143,7 +152,10 @@ export function Dialog({
   return createPortal(
     <AnimatePresence>
       {open ? (
-        <div className="fixed inset-0 z-50 grid place-items-end p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:place-items-center sm:p-6">
+        <div
+          ref={backdrop}
+          className="fixed inset-0 z-50 grid place-items-end p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:place-items-center sm:p-6"
+        >
           <motion.div
             className="absolute inset-0 bg-scrim"
             initial={{ opacity: 0 }}

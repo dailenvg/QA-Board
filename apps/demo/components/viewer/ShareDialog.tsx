@@ -5,6 +5,7 @@ import { relativeTime } from "@/lib/relative-time";
 import { spokenTimeLeft, timeLeft, type ReviewWindowChoice } from "@/lib/share/review-window";
 import type { SyncStatus } from "@/lib/share-client/owner-sync";
 import type { ShareFit } from "@/lib/share-client/use-share-fit";
+import type { Result } from "@/lib/store/store";
 import type { ProjectShare } from "@/lib/store/types";
 import { useNow } from "@/lib/use-now";
 import { CopyLinkField } from "../review-link/CopyLinkField";
@@ -13,6 +14,7 @@ import { Dialog } from "../ui/Dialog";
 import { FieldError } from "../ui/FieldError";
 import { Icon, type IconName } from "../ui/Icon";
 import { ReviewWindowControl } from "./ReviewWindowControl";
+import { SharePasswordControl } from "./SharePasswordControl";
 
 interface ShareDialogProps {
   open: boolean;
@@ -32,6 +34,8 @@ interface ShareDialogProps {
   /** Why the last change of the window didn't save; null when it did. */
   windowError: string | null;
   onReviewWindowChange: (choice: ReviewWindowChoice) => void;
+  /** Sets the link's password, or with null removes it; resolves with the server's answer. */
+  onPasswordChange: (password: string | null) => Promise<Result>;
   /**
    * The dialog steps aside for a confirmation (closing the review, revoking)
    * and opens again after it: the control the question came from, which gets
@@ -68,8 +72,8 @@ function reviewLine(share: ProjectShare, now: number): string {
 }
 
 /**
- * Owner's share settings: create the link, copy it, see sync status and the
- * review window, revoke it.
+ * Owner's share settings: create the link, copy it, see sync status, set the
+ * review window and the password, revoke it.
  */
 export function ShareDialog({
   open,
@@ -85,6 +89,7 @@ export function ShareDialog({
   savingWindow,
   windowError,
   onReviewWindowChange,
+  onPasswordChange,
   returnFocus = null,
   onCreate,
   onRetry,
@@ -152,6 +157,7 @@ export function ShareDialog({
       title="Share with clients"
       description="Clients can view and add comments. Only you can resolve, edit or delete them."
       testId="share-dialog"
+      fitKeyboard
     >
       {/* Always present, so the change is announced when the link view replaces Create. */}
       <p role="status" className="sr-only">
@@ -194,6 +200,11 @@ export function ShareDialog({
             <Icon name="clock" className="mt-0.5 size-4 shrink-0" />
             {reviewLine(share, now)}
           </p>
+          <SharePasswordControl
+            passwordSetAt={share.passwordSetAt}
+            onChange={onPasswordChange}
+            disabled={revoking}
+          />
           <div className="flex justify-end border-t border-line pt-4">
             <Button
               variant="danger"

@@ -44,3 +44,49 @@ export function useFitAboveKeyboard<T extends HTMLElement>(
   }, [active, cssMax]);
   return element;
 }
+
+/**
+ * How much of the layout viewport's bottom an on-screen keyboard covers, in px: what lies below
+ * the visual viewport (`visibleTop` + `visibleHeight`); 0 without a keyboard.
+ */
+export function keyboardOverlap(
+  layoutHeight: number,
+  visibleTop: number,
+  visibleHeight: number,
+): number {
+  return Math.max(0, Math.round(layoutHeight - (visibleTop + visibleHeight)));
+}
+
+/**
+ * While `active`, lifts a bottom-anchored overlay (the returned `container`, such as a dialog's
+ * backdrop grid) above an on-screen keyboard and caps its `panel` to the part of the screen left
+ * visible, so a field inside stays in sight while it's typed in. Without a keyboard both keep
+ * their CSS.
+ */
+export function useLiftAboveKeyboard<C extends HTMLElement, P extends HTMLElement>(
+  active: boolean,
+): { container: RefObject<C | null>; panel: RefObject<P | null> } {
+  const container = useRef<C>(null);
+  const panel = useRef<P>(null);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const box = container.current;
+    const sheet = panel.current;
+    if (!active || !viewport || !box || !sheet) return;
+    const fit = () => {
+      const covered = keyboardOverlap(window.innerHeight, viewport.offsetTop, viewport.height);
+      box.style.paddingBottom = covered ? `${covered + GAP}px` : "";
+      sheet.style.maxHeight = covered ? `${Math.max(MIN_HEIGHT, viewport.height - 2 * GAP)}px` : "";
+    };
+    fit();
+    viewport.addEventListener("resize", fit);
+    viewport.addEventListener("scroll", fit);
+    return () => {
+      viewport.removeEventListener("resize", fit);
+      viewport.removeEventListener("scroll", fit);
+      box.style.paddingBottom = "";
+      sheet.style.maxHeight = "";
+    };
+  }, [active]);
+  return { container, panel };
+}
