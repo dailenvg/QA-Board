@@ -122,6 +122,24 @@ export async function revokeWorkspaceLink(page: Page, projectId: string): Promis
   expect(response.status()).toBe(204);
 }
 
+/**
+ * Sets (or, with null, removes) the password on a project's review link through the owner
+ * API, and returns what it answers: `{ hasPassword, passwordSetAt }`.
+ */
+export async function setLinkPassword(
+  page: Page,
+  projectId: string,
+  password: string | null,
+): Promise<{ hasPassword: boolean; passwordSetAt: number | null }> {
+  const url = await workspaceApi(`/projects/${projectId}/share-link/password`);
+  const response =
+    password === null
+      ? await page.request.delete(url, { headers: { "content-type": "application/json" } })
+      : await page.request.put(url, { data: { password } });
+  expect(response.status()).toBe(200);
+  return (await response.json()) as { hasPassword: boolean; passwordSetAt: number | null };
+}
+
 /** Opens the Overview and waits for the store to load. */
 export async function openOverview(page: Page): Promise<void> {
   await page.goto("/");
