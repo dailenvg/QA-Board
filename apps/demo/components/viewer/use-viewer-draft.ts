@@ -8,7 +8,13 @@ const RESTORED = "This comment wasn't sent before the page closed. Retry to post
 function restoreDraft(storage: DraftStorage | undefined): Draft | null {
   const stored = storage?.load();
   return stored
-    ? { ...stored, pageId: stored.pageId ?? null, sending: false, error: RESTORED, crop: null }
+    ? {
+        ...stored,
+        pageId: stored.pageId ?? null,
+        sending: false,
+        error: storage?.restoredNotice ?? RESTORED,
+        crop: null,
+      }
     : null;
 }
 

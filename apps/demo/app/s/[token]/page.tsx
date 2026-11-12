@@ -1,8 +1,7 @@
 import type { Metadata, ResolvingMetadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { ShareLocked } from "@/components/share/ShareLocked";
-import { SharedReview } from "@/components/share/SharedReview";
+import { ShareGate } from "@/components/share/ShareGate";
 import { invitationPreview, previewMetadata, SHARED_REVIEW_PREVIEW } from "@/lib/link-preview";
 import { reviewerNameOf } from "@/lib/share-client/reviewer-name";
 import { invitationOf, openGuestShare } from "@/lib/share/guest-share";
@@ -56,15 +55,18 @@ export async function generateMetadata(
 
 /**
  * A client's shared review link. Unknown, revoked and expired tokens are a
- * plain 404; a password-protected link without a valid guest pass shows only
- * that it's locked. The reviewer's name for this link comes from its cookie,
- * so the page renders with it; it only fills in the name field, never vouches for anyone.
+ * plain 404; a password-protected link without a valid guest pass shows its
+ * password screen, with the company's name and logo and nothing of the
+ * project. The reviewer's name for this link comes from its cookie, so the
+ * page renders with it; it only fills in the name field, never vouches for anyone.
  */
 export default async function SharedReviewPage({ params }: Props) {
   const { token } = await params;
   const cookies = await requestCookies();
   const guest = await openGuestShare(token, cookies);
   if (!guest) notFound();
-  if (guest.locked) return <ShareLocked />;
-  return <SharedReview token={token} initial={guest.view} authorName={reviewerNameOf(cookies)} />;
+  const initial = guest.locked
+    ? { locked: true as const, brand: guest.brand }
+    : { locked: false as const, view: guest.view };
+  return <ShareGate token={token} initial={initial} authorName={reviewerNameOf(cookies)} />;
 }

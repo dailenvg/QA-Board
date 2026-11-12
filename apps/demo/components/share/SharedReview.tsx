@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { BlobSourceContext } from "@/lib/blob-store/blob-source";
 import { createClientBackend } from "@/lib/share-client/client-backend";
 import { createClientStore, toViewerData } from "@/lib/share-client/client-store";
-import { createDraftStorage } from "@/lib/share-client/draft-storage";
+import type { DraftStorage } from "@/lib/share-client/draft-storage";
 import { linkNameMemory } from "@/lib/share-client/reviewer-name";
 import { createServerBlobs } from "@/lib/share-client/server-blobs";
 import { useClientRefresh } from "@/lib/share-client/use-client-refresh";
@@ -27,6 +27,10 @@ interface SharedReviewProps {
   initial: ClientView;
   /** The reviewer's name remembered for this link (its cookie), so the page renders with it. */
   authorName: string | null;
+  /** Where an unsent comment is kept for this link, across reloads and the password screen. */
+  draftStorage: DraftStorage;
+  /** The link asked for its password again: the password screen takes the review's place. */
+  onLocked: (brand: ClientBrand) => void;
 }
 
 /**
@@ -69,7 +73,13 @@ const CLOSED = {
  * into a workspace, under the brand of the company that shared it. Nothing is saved to this browser's Squint workspace.
  * Comments are taken until the review window closes; then it's read-only.
  */
-export function SharedReview({ token, initial, authorName }: SharedReviewProps) {
+export function SharedReview({
+  token,
+  initial,
+  authorName,
+  draftStorage,
+  onLocked,
+}: SharedReviewProps) {
   const [store] = useState(() =>
     createClientStore(initial, { authorName, names: linkNameMemory(token) }),
   );
@@ -78,13 +88,17 @@ export function SharedReview({ token, initial, authorName }: SharedReviewProps) 
     () => createClientBackend({ token, store, blobs }),
     [token, store, blobs],
   );
-  const draftStorage = useMemo(() => createDraftStorage(token), [token]);
   // Client-only: an unsent draft is restored from this tab's sessionStorage on first render.
   const isClient = useIsClient();
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot);
   const { data, project } = useMemo(() => toViewerData(state), [state]);
   useClientRefresh(token, store);
   useEffect(() => store.carryOverAuthorName(), [store]);
+  const { locked } = state;
+  const lockedBrand = state.view.brand;
+  useEffect(() => {
+    if (locked) onLocked(lockedBrand);
+  }, [locked, lockedBrand, onLocked]);
   const { reviewEndsAt, reviewWindowHours, expiresAt, brand } = state.view;
   const openCopy = clientCopy(brand, state.view.project.name);
   // A project deleted before its review window ends can't take comments past deletion, so the

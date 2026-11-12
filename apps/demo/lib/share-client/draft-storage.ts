@@ -14,6 +14,8 @@ export interface StoredDraft {
 export interface DraftStorage {
   load: () => StoredDraft | null;
   save: (draft: StoredDraft | null) => void;
+  /** What a restored draft says about itself; the viewer's own reload notice without one. */
+  restoredNotice?: string;
 }
 
 function isDraft(value: unknown): value is StoredDraft {
@@ -33,26 +35,32 @@ function isDraft(value: unknown): value is StoredDraft {
 
 /**
  * sessionStorage for a share's unsent draft: it survives a reload or a
- * crash in this tab, and is gone when the tab closes for good. The crop is
- * not kept; it's taken again when the comment is sent.
+ * crash in this tab, and is gone when the tab closes for good. It's also kept
+ * in memory, so the viewer finds it again after the password screen took its
+ * place, even where sessionStorage is refused. The crop is not kept; it's
+ * taken again when the comment is sent.
  */
 export function createDraftStorage(token: string): DraftStorage {
   const key = `squint:draft:${token}`;
+  let kept: StoredDraft | null = null;
   return {
     load() {
       try {
-        const value: unknown = JSON.parse(sessionStorage.getItem(key) ?? "null");
+        const stored = sessionStorage.getItem(key);
+        if (stored === null) return kept;
+        const value: unknown = JSON.parse(stored);
         return isDraft(value) ? value : null;
       } catch {
-        return null;
+        return kept;
       }
     },
     save(draft) {
+      kept = draft;
       try {
         if (draft) sessionStorage.setItem(key, JSON.stringify(draft));
         else sessionStorage.removeItem(key);
       } catch {
-        // Not kept; nothing else depends on it.
+        // Kept in memory only.
       }
     },
   };

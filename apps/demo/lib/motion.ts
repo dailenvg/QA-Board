@@ -101,6 +101,16 @@ export const fadeOnly: Variants = {
   exit: { opacity: 0, transition: { duration: duration.micro } },
 };
 
+/**
+ * One whole screen giving way to another in place, such as a guest's password
+ * screen and the review it opens: a quick fade out, then a page-length rise in.
+ */
+export const screenSwap: Variants = {
+  hidden: { opacity: 0, y: rise },
+  visible: { opacity: 1, y: 0, transition: { duration: duration.page, ease: ease.out } },
+  exit: { opacity: 0, transition: { duration: duration.micro, ease: ease.out } },
+};
+
 /** Menus, popovers and dialogs: scale up from slightly smaller. */
 export const popIn: Variants = {
   hidden: { opacity: 0, scale: 0.96, y: 4 },
@@ -121,6 +131,11 @@ export function staggerGroup(staggerChildren = staggerStep, delayChildren = 0.08
 /** `fadeUp`, collapsed to a plain fade when the user prefers reduced motion. */
 export function useRevealVariants(): Variants {
   return useReducedMotion() ? fadeOnly : fadeUp;
+}
+
+/** `screenSwap`, collapsed to a plain fade when the user prefers reduced motion. */
+export function useScreenVariants(): Variants {
+  return useReducedMotion() ? fadeOnly : screenSwap;
 }
 
 /** `popIn`, collapsed to a plain fade when the user prefers reduced motion. */
