@@ -15,6 +15,8 @@ const LIMITS = {
   clientComment: createRateLimiter({ limit: 20, windowMs: 60_000 }),
   clientCapture: createRateLimiter({ limit: 6, windowMs: 60_000 }),
   clientRead: createRateLimiter({ limit: 600, windowMs: 60_000 }),
+  /** A brake before Postgres's own password limit (`password-attempts.ts`), which is the real one. */
+  clientUnlock: createRateLimiter({ limit: 30, windowMs: 60_000 }),
   /**
    * Per-link preview cards: each one is a full render. Over it, the generic card's bytes
    * (already rendered) answer instead, so an unfurl never breaks.
@@ -31,6 +33,15 @@ export function json(body: unknown, status = 200): Response {
 /** Unknown share, revoked link and wrong key all answer the same, saying nothing more. */
 export function notFound(): Response {
   return json({ error: "not-found" }, 404);
+}
+
+/**
+ * A password-protected link asked for without a valid guest pass: 401
+ * `password-required`, whatever was asked for, so nothing about the share
+ * shows until its password is entered (`POST /api/s/<token>/unlock`).
+ */
+export function passwordRequired(): Response {
+  return json({ error: "password-required" }, 401);
 }
 
 export function failure({ status, error }: Failure): Response {

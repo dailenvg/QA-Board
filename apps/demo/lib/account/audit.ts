@@ -30,8 +30,9 @@ export type MembershipAction = "membership.added" | "membership.removed";
 /** What the daily cron does to a workspace's projects: an archived one deleted once its date came. */
 export type ProjectAction = "project.deleted";
 
-/** A member changed a project's review link settings: targets the project. */
-export type ShareAction = "share.settings_changed";
+/** A member changed a project's review link settings or password: targets the project. */
+export type ShareAction =
+  "share.settings_changed" | "share.password_set" | "share.password_removed";
 
 /** One audit entry, by whoever did it: a user, or null for Squint itself (the daily cron). */
 export interface AuditEntry {

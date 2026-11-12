@@ -21,6 +21,14 @@ describe("a review link's preview", () => {
     });
   });
 
+  it("names the company only on a password-protected link", () => {
+    const copy = invitationPreview({ company: "ONE Agency", project: null });
+    expect(copy.title).toBe("ONE Agency invited you to review");
+    expect(copy.description).toBe(
+      "Open the link, drop a pin and leave ONE Agency a comment. No account needed.",
+    );
+  });
+
   it("stays generic on an anonymous link", () => {
     expect(SHARED_REVIEW_PREVIEW.title).toBe("You're invited to review");
     expect(SHARED_REVIEW_PREVIEW.description).toBe(

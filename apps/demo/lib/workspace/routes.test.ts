@@ -138,6 +138,10 @@ describe("request bodies", () => {
     ["PATCH", "/projects/p1/share-link/settings", { reviewWindow: "48h" }, "reviewWindow"],
     ["PATCH", "/projects/p1/share-link/settings", { reviewWindow: 24 }, "reviewWindow"],
     ["PATCH", "/projects/p1/share-link/settings", {}, "reviewWindow"],
+    ["PUT", "/projects/p1/share-link/password", { password: "1234567" }, "password"],
+    ["PUT", "/projects/p1/share-link/password", { password: "x".repeat(129) }, "password"],
+    ["PUT", "/projects/p1/share-link/password", { password: 12345678 }, "password"],
+    ["PUT", "/projects/p1/share-link/password", {}, "password"],
     ["POST", "/blobs/commit", { projectId: "p1", key: "../../etc" }, "key"],
     ["POST", "/blobs/token", { type: "blob.other" }, "type"],
     ["POST", "/import", { folders: [] }, "projects"],
@@ -324,6 +328,62 @@ describe("happy paths", () => {
       },
     );
     expect(unlinked.status).toBe(404);
+  });
+
+  it("sets, changes and removes a link's password, never answering its hash, and audits it", async () => {
+    vi.stubEnv("AUTH_SECRET", TEST_AUTH_SECRET);
+    const created = await createShare(
+      { store: createPostgresStore(db), blobs: inlineBackend },
+      STATE,
+      NOW,
+    );
+    const link = `/api/w/${a.workspaceId}/projects/p1/share-link`;
+    const proof = { shareId: created.shareId, token: created.token, ownerKey: created.ownerKey };
+    const attached = await call("PUT", link, { cookie: a.cookie, body: proof });
+    expect(await attached.json()).toMatchObject({ hasPassword: false, passwordSetAt: null });
+
+    // 8 and 128 characters are both fine, spaces and all.
+    for (const password of ["  8 char", "p".repeat(128)]) {
+      const before = Date.now();
+      const set = await call("PUT", `${link}/password`, { cookie: a.cookie, body: { password } });
+      expect(set.status).toBe(200);
+      const state = (await set.json()) as { hasPassword: boolean; passwordSetAt: number };
+      expect(state).toEqual({ hasPassword: true, passwordSetAt: expect.any(Number) as number });
+      expect(state.passwordSetAt).toBeGreaterThanOrEqual(before);
+    }
+    const read = await call("GET", link, { cookie: a.cookie });
+    const body = await read.text();
+    expect(JSON.parse(body)).toMatchObject({ hasPassword: true });
+    const { rows: stored } = await db.query<{ password_hash: string }>(
+      "SELECT password_hash FROM squint_shares",
+    );
+    expect(stored[0]?.password_hash).toMatch(/^\$argon2id\$/);
+    expect(body).not.toContain(stored[0]?.password_hash ?? "$argon2id$");
+    expect(body).not.toContain("argon2");
+
+    const removed = await call("DELETE", `${link}/password`, { cookie: a.cookie, body: {} });
+    expect(removed.status).toBe(200);
+    expect(await removed.json()).toEqual({ hasPassword: false, passwordSetAt: null });
+    expect(await (await call("GET", link, { cookie: a.cookie })).json()).toMatchObject({
+      hasPassword: false,
+      passwordSetAt: null,
+    });
+    const { rows: entries } = await db.query<{ action: string; meta: unknown }>(
+      "SELECT action, target_id, meta FROM audit_log ORDER BY id",
+    );
+    expect(entries).toEqual([
+      { action: "share.password_set", target_id: "p1", meta: { fields: ["password"] } },
+      { action: "share.password_set", target_id: "p1", meta: { fields: ["password"] } },
+      { action: "share.password_removed", target_id: "p1", meta: { fields: ["password"] } },
+    ]);
+    // Without a link, or in another workspace, there's nothing to protect.
+    await createProject(db, a.workspaceId, URL_PROJECT("p2"), NOW);
+    const unlinked = `/api/w/${a.workspaceId}/projects/p2/share-link/password`;
+    const password = { password: "long enough" };
+    expect((await call("PUT", unlinked, { cookie: a.cookie, body: password })).status).toBe(404);
+    expect((await call("DELETE", unlinked, { cookie: a.cookie, body: {} })).status).toBe(404);
+    const theirs = await call("PUT", `${link}/password`, { cookie: b.cookie, body: password });
+    expect(theirs.status).toBe(404);
   });
 
   it("sets and reads the member's author name", async () => {

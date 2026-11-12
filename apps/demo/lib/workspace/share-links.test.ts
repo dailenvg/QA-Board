@@ -12,7 +12,14 @@ import { inlineBackend } from "../share/blob-backend";
 import { createPostgresStore } from "../share/postgres-store";
 import { clientShare, createShare } from "../share/service";
 import { createProject, getProject, restoreProject, setArchived, trashProject } from "./projects";
-import { attachShare, changeShareSettings, getShareLink, syncShareLink } from "./share-links";
+import { verifyPassword } from "../auth/password";
+import {
+  attachShare,
+  changeSharePassword,
+  changeShareSettings,
+  getShareLink,
+  syncShareLink,
+} from "./share-links";
 
 const HOUR = 60 * 60 * 1000;
 /** A new link's window: 72 hours from its creation at `NOW`. */
@@ -83,6 +90,8 @@ describe("share links", () => {
       cursor: 4,
       lastSyncedAt: NOW,
       ...WINDOW_72,
+      hasPassword: false,
+      passwordSetAt: null,
     });
     expect((await getProject(db, a.workspaceId, "p1"))?.share).toEqual({
       id: created.shareId,
@@ -263,6 +272,57 @@ describe("share links", () => {
       })),
     );
     expect(JSON.stringify(rows)).not.toContain(created.token);
+  });
+
+  it("protects a link with a password any member may set, hashed anew every time", async () => {
+    const { db, a, store, created, input } = await setup();
+    await attach(db, a.workspaceId, "p1", input);
+    const ben = { userId: await addMember(db, a.workspaceId), workspaceId: a.workspaceId };
+    expect(await changeSharePassword(db, ben, "p1", "open sesame", NOW + 5)).toEqual({
+      hasPassword: true,
+      passwordSetAt: NOW + 5,
+    });
+    const first = (await store.byId(created.shareId))?.password;
+    expect(first?.setAt).toBe(NOW + 5);
+    expect(await verifyPassword("open sesame", first?.hash ?? null)).toBe(true);
+    expect(await verifyPassword("open sesame ", first?.hash ?? null)).toBe(false);
+    // The same password again: a new salt and time, so passes issued before stop working.
+    await changeSharePassword(db, ben, "p1", "open sesame", NOW + 6);
+    const second = (await store.byId(created.shareId))?.password;
+    expect(second?.hash).not.toBe(first?.hash);
+    expect(await getShareLink(db, a.workspaceId, "p1", TEST_AUTH_SECRET)).toMatchObject({
+      hasPassword: true,
+      passwordSetAt: NOW + 6,
+    });
+    expect(await changeSharePassword(db, ben, "p1", null, NOW + 7)).toEqual({
+      hasPassword: false,
+      passwordSetAt: null,
+    });
+    expect((await store.byId(created.shareId))?.password).toBeNull();
+    const { rows } = await db.query<{ actor_user_id: string; action: string }>(
+      "SELECT actor_user_id, action FROM audit_log ORDER BY id",
+    );
+    expect(rows.map((row) => row.action)).toEqual([
+      "share.password_set",
+      "share.password_set",
+      "share.password_removed",
+    ]);
+    expect(rows.every((row) => row.actor_user_id === ben.userId)).toBe(true);
+  });
+
+  it("sets no password on a project without a link, in the trash, or of another workspace", async () => {
+    const { db, a, b, store, created, input } = await setup();
+    await attach(db, a.workspaceId, "p1", input);
+    const theirs = { userId: b.userId, workspaceId: b.workspaceId };
+    expect(await changeSharePassword(db, theirs, "p1", "open sesame", NOW)).toBeNull();
+    const ours = { userId: a.userId, workspaceId: a.workspaceId };
+    expect(await changeSharePassword(db, ours, "p2", "open sesame", NOW)).toBeNull();
+    await trashProject(db, a.workspaceId, "p1", NOW);
+    expect(await changeSharePassword(db, ours, "p1", "open sesame", NOW)).toBeNull();
+    await db.query("UPDATE projects SET deleted_at = NULL WHERE id = 'p1'");
+    expect((await store.byId(created.shareId))?.password).toBeNull();
+    const { rows } = await db.query("SELECT 1 FROM audit_log");
+    expect(rows).toHaveLength(0);
   });
 
   it("changes nothing for a project without a link, in the trash, or of another workspace", async () => {

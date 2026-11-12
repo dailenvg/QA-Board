@@ -4,8 +4,9 @@ import type { Metadata } from "next";
  * Link preview copy and Open Graph defaults (Slack, iMessage, X, LinkedIn).
  * A workspace's review link previews as its invitation: the company, and the
  * project's name (a deliberate choice: the person sharing a link chooses the
- * channel it unfurls in). Anonymous links keep the generic preview. Never a
- * token, an id or an address in the copy.
+ * channel it unfurls in), except on a password-protected link, which names the
+ * company only. Anonymous links keep the generic preview. Never a token, an
+ * id or an address in the copy.
  */
 
 export const SITE_NAME = "Squint";
@@ -33,7 +34,8 @@ export const SHARED_REVIEW_PREVIEW: LinkPreviewCopy = {
 /** A workspace's review link: who invites, and to review what. */
 export interface Invitation {
   company: string;
-  project: string;
+  /** Null on a password-protected link, whose preview never names its project. */
+  project: string | null;
 }
 
 /**
@@ -46,7 +48,10 @@ export const INVITATION_CARD_ALT =
 /** The preview of a workspace's review link. */
 export function invitationPreview({ company, project }: Invitation): LinkPreviewCopy {
   return {
-    title: `${company} invited you to review ${project}`,
+    title:
+      project === null
+        ? `${company} invited you to review`
+        : `${company} invited you to review ${project}`,
     description: `Open the link, drop a pin and leave ${company} a comment. No account needed.`,
     alt: INVITATION_CARD_ALT,
   };

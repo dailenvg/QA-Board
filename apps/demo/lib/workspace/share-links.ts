@@ -1,4 +1,5 @@
 import { audit } from "../account/audit";
+import { hashPassword } from "../auth/password";
 import type { Database } from "../db/database";
 import type { Queryable } from "../share/migrate";
 import { isExpired } from "../share/retention";
@@ -6,9 +7,9 @@ import { reviewDeadline, windowHours } from "../share/review-window";
 import { secretMatches } from "../share/tokens";
 import { openSecret, sealSecret } from "./sealed-secrets";
 import type { ShareAttach, ShareSettings, ShareSync } from "./schemas";
-import { toDate, toMs } from "./times";
+import { toDate, toMs, toMsOrNull } from "./times";
 import { done, refuse, type QueryResult } from "./query-result";
-import type { ReviewWindowState, ShareLink } from "./types";
+import type { OwnerShareLink, ReviewWindowState, SharePasswordState } from "./types";
 
 /**
  * A workspace project's review link (023). Its token and owner key are sealed
@@ -27,11 +28,17 @@ interface LinkRow {
   last_synced_at: Date | null;
   share_created_at: string | number;
   review_window_hours: number | null;
+  password_set_at: Date | null;
 }
 
 /** A link's review window as the API sends it, counted from the share's creation. */
 export function reviewWindowState(createdAt: number, hours: number | null): ReviewWindowState {
   return { reviewWindowHours: hours, reviewEndsAt: reviewDeadline(createdAt, hours) };
+}
+
+/** Whether a link has a password, from when it was set (null without one). */
+function passwordState(setAt: Date | null): SharePasswordState {
+  return { hasPassword: setAt !== null, passwordSetAt: toMsOrNull(setAt) };
 }
 
 /** A live project's link with its secrets, or null when it has none. */
@@ -40,10 +47,11 @@ export async function getShareLink(
   workspaceId: string,
   projectId: string,
   secret?: string,
-): Promise<ShareLink | null> {
+): Promise<OwnerShareLink | null> {
   const { rows } = await db.query<LinkRow>(
     `SELECT link.share_id, link.token_sealed, link.owner_key_sealed, link.cursor,
-       link.last_synced_at, share.created_at AS share_created_at, share.review_window_hours
+       link.last_synced_at, share.created_at AS share_created_at, share.review_window_hours,
+       share.password_set_at
      FROM project_share_links AS link
      JOIN projects AS project
        ON project.workspace_id = link.workspace_id AND project.id = link.project_id
@@ -66,6 +74,7 @@ export async function getShareLink(
     cursor: Number(row.cursor),
     ...(row.last_synced_at ? { lastSyncedAt: toMs(row.last_synced_at) } : {}),
     ...reviewWindowState(createdAt, row.review_window_hours),
+    ...passwordState(row.password_set_at),
   };
 }
 
@@ -235,6 +244,51 @@ export async function changeShareSettings(
       now,
     );
     return reviewWindowState(Number(row.created_at), row.review_window_hours);
+  });
+}
+
+/**
+ * Sets, changes or (with null) removes the password guests of a live
+ * project's review link must enter, and records who did it (never the
+ * password or its hash). Any new password, even the same one again, voids
+ * every guest pass issued before it (`guest-pass.ts`), as removing it does.
+ * Only a workspace's link has one. Null without a link.
+ */
+export async function changeSharePassword(
+  db: Database,
+  actor: { userId: string; workspaceId: string },
+  projectId: string,
+  password: string | null,
+  now: number,
+): Promise<SharePasswordState | null> {
+  const { workspaceId } = actor;
+  // Hashed before the transaction: Argon2 takes a while and needs no lock.
+  const hash = password === null ? null : await hashPassword(password);
+  return db.transaction(async (tx) => {
+    const { rows } = await tx.query<{ password_set_at: Date | null }>(
+      `UPDATE squint_shares AS share SET password_hash = $3, password_set_at = $4
+       FROM project_share_links AS link
+       JOIN projects AS project
+         ON project.workspace_id = link.workspace_id AND project.id = link.project_id
+       WHERE share.id = link.share_id AND link.workspace_id = $1 AND link.project_id = $2
+         AND project.deleted_at IS NULL
+       RETURNING share.password_set_at`,
+      [workspaceId, projectId, hash, hash === null ? null : toDate(now)],
+    );
+    const row = rows[0];
+    if (!row) return null;
+    await audit(
+      tx,
+      {
+        actorUserId: actor.userId,
+        workspaceId,
+        action: hash === null ? "share.password_removed" : "share.password_set",
+        target: { type: "project", id: projectId },
+        fields: ["password"],
+      },
+      now,
+    );
+    return passwordState(row.password_set_at);
   });
 }
 

@@ -181,6 +181,7 @@ export async function createShare(
     updatedAt: now,
     expiresAt,
     reviewWindowHours: DEFAULT_REVIEW_WINDOW_HOURS,
+    password: null,
   };
   await store.create(share);
   for (const snapshot of state.snapshots) await store.upsertSnapshot(share.id, snapshot, "owner");

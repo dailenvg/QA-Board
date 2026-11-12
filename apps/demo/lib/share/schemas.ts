@@ -118,6 +118,14 @@ export const clientCommentSchema = z.object(commentFields);
 
 export const captureSchema = z.object({ width: z.number().finite() });
 
+/**
+ * `POST /api/s/<token>/unlock`: the password a guest typed, as typed. Anything
+ * past the longest password a link can have is refused before it's checked.
+ */
+export const unlockSchema = z.object({
+  password: z.string().min(1).max(SHARE_LIMITS.password.max),
+});
+
 /** `page:<pageId>` (with `:<rev>` once replaced), `snapshot:<id>` or `crop:<commentId>`. */
 export const blobKeySchema = z
   .string()

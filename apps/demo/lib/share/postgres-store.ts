@@ -23,6 +23,9 @@ interface ShareRow {
   expires_at: string | number | null;
   /** Null: no limit (035). */
   review_window_hours: number | null;
+  /** Both null on an open link (036). */
+  password_hash: string | null;
+  password_set_at: Date | string | null;
 }
 
 interface ItemRow<T> {
@@ -42,6 +45,9 @@ interface BlobRow {
 
 const SHARE_COLUMNS =
   "id, token_hash, owner_key_hash, project, created_at, updated_at, expires_at, review_window_hours";
+
+/** What a read selects: a new share has no password, so `create` never writes one. */
+const READ_COLUMNS = `${SHARE_COLUMNS}, password_hash, password_set_at`;
 
 /**
  * A share answers like a revoked one while its workspace project is in the
@@ -88,6 +94,10 @@ function toRecord(row: ShareRow): ShareRecord {
     updatedAt: Number(row.updated_at),
     expiresAt: row.expires_at === null ? null : Number(row.expires_at),
     reviewWindowHours: row.review_window_hours === null ? null : Number(row.review_window_hours),
+    password:
+      row.password_hash && row.password_set_at
+        ? { hash: row.password_hash, setAt: new Date(row.password_set_at).getTime() }
+        : null,
   };
 }
 
@@ -120,7 +130,7 @@ const upsertSql = (table: string) => `INSERT INTO ${table} (share_id, id, data, 
 export function createPostgresStore(db: Queryable): ShareStore {
   const one = async (where: string, value: string) => {
     const { rows } = await db.query<ShareRow>(
-      `SELECT ${SHARE_COLUMNS} FROM squint_shares WHERE ${where} = $1 AND ${ANSWERS}`,
+      `SELECT ${READ_COLUMNS} FROM squint_shares WHERE ${where} = $1 AND ${ANSWERS}`,
       [value],
     );
     return rows[0] ? toRecord(rows[0]) : null;

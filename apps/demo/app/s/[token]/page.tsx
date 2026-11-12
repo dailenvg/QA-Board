@@ -1,6 +1,7 @@
 import type { Metadata, ResolvingMetadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
+import { ShareLocked } from "@/components/share/ShareLocked";
 import { SharedReview } from "@/components/share/SharedReview";
 import { invitationPreview, previewMetadata, SHARED_REVIEW_PREVIEW } from "@/lib/link-preview";
 import { reviewerNameOf } from "@/lib/share-client/reviewer-name";
@@ -31,16 +32,22 @@ async function genericPreview(parent: ResolvingMetadata): Promise<Metadata> {
   };
 }
 
+/** The request's `Cookie` header, where a protected link's guest pass is. */
+async function requestCookies(): Promise<string | null> {
+  return (await headers()).get("cookie");
+}
+
 /**
  * A workspace's link previews as its invitation, with this segment's
- * per-token card; anonymous links and links that don't open, generically.
+ * per-token card (without the project's name on a password-protected link);
+ * anonymous links and links that don't open, generically.
  */
 export async function generateMetadata(
   { params }: Props,
   parent: ResolvingMetadata,
 ): Promise<Metadata> {
   const { token } = await params;
-  const invitation = invitationOf(await openGuestShare(token));
+  const invitation = invitationOf(await openGuestShare(token, await requestCookies()));
   const preview = invitation
     ? previewMetadata(invitationPreview(invitation))
     : await genericPreview(parent);
@@ -49,13 +56,15 @@ export async function generateMetadata(
 
 /**
  * A client's shared review link. Unknown, revoked and expired tokens are a
- * plain 404. The reviewer's name for this link comes from its cookie, so the
- * page renders with it; it only fills in the name field, never vouches for anyone.
+ * plain 404; a password-protected link without a valid guest pass shows only
+ * that it's locked. The reviewer's name for this link comes from its cookie,
+ * so the page renders with it; it only fills in the name field, never vouches for anyone.
  */
 export default async function SharedReviewPage({ params }: Props) {
   const { token } = await params;
-  const view = await openGuestShare(token);
-  if (!view) notFound();
-  const authorName = reviewerNameOf((await headers()).get("cookie"));
-  return <SharedReview token={token} initial={view} authorName={authorName} />;
+  const cookies = await requestCookies();
+  const guest = await openGuestShare(token, cookies);
+  if (!guest) notFound();
+  if (guest.locked) return <ShareLocked />;
+  return <SharedReview token={token} initial={guest.view} authorName={reviewerNameOf(cookies)} />;
 }

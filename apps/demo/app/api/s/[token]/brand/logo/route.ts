@@ -11,13 +11,20 @@ type Params = { params: Promise<{ token: string }> };
  * `GET ?v=<logoVersion>`: the logo of the company that shared the link,
  * through the token. 404 like an unknown link when there's no logo, and for
  * an unknown, revoked or expired link, or one whose project is in the trash or
- * whose workspace is archived or waiting to be deleted.
+ * whose workspace is archived or waiting to be deleted. Open on a
+ * password-protected link too: the brand is all a locked link shows.
  */
 export async function GET(request: Request, { params }: Params) {
   const { token } = await params;
-  return asClient(request, token, "clientRead", async ({ services, share }) => {
-    const logo = await readBrandLogo(services.store, share.id);
-    if (!logo) return notFound();
-    return brandLogoResponse(logo, new URL(request.url).searchParams.get("v"));
-  });
+  return asClient(
+    request,
+    token,
+    "clientRead",
+    async ({ services, share }) => {
+      const logo = await readBrandLogo(services.store, share.id);
+      if (!logo) return notFound();
+      return brandLogoResponse(logo, new URL(request.url).searchParams.get("v"));
+    },
+    { gated: false },
+  );
 }

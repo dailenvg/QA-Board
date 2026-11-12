@@ -17,7 +17,11 @@ export const dynamic = "force-dynamic";
 
 type Params = { workspaceId: string; projectId: string };
 
-/** `GET`: the project's review link with its token and owner key (`ShareLink`); 404 without one. */
+/**
+ * `GET`: the project's review link with its token and owner key, its review
+ * window and whether it has a password (`hasPassword`, `passwordSetAt`):
+ * `ShareLink`. 404 without one.
+ */
 export const GET = withMember<Params>(async (_request, { db, workspaceId }, params) => {
   const projectId = param(idSchema, params.projectId);
   const link = projectId && (await getShareLink(db, workspaceId, projectId));

@@ -11,15 +11,21 @@ export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 /**
+ * Plain http on this machine (local dev and the e2e server): the only place
+ * cookies go without Secure, which would keep them from ever coming back.
+ */
+export function isLocalHttp(url: URL): boolean {
+  return url.protocol === "http:" && LOCAL_HOSTS.has(url.hostname);
+}
+
+/**
  * httpOnly, SameSite=Lax, for the whole site, for 30 days. Secure everywhere
- * except plain http on this machine (local dev and the e2e server), where a
- * Secure cookie would never come back.
+ * except plain http on this machine (`isLocalHttp`).
  */
 export function sessionCookieOptions(url: URL) {
-  const local = url.protocol === "http:" && LOCAL_HOSTS.has(url.hostname);
   return {
     httpOnly: true,
-    secure: !local,
+    secure: !isLocalHttp(url),
     sameSite: "lax",
     path: "/",
     maxAge: SESSION_TTL_MS / 1000,

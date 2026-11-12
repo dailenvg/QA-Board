@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SHARE_LIMITS } from "../share/limits";
 import { REVIEW_WINDOWS } from "../share/review-window";
 import { isSecretShape } from "../share/tokens";
 import { BLOB_CONTENT_TYPES, WORKSPACE_LIMITS as LIMITS } from "./limits";
@@ -165,6 +166,11 @@ export const shareAttachSchema = z.object({
 /** A workspace link's settings: how long its clients can comment, from the link's creation. */
 export const shareSettingsSchema = z.object({ reviewWindow });
 
+/** A workspace link's new password, kept exactly as typed (no trimming, no complexity rules). */
+export const sharePasswordSchema = z.object({
+  password: z.string().min(SHARE_LIMITS.password.min).max(SHARE_LIMITS.password.max),
+});
+
 export const shareSyncSchema = z.object({
   cursor: z.number().int().nonnegative(),
   lastSyncedAt: time,
@@ -252,6 +258,7 @@ export type CommentPatch = z.infer<typeof commentPatchSchema>;
 export type ShareAttach = z.infer<typeof shareAttachSchema>;
 export type ShareSync = z.infer<typeof shareSyncSchema>;
 export type ShareSettings = z.infer<typeof shareSettingsSchema>;
+export type SharePasswordInput = z.infer<typeof sharePasswordSchema>;
 export type UploadRequest = z.infer<typeof uploadRequestSchema>;
 export type ImportData = z.infer<typeof importSchema>;
 export type ImportProject = ImportData["projects"][number];
