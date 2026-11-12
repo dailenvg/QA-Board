@@ -14,6 +14,7 @@ import {
   PASSWORD_CONTROL_START,
   passwordControl,
   passwordStatus,
+  type PasswordPanel,
 } from "./share-password-state";
 
 interface SharePasswordControlProps {
@@ -26,6 +27,14 @@ interface SharePasswordControlProps {
 }
 
 const LABEL = "Password";
+
+/** The buttons that open a panel, by the event they send. */
+type Trigger = "edit" | "ask-remove";
+
+const PANEL_OF: Record<Trigger, PasswordPanel> = {
+  edit: "editing",
+  "ask-remove": "confirm-remove",
+};
 
 /**
  * Whether guests must enter a password to open the link, and the way to add,
@@ -47,36 +56,49 @@ export function SharePasswordControl({
   const errorId = useId();
   const root = useRef<HTMLElement>(null);
   const input = useRef<HTMLInputElement>(null);
-  /** Set when the panel closes from inside, so focus goes back to the button that opened it. */
-  const refocus = useRef(false);
+  /**
+   * Set when the panel closes from inside: the button focus goes back to. Cancel returns to the
+   * button that opened the panel; a saved or removed password, to Change or Add (the "edit" one).
+   */
+  const refocus = useRef<Trigger | null>(null);
   const isProtected = passwordSetAt !== undefined;
   const busy = state.pending !== null;
   const inactive = disabled || busy;
 
   useEffect(() => {
-    if (state.panel !== "closed" || !refocus.current) return;
-    refocus.current = false;
-    root.current?.querySelector<HTMLElement>("[data-password-trigger]")?.focus();
+    const target = refocus.current;
+    if (state.panel !== "closed" || !target) return;
+    refocus.current = null;
+    const buttons = root.current;
+    (
+      buttons?.querySelector<HTMLElement>(`[data-password-trigger="${target}"]`) ??
+      buttons?.querySelector<HTMLElement>("[data-password-trigger]")
+    )?.focus();
   }, [state.panel, isProtected]);
-
-  const open = (event: "edit" | "ask-remove") => {
-    if (inactive) return;
-    setPassword("");
-    setFieldError(null);
-    send({ type: event });
-  };
 
   const close = () => {
     if (busy) return;
-    refocus.current = true;
+    refocus.current = state.panel === "confirm-remove" ? "ask-remove" : "edit";
     setPassword("");
     setFieldError(null);
     send({ type: "cancel" });
   };
 
+  /** Opens a panel; its own button pressed again closes it, as `aria-expanded` says it will. */
+  const toggle = (event: Trigger) => {
+    if (inactive) return;
+    if (state.panel === PANEL_OF[event]) {
+      close();
+      return;
+    }
+    setPassword("");
+    setFieldError(null);
+    send({ type: event });
+  };
+
   const settle = (result: Result) => {
     if (result.ok) {
-      refocus.current = true;
+      refocus.current = "edit";
       setPassword("");
       send({ type: "succeeded" });
     } else send({ type: "failed", error: result.error });
@@ -141,11 +163,11 @@ export function SharePasswordControl({
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => open("edit")}
+              onClick={() => toggle("edit")}
               aria-disabled={inactive || undefined}
               aria-expanded={state.panel === "editing"}
               aria-controls={state.panel === "editing" ? panelId : undefined}
-              data-password-trigger
+              data-password-trigger="edit"
               data-testid="share-password-change"
             >
               Change
@@ -153,10 +175,11 @@ export function SharePasswordControl({
             <Button
               variant="danger-ghost"
               size="sm"
-              onClick={() => open("ask-remove")}
+              onClick={() => toggle("ask-remove")}
               aria-disabled={inactive || undefined}
               aria-expanded={state.panel === "confirm-remove"}
               aria-controls={state.panel === "confirm-remove" ? panelId : undefined}
+              data-password-trigger="ask-remove"
               data-testid="share-password-remove"
             >
               Remove
@@ -166,10 +189,10 @@ export function SharePasswordControl({
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => open("edit")}
+            onClick={() => toggle("edit")}
             aria-disabled={inactive || undefined}
             aria-expanded={false}
-            data-password-trigger
+            data-password-trigger="edit"
             data-testid="share-password-add"
           >
             <Icon name="lock" className="size-4" />

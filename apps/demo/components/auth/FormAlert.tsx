@@ -21,6 +21,16 @@ interface FormAlertProps {
   testId?: string;
   /** For the live region, such as space below it only while it shows (`has-[p]:mb-4`). */
   className?: string;
+  /**
+   * Keeps the message in place, without entering again, while its words change (a countdown).
+   * Defaults to the message itself, so a different message pops in.
+   */
+  motionKey?: string;
+  /**
+   * Changes aren't announced while set: for a message already announced whose words only
+   * count down, so screen readers don't repeat it every minute.
+   */
+  quiet?: boolean;
 }
 
 const TONES = {
@@ -47,14 +57,27 @@ function linked(message: string, link: AlertLink | undefined): ReactNode {
 }
 
 /** A form-level message: an error (role="alert") or a notice (role="status"). */
-export function FormAlert({ message, tone = "error", link, testId, className }: FormAlertProps) {
+export function FormAlert({
+  message,
+  tone = "error",
+  link,
+  testId,
+  className,
+  motionKey,
+  quiet = false,
+}: FormAlertProps) {
   const variants = usePopVariants();
   return (
-    <div role={tone === "error" ? "alert" : "status"} data-testid={testId} className={className}>
+    <div
+      role={tone === "error" ? "alert" : "status"}
+      aria-live={quiet ? "off" : undefined}
+      data-testid={testId}
+      className={className}
+    >
       <AnimatePresence initial={false}>
         {message ? (
           <motion.p
-            key={message}
+            key={motionKey ?? message}
             variants={variants}
             initial="hidden"
             animate="visible"

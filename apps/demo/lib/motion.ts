@@ -103,11 +103,14 @@ export const fadeOnly: Variants = {
 
 /**
  * One whole screen giving way to another in place, such as a guest's password
- * screen and the review it opens: a quick fade out, then a page-length rise in.
+ * screen and the review it opens: a quick fade out, then a page-length fade in.
+ * Opacity only, no rise: a transformed ancestor becomes the containing block of
+ * `position: fixed` layers inside the screen (bottom sheets, toasts), which
+ * would sit in the wrong place until the transform ended.
  */
 export const screenSwap: Variants = {
-  hidden: { opacity: 0, y: rise },
-  visible: { opacity: 1, y: 0, transition: { duration: duration.page, ease: ease.out } },
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: duration.page, ease: ease.out } },
   exit: { opacity: 0, transition: { duration: duration.micro, ease: ease.out } },
 };
 

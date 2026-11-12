@@ -90,8 +90,9 @@ export function ShareGate({ token, initial, authorName }: ShareGateProps) {
   return (
     <AnimatePresence mode="wait">
       {screen.kind === "gone" ? (
-        // Brings its own entrance, as the password screen does.
-        <motion.div key="gone" variants={variants} initial={false} animate="visible">
+        // Brings its own entrance, as the password screen does. Nothing replaces it yet; the exit
+        // is there so it never pops out if something does.
+        <motion.div key="gone" variants={variants} initial={false} animate="visible" exit="exit">
           <ShareUnavailable />
         </motion.div>
       ) : screen.kind === "locked" ? (
@@ -110,7 +111,8 @@ export function ShareGate({ token, initial, authorName }: ShareGateProps) {
           key="review"
           ref={reviewRoot}
           variants={variants}
-          // The server's first screen shows as rendered; one that replaces another rises in.
+          // The server's first screen shows as rendered; one that replaces another fades in
+          // (opacity only, so the review's fixed bottom sheets are placed right from the start).
           initial={switched ? "hidden" : false}
           animate="visible"
           exit="exit"

@@ -4,6 +4,8 @@ import { useEffect, useRef, type RefObject } from "react";
 const GAP = 12;
 /** Never shorter than this, in px: room for a couple of results even on a squeezed screen. */
 const MIN_HEIGHT = 120;
+/** Elements a phone's keyboard opens for. */
+const TYPED = "input, textarea, select, [contenteditable]";
 
 /**
  * How tall a popup whose top is at `top` may be, in px, to end above `visibleBottom`: the
@@ -73,16 +75,32 @@ export function useLiftAboveKeyboard<C extends HTMLElement, P extends HTMLElemen
     const box = container.current;
     const sheet = panel.current;
     if (!active || !viewport || !box || !sheet) return;
-    const fit = () => {
+    let frame = 0;
+    const fit = (): number => {
       const covered = keyboardOverlap(window.innerHeight, viewport.offsetTop, viewport.height);
       box.style.paddingBottom = covered ? `${covered + GAP}px` : "";
       sheet.style.maxHeight = covered ? `${Math.max(MIN_HEIGHT, viewport.height - 2 * GAP)}px` : "";
+      return covered;
+    };
+    // Cut shorter as the keyboard opens, the sheet may scroll the field being typed in out of
+    // sight: bring it back. On resize only (the keyboard opening or changing height), never on
+    // scroll, which would fight the user's own.
+    const refit = () => {
+      if (!fit()) return;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const field = document.activeElement;
+        if (field instanceof HTMLElement && sheet.contains(field) && field.matches(TYPED)) {
+          field.scrollIntoView({ block: "nearest" });
+        }
+      });
     };
     fit();
-    viewport.addEventListener("resize", fit);
+    viewport.addEventListener("resize", refit);
     viewport.addEventListener("scroll", fit);
     return () => {
-      viewport.removeEventListener("resize", fit);
+      cancelAnimationFrame(frame);
+      viewport.removeEventListener("resize", refit);
       viewport.removeEventListener("scroll", fit);
       box.style.paddingBottom = "";
       sheet.style.maxHeight = "";

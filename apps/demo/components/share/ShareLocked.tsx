@@ -1,10 +1,11 @@
 "use client";
 
 import { motion } from "motion/react";
-import { useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { staggerGroup, useRevealVariants } from "@/lib/motion";
 import {
   retryMessage,
+  secondsUntil,
   unlockFeedback,
   unlockLink,
   unlockPasswordError,
@@ -56,8 +57,17 @@ export function ShareLocked({ token, brand, notice, onUnlocked, onGone }: ShareL
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [secondsLeft, startWait] = useRetryWait();
+  /** The current wait's length as it started, in seconds: its message is announced then only. */
+  const [waitLength, setWaitLength] = useState(0);
   const waiting = secondsLeft > 0;
   const blocked = submitting || waiting;
+  // A live region must be on the page before its words, or screen readers skip them: the notice
+  // (why the screen is back) follows a frame after the region.
+  const [shownNotice, setShownNotice] = useState<string | null>(null);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setShownNotice(notice));
+    return () => cancelAnimationFrame(frame);
+  }, [notice]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -85,7 +95,10 @@ export function ShareLocked({ token, brand, notice, onUnlocked, onGone }: ShareL
     const feedback = unlockFeedback(outcome, Date.now());
     setFieldError(feedback.fieldError);
     setFormError(feedback.formError);
-    if (feedback.retryAt !== null) startWait(feedback.retryAt);
+    if (feedback.retryAt !== null) {
+      setWaitLength(secondsUntil(feedback.retryAt, Date.now()));
+      startWait(feedback.retryAt);
+    }
     if (feedback.clearField) setPassword("");
     if (feedback.fieldError) inputRef.current?.focus();
   };
@@ -144,10 +157,17 @@ export function ShareLocked({ token, brand, notice, onUnlocked, onGone }: ShareL
               onSubmit={(event) => void submit(event)}
               noValidate
               aria-busy={submitting}
-              className="flex flex-col gap-5"
+              // No gap: the messages' live regions are always there, empty or not, so each
+              // brings its own space only while it shows.
+              className="flex flex-col"
               data-testid="share-unlock-form"
             >
-              <FormAlert tone="info" message={notice} testId="share-locked-notice" />
+              <FormAlert
+                tone="info"
+                message={shownNotice}
+                testId="share-locked-notice"
+                className="has-[p]:mb-4"
+              />
               <AuthField
                 label="Password"
                 type="password"
@@ -167,13 +187,18 @@ export function ShareLocked({ token, brand, notice, onUnlocked, onGone }: ShareL
                 }
                 testId="share-password"
               />
+              {/* The wait is announced as it starts; its minutes then count down without repeating it. */}
               <FormAlert
                 message={waiting ? retryMessage(secondsLeft) : formError}
+                motionKey={waiting ? "retry-wait" : undefined}
+                quiet={waiting && secondsLeft < waitLength}
                 testId="share-unlock-error"
+                className="has-[p]:mt-4"
               />
               <Button
                 type="submit"
                 aria-disabled={blocked || undefined}
+                className="mt-6"
                 data-testid="share-unlock-submit"
               >
                 {submitLabel(submitting, formError !== null)}
