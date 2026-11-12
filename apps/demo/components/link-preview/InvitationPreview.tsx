@@ -7,8 +7,7 @@ import { PREVIEW_COLORS } from "./preview-theme";
 
 interface InvitationPreviewProps {
   company: string;
-  /** Null on a password-protected link: the card then names the company only. */
-  project: string | null;
+  project: string;
   /** The company's brand color, for the logo frame and rule only; null keeps cobalt. */
   color: string | null;
   /** The logo as a PNG, JPEG or GIF data URI; null shows the company's monogram. */
@@ -119,8 +118,8 @@ function ProjectName({ project }: { project: string }) {
 
 /**
  * A workspace's review link: the company (its logo when the card can draw
- * it, its monogram otherwise), the invitation, and the project's name (left
- * out on a password-protected link), with Squiggy beside them.
+ * it, its monogram otherwise), the invitation, and the project's name, with
+ * Squiggy beside them.
  */
 export function InvitationPreview({ company, project, color, logoUri }: InvitationPreviewProps) {
   const accent = color ?? PREVIEW_COLORS.accent;
@@ -163,7 +162,7 @@ export function InvitationPreview({ company, project, color, logoUri }: Invitati
           color: PREVIEW_COLORS.muted,
         }}
       />
-      {project === null ? null : <ProjectName project={project} />}
+      <ProjectName project={project} />
     </PreviewFrame>
   );
 }

@@ -9,7 +9,7 @@ import { linkNameMemory } from "@/lib/share-client/reviewer-name";
 import { createServerBlobs } from "@/lib/share-client/server-blobs";
 import { useClientRefresh } from "@/lib/share-client/use-client-refresh";
 import { useReviewWindow } from "@/lib/share-client/use-review-window";
-import type { ClientBrand, ClientView } from "@/lib/share/types";
+import type { ClientBrand, ClientView, LockedShare } from "@/lib/share/types";
 import { ViewerBackendContext } from "@/lib/viewer-backend/backend";
 import { Icon } from "../ui/Icon";
 import { useIsClient } from "@/lib/use-is-client";
@@ -30,7 +30,7 @@ interface SharedReviewProps {
   /** Where an unsent comment is kept for this link, across reloads and the password screen. */
   draftStorage: DraftStorage;
   /** The link asked for its password again: the password screen takes the review's place. */
-  onLocked: (brand: ClientBrand) => void;
+  onLocked: (locked: LockedShare) => void;
 }
 
 /**
@@ -96,9 +96,10 @@ export function SharedReview({
   useEffect(() => store.carryOverAuthorName(), [store]);
   const { locked } = state;
   const lockedBrand = state.view.brand;
+  const lockedProjectName = state.view.project.name;
   useEffect(() => {
-    if (locked) onLocked(lockedBrand);
-  }, [locked, lockedBrand, onLocked]);
+    if (locked) onLocked({ brand: lockedBrand, projectName: lockedProjectName });
+  }, [locked, lockedBrand, lockedProjectName, onLocked]);
   const { reviewEndsAt, reviewWindowHours, expiresAt, brand } = state.view;
   const openCopy = clientCopy(brand, state.view.project.name);
   // A project deleted before its review window ends can't take comments past deletion, so the

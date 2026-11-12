@@ -26,6 +26,13 @@ export const NAVY = "#012D61";
 /** Packaging white. */
 export const PAPER = "#FDFDFD";
 
+/** Squint's Coral Red: open comments (`--comments` in globals.css). */
+export const CORAL_RED = "#FF3C41";
+/** Squint's Mint Green: resolved pins and badges in light, resolved marks in dark. */
+export const MINT_GREEN = "#C8FFC8";
+/** Squint's Forest Green: resolved marks and text in light, the numbers on resolved pins. */
+export const FOREST_GREEN = "#004132";
+
 /** Marks on a color keep at least this contrast in white, or switch to navy (WCAG 1.4.11). */
 const MIN_MARK_CONTRAST = 3;
 
@@ -61,17 +68,16 @@ export function paletteEntry(id: string): PaletteEntry {
 }
 
 /**
- * Resolved's jade: resolved pins, badges and the Resolved mascot (`--resolved-pin` in
- * globals.css, kept equal by a test). Not a product color: a calm jade, a clear step lighter
- * than open comments' crimson so the two tell apart by lightness as well as hue. Navy numbers
- * read 5.1:1 on it (white would be 2.6:1). Folders still wear the Allergy green.
+ * Resolved's Mint Green: resolved pins, badges and the Resolved mascot (`--resolved-pin` in
+ * globals.css, kept equal by a test), with Forest Green numbers, checks and eyes at 10.3:1. Not
+ * a product color. Folders still wear the Allergy green.
  */
 export const RESOLVED_GREEN: PaletteEntry = {
   id: "resolved",
   name: "Resolved",
-  hex: "#35B28F",
+  hex: MINT_GREEN,
   light: true,
-  ink: NAVY,
+  ink: FOREST_GREEN,
 };
 
 /**
@@ -138,16 +144,21 @@ export function folderSwatches(folders: readonly Folder[]): Map<string, PaletteE
   return swatches;
 }
 
-/** Green means resolved on pins and badges, so no commenter is given a green. */
+/**
+ * Green means resolved on pins and badges, so no commenter is given a green:
+ * the palette's greens by id, and resolved's own Mint and Forest by hex.
+ */
 export const RESOLVED_GREENS: ReadonlySet<string> = new Set([
   "allergy",
   "colostrum",
   "clean-breath",
+  MINT_GREEN,
+  FOREST_GREEN,
 ]);
 
 /**
- * Left out of the commenter set for clashing with UI state: The Daily's lime
- * is the selection ring around a selected pin.
+ * Left out of the commenter set (by palette id or hex) for clashing with UI
+ * state: The Daily's lime is the selection ring around a selected pin.
  */
 export const COMMENTER_EXCLUDED: ReadonlySet<string> = new Set(["daily", ...RESOLVED_GREENS]);
 
@@ -174,7 +185,7 @@ export function readableInk(hex: string): { ink: string; contrast: number } {
  */
 export const COMMENTER_PALETTE: readonly CommenterColor[] = NATIVE_PET_PALETTE.flatMap(
   (entry): CommenterColor[] => {
-    if (COMMENTER_EXCLUDED.has(entry.id)) return [];
+    if (COMMENTER_EXCLUDED.has(entry.id) || COMMENTER_EXCLUDED.has(entry.hex)) return [];
     const { ink, contrast: ratio } = readableInk(entry.hex);
     if (ratio < MIN_NUMBER_CONTRAST) return [];
     return [{ ...entry, light: ink === NAVY, ink, contrast: ratio }];

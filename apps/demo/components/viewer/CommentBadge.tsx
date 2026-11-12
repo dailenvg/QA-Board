@@ -6,13 +6,16 @@ interface CommentBadgeProps {
   number: number;
 }
 
-/** The comment's pin number in its pin's colors. Screen readers hear "Comment 3". */
+/**
+ * The comment's pin number in its pin's colors, and its edge line once resolved (`pin-line`).
+ * Screen readers hear "Comment 3".
+ */
 export function CommentBadge({ comment, number }: CommentBadgeProps) {
   const tone = commentTone(comment.author, comment.status === "resolved");
   return (
     <span
       style={tone.style}
-      className={`grid size-6 shrink-0 place-items-center rounded-pin text-label font-bold ${tone.className}`}
+      className={`pin-line grid size-6 shrink-0 place-items-center rounded-pin text-label font-bold ${tone.className}`}
     >
       <span className="sr-only">Comment </span>
       {number}

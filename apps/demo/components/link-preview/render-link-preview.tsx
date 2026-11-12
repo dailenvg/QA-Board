@@ -10,7 +10,7 @@ export const LINK_PREVIEW_TYPE = "image/png";
  * Bump when the card art changes, then update the `cardVersion` each image route passes.
  * Image URLs carry a hash of the route file's own source, so only an edit there busts caches.
  */
-const CARD_VERSION = 3;
+const CARD_VERSION = 4;
 
 /**
  * A link preview card as a 1200×630 PNG. Fails the build when a route's

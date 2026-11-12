@@ -38,8 +38,8 @@ async function requestCookies(): Promise<string | null> {
 
 /**
  * A workspace's link previews as its invitation, with this segment's
- * per-token card (without the project's name on a password-protected link);
- * anonymous links and links that don't open, generically.
+ * per-token card, password-protected or not; anonymous links and links that
+ * don't open, generically.
  */
 export async function generateMetadata(
   { params }: Props,
@@ -56,9 +56,10 @@ export async function generateMetadata(
 /**
  * A client's shared review link. Unknown, revoked and expired tokens are a
  * plain 404; a password-protected link without a valid guest pass shows its
- * password screen, with the company's name and logo and nothing of the
- * project. The reviewer's name for this link comes from its cookie, so the
- * page renders with it; it only fills in the name field, never vouches for anyone.
+ * password screen, with the company's name and logo and the project's name,
+ * and nothing else of the project. The reviewer's name for this link comes
+ * from its cookie, so the page renders with it; it only fills in the name
+ * field, never vouches for anyone.
  */
 export default async function SharedReviewPage({ params }: Props) {
   const { token } = await params;
@@ -66,7 +67,7 @@ export default async function SharedReviewPage({ params }: Props) {
   const guest = await openGuestShare(token, cookies);
   if (!guest) notFound();
   const initial = guest.locked
-    ? { locked: true as const, brand: guest.brand }
+    ? { locked: true as const, brand: guest.brand, projectName: guest.projectName }
     : { locked: false as const, view: guest.view };
   return <ShareGate token={token} initial={initial} authorName={reviewerNameOf(cookies)} />;
 }

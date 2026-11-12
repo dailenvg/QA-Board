@@ -79,6 +79,9 @@ export function PanelHeading({
         <Squiggy
           mood={selected ? "happy" : "idle"}
           color={RESOLVED_GREEN.hex}
+          eyeColor={RESOLVED_GREEN.ink}
+          // Mint is about as light as the tab (1.1:1): the Forest line resolved pins wear draws it.
+          outline="var(--resolved-pin-line)"
           size={MASCOT_SIZE}
           followCursor={false}
           still={!selected}

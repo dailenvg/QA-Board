@@ -16,23 +16,12 @@ describe("a review link's preview", () => {
     // The card's alt is the same for every link (see INVITATION_CARD_ALT).
     expect(copy.alt).toBe(INVITATION_CARD_ALT);
     expect(INVITATION_CARD_ALT).toBe(
-      "An invitation to review, naming the company. Squiggy, the blue Squint mascot, leans in among comment pins.",
+      "An invitation to review, naming the company and the project. Squiggy, the blue Squint mascot, leans in among comment pins.",
     );
     expect(previewMetadata(copy)).toMatchObject({
       openGraph: { title: copy.title, description: copy.description, siteName: "Squint" },
       twitter: { card: "summary_large_image", title: copy.title, description: copy.description },
     });
-  });
-
-  it("names the company only on a password-protected link", () => {
-    const copy = invitationPreview({ company: "ONE Agency", project: null });
-    expect(copy.title).toBe("ONE Agency invited you to review");
-    expect(copy.description).toBe(
-      "Open the link, drop a pin and leave ONE Agency a comment. No account needed.",
-    );
-    // Its card leaves the project out, so the alt never claims one.
-    expect(copy.alt).toBe(INVITATION_CARD_ALT);
-    expect(copy.alt).not.toMatch(/project/i);
   });
 
   it("stays generic on an anonymous link", () => {

@@ -5,5 +5,5 @@ export { alt, contentType, size } from "./opengraph-image";
 
 /** The shared review card for X. Rendered here, not re-exported, so a cardVersion bump changes this URL too. */
 export default function SharedReviewTwitterImage() {
-  return renderLinkPreview(<SharedReviewPreview />, { cardVersion: 3 });
+  return renderLinkPreview(<SharedReviewPreview />, { cardVersion: 4 });
 }

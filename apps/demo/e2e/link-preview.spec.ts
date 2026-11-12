@@ -1,9 +1,14 @@
 import type { APIRequestContext } from "@playwright/test";
 import { expect, test } from "./test";
-import { invitationPreview, MAIN_PREVIEW, SHARED_REVIEW_PREVIEW } from "../lib/link-preview";
+import {
+  INVITATION_CARD_ALT,
+  invitationPreview,
+  MAIN_PREVIEW,
+  SHARED_REVIEW_PREVIEW,
+} from "../lib/link-preview";
 import { E2E_COMPANY } from "./e2e-env";
 import { snapshotPng } from "./sample-snapshot";
-import { revokeWorkspaceLink, shareWorkspaceProject } from "./squint-fixtures";
+import { revokeWorkspaceLink, setLinkPassword, shareWorkspaceProject } from "./squint-fixtures";
 import { brandWorkspace } from "./workspace-db";
 
 /** Unfurlers get metadata in <head> (Next streams it to other user agents). */
@@ -158,6 +163,30 @@ test("a workspace's review link unfurls as its invitation, with a card of its ow
   expect(tag(other, "og:image")).not.toBe(tag(tags, "og:image"));
   const otherCard = await expectCard(request, tag(other, "og:image"));
   expect(otherCard.equals(ogCard), "each link draws its own project").toBe(false);
+});
+
+test("a password-protected workspace link unfurls as it did before its password, project and all", async ({
+  page,
+  request,
+}) => {
+  const project = "Locked launch";
+  const { token, projectId } = await shareWorkspaceProject(page, project);
+  const open = await unfurl(request, `/s/${token}`);
+  const openCard = await expectCard(request, tag(open, "og:image"));
+  await setLinkPassword(page, projectId, "launch password");
+
+  const tags = await unfurl(request, `/s/${token}`);
+  const copy = invitationPreview({ company: E2E_COMPANY.name, project });
+  expect(tag(tags, "og:title")).toBe(copy.title);
+  expect(tag(tags, "og:description")).toBe(copy.description);
+  expect(tag(tags, "twitter:title")).toBe(copy.title);
+  expect(tag(tags, "og:image:alt")).toBe(INVITATION_CARD_ALT);
+  expectLargeCard(tags, `/s/${token}/opengraph-image`);
+  // The same card, drawn with the project's name, as before the password.
+  const card = await expectCard(request, tag(tags, "og:image"));
+  expect(card.equals(openCard), "the protected card is the open link's card").toBe(true);
+  // Nothing more of the project: not the site it reviews.
+  for (const [key, value] of tags) expect(value, key).not.toContain("example.com");
 });
 
 test("a revoked workspace link is a 404 with the generic card", async ({ page, request }) => {

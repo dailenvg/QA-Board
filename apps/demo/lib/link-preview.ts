@@ -3,10 +3,10 @@ import type { Metadata } from "next";
 /**
  * Link preview copy and Open Graph defaults (Slack, iMessage, X, LinkedIn).
  * A workspace's review link previews as its invitation: the company, and the
- * project's name (a deliberate choice: the person sharing a link chooses the
- * channel it unfurls in), except on a password-protected link, which names the
- * company only. Anonymous links keep the generic preview. Never a token, an
- * id or an address in the copy.
+ * project's name, password-protected or not (a deliberate choice: the person
+ * sharing a link chooses the channel it unfurls in, and the name is all a
+ * protected link shows before its password). Anonymous links keep the generic
+ * preview. Never a token, an id or an address in the copy.
  */
 
 export const SITE_NAME = "Squint";
@@ -34,26 +34,20 @@ export const SHARED_REVIEW_PREVIEW: LinkPreviewCopy = {
 /** A workspace's review link: who invites, and to review what. */
 export interface Invitation {
   company: string;
-  /** Null on a password-protected link, whose preview never names its project. */
-  project: string | null;
+  project: string;
 }
 
 /**
  * The alt text of a workspace link's card. The same for every link: the card's
  * image file exports it as is, which keeps the card's URL to the token alone.
- * So it names only what every card shows: a protected link's leaves the
- * project out.
  */
 export const INVITATION_CARD_ALT =
-  "An invitation to review, naming the company. Squiggy, the blue Squint mascot, leans in among comment pins.";
+  "An invitation to review, naming the company and the project. Squiggy, the blue Squint mascot, leans in among comment pins.";
 
 /** The preview of a workspace's review link. */
 export function invitationPreview({ company, project }: Invitation): LinkPreviewCopy {
   return {
-    title:
-      project === null
-        ? `${company} invited you to review`
-        : `${company} invited you to review ${project}`,
+    title: `${company} invited you to review ${project}`,
     description: `Open the link, drop a pin and leave ${company} a comment. No account needed.`,
     alt: INVITATION_CARD_ALT,
   };

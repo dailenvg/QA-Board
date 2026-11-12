@@ -144,6 +144,16 @@ export interface ClientBrand {
   logoVersion: string | null;
 }
 
+/**
+ * A password-protected link before it's unlocked: whose it is, and the
+ * project's name for its invitation. Nothing else of the project (no source,
+ * pages, snapshots or comments).
+ */
+export interface LockedShare {
+  brand: ClientBrand;
+  projectName: string;
+}
+
 /** What a client sees: the share without its secrets or bookkeeping. */
 export interface ClientView {
   project: SharedProject;

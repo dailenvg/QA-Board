@@ -2,12 +2,15 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   brandColorContrast,
+  COMMENTER_EXCLUDED,
   COMMENTER_PALETTE,
   commenterColor,
   FOLDER_COLOR_COUNT,
   folderColor,
   folderSwatches,
+  FOREST_GREEN,
   MIN_NUMBER_CONTRAST,
+  MINT_GREEN,
   NATIVE_PET_PALETTE,
   NAVY,
   PAPER,
@@ -18,6 +21,8 @@ import { contrast } from "./color";
 import type { Folder } from "./store/types";
 
 const GREENS = ["allergy", "colostrum", "clean-breath"];
+/** Resolved's own greens, kept from commenters by hex: they're not palette colors. */
+const RESOLVED_HEXES = [MINT_GREEN, FOREST_GREEN];
 
 describe("COMMENTER_PALETTE", () => {
   it("numbers every commenter color in navy or paper at 4.5:1 or more", () => {
@@ -39,6 +44,12 @@ describe("COMMENTER_PALETTE", () => {
     const ids = COMMENTER_PALETTE.map((color) => color.id);
     expect(ids).not.toContain("daily");
     for (const green of GREENS) expect(ids).not.toContain(green);
+  });
+
+  it("never gives a commenter resolved's Mint or Forest", () => {
+    for (const hex of RESOLVED_HEXES) expect(COMMENTER_EXCLUDED.has(hex)).toBe(true);
+    const hexes = COMMENTER_PALETTE.map((color) => color.hex.toUpperCase());
+    for (const hex of RESOLVED_HEXES) expect(hexes).not.toContain(hex);
   });
 
   it("leaves out only colors where neither ink reaches 4.5:1", () => {
@@ -164,6 +175,8 @@ describe("commenterColor", () => {
     const names = Array.from({ length: 500 }, (_, index) => `Reviewer ${index}`);
     const used = new Set(names.map((name) => commenterColor(name).id));
     for (const green of GREENS) expect(used.has(green)).toBe(false);
+    const hexes = new Set(names.map((name) => commenterColor(name).hex.toUpperCase()));
+    for (const hex of RESOLVED_HEXES) expect(hexes.has(hex)).toBe(false);
   });
 
   it("never hands out The Daily or a color whose number would fall under 4.5:1", () => {
@@ -188,15 +201,15 @@ describe("resolved pin tokens", () => {
   const token = (name: string) =>
     new RegExp(`(?<![\\w-])--${name}:\\s*([^;]+);`).exec(css)?.[1]?.trim().toLowerCase();
 
-  it("fills resolved pins with RESOLVED_GREEN, the resolved jade", () => {
+  it("fills resolved pins with RESOLVED_GREEN, Mint Green", () => {
     expect(token("resolved-pin")).toBe(RESOLVED_GREEN.hex.toLowerCase());
-    expect(RESOLVED_GREEN.hex.toLowerCase()).toBe("#35b28f");
+    expect(RESOLVED_GREEN.hex).toBe("#C8FFC8");
   });
 
-  it("numbers resolved pins in navy, at 4.5:1 or more", () => {
-    expect(token("on-resolved-pin")).toBe(NAVY.toLowerCase());
-    expect(RESOLVED_GREEN.ink).toBe(NAVY);
-    expect(contrast(RESOLVED_GREEN.hex, NAVY)).toBeGreaterThanOrEqual(MIN_NUMBER_CONTRAST);
+  it("numbers resolved pins in Forest Green, at 4.5:1 or more", () => {
+    expect(token("on-resolved-pin")).toBe(FOREST_GREEN.toLowerCase());
+    expect(RESOLVED_GREEN.ink).toBe(FOREST_GREEN);
+    expect(contrast(RESOLVED_GREEN.hex, FOREST_GREEN)).toBeGreaterThanOrEqual(MIN_NUMBER_CONTRAST);
   });
 });
 

@@ -32,7 +32,8 @@ import { createShare, putOwnerBlob, type CreatedShare } from "./service";
 /**
  * The password gate, end to end through the route handlers: every guest
  * surface of a protected link (API, page, metadata, preview card) shows
- * nothing of its project without a guest pass, and everything with one.
+ * nothing of its project but its name without a guest pass, and everything
+ * with one.
  */
 
 const holder = vi.hoisted(() => ({ db: null as Database | null, cookie: null as string | null }));
@@ -59,6 +60,8 @@ vi.mock("next/headers", () => ({
 
 const PASSWORD = "correct horse battery";
 const PROJECT_NAME = STATE.project.name;
+/** What a locked link must never hand out: the snapshot's id, a comment's body, the site's address. */
+const LOCKED_LEAKS = ["snap-1", "Tighten the hero", "acme.example"];
 
 let db: Database;
 let a: Seat;
@@ -320,29 +323,33 @@ describe("a protected link's page, metadata and preview card", () => {
     twitter: { images: [] },
   }) as unknown as ResolvingMetadata;
 
-  it("render locked without a pass: no project, pages or comments", async () => {
+  it("render locked without a pass: the project's name, and no source, pages or comments", async () => {
     const created = await linkedShare("p1", PASSWORD);
     const locked = await openGuestShare(created.token, null);
-    expect(locked).toMatchObject({ locked: true, brand: { custom: true, name: "acme" } });
+    const expected = {
+      locked: true,
+      brand: { custom: true, name: "acme" },
+      projectName: PROJECT_NAME,
+    };
+    expect(locked).toMatchObject(expected);
+    expect(Object.keys(locked ?? {}).sort()).toEqual(Object.keys(expected).sort());
     const wire = JSON.stringify(locked);
-    for (const leak of [PROJECT_NAME, "snap-1", "Tighten the hero", "acme.example"]) {
-      expect(wire).not.toContain(leak);
-    }
+    for (const leak of LOCKED_LEAKS) expect(wire).not.toContain(leak);
     const page = await SharedReviewPage(params({ token: created.token }));
     expect(page.type).toBe(ShareGate);
-    expect(page.props).toMatchObject({ initial: { locked: true, brand: { name: "acme" } } });
-    // What the page hands the browser: the brand, nothing of the project.
+    // What the page hands the browser: the brand and the project's name, nothing else of it.
+    const { initial } = page.props as { initial: object };
+    expect(initial).toMatchObject(expected);
+    expect(Object.keys(initial).sort()).toEqual(Object.keys(expected).sort());
     const props = JSON.stringify(page.props);
-    for (const leak of [PROJECT_NAME, "snap-1", "Tighten the hero", "acme.example"]) {
-      expect(props).not.toContain(leak);
-    }
+    for (const leak of LOCKED_LEAKS) expect(props).not.toContain(leak);
   });
 
-  it("open with a pass, still saying the link is protected", async () => {
+  it("open with a pass", async () => {
     const created = await linkedShare("p1", PASSWORD);
     const cookie = await unlocked(created.token);
     const open = await openGuestShare(created.token, cookie);
-    expect(open).toMatchObject({ locked: false, passwordProtected: true });
+    expect(open).toMatchObject({ locked: false });
     expect(open?.locked === false && open.view.project.name).toBe(PROJECT_NAME);
     holder.cookie = cookie;
     const page = await SharedReviewPage(params({ token: created.token }));
@@ -353,21 +360,23 @@ describe("a protected link's page, metadata and preview card", () => {
     });
   });
 
-  it("never name the project in the preview, pass or not; the company stays", async () => {
+  it("name the company and the project in the preview, pass or not, and nothing more", async () => {
     const created = await linkedShare("p1", PASSWORD);
     const cookie = await unlocked(created.token);
     for (const sent of [null, cookie]) {
       expect(invitationOf(await openGuestShare(created.token, sent))).toEqual({
         company: "acme",
-        project: null,
+        project: PROJECT_NAME,
       });
       holder.cookie = sent;
       const metadata = await generateMetadata(params({ token: created.token }), parent);
-      expect(metadata.openGraph?.title).toBe("acme invited you to review");
-      expect(metadata.twitter?.title).toBe("acme invited you to review");
-      expect(JSON.stringify(metadata)).not.toContain(PROJECT_NAME);
+      expect(metadata.openGraph?.title).toBe(`acme invited you to review ${PROJECT_NAME}`);
+      expect(metadata.twitter?.title).toBe(`acme invited you to review ${PROJECT_NAME}`);
+      for (const leak of LOCKED_LEAKS) expect(JSON.stringify(metadata)).not.toContain(leak);
     }
-    expect(await invitationCard(created.token)).toMatchObject({ company: "acme", project: null });
+    const card = await invitationCard(created.token);
+    expect(card).toMatchObject({ company: "acme", project: PROJECT_NAME });
+    for (const leak of LOCKED_LEAKS) expect(JSON.stringify(card)).not.toContain(leak);
   });
 
   it("name the project on an open link, as before", async () => {

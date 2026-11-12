@@ -35,6 +35,7 @@ export const WELCOME_STORIES: readonly StoryDefinition[] = [
     title: "Resolve them",
     body: "Mark each comment resolved once it's fixed.",
     tint: RESOLVED_GREEN.hex,
+    pale: true,
     beats: RESOLVE_BEATS,
     Scene: ResolveStory,
   },
