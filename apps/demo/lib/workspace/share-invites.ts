@@ -4,7 +4,7 @@ import { authOrigin } from "../auth/auth-url";
 import { describeError } from "../auth/http";
 import type { Database } from "../db/database";
 import { workspaceFromHeader } from "../email/from-header";
-import type { EmailEnv } from "../email/resend";
+import { emailConfigured, type EmailEnv } from "../email/resend";
 import { brandColor, brandIconPath, toClientBrand } from "../share/brand";
 import type { InviteDetails } from "../share/invite-copy";
 import type { InviteBrand, SendInvites } from "../share/invite-email";
@@ -29,6 +29,15 @@ export function inviteeKey(address: string, secret: string | undefined = process
   return createHmac("sha256", serverKey(INVITEE_INFO, secret))
     .update(address, "utf8")
     .digest("hex");
+}
+
+/**
+ * A deployment (Vercel) that can't email: invites answer `email-off` there
+ * rather than say they went. Local development and tests skip the email and
+ * go on, as every Squint email does without Resend settings.
+ */
+export function emailOff(env: EmailEnv = process.env): boolean {
+  return Boolean(env.VERCEL) && !emailConfigured(env);
 }
 
 /** On a Vercel preview, invitations only go to the workspace's own members. */
@@ -128,7 +137,10 @@ async function recordInvites(
 
 export type InviteOutcome =
   | { ok: true; sent: number; invitedCount: number }
-  | { ok: false; reason: "not-found" | "link-closed" | "review-closed" | "send-failed" }
+  | {
+      ok: false;
+      reason: "not-found" | "link-closed" | "review-closed" | "email-off" | "send-failed";
+    }
   | { ok: false; reason: "members-only"; addresses: string[] }
   | { ok: false; reason: "rate-limited"; retryAfterSeconds: number };
 
@@ -162,6 +174,7 @@ export async function sendInvites(
   if (target.archived_at !== null) return { ok: false, reason: "link-closed" };
   const reviewEndsAt = reviewDeadline(Number(target.created_at), target.review_window_hours);
   if (reviewClosed(reviewEndsAt, now)) return { ok: false, reason: "review-closed" };
+  if (emailOff(env)) return { ok: false, reason: "email-off" };
   if (membersOnly(env)) {
     const outside = await nonMembers(db, workspaceId, addresses);
     if (outside.length) return { ok: false, reason: "members-only", addresses: outside };

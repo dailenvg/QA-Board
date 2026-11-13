@@ -114,27 +114,22 @@ test("the owner names the client and emails the link, and the guest's invitation
   await context.close();
 });
 
-test("Slack copies the invitation message and opens Slack; Copy link copies the link", async ({
+test("Messages carries the invitation message, and Copy link copies the link", async ({
   page,
   context,
   baseURL,
 }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: baseURL });
-  // Never reach Slack itself: its tab opens on a stand-in.
-  await context.route("https://app.slack.com/**", (route) =>
-    route.fulfill({ contentType: "text/html", body: "<title>Slack</title>" }),
-  );
   const { token, projectId } = await shareWorkspaceProject(page, PROJECT);
   const dialog = await openShareWindow(page, projectId);
-  const status = dialog.getByTestId("share-other-ways-status");
+  const ways = dialog.getByTestId("share-other-ways");
+  // Only Messages and Copy link: Slack, ClickUp and the system share sheet are gone.
+  await expect(ways.getByRole("link")).toHaveCount(1);
+  await expect(ways.getByRole("button")).toHaveCount(1);
 
-  const opened = context.waitForEvent("page");
-  await dialog.getByTestId("share-via-slack").click();
-  await expect(status).toHaveText("Message copied. Paste it into Slack.");
-  const slack = await opened;
-  expect(slack.url()).toBe("https://app.slack.com/client");
-  await slack.close();
-  const message = await page.evaluate(() => navigator.clipboard.readText());
+  const href = (await dialog.getByTestId("share-via-messages").getAttribute("href")) ?? "";
+  expect(href.startsWith("sms:?&body=")).toBe(true);
+  const message = decodeURIComponent(href.slice("sms:?&body=".length));
   expect(message.split("\n").slice(0, 4)).toEqual([
     "Hi,",
     "",
@@ -144,6 +139,7 @@ test("Slack copies the invitation message and opens Slack; Copy link copies the 
   expect(message).toContain("You have about 3 days to comment.");
   expect(message).not.toContain("password");
 
+  const status = dialog.getByTestId("share-other-ways-status");
   await dialog.getByTestId("copy-share-link").click();
   await expect(status).toHaveText("Link copied.");
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`${baseURL}/s/${token}`);

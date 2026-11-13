@@ -220,6 +220,23 @@ describe("emailing a link's invitation", () => {
     expect(rows).toEqual([]);
   });
 
+  it("answers email-off on a deployment without Resend, sending and counting nothing", async () => {
+    const { db, actor, sent, deps } = await setup();
+    const deployed = { ...deps, env: { AUTH_URL: "https://squint.test", VERCEL: "1" } };
+    expect(await sendInvites(db, actor, "p1", ["ana@bravo.test"], NOW, deployed)).toEqual({
+      ok: false,
+      reason: "email-off",
+    });
+    expect(sent).toEqual([]);
+    const { rows } = await db.query("SELECT 1 FROM audit_log WHERE action = 'share.invites_sent'");
+    expect(rows).toEqual([]);
+    // Off Vercel (local development, tests) the email is skipped and the send goes on.
+    const local = { ...deps, env: { AUTH_URL: "https://squint.test" } };
+    expect(await sendInvites(db, actor, "p1", ["ana@bravo.test"], NOW, local)).toMatchObject({
+      ok: true,
+    });
+  });
+
   it("fails closed without AUTH_SECRET, before sending anything", async () => {
     const { db, actor, sent, deps } = await setup();
     await expect(

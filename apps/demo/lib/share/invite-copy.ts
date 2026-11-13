@@ -1,7 +1,7 @@
 /**
- * One invitation to review, in words: the email Squint sends, the message an
- * owner pastes into Slack, ClickUp or Messages, and the Share window's
- * preview of both all read from here, so they never drift apart. Plain
+ * One invitation to review, in words: the email Squint sends and the message
+ * the Share window's Messages button fills in both read from here, so they
+ * never drift apart. Plain
  * strings: whatever shows them escapes them. Never the link's password: only
  * whether it has one.
  */
@@ -80,9 +80,9 @@ export function inviteCopy(details: InviteDetails): InviteCopy {
 }
 
 /**
- * The invitation as a message an owner sends themselves (Slack, ClickUp,
- * Messages, the system share sheet): the email's words, the link on its own
- * line so chat apps unfurl it.
+ * The invitation as a message an owner sends themselves (Messages, or
+ * anywhere they paste it): the email's words, the link on its own line so
+ * chat apps unfurl it.
  */
 export function inviteMessage(details: InviteDetails): string {
   const copy = inviteCopy(details);
