@@ -99,21 +99,9 @@
   --logo-bg: #ffffff;
 
   /*
-   * The Overview's scene art (`.scene-grey`): greys only, so Squiggy is the one color in it.
-   * The tint washes the stage and glows behind it; marks (open pins, the mock page's button,
-   * bubble dots) and resolved pins sit on the mock pages, which stay light in both themes, so
-   * they stay the same too. `--scene-check` is the resolved pin's check, on a card.
-   */
-  --scene-tint: #71717a;
-  --scene-stage: color-mix(in oklab, var(--scene-tint) 14%, var(--panel));
-  --scene-mark: #52525b;
-  --scene-mark-ink: #ffffff;
-  --scene-done: #a1a1aa;
-  --scene-done-ink: #18181b;
-  --scene-check: #3f3f46;
-  /*
-   * The line art drawn on the panel itself (the hero's page, Comments waiting's header): a
-   * second plane, behind the text. `--scene-ink` outlines its lime Squiggy, the one fill.
+   * Squint's line art (`components/ui/line-art`: the Overview's scenes, empty and error
+   * states), drawn on the surface itself: a second plane, behind the text. `--scene-ink`
+   * outlines its lime Squiggy, the one fill.
    */
   --scene-line: #8b8b95;
   --scene-ink: #3f3f46;
@@ -172,8 +160,6 @@
   --danger: #ff6f68;
   --danger-soft: rgb(255 60 65 / 0.18);
 
-  --scene-tint: #a1a1aa;
-  --scene-check: #d4d4d8;
   --scene-line: #6b6b75;
 
   --shadow-seg: 0 1px 2px rgb(0 0 0 / 0.5);
@@ -208,26 +194,9 @@
   --resolved: #004132;
   --resolved-soft: #c8ffc8;
   --resolved-text: #004132;
-  --scene-check: #3f3f46;
   /* Text that inherits its color (no text-* class) inherits it already resolved: reset it. */
   color: var(--ink);
   color-scheme: light;
-}
-
-/*
- * The Overview's scenes, in greys: the mock-ups they borrow from the welcome stories draw
- * their button and resolved pins in the scene's greys here, and the scenes pass the greys for
- * what they color themselves (the stage's tint, open pins). Squiggy keeps its own colors.
- * Set again on `.mock-light`, which resets `--resolved-text` in dark mode. Their resolved pins
- * stay a flat grey: the line takes the fill's color.
- */
-.scene-grey,
-.scene-grey .mock-light {
-  --brand: var(--scene-mark);
-  --resolved-pin: var(--scene-done);
-  --on-resolved-pin: var(--scene-done-ink);
-  --resolved-pin-line: var(--scene-done);
-  --resolved-text: var(--scene-check);
 }
 
 /*
@@ -298,10 +267,6 @@
   --color-favicon-bg: var(--favicon-bg);
   --color-logo-bg: var(--logo-bg);
 
-  --color-scene-tint: var(--scene-tint);
-  --color-scene-stage: var(--scene-stage);
-  --color-scene-mark: var(--scene-mark);
-  --color-scene-mark-ink: var(--scene-mark-ink);
   --color-scene-line: var(--scene-line);
   --color-scene-ink: var(--scene-ink);
 

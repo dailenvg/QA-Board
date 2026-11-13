@@ -38,7 +38,7 @@ function waitingLine(count: number): string {
  * onto a page while Squiggy listens (again on hover or focus), then
  * each project with news, opening the project (which also brings in any still
  * waiting on its review link), with how many are new. No per-project color: the
- * scene is in greys, so a colored dot would match nothing on screen.
+ * scene is line art, so a colored dot would match nothing on screen.
  */
 export function ClientsTile({ news, now, thumb }: ClientsTileProps) {
   const headingId = useId();
@@ -88,7 +88,7 @@ export function ClientsTile({ news, now, thumb }: ClientsTileProps) {
             scene={scene}
             className="mx-auto aspect-[4/3] w-32 self-start @[24rem]:mx-0 @[24rem]:w-full"
           >
-            <ClientsScene count={news.total} still={scene.still} />
+            <ClientsScene count={news.total} />
           </SceneBox>
           <div className="flex min-w-0 flex-col gap-1 bento-fit:min-h-0">
             {news.waiting > 0 ? (

@@ -311,8 +311,8 @@ test("the hero, comments waiting and client news have scenes, hidden from screen
 });
 
 /**
- * Every color drawn in the scenes, outside Squiggy, that isn't a grey (`.scene-grey` and the
- * line art), and whether Squiggy, in the scenes it peeks into, still has its colors.
+ * Every color drawn in the scenes, outside Squiggy, that isn't a grey (the line art), and
+ * whether Squiggy, in the scenes it peeks into, still has its colors.
  */
 async function sceneColors(page: Page): Promise<{ colored: string[]; squiggy: boolean }> {
   return page.evaluate(() => {
