@@ -6,6 +6,7 @@ import type { ClickUpSection } from "@/lib/integrations/clickup/section";
 import { usePopVariants } from "@/lib/motion";
 import { FormAlert } from "../auth/FormAlert";
 import { ClickUpConnected } from "./ClickUpConnected";
+import { ClickUpLogo } from "./ClickUpLogo";
 import { ClickUpTokenForm } from "./ClickUpTokenForm";
 import { INTEGRATIONS_COPY, type ClickUpNotice } from "./integrations-copy";
 
@@ -64,7 +65,10 @@ export function ClickUpIntegration({ section, isOwner }: ClickUpIntegrationProps
       data-testid="clickup-integration"
       data-state={section.kind}
     >
-      <h3 className="mb-4 text-heading font-semibold">{COPY.name}</h3>
+      <h3 className="mb-4 flex items-center gap-2 text-heading font-semibold">
+        <ClickUpLogo className="size-6 shrink-0" />
+        {COPY.name}
+      </h3>
       {/*
        * The live regions stay mounted so changes are announced, but take room (their space
        * below) only while a message shows: a flex gap would count them even when empty.
