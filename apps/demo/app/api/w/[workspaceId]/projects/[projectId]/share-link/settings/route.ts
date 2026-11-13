@@ -10,11 +10,13 @@ export const dynamic = "force-dynamic";
 type Params = { workspaceId: string; projectId: string };
 
 /**
- * `PATCH { reviewWindow }`: how long the clients of the project's review link
- * can comment (`24h`, `72h`, `7d` or `none`), still counted from when the link
- * was created. Answers the window as it now stands (`ReviewWindowState`).
- * 404 for a project without a link, or not in this workspace; 400 for any
- * other window.
+ * `PATCH { reviewWindow?, clientName? }`, one or both: how long the clients
+ * of the project's review link can comment (`24h`, `72h`, `7d` or `none`,
+ * still counted from when the link was created), and who the link is for
+ * (cleaned of control characters and line breaks, at most 80 characters;
+ * blank or null clears it). Answers both as they now stand
+ * (`ShareSettingsState`). 404 for a project without a link, or not in this
+ * workspace; 400 for any other window, a name too long, or neither.
  */
 export const PATCH = withMember<Params>(async (request, { db, user, workspaceId, now }, params) => {
   const projectId = param(idSchema, params.projectId);

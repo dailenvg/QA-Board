@@ -18,7 +18,7 @@ import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { accentStyle } from "./brand-accent";
 import { BrandMark } from "./BrandMark";
-import { invitedToReview } from "./invitation-copy";
+import { lockedHeading } from "./invitation-copy";
 
 interface ShareLockedProps extends LockedShare {
   token: string;
@@ -48,6 +48,7 @@ export function ShareLocked({
   token,
   brand,
   projectName,
+  clientName,
   notice,
   onUnlocked,
   onGone,
@@ -148,7 +149,9 @@ export function ShareLocked({
               */}
               <div className="w-full">
                 <h1 id={titleId} className="text-title font-bold text-balance wrap-break-word">
-                  {invitedToReview(brand.custom ? brand.name : null, projectName)}
+                  {/* The brand row shows the company; the heading's own name says it too. */}
+                  {brand.custom ? <span className="sr-only">{brand.name} </span> : null}
+                  {lockedHeading(brand.custom ? brand.name : null, projectName, clientName)}
                 </h1>
                 <p className="mt-2 flex items-center justify-center gap-2 text-body text-pretty text-muted">
                   <Icon name="lock" className="size-4 shrink-0" />

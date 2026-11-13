@@ -27,6 +27,8 @@ interface ProjectRow {
   share_synced_at: Date | null;
   share_review_window_hours: number | null;
   share_password_set_at: Date | null;
+  share_client_name: string | null;
+  share_invited_count: number | null;
 }
 
 /** A project row with its review link, if it has one (never the link's secrets). */
@@ -34,7 +36,8 @@ const SELECT = `SELECT project.id, project.folder_id, project.name, project.sour
     project.archived_at, project.delete_after, project.created_at, project.updated_at, project.deleted_at,
     link.share_id, share.created_at AS share_created_at, link.cursor AS share_cursor,
     link.last_synced_at AS share_synced_at, share.review_window_hours AS share_review_window_hours,
-    share.password_set_at AS share_password_set_at
+    share.password_set_at AS share_password_set_at, share.client_name AS share_client_name,
+    share.invited_count AS share_invited_count
   FROM projects AS project
   LEFT JOIN project_share_links AS link
     ON link.workspace_id = project.workspace_id AND link.project_id = project.id
@@ -77,6 +80,8 @@ function toProject(row: ProjectRow, pages: Map<string, Page[]>): WorkspaceProjec
       ...(row.share_synced_at ? { lastSyncedAt: toMs(row.share_synced_at) } : {}),
       ...reviewWindowState(createdAt, row.share_review_window_hours),
       ...passwordState(row.share_password_set_at),
+      clientName: row.share_client_name,
+      invitedCount: Number(row.share_invited_count ?? 0),
     };
   }
   return project;

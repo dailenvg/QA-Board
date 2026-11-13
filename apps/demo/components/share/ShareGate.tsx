@@ -52,7 +52,13 @@ export function ShareGate({ token, initial, authorName }: ShareGateProps) {
   const [drafts] = useState(() => createDraftStorage(token));
   const [screen, setScreen] = useState<Screen>(() =>
     initial.locked
-      ? { kind: "locked", brand: initial.brand, projectName: initial.projectName, notice: null }
+      ? {
+          kind: "locked",
+          brand: initial.brand,
+          projectName: initial.projectName,
+          clientName: initial.clientName,
+          notice: null,
+        }
       : { kind: "review", view: initial.view, authorName, drafts },
   );
   /** Set once the screen has changed in this tab: the first one is the server's, already shown. */
@@ -101,6 +107,7 @@ export function ShareGate({ token, initial, authorName }: ShareGateProps) {
             token={token}
             brand={screen.brand}
             projectName={screen.projectName}
+            clientName={screen.clientName}
             notice={screen.notice}
             onUnlocked={(view) => open(view, screen.notice !== null)}
             onGone={() => setScreen({ kind: "gone" })}

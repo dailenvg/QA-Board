@@ -9,7 +9,12 @@ import { openSecret, sealSecret } from "./sealed-secrets";
 import type { ShareAttach, ShareSettings, ShareSync } from "./schemas";
 import { toDate, toMs, toMsOrNull } from "./times";
 import { done, refuse, type QueryResult } from "./query-result";
-import type { OwnerShareLink, ReviewWindowState, SharePasswordState } from "./types";
+import type {
+  OwnerShareLink,
+  ReviewWindowState,
+  SharePasswordState,
+  ShareSettingsState,
+} from "./types";
 
 /**
  * A workspace project's review link (023). Its token and owner key are sealed
@@ -17,8 +22,13 @@ import type { OwnerShareLink, ReviewWindowState, SharePasswordState } from "./ty
  * field, and only opened for a member of that workspace.
  */
 
-const context = (workspaceId: string, projectId: string, field: "token" | "owner-key") =>
-  `share-link:${workspaceId}:${projectId}:${field}`;
+/** What a link's secret is sealed to: its workspace, project and field. */
+export const linkSecretContext = (
+  workspaceId: string,
+  projectId: string,
+  field: "token" | "owner-key",
+) => `share-link:${workspaceId}:${projectId}:${field}`;
+const context = linkSecretContext;
 
 interface LinkRow {
   share_id: string;
@@ -201,11 +211,12 @@ export async function syncShareLink(
 }
 
 /**
- * Sets how long the clients of a live project's review link can comment,
- * still counted from the link's creation, and records who changed it (the
- * field and the new window only). Shortened past the time already gone, the
- * review closes at once; lengthened, a closed review opens again. Only a
- * workspace's link has these settings. Null without a link.
+ * Changes a live project's review link settings, either or both: how long
+ * its clients can comment (still counted from the link's creation), and who
+ * it's for (`clientName`, cleaned; null clears it). Records who changed what:
+ * the fields, and the new window, never the client's name. Shortened past the
+ * time already gone, the review closes at once; lengthened, a closed review
+ * opens again. Only a workspace's link has these settings. Null without a link.
  */
 export async function changeShareSettings(
   db: Database,
@@ -213,21 +224,32 @@ export async function changeShareSettings(
   projectId: string,
   settings: ShareSettings,
   now: number,
-): Promise<ReviewWindowState | null> {
+): Promise<ShareSettingsState | null> {
   const { workspaceId } = actor;
+  const { reviewWindow, clientName } = settings;
   return db.transaction(async (tx) => {
     const { rows } = await tx.query<{
       created_at: string | number;
       review_window_hours: number | null;
+      client_name: string | null;
     }>(
-      `UPDATE squint_shares AS share SET review_window_hours = $3
+      `UPDATE squint_shares AS share SET
+         review_window_hours = CASE WHEN $3::boolean THEN $4::integer ELSE share.review_window_hours END,
+         client_name = CASE WHEN $5::boolean THEN $6::text ELSE share.client_name END
        FROM project_share_links AS link
        JOIN projects AS project
          ON project.workspace_id = link.workspace_id AND project.id = link.project_id
        WHERE share.id = link.share_id AND link.workspace_id = $1 AND link.project_id = $2
          AND project.deleted_at IS NULL
-       RETURNING share.created_at, share.review_window_hours`,
-      [workspaceId, projectId, windowHours(settings.reviewWindow)],
+       RETURNING share.created_at, share.review_window_hours, share.client_name`,
+      [
+        workspaceId,
+        projectId,
+        reviewWindow !== undefined,
+        reviewWindow === undefined ? null : windowHours(reviewWindow),
+        clientName !== undefined,
+        clientName ?? null,
+      ],
     );
     const row = rows[0];
     if (!row) return null;
@@ -238,12 +260,18 @@ export async function changeShareSettings(
         workspaceId,
         action: "share.settings_changed",
         target: { type: "project", id: projectId },
-        fields: ["reviewWindow"],
-        meta: { reviewWindow: settings.reviewWindow },
+        fields: [
+          ...(reviewWindow === undefined ? [] : ["reviewWindow"]),
+          ...(clientName === undefined ? [] : ["clientName"]),
+        ],
+        ...(reviewWindow === undefined ? {} : { meta: { reviewWindow } }),
       },
       now,
     );
-    return reviewWindowState(Number(row.created_at), row.review_window_hours);
+    return {
+      ...reviewWindowState(Number(row.created_at), row.review_window_hours),
+      clientName: row.client_name,
+    };
   });
 }
 

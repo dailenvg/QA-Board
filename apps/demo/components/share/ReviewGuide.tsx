@@ -22,6 +22,8 @@ interface ReviewGuideProps {
   brand: ClientBrand;
   /** The shared project's name. */
   project: string;
+  /** Who the link is for; null: "invited you". */
+  client: string | null;
   /** How long the link takes comments, in hours from its creation; null for no limit. */
   reviewWindowHours: number | null;
 }
@@ -31,12 +33,13 @@ function Invitation({
   token,
   brand,
   project,
-}: Pick<ReviewGuideProps, "token" | "brand" | "project">) {
+  client,
+}: Pick<ReviewGuideProps, "token" | "brand" | "project" | "client">) {
   if (!brand.custom) return GENERIC_INVITATION;
   return (
     <span className="flex items-center gap-3 pt-2" data-testid="review-guide-invitation">
       <BrandMark token={token} brand={brand} />
-      <span className="min-w-0">{invitationLine(brand.name, project)}</span>
+      <span className="min-w-0">{invitationLine(brand.name, project, client)}</span>
     </span>
   );
 }
@@ -52,6 +55,7 @@ export function ReviewGuide({
   token,
   brand,
   project,
+  client,
   reviewWindowHours,
 }: ReviewGuideProps) {
   return (
@@ -59,7 +63,7 @@ export function ReviewGuide({
       open={open}
       onClose={onClose}
       title="How it works"
-      description={<Invitation token={token} brand={brand} project={project} />}
+      description={<Invitation token={token} brand={brand} project={project} client={client} />}
       size="lg"
       testId="review-guide"
     >

@@ -6,6 +6,7 @@ import { newId } from "./id";
 import { fitPicture } from "../image";
 import { fitPages, pageByteBudget } from "../page-budget";
 import { findPage, MAX_PAGES } from "./pages";
+import { storedClientName } from "../share/client-name";
 import { passwordRefusal } from "../workspace-client/mutations";
 import type { SharePasswordState } from "../workspace/types";
 import { dispatch, dispatchConfirmed, getSnapshot, requestDirect, type Result } from "./store";
@@ -395,6 +396,13 @@ export const shareProject = (id: string, share: ProjectShare) =>
  */
 export const setReviewWindow = (id: string, hours: number | null) =>
   dispatchConfirmed({ type: "share/window", id, hours });
+
+/**
+ * Names the client the project's link is for (cleaned as the server cleans
+ * it; blank clears it). Resolves with the server's answer.
+ */
+export const setShareClientName = (id: string, name: string) =>
+  dispatchConfirmed({ type: "share/client", id, clientName: storedClientName(name) });
 
 /** Shows the window the server last confirmed again, after a refused change; sends nothing. */
 export const restoreReviewWindow = (id: string, hours: number | null) =>

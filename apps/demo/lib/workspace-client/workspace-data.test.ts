@@ -12,6 +12,7 @@ import {
 /** The server's window: 24 hours from the link's creation. */
 const WINDOW = { reviewWindowHours: 24, reviewEndsAt: 3 + 24 * 3_600_000 };
 const NO_PASSWORD = { hasPassword: false, passwordSetAt: null };
+const NO_INVITES = { clientName: null, invitedCount: 0 };
 
 const project = (id: string, folderId: string | null, share = false): WorkspaceProject => ({
   id,
@@ -32,6 +33,7 @@ const project = (id: string, folderId: string | null, share = false): WorkspaceP
           lastSyncedAt: 5,
           ...WINDOW,
           ...NO_PASSWORD,
+          ...NO_INVITES,
         },
       }
     : {}),

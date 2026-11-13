@@ -8,6 +8,8 @@ import { PREVIEW_COLORS } from "./preview-theme";
 interface InvitationPreviewProps {
   company: string;
   project: string;
+  /** Who the link is for; null: "invited you to review". */
+  client: string | null;
   /** The company's brand color, for the logo frame and rule only; null keeps cobalt. */
   color: string | null;
   /** The logo as a PNG, JPEG or GIF data URI; null shows the company's monogram. */
@@ -15,6 +17,7 @@ interface InvitationPreviewProps {
 }
 
 const COMPANY_MAX = 40;
+const CLIENT_MAX = 32;
 const PROJECT_MAX = 64;
 const LOGO_FRAME = 112;
 const LOGO_RADIUS = 32;
@@ -118,10 +121,17 @@ function ProjectName({ project }: { project: string }) {
 
 /**
  * A workspace's review link: the company (its logo when the card can draw
- * it, its monogram otherwise), the invitation, and the project's name, with
+ * it, its monogram otherwise), the invitation (naming the client, when the
+ * link has one), and the project's name, with
  * Squiggy beside them.
  */
-export function InvitationPreview({ company, project, color, logoUri }: InvitationPreviewProps) {
+export function InvitationPreview({
+  company,
+  project,
+  client,
+  color,
+  logoUri,
+}: InvitationPreviewProps) {
   const accent = color ?? PREVIEW_COLORS.accent;
   return (
     <PreviewFrame art={<SharedReviewArt />}>
@@ -152,7 +162,10 @@ export function InvitationPreview({ company, project, color, logoUri }: Invitati
         </div>
       </div>
       <PreviewText
-        segments={[{ text: "invited you to" }, { text: "review", highlight: true }]}
+        segments={[
+          { text: `invited ${client === null ? "you" : clip(client, CLIENT_MAX)} to` },
+          { text: "review", highlight: true },
+        ]}
         style={{
           marginTop: 36,
           fontSize: 44,

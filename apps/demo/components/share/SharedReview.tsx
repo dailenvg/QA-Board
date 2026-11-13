@@ -39,7 +39,7 @@ interface SharedReviewProps {
  * invitation and names its company as the one who moderates; an anonymous
  * link says "the project owner".
  */
-function clientCopy(brand: ClientBrand, project: string) {
+function clientCopy(brand: ClientBrand, project: string, client: string | null) {
   if (!brand.custom) {
     return {
       note: "You can add comments. Only the project owner can resolve or edit them.",
@@ -49,7 +49,7 @@ function clientCopy(brand: ClientBrand, project: string) {
   }
   return {
     note: `You can add comments. Only ${brand.name} can resolve or edit them.`,
-    notice: `${invitationLine(brand.name, project)} Only ${brand.name} can resolve, edit or delete comments.`,
+    notice: `${invitationLine(brand.name, project, client)} Only ${brand.name} can resolve, edit or delete comments.`,
   };
 }
 
@@ -97,11 +97,12 @@ export function SharedReview({
   const { locked } = state;
   const lockedBrand = state.view.brand;
   const lockedProjectName = state.view.project.name;
+  const clientName = state.view.clientName;
   useEffect(() => {
-    if (locked) onLocked({ brand: lockedBrand, projectName: lockedProjectName });
-  }, [locked, lockedBrand, lockedProjectName, onLocked]);
+    if (locked) onLocked({ brand: lockedBrand, projectName: lockedProjectName, clientName });
+  }, [locked, lockedBrand, lockedProjectName, clientName, onLocked]);
   const { reviewEndsAt, reviewWindowHours, expiresAt, brand } = state.view;
-  const openCopy = clientCopy(brand, state.view.project.name);
+  const openCopy = clientCopy(brand, state.view.project.name, clientName);
   // A project deleted before its review window ends can't take comments past deletion, so the
   // countdown ends then too: it never promises more time than the deletion notice allows.
   const review = useReviewWindow(earliest(reviewEndsAt, expiresAt), state.reviewClosed);
@@ -127,6 +128,7 @@ export function SharedReview({
                   token={token}
                   brand={brand}
                   project={state.view.project.name}
+                  client={clientName}
                   reviewWindowHours={reviewWindowHours}
                 />
               </>
