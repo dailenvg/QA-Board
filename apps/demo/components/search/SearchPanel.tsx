@@ -3,6 +3,7 @@
 import { LayoutGroup } from "motion/react";
 import { Icon } from "../ui/Icon";
 import { Kbd } from "../ui/Kbd";
+import { EmptyArt } from "../ui/line-art/EmptyArt";
 import { SearchOption } from "./SearchOption";
 import type { SearchEntry, SearchEntryGroups } from "./search-entries";
 
@@ -42,9 +43,7 @@ export function SearchPanel({ query, groups, more, listboxId, ...listProps }: Se
         data-testid="search-empty"
         className="flex flex-col items-center gap-2 px-4 py-6 text-center"
       >
-        <span className="grid size-10 place-items-center rounded-pill bg-tile text-muted">
-          <Icon name="search" className="size-5" />
-        </span>
+        <EmptyArt scene="noMatch" size="sm" surface="card" still />
         <p className="text-body font-semibold text-ink">
           No project or folder matches &ldquo;{query.trim()}&rdquo;
         </p>

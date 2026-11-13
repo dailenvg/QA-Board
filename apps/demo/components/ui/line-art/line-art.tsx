@@ -1,13 +1,16 @@
 import { motion, type Transition } from "motion/react";
 import { duration, ease, sceneStep, spring } from "@/lib/motion";
-import { BODY_PATH, BRAND, EYE_LEFT_PATH, EYE_RIGHT_PATH } from "../../../brand/mascot/paths";
+import { BODY_PATH, BRAND, EYE_LEFT_PATH, EYE_RIGHT_PATH } from "../../brand/mascot/paths";
 
 /*
- * The Overview's line art: everything drawn in one grey line (`--scene-line`) on the tile's own
+ * Squint's line art (the Overview's scenes, every empty state): everything drawn in one grey line (`--scene-line`) on the tile's own
  * panel, a second plane behind the words, with a lime Squiggy the only filled shape. Shapes
  * that overlap are filled with the panel, so the one in front hides the lines behind it.
  * Coordinates are each scene's viewBox units.
  */
+
+/** Squint's lime (`--highlight`, the same in both themes), for a live `Squiggy`'s `color`. */
+export const LIME = "#DEFF5B";
 
 /** Props for an `<svg>` drawn in the line: no fill, round ends and joins. */
 export const LINE_SVG = {
@@ -19,8 +22,11 @@ export const LINE_SVG = {
   className: "text-scene-line",
 } as const;
 
-/** The panel, as a shape's fill: it hides what's behind it without a fill of its own. */
-const PANEL = "var(--color-panel)";
+/**
+ * The surface the art sits on, as a shape's fill: it hides what's behind it without a fill of
+ * its own. The panel unless a parent sets `--art-surface` (`EmptyArt`'s `surface`).
+ */
+export const SURFACE = "var(--art-surface, var(--color-panel))";
 
 export function roundedRect(x: number, y: number, w: number, h: number, r: number): string {
   return `M${x + r} ${y}H${x + w - r}A${r} ${r} 0 0 1 ${x + w} ${y + r}V${y + h - r}A${r} ${r} 0 0 1 ${x + w - r} ${y + h}H${x + r}A${r} ${r} 0 0 1 ${x} ${y + h - r}V${y + r}A${r} ${r} 0 0 1 ${x + r} ${y}Z`;
@@ -39,6 +45,19 @@ export function draw(order: number): {
   };
 }
 
+/**
+ * A dashed line fading in, `order` scene steps in: drawing in (`draw`) animates the dash
+ * pattern itself, which would wipe out the dashes.
+ */
+export function dashed(order: number) {
+  return {
+    strokeDasharray: "3 4",
+    initial: { opacity: 0 },
+    animate: { opacity: 1 },
+    transition: { duration: duration.page, ease: ease.out, delay: order * sceneStep },
+  };
+}
+
 /** A shape dropping into place from `from` units above, `order` scene steps in. */
 export function drop(order: number, from = 14) {
   return {
@@ -48,7 +67,7 @@ export function drop(order: number, from = 14) {
   };
 }
 
-export type BubbleKind = "lines" | "line" | "dots" | "question";
+export type BubbleKind = "lines" | "line" | "dots" | "question" | "check";
 
 interface LineBubbleProps {
   x: number;
@@ -59,7 +78,7 @@ interface LineBubbleProps {
   tail: "left" | "right";
   /** Degrees, about its middle. */
   tilt: number;
-  /** What's written in it: two lines, one, an ellipsis or a question mark. */
+  /** What's written in it: two lines, one, an ellipsis, a question mark or a check. */
   kind: BubbleKind;
   /** Scene steps before it drops in. */
   order: number;
@@ -80,11 +99,13 @@ export function LineBubble({ x, y, w, h, tail, tilt, kind, order, from }: LineBu
   return (
     <motion.g data-testid="scene-bubble" {...drop(order, from)}>
       <g transform={`rotate(${tilt} ${cx} ${cy})`}>
-        <path d={outline} fill={PANEL} />
+        <path d={outline} fill={SURFACE} />
         {kind === "lines" ? (
           <path d={`M${x + 9} ${cy - 3.5}H${x + w - 9}M${x + 9} ${cy + 3.5}H${x + w * 0.55}`} />
         ) : kind === "line" ? (
           <path d={`M${x + 9} ${cy}H${x + w - 12}`} />
+        ) : kind === "check" ? (
+          <path d={`M${cx - 6} ${cy}l4 4 8-8`} />
         ) : kind === "dots" ? (
           [-7, 0, 7].map((dx) => (
             <circle key={dx} cx={cx + dx} cy={cy} r={1.5} fill="currentColor" stroke="none" />
@@ -117,7 +138,7 @@ export function LinePin({ x, y, number, resolved, order }: LinePinProps) {
   const outline = `M${x} ${y}V${y - size + r}A${r} ${r} 0 0 1 ${x + r} ${y - size}H${x + size - r}A${r} ${r} 0 0 1 ${x + size} ${y - size + r}V${y - r}A${r} ${r} 0 0 1 ${x + size - r} ${y}Z`;
   return (
     <motion.g data-testid="story-pin" data-resolved={resolved || undefined} {...drop(order)}>
-      <path d={outline} fill={PANEL} />
+      <path d={outline} fill={SURFACE} />
       {resolved ? (
         <path d={`M${x + 5} ${y - 9}l3 3 5.5-6`} />
       ) : (

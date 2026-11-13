@@ -1,5 +1,12 @@
 import { motion } from "motion/react";
-import { draw, LimeSquiggy, LINE_SVG, LineBubble, type BubbleKind } from "./line-art";
+import {
+  dashed,
+  draw,
+  LimeSquiggy,
+  LINE_SVG,
+  LineBubble,
+  type BubbleKind,
+} from "../../../ui/line-art/line-art";
 
 interface Bubble {
   x: number;
@@ -64,7 +71,7 @@ export function WaitingLines({ open }: WaitingLinesProps) {
         {thrown.length > 0 ? (
           <>
             {/* The throw: a dashed arc in from the left, whoosh lines behind each comment. */}
-            <motion.path d="M18 112C40 60 120 34 196 48" strokeDasharray="2 5" {...draw(2)} />
+            <motion.path d="M18 112C40 60 120 34 196 48" {...dashed(2)} strokeDasharray="2 5" />
             <motion.path d="M176 30l4-5M182 36l6-3" {...draw(5)} />
             {thrown.length > 1 ? <motion.path d="M64 84l-6 3M60 76h-7" {...draw(6)} /> : null}
             {thrown.map((bubble, index) => (

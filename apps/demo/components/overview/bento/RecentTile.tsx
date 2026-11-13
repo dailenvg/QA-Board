@@ -56,7 +56,9 @@ export function RecentTile({ projects, total, week, now, thumb }: RecentTileProp
         }
       />
       {projects.length === 0 ? (
-        <TileEmpty title="No projects yet">Projects show up here as they change.</TileEmpty>
+        <TileEmpty title="No projects yet" scene="folder">
+          Projects show up here as they change.
+        </TileEmpty>
       ) : (
         <div className={TILE_LIST_BOX}>
           <ol ref={ref} role="list" className={TILE_LIST}>

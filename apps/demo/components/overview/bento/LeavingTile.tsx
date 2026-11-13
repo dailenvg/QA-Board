@@ -77,7 +77,7 @@ export function LeavingTile({ projects, total, now, thumb }: LeavingTileProps) {
         }
       />
       {projects.length === 0 ? (
-        <TileEmpty title="Nothing to delete">
+        <TileEmpty title="Nothing to delete" scene="archive">
           {"Archived projects show up here before they're deleted for good."}
         </TileEmpty>
       ) : (

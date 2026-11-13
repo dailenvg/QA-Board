@@ -8,7 +8,6 @@ import { ClientChip } from "../../ui/ClientChip";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { GrowBar } from "./GrowBar";
 import { MoreLink } from "./MoreLink";
-import { ResolvedPin } from "./ResolvedPin";
 import { SceneBox } from "./scenes/SceneBox";
 import { useScene } from "./scenes/use-scene";
 import { WaitingLines } from "./scenes/WaitingLines";
@@ -70,7 +69,7 @@ export function WaitingTile({ open, resolved, oldest, now, thumb }: WaitingTileP
         </div>
       </div>
       {open === 0 ? (
-        <TileEmpty title="No comments waiting" art={resolved > 0 ? <ResolvedPin /> : null}>
+        <TileEmpty title="No comments waiting" scene={resolved > 0 ? "caughtUp" : "comments"}>
           {resolved > 0
             ? "Every comment is resolved."
             : "Comments on your projects show up here until they're resolved."}
