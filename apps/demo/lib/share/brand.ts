@@ -52,3 +52,26 @@ export function toClientBrand(brand: ShareBrand): ClientBrand {
     logoVersion: brand.logoKey === null ? null : logoVersion(brand.logoKey),
   };
 }
+
+/**
+ * The `?v=` of a company's icon: changes with its name, color or logo, so
+ * link previews and inboxes that cached the old one fetch it again.
+ */
+export function brandIconVersion(brand: Pick<ClientBrand, "name" | "color" | "logoVersion">) {
+  return createHash("sha256")
+    .update(JSON.stringify([brand.name, brand.color, brand.logoVersion]))
+    .digest("hex")
+    .slice(0, 16);
+}
+
+/**
+ * Where a shared link's company icon is: its logo, or its monogram without
+ * one, as a square PNG (`/api/s/<token>/brand/icon`). The favicon link
+ * previews show beside the company's name, and the invitation email's header.
+ */
+export function brandIconPath(
+  token: string,
+  brand: Pick<ClientBrand, "name" | "color" | "logoVersion">,
+): string {
+  return `/api/s/${encodeURIComponent(token)}/brand/icon?v=${brandIconVersion(brand)}`;
+}

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { seedLogo, setBrand } from "@/test/brand-fixture";
 import { STATE } from "@/test/share-fixture";
 import {
   addFolder,
@@ -9,6 +10,7 @@ import {
 } from "@/test/workspace-fixture";
 import type { InviteBatch } from "../share/invite-email";
 import { inlineBackend } from "../share/blob-backend";
+import { brandIconVersion, logoVersion } from "../share/brand";
 import { createPostgresStore } from "../share/postgres-store";
 import { createShare } from "../share/service";
 import { createProject, listProjects, setArchived } from "./projects";
@@ -62,8 +64,28 @@ describe("emailing a link's invitation", () => {
           reviewEndsAt: NOW + 72 * HOUR,
           hasPassword: false,
         },
+        brand: {
+          iconUrl: `https://squint.test/api/s/${created.token}/brand/icon?v=${brandIconVersion({ name: "Acme", color: null, logoVersion: null })}`,
+          color: null,
+        },
       },
     ]);
+  });
+
+  it("carries the company's color and an icon that changes with its logo", async () => {
+    const { db, a, actor, sent, deps } = await setup();
+    await setBrand(db, a.workspaceId, { name: "Acme", color: "#7a1fa2" });
+    const key = await seedLogo(db, a.workspaceId, new Uint8Array([1, 2, 3]));
+    await sendInvites(db, actor, "p1", ["ana@bravo.test"], NOW, deps);
+    const version = brandIconVersion({
+      name: "Acme",
+      color: "#7a1fa2",
+      logoVersion: logoVersion(key),
+    });
+    expect(sent[0]?.brand).toEqual({
+      iconUrl: expect.stringMatching(new RegExp(`/brand/icon\\?v=${version}$`)) as string,
+      color: "#7a1fa2",
+    });
   });
 
   it("says the link is protected, never its password", async () => {

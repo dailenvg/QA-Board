@@ -5,7 +5,7 @@ import { cardLogoUri, readBrandLogo } from "./brand-logo";
 import { verifyGuestPass } from "./guest-pass";
 import { shareServices } from "./server";
 import { clientShare, clientView } from "./service";
-import type { ClientView, LockedShare } from "./types";
+import type { ClientBrand, ClientView, LockedShare } from "./types";
 
 /**
  * What a guest's link opens to: the review, or, on a password-protected link
@@ -39,13 +39,18 @@ export const openGuestShare = cache(
   },
 );
 
+/** The company behind a guest's link, locked or not. */
+export function guestBrand(guest: GuestShare): ClientBrand {
+  return guest.locked ? guest.brand : guest.view.brand;
+}
+
 /**
  * Who invites whom to review what; null on an anonymous share, which keeps the
  * generic preview. Password-protected or not, locked or not, the same.
  */
 export function invitationOf(guest: GuestShare | null): Invitation | null {
   if (!guest) return null;
-  const brand = guest.locked ? guest.brand : guest.view.brand;
+  const brand = guestBrand(guest);
   if (!brand.custom) return null;
   const project = guest.locked ? guest.projectName : guest.view.project.name;
   const client = guest.locked ? guest.clientName : guest.view.clientName;

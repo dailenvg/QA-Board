@@ -2,9 +2,16 @@ import type { Metadata, ResolvingMetadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { ShareGate } from "@/components/share/ShareGate";
-import { invitationPreview, previewMetadata, SHARED_REVIEW_PREVIEW } from "@/lib/link-preview";
+import {
+  invitationPreview,
+  previewMetadata,
+  SHARED_REVIEW_PREVIEW,
+  type Invitation,
+} from "@/lib/link-preview";
 import { reviewerNameOf } from "@/lib/share-client/reviewer-name";
-import { invitationOf, openGuestShare } from "@/lib/share/guest-share";
+import { brandIconPath } from "@/lib/share/brand";
+import { guestBrand, invitationOf, openGuestShare } from "@/lib/share/guest-share";
+import type { ClientBrand } from "@/lib/share/types";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +38,22 @@ async function genericPreview(parent: ResolvingMetadata): Promise<Metadata> {
   };
 }
 
+/**
+ * A workspace's link previews as its invitation, under the company's name and
+ * icon (its logo, or its monogram) rather than Squint's: chat apps show both
+ * beside the card, and guests see the icon in their tab.
+ */
+function companyPreview(token: string, brand: ClientBrand, invitation: Invitation): Metadata {
+  const { openGraph, twitter } = previewMetadata(invitationPreview(invitation));
+  // One object each: Next writes each list's `rel` onto its icons.
+  const icon = () => ({ url: brandIconPath(token, brand), type: "image/png", sizes: "192x192" });
+  return {
+    openGraph: { ...openGraph, siteName: brand.name },
+    twitter,
+    icons: { icon: [icon()], apple: [icon()] },
+  };
+}
+
 /** The request's `Cookie` header, where a protected link's guest pass is. */
 async function requestCookies(): Promise<string | null> {
   return (await headers()).get("cookie");
@@ -38,7 +61,7 @@ async function requestCookies(): Promise<string | null> {
 
 /**
  * A workspace's link previews as its invitation, with this segment's
- * per-token card, password-protected or not; anonymous links and links that
+ * per-token card and the company's name and icon, password-protected or not; anonymous links and links that
  * don't open, generically.
  */
 export async function generateMetadata(
@@ -46,10 +69,12 @@ export async function generateMetadata(
   parent: ResolvingMetadata,
 ): Promise<Metadata> {
   const { token } = await params;
-  const invitation = invitationOf(await openGuestShare(token, await requestCookies()));
-  const preview = invitation
-    ? previewMetadata(invitationPreview(invitation))
-    : await genericPreview(parent);
+  const guest = await openGuestShare(token, await requestCookies());
+  const invitation = invitationOf(guest);
+  const preview =
+    guest && invitation
+      ? companyPreview(token, guestBrand(guest), invitation)
+      : await genericPreview(parent);
   return { ...PAGE_METADATA, ...preview };
 }
 

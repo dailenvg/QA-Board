@@ -44,6 +44,20 @@ async function unfurl(request: APIRequestContext, path: string, status = 200) {
   return metaTags(await response.text());
 }
 
+/** The page's icon links (`rel="icon"` and `rel="apple-touch-icon"`), by rel. */
+async function iconLinks(request: APIRequestContext, path: string): Promise<Map<string, string>> {
+  const response = await request.get(path, { headers: { "user-agent": SLACKBOT } });
+  const links = new Map<string, string>();
+  for (const [link] of (await response.text()).matchAll(
+    /<link [^>]*rel="(?:icon|apple-touch-icon)"[^>]*>/g,
+  )) {
+    const rel = /rel="([^"]+)"/.exec(link)?.[1];
+    const href = /href="([^"]+)"/.exec(link)?.[1];
+    if (rel && href && !links.has(rel)) links.set(rel, href.replace(/&amp;/g, "&"));
+  }
+  return links;
+}
+
 /** The tag's value, failing the test when it's missing. */
 function tag(tags: Map<string, string>, key: string): string {
   const value = tags.get(key);
@@ -154,6 +168,21 @@ test("a workspace's review link unfurls as its invitation, with a card of its ow
   const card = await request.get(new URL(tag(tags, "og:image")).pathname);
   expect(card.headers()["cache-control"]).toBe("private, max-age=300");
 
+  // Chat apps show the company's name and icon beside the card, not Squint's.
+  expect(tag(tags, "og:site_name")).toBe(E2E_COMPANY.name);
+  const icons = await iconLinks(request, `/s/${token}`);
+  const iconPath = icons.get("icon") ?? "";
+  expect(iconPath).toMatch(new RegExp(`^/api/s/${token}/brand/icon\\?v=[0-9a-f]{16}$`));
+  expect(icons.get("apple-touch-icon")).toBe(iconPath);
+  const icon = await request.get(iconPath);
+  expect(icon.status()).toBe(200);
+  expect(icon.headers()["content-type"]).toBe("image/png");
+  const iconPng = await icon.body();
+  expect({ width: iconPng.readUInt32BE(16), height: iconPng.readUInt32BE(20) }).toEqual({
+    width: 192,
+    height: 192,
+  });
+
   // Another link of the same workspace has a card of its own.
   const fall = await shareWorkspaceProject(page, "Fall menu");
   const other = await unfurl(request, `/s/${fall.token}`);
@@ -247,6 +276,11 @@ test("a shared review unfurls generically, without project, client or token", as
   expect(tag(tags, "referrer")).toBe("no-referrer");
   expectLargeCard(tags, "/s/opengraph-image");
   expect(tags.has("og:url"), "no og:url, so no token").toBe(false);
+  expect(tag(tags, "og:site_name")).toBe("Squint");
+  for (const href of (await iconLinks(request, `/s/${token}`)).values()) {
+    expect(href, "Squint's own icon").not.toContain(token);
+  }
+  expect((await request.get(`/api/s/${token}/brand/icon`)).status()).toBe(404);
   for (const [key, value] of tags) {
     expect(value, key).not.toContain(token);
     expect(value, key).not.toContain(secret);

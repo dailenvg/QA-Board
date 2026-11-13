@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { describeError } from "../auth/http";
 import type { InviteDetails } from "./invite-copy";
-import { inviteEmail, inviteEmailSender, InviteEmailRefused } from "./invite-email";
+import {
+  emailAccent,
+  inviteEmail,
+  inviteEmailSender,
+  InviteEmailRefused,
+  type InviteBrand,
+} from "./invite-email";
 
 const resend = vi.hoisted(() => ({
   batch: vi.fn<(emails: unknown) => Promise<{ error: { name: string; message: string } | null }>>(),
@@ -25,6 +31,11 @@ const DETAILS: InviteDetails = {
   reviewEndsAt: SENT_AT + 72 * 60 * 60 * 1000,
   hasPassword: true,
   sentAt: SENT_AT,
+};
+
+const BRAND: InviteBrand = {
+  iconUrl: "https://squint.test/api/s/abc/brand/icon?v=1",
+  color: "#7a1fa2",
 };
 
 beforeEach(() => {
@@ -59,17 +70,38 @@ describe("the invitation email", () => {
   });
 
   it("escapes every value in the HTML", () => {
-    const email = inviteEmail({
-      ...DETAILS,
-      company: `<b>Evil</b> & "Co"`,
-      project: "<script>alert(1)</script>",
-      client: `<img src=x onerror=alert(1)>`,
-      link: `https://squint.test/s/a"onmouseover="x`,
-    });
-    expect(email.html).not.toMatch(/<script|<img|<b>|"onmouseover/);
+    const email = inviteEmail(
+      {
+        ...DETAILS,
+        company: `<b>Evil</b> & "Co"`,
+        project: "<script>alert(1)</script>",
+        client: `<img src=x onerror=alert(1)>`,
+        link: `https://squint.test/s/a"onmouseover="x`,
+      },
+      { iconUrl: `https://squint.test/i"onerror="x`, color: null },
+    );
+    expect(email.html).not.toMatch(/<script|<img src=x|<b>|"onmouseover|"onerror/);
     expect(email.html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
     expect(email.html).toContain("&lt;img src=x onerror=alert(1)&gt;");
     expect(email.html).toContain("&quot;Co&quot;");
+  });
+
+  it("tops the HTML with the company's icon and name, and colors the button its way", () => {
+    const { html, text } = inviteEmail(DETAILS, BRAND);
+    expect(html).toContain('<img src="https://squint.test/api/s/abc/brand/icon?v=1"');
+    expect(html).toContain(">E2E Agency</td>");
+    expect(html).toContain("background:#7a1fa2;color:#ffffff");
+    expect(text).not.toContain("brand/icon");
+  });
+
+  it("keeps Squint's blue for a color white text can't read on, and the name alone without an icon", () => {
+    expect(emailAccent("#ffe14d")).toBe("#0c54cc");
+    expect(emailAccent(null)).toBe("#0c54cc");
+    expect(emailAccent("#7a1fa2")).toBe("#7a1fa2");
+    const { html } = inviteEmail(DETAILS);
+    expect(html).not.toContain("<img");
+    expect(html).toContain(">E2E Agency</td>");
+    expect(html).toContain("background:#0c54cc;color:#ffffff");
   });
 
   it("keeps the subject on one line whatever the names hold", () => {
@@ -85,6 +117,7 @@ describe("sending invitations", () => {
       to: ["ana@acme.studio", "leo@acme.studio"],
       from,
       details: DETAILS,
+      brand: BRAND,
     });
     expect(resend.batch).toHaveBeenCalledTimes(1);
     const sent = resend.batch.mock.calls[0]?.[0] as Array<Record<string, unknown>>;
@@ -98,14 +131,24 @@ describe("sending invitations", () => {
   });
 
   it("falls back to EMAIL_FROM without a workspace sender", async () => {
-    await inviteEmailSender(ENV)({ to: ["ana@acme.studio"], from: null, details: DETAILS });
+    await inviteEmailSender(ENV)({
+      to: ["ana@acme.studio"],
+      from: null,
+      details: DETAILS,
+      brand: BRAND,
+    });
     const sent = resend.batch.mock.calls[0]?.[0] as Array<Record<string, unknown>>;
     expect(sent[0]?.from).toBe("Squint <noreply@squint.test>");
   });
 
   it("skips without Resend settings, logging no address or link", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    await inviteEmailSender({})({ to: ["ana@acme.studio"], from: null, details: DETAILS });
+    await inviteEmailSender({})({
+      to: ["ana@acme.studio"],
+      from: null,
+      details: DETAILS,
+      brand: BRAND,
+    });
     expect(warn.mock.calls).toEqual([
       ["squint share: invite email skipped (RESEND_API_KEY or EMAIL_FROM not set)"],
     ]);
@@ -121,6 +164,7 @@ describe("sending invitations", () => {
       to: ["ana@acme.studio"],
       from: null,
       details: DETAILS,
+      brand: BRAND,
     });
     await expect(sending).rejects.toBeInstanceOf(InviteEmailRefused);
     const error: unknown = await sending.catch((caught: unknown) => caught);
