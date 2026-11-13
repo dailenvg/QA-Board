@@ -11,8 +11,8 @@ export const TILE_SURFACE =
  * the tile's padding (-mx-3) so a row's hover fill reaches it and "+N more" lines its label up
  * with the tile's text. The box itself is pulled out, not the list inside it: where the box
  * clips, a list wider than the box would lose its rows' sides, focus ring included. Where it
- * clips it also keeps 4px above and below (-my-1 py-1), so a row lifted on hover or focus
- * keeps its ring's top edge.
+ * clips it also keeps 4px above and below (-my-1 py-1), so a focused row keeps its ring's
+ * top edge.
  */
 export const TILE_LIST_BOX =
   "-mx-3 flex flex-col bento-fit:-my-1 bento-fit:min-h-0 bento-fit:flex-1 bento-fit:overflow-hidden bento-fit:py-1";

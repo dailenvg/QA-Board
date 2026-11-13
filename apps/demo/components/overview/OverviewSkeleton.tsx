@@ -62,17 +62,18 @@ export function OverviewSkeleton() {
         {/* HeroScene's project page, from md. */}
         <Skeleton className="ml-auto hidden aspect-[4/3] w-40 shrink-0 md:block" />
       </div>
-      {/* Status, waiting, clients, recent, busiest, each with its scene's room. */}
+      {/* Status, waiting, clients, recent, deleting soon, each with its scene's room if it has one. */}
       {/*
         Status: no rows, just the ring beside its counts and pin row (112px, 96px where the
         bento fits one screen). This tile sets the hero row's height there, so it matches
         exactly: a taller placeholder would make the rows below jump up when the page arrives.
       */}
       <TileSkeleton rows={0} scene="h-28 bento-fit:h-24" />
-      <TileSkeleton rows={3} scene="h-16" className="md:row-span-2" />
+      {/* Comments waiting: its title on the pile's line art, 124px in all (104px fitting one screen). */}
+      <TileSkeleton rows={3} scene="h-21 bento-fit:h-17" className="md:row-span-2" />
       <TileSkeleton rows={2} scene="h-24" className="xl:col-span-2" />
       <TileSkeleton rows={2} scene="h-12" />
-      <TileSkeleton rows={1} scene="h-16" />
+      <TileSkeleton rows={2} />
     </div>
   );
 }

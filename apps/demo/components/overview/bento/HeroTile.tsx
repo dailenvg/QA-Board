@@ -9,7 +9,6 @@ import { Highlight } from "../../ui/Highlight";
 import { HERO_MASCOT_SIZE } from "../OverviewHero";
 import { SquiggySpeechLine } from "../SquiggySpeechLine";
 import { StoryGlow } from "../welcome/StoryGlow";
-import { SCENE_TINT } from "./scenes/scene-colors";
 import { HeroScene } from "./scenes/HeroScene";
 import { SceneBox } from "./scenes/SceneBox";
 import { useScene } from "./scenes/use-scene";
@@ -29,9 +28,9 @@ interface HeroTileProps {
  * The bento's lead tile: Squiggy, whose mood follows the workspace
  * (`useSquiggyMood`), the page's headline, and Squiggy's line about the
  * workspace (comments waiting, all resolved, or what just happened), else a
- * line saying what it holds. From md, a project page beside them carries the
- * workspace's pins (open and resolved), dropping in as the tile arrives and
- * again on hover or focus.
+ * line saying what it holds. From md, a project page in line art beside them
+ * (`HeroScene`) carries the workspace's pins (open and resolved), drawing in as
+ * the tile arrives and again on hover or focus.
  *
  * Squiggy holds each mood's pose rather than looping it (WCAG 2.2.2): the
  * Overview is read beside it, and the bento only offers Pause beside the client
@@ -64,11 +63,11 @@ export function HeroTile({ summary, open, resolved }: HeroTileProps) {
       style={{ "--hero-mascot-size": HERO_MASCOT_SIZE } as CSSProperties}
     >
       <StoryGlow
-        color={SCENE_TINT}
+        color="var(--color-brand)"
         className="top-6 left-1/2 -z-10 size-40 -translate-x-1/2 opacity-20 sm:top-1/2 sm:left-6 sm:translate-x-0 sm:-translate-y-1/2 dark:opacity-30"
       />
       <StoryGlow
-        color={SCENE_TINT}
+        color="var(--color-highlight)"
         className="-right-12 -bottom-20 -z-10 size-56 opacity-20 dark:opacity-5"
       />
       <motion.div
@@ -102,7 +101,7 @@ export function HeroTile({ summary, open, resolved }: HeroTileProps) {
         scene={scene}
         className="ml-auto hidden aspect-[4/3] w-40 shrink-0 md:block"
       >
-        <HeroScene open={open} resolved={resolved} still={scene.still} />
+        <HeroScene open={open} resolved={resolved} />
       </SceneBox>
     </motion.section>
   );
