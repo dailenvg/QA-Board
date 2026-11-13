@@ -101,9 +101,21 @@ export interface ClientCommentActivity {
   cursor: number;
 }
 
+/** The workspace as its guests meet it, besides its id and slug. */
+export interface WorkspaceIdentity {
+  id: string;
+  slug: string;
+  /** The company guests see. */
+  name: string;
+  /** Who its emails come from (`from_email_name`); null uses `name`. */
+  fromEmailName: string | null;
+  /** Its brand color (`#rrggbb`); null keeps Squint's own. */
+  brandColor: string | null;
+}
+
 /** Everything a signed-in browser needs to show a workspace. */
 export interface WorkspaceData {
-  workspace: { id: string; slug: string; name: string };
+  workspace: WorkspaceIdentity;
   folders: Folder[];
   projects: WorkspaceProject[];
   snapshots: Snapshot[];

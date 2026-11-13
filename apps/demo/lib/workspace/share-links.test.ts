@@ -101,6 +101,8 @@ describe("share links", () => {
       ...WINDOW_72,
       hasPassword: false,
       passwordSetAt: null,
+      clientName: null,
+      invitedCount: 0,
     });
   });
 
@@ -243,6 +245,7 @@ describe("share links", () => {
     expect((await getProject(db, a.workspaceId, "p1"))?.share).toMatchObject({
       reviewWindowHours: null,
       reviewEndsAt: null,
+      clientName: null,
     });
   });
 
@@ -253,11 +256,13 @@ describe("share links", () => {
     expect(await changeShareSettings(db, actor, "p1", { reviewWindow: "7d" }, NOW + 5)).toEqual({
       reviewWindowHours: 168,
       reviewEndsAt: NOW + 168 * HOUR,
+      clientName: null,
     });
     expect((await store.byId(created.shareId))?.reviewWindowHours).toBe(168);
     expect(await changeShareSettings(db, actor, "p1", { reviewWindow: "none" }, NOW + 6)).toEqual({
       reviewWindowHours: null,
       reviewEndsAt: null,
+      clientName: null,
     });
     const { rows } = await db.query<Record<string, unknown>>(
       `SELECT actor_user_id, workspace_id, action, target_type, target_id, meta

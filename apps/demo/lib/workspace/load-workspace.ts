@@ -20,6 +20,18 @@ export async function setAuthorName(db: Queryable, userId: string, name: string)
   await db.query("UPDATE users SET name = $2 WHERE id = $1", [userId, name]);
 }
 
+/** Who the workspace's emails come from, and its color: for the Share window's preview. */
+async function senderOf(db: Queryable, workspaceId: string) {
+  const { rows } = await db.query<{ from_email_name: string | null; brand_color: string | null }>(
+    "SELECT from_email_name, brand_color FROM workspaces WHERE id = $1",
+    [workspaceId],
+  );
+  return {
+    fromEmailName: rows[0]?.from_email_name ?? null,
+    brandColor: rows[0]?.brand_color ?? null,
+  };
+}
+
 /**
  * Everything a signed-in browser shows for the workspace, in one read: its
  * folders, live projects (archived included, trash not), and their pages,
@@ -32,17 +44,19 @@ export async function loadWorkspace(
   userId: string,
 ): Promise<WorkspaceData> {
   const { workspaceId } = membership;
-  const [folders, projects, snapshots, comments, clients, storage, author] = await Promise.all([
-    listFolders(db, workspaceId),
-    listProjects(db, workspaceId),
-    listSnapshots(db, workspaceId),
-    listComments(db, workspaceId),
-    clientActivity(db, workspaceId),
-    storageSummary(db, workspaceId),
-    authorName(db, userId),
-  ]);
+  const [folders, projects, snapshots, comments, clients, storage, author, brand] =
+    await Promise.all([
+      listFolders(db, workspaceId),
+      listProjects(db, workspaceId),
+      listSnapshots(db, workspaceId),
+      listComments(db, workspaceId),
+      clientActivity(db, workspaceId),
+      storageSummary(db, workspaceId),
+      authorName(db, userId),
+      senderOf(db, workspaceId),
+    ]);
   return {
-    workspace: { id: workspaceId, slug: membership.slug, name: membership.name },
+    workspace: { id: workspaceId, slug: membership.slug, name: membership.name, ...brand },
     folders,
     projects,
     snapshots,

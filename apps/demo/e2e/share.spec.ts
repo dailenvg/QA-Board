@@ -501,7 +501,7 @@ test("a client's first visit opens How it works once, and its button opens it ag
   await expect(guide.getByRole("heading", { level: 3 })).toHaveText([
     "Look around",
     "Pin a comment",
-    "Send feedback within 72 hours",
+    "Send feedback within 3 days",
   ]);
   await client.keyboard.press("Escape");
   await expect(guide).toHaveCount(0);

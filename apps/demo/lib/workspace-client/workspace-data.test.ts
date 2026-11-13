@@ -41,7 +41,7 @@ const project = (id: string, folderId: string | null, share = false): WorkspaceP
 
 function workspace(projects: WorkspaceProject[], folders = true): WorkspaceData {
   return {
-    workspace: { id: "w1", slug: "acme", name: "Acme" },
+    workspace: { id: "w1", slug: "acme", name: "Acme", fromEmailName: null, brandColor: null },
     folders: folders
       ? [
           { id: "newer", name: "Newer", createdAt: 9, parentId: null },

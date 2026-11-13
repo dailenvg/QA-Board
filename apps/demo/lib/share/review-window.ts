@@ -23,7 +23,7 @@ const HOURS: Record<ReviewWindowChoice, number | null> = {
 /** How each choice reads, in the owner's share dialog and the reviewer's guide. */
 export const REVIEW_WINDOW_LABELS: Record<ReviewWindowChoice, string> = {
   "24h": "24 hours",
-  "72h": "72 hours",
+  "72h": "3 days",
   "7d": "7 days",
   none: "No limit",
 };

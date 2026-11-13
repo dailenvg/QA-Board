@@ -7,6 +7,7 @@ import { fitPicture } from "../image";
 import { fitPages, pageByteBudget } from "../page-budget";
 import { findPage, MAX_PAGES } from "./pages";
 import { storedClientName } from "../share/client-name";
+import { inviteResult, type InviteResult, type InvitesSent } from "../share-client/invites";
 import { passwordRefusal } from "../workspace-client/mutations";
 import type { SharePasswordState } from "../workspace/types";
 import { dispatch, dispatchConfirmed, getSnapshot, requestDirect, type Result } from "./store";
@@ -423,6 +424,24 @@ export async function setSharePassword(id: string, password: string | null): Pro
   if (!result.ok) return { ok: false, error: passwordRefusal(result.status, removing) };
   dispatch({ type: "share/password", id, passwordSetAt: result.value.passwordSetAt });
   return { ok: true, value: undefined };
+}
+
+/**
+ * Emails the project's review link to `addresses` from the workspace. Nothing
+ * of it goes through the store but how many people it has now reached.
+ */
+export async function sendShareInvites(
+  id: string,
+  addresses: readonly string[],
+): Promise<InviteResult> {
+  const answer = await requestDirect<InvitesSent>(
+    "POST",
+    `/projects/${encodeURIComponent(id)}/share-link/invites`,
+    { addresses },
+  );
+  const result = inviteResult(answer, Date.now());
+  if (result.ok) dispatch({ type: "share/invited", id, invitedCount: result.invitedCount });
+  return result;
 }
 
 /**

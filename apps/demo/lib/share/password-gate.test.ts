@@ -330,6 +330,7 @@ describe("a protected link's page, metadata and preview card", () => {
       locked: true,
       brand: { custom: true, name: "acme" },
       projectName: PROJECT_NAME,
+      clientName: null,
     };
     expect(locked).toMatchObject(expected);
     expect(Object.keys(locked ?? {}).sort()).toEqual(Object.keys(expected).sort());
@@ -367,6 +368,7 @@ describe("a protected link's page, metadata and preview card", () => {
       expect(invitationOf(await openGuestShare(created.token, sent))).toEqual({
         company: "acme",
         project: PROJECT_NAME,
+        client: null,
       });
       holder.cookie = sent;
       const metadata = await generateMetadata(params({ token: created.token }), parent);
@@ -384,9 +386,29 @@ describe("a protected link's page, metadata and preview card", () => {
     expect(invitationOf(await openGuestShare(created.token, null))).toEqual({
       company: "acme",
       project: PROJECT_NAME,
+      client: null,
     });
     expect(await invitationCard(created.token)).toMatchObject({ project: PROJECT_NAME });
     const metadata = await generateMetadata(params({ token: created.token }), parent);
     expect(metadata.openGraph?.title).toBe(`acme invited you to review ${PROJECT_NAME}`);
+  });
+
+  it("name the client the link is for, locked or open, in the preview and its card", async () => {
+    const created = await linkedShare("p1", PASSWORD);
+    await db.query("UPDATE squint_shares SET client_name = 'Bravo Studio'");
+    const locked = await openGuestShare(created.token, null);
+    expect(locked).toMatchObject({ locked: true, clientName: "Bravo Studio" });
+    const cookie = await unlocked(created.token);
+    const open = await openGuestShare(created.token, cookie);
+    expect(open?.locked === false && open.view.clientName).toBe("Bravo Studio");
+    expect(invitationOf(locked)).toEqual({
+      company: "acme",
+      project: PROJECT_NAME,
+      client: "Bravo Studio",
+    });
+    holder.cookie = null;
+    const metadata = await generateMetadata(params({ token: created.token }), parent);
+    expect(metadata.openGraph?.title).toBe(`acme invited Bravo Studio to review ${PROJECT_NAME}`);
+    expect(await invitationCard(created.token)).toMatchObject({ client: "Bravo Studio" });
   });
 });
