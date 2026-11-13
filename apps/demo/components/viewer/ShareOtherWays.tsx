@@ -24,7 +24,8 @@ interface ShareOtherWaysProps {
   title: string;
   /**
    * Why the link can't take comments now (its review window closed), or null.
-   * Then only Copy link stays: there's nothing to invite anyone to.
+   * Then only Copy link stays: there's nothing to invite anyone to. The step
+   * above says why (with Go to settings), so it isn't said again here.
    */
   unavailable: string | null;
 }
@@ -101,7 +102,8 @@ export function ShareOtherWays({ message, url, title, unavailable }: ShareOtherW
   return (
     <div className="flex flex-col gap-2">
       <p className="text-body font-semibold">Or send it another way</p>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid="share-other-ways">
+      {/* Two by two until four fit in a row: at 640px a quarter is too narrow for "Messages". */}
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4" data-testid="share-other-ways">
         {blocked
           ? null
           : WAYS.map(({ way, label, icon }) =>
@@ -113,7 +115,7 @@ export function ShareOtherWays({ message, url, title, unavailable }: ShareOtherW
                     // Copied too, for a desktop without Messages: the link may open nothing.
                     void copy(message).then((copied) => tell(way, copied));
                   }}
-                  className={buttonClass("secondary", "sm")}
+                  className={`${buttonClass("secondary", "sm")} px-3`}
                   {...(reduce ? {} : press)}
                   data-testid={`share-via-${way}`}
                 >
@@ -148,7 +150,7 @@ export function ShareOtherWays({ message, url, title, unavailable }: ShareOtherW
           <Button
             variant="secondary"
             size="sm"
-            className="col-span-2 px-3 sm:col-span-4"
+            className="col-span-2 px-3 md:col-span-4"
             onClick={() => void share()}
             data-testid="share-via-system"
           >
@@ -157,7 +159,6 @@ export function ShareOtherWays({ message, url, title, unavailable }: ShareOtherW
           </Button>
         ) : null}
       </div>
-      {blocked ? <p className="text-meta text-muted">{unavailable}</p> : null}
       {/* Always there, so screen readers hear each confirmation. */}
       <div role="status" className="min-h-0" data-testid="share-other-ways-status">
         <AnimatePresence mode="wait" initial={false}>

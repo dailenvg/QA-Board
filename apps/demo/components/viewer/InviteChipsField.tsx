@@ -97,7 +97,7 @@ export function InviteChipsField({ chips, onChange, readOnly }: InviteChipsField
       {/* The box focuses its field on a click anywhere inside it, as a text field would. */}
       <div
         onClick={() => input.current?.focus()}
-        className={`flex min-h-12 cursor-text flex-wrap items-center gap-2 rounded-field bg-card p-2 ring-1 ring-field-line transition-shadow ring-inset hover:ring-ink-2 has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-focus ${
+        className={`flex min-h-12 cursor-text flex-wrap items-center gap-2 rounded-field pointer-coarse:gap-y-4 bg-card p-2 ring-1 ring-field-line transition-shadow ring-inset hover:ring-ink-2 has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-focus ${
           message ? "ring-2 ring-danger" : ""
         }`}
       >
@@ -133,7 +133,8 @@ export function InviteChipsField({ chips, onChange, readOnly }: InviteChipsField
                   }}
                   aria-disabled={readOnly || undefined}
                   aria-label={`Remove ${chip.address}`}
-                  className="-my-2 grid size-9 shrink-0 place-items-center rounded-pill transition-colors hover:bg-card/70 focus-visible:-outline-offset-2 active:bg-card aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                  // 36px under a mouse; a thumb gets 44px, the rows spread to keep the targets apart.
+                  className="-my-2 grid size-9 shrink-0 place-items-center rounded-pill transition-colors hover:bg-card/70 focus-visible:-outline-offset-2 active:bg-card aria-disabled:cursor-not-allowed aria-disabled:opacity-50 pointer-coarse:-my-3 pointer-coarse:size-11"
                 >
                   <Icon name="close" className="size-3.5" />
                 </button>

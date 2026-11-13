@@ -1,22 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { inviteCopy, inviteDeadline, inviteMessage, type InviteDetails } from "./invite-copy";
+import { inviteCopy, inviteMessage, inviteTimeLeft, type InviteDetails } from "./invite-copy";
+
+const HOUR = 60 * 60 * 1000;
+const SENT_AT = Date.UTC(2026, 10, 12, 16, 30);
 
 const DETAILS: InviteDetails = {
   company: "E2E Agency",
   project: "Spring Campaign",
   client: "Acme Studio",
   link: "https://squint.test/s/abc",
-  reviewEndsAt: Date.UTC(2026, 10, 15, 16, 30),
+  reviewEndsAt: SENT_AT + 72 * HOUR,
   hasPassword: true,
+  sentAt: SENT_AT,
 };
 
 describe("an invitation's copy", () => {
-  it("greets the client, names the company and the project, the deadline and the password", () => {
+  it("greets the client, names the company and the project, the time left and the password", () => {
     expect(inviteCopy(DETAILS)).toEqual({
       subject: "E2E Agency has invited you to review Spring Campaign",
       greeting: "Hi Acme Studio,",
       headline: "E2E Agency has invited you to review Spring Campaign",
-      deadline: "You can comment until Sun, Nov 15, 4:30 PM UTC.",
+      deadline: "You have about 3 days to comment.",
       passwordNote: "It's password protected. E2E Agency will send you the password separately.",
       howTo: "No account needed: open the link, drop a pin and leave a comment.",
     });
@@ -29,8 +33,23 @@ describe("an invitation's copy", () => {
     expect(copy.passwordNote).toBeNull();
   });
 
-  it("dates the deadline in UTC, whatever the server's zone", () => {
-    expect(inviteDeadline(Date.UTC(2026, 0, 1, 0, 5))).toBe("Thu, Jan 1, 12:05 AM UTC");
+  it("says how long is left, never a date or time a reader in another zone would misread", () => {
+    expect(inviteCopy(DETAILS).deadline).not.toMatch(/UTC|AM|PM|Nov/);
+    expect(inviteTimeLeft(SENT_AT + 7 * 24 * HOUR, SENT_AT)).toBe("about 7 days");
+    // A link created a minute ago still reads as its full window.
+    expect(inviteTimeLeft(SENT_AT + 72 * HOUR - 60_000, SENT_AT)).toBe("about 3 days");
+    expect(inviteTimeLeft(SENT_AT + 48 * HOUR, SENT_AT)).toBe("about 2 days");
+    expect(inviteTimeLeft(SENT_AT + 47 * HOUR, SENT_AT)).toBe("about 47 hours");
+    expect(inviteTimeLeft(SENT_AT + 24 * HOUR - 60_000, SENT_AT)).toBe("about 24 hours");
+    expect(inviteTimeLeft(SENT_AT + 70 * 60_000, SENT_AT)).toBe("about 1 hour");
+    expect(inviteTimeLeft(SENT_AT + 59 * 60_000, SENT_AT)).toBe("less than an hour");
+  });
+
+  it("counts from when it goes out", () => {
+    const later = inviteCopy({ ...DETAILS, sentAt: SENT_AT + 48 * HOUR });
+    expect(later.deadline).toBe("You have about 24 hours to comment.");
+    const closed = inviteCopy({ ...DETAILS, sentAt: SENT_AT + 72 * HOUR });
+    expect(closed.deadline).toBe("The review window has closed.");
   });
 });
 
@@ -43,7 +62,7 @@ describe("an invitation as a message", () => {
         "E2E Agency has invited you to review Spring Campaign:",
         "https://squint.test/s/abc",
         "",
-        "You can comment until Sun, Nov 15, 4:30 PM UTC.",
+        "You have about 3 days to comment.",
         "It's password protected. E2E Agency will send you the password separately.",
       ].join("\n"),
     );

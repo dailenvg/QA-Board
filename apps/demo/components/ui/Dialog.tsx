@@ -199,9 +199,11 @@ export function Dialog({
             initial="hidden"
             animate="visible"
             exit="exit"
+            // A sheet keeps clear of the home indicator: its own bottom padding does, or with a
+            // footer the footer's, so nothing scrolls by in a strip under the footer.
             className={`relative flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-y-auto rounded-panel bg-panel p-5 shadow-pop sm:p-6 ${WIDTHS[size]} ${
               sheet
-                ? "max-sm:rounded-b-none max-sm:pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+                ? `max-sm:rounded-b-none ${footer ? "" : "max-sm:pb-[max(1.25rem,env(safe-area-inset-bottom))]"}`
                 : ""
             }`}
           >
@@ -237,7 +239,11 @@ export function Dialog({
             <div className="mt-5">{children}</div>
             {footer ? (
               // Sticky against the panel's own edge: its padding is the sticky inset, hence -bottom.
-              <div className="sticky -bottom-5 z-10 -mx-5 mt-5 -mb-5 border-t border-line bg-panel px-5 py-3 sm:-bottom-6 sm:-mx-6 sm:-mb-6 sm:px-6">
+              <div
+                className={`sticky -bottom-5 z-10 -mx-5 mt-5 -mb-5 border-t border-line bg-panel px-5 py-3 sm:-bottom-6 sm:-mx-6 sm:-mb-6 sm:px-6 ${
+                  sheet ? "max-sm:pb-[max(0.75rem,env(safe-area-inset-bottom))]" : ""
+                }`}
+              >
                 {footer}
               </div>
             ) : null}

@@ -70,7 +70,8 @@ export function ShareTabs({ value, onChange, panelIdPrefix }: ShareTabsProps) {
             className={`relative flex min-h-11 flex-1 items-center justify-center rounded-pill text-body transition-colors duration-150 focus-visible:-outline-offset-2 ${
               selected
                 ? "font-semibold text-ink"
-                : "font-medium text-muted hover:text-ink active:text-ink"
+                : // As the segmented control's idle options: an inset wash on hover, deeper on press.
+                  "font-medium text-muted before:absolute before:inset-1 before:rounded-pill before:transition-colors before:duration-150 hover:text-ink hover:before:bg-hover/60 active:text-ink active:before:bg-hover"
             }`}
           >
             {selected ? (

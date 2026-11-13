@@ -80,6 +80,8 @@ const DESCRIPTION =
 const CLOSED =
   "The review window has closed, so clients can't comment and invites can't go out. Choose a longer window or No limit in Settings to reopen it.";
 const NAME_SAVE_FAILED = "The client name didn't save. Check your connection and try again.";
+/** How long "Saved" stands in for "Optional" beside the client's name. */
+const NAME_SAVED_MS = 3000;
 
 /** Phones: a bottom sheet with tabs. Wide windows: the controls beside the preview. */
 const PHONE = "(max-width: 39.999rem)";
@@ -172,6 +174,16 @@ export function ShareDialog({
 
   const invites = useShareInvites({ shareId, onSend: onSendInvites, onSent: onInvitesSent });
 
+  // Each save's number: only the latest one's "Saved" fades back to "Optional".
+  const nameSave = useRef(0);
+  const savedTimer = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (savedTimer.current !== null) window.clearTimeout(savedTimer.current);
+    },
+    [],
+  );
+
   const commitName = async () => {
     const invalid = clientNameError(nameValue);
     if (invalid) {
@@ -183,14 +195,25 @@ export function ShareDialog({
       setNameState((current) => ({ ...current, error: null }));
       return;
     }
+    const save = ++nameSave.current;
+    const saving = nameValue;
     setNameState({ status: "Saving…", error: null });
-    const result = await onClientNameChange(nameValue);
+    const result = await onClientNameChange(saving);
+    if (save !== nameSave.current) return;
     if (!result.ok) {
       setNameState({ status: "", error: result.error || NAME_SAVE_FAILED });
       return;
     }
-    setNameDraft(null);
+    // Typing on while it saved keeps what was typed; the next blur or Enter saves that.
+    setNameDraft((current) => (current && current.value !== saving ? current : null));
     setNameState({ status: "Saved", error: null });
+    if (savedTimer.current !== null) window.clearTimeout(savedTimer.current);
+    savedTimer.current = window.setTimeout(() => {
+      if (save !== nameSave.current) return;
+      setNameState((current) =>
+        current.status === "Saved" ? { ...current, status: "" } : current,
+      );
+    }, NAME_SAVED_MS);
   };
 
   // Creating the link replaces the focused Create button with the link view; the link going
@@ -243,6 +266,8 @@ export function ShareDialog({
           link: url,
           reviewEndsAt: share.reviewEndsAt,
           hasPassword: share.passwordSetAt !== undefined,
+          // The preview and the other ways' message say what an email sent now would.
+          ...(now ? { sentAt: now } : {}),
         }
       : null;
 

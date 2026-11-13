@@ -15,13 +15,16 @@ vi.mock("resend", () => ({
 
 const ENV = { RESEND_API_KEY: "re_test_key", EMAIL_FROM: "Squint <noreply@squint.test>" };
 
+const SENT_AT = Date.UTC(2026, 10, 12, 16, 30);
+
 const DETAILS: InviteDetails = {
   company: "E2E Agency",
   project: "Spring Campaign",
   client: "Acme Studio",
   link: "https://squint.test/s/abc",
-  reviewEndsAt: Date.UTC(2026, 10, 15, 16, 30),
+  reviewEndsAt: SENT_AT + 72 * 60 * 60 * 1000,
   hasPassword: true,
+  sentAt: SENT_AT,
 };
 
 beforeEach(() => {
@@ -37,7 +40,7 @@ describe("the invitation email", () => {
       expect(body).toContain("Hi Acme Studio,");
       expect(body).toContain("E2E Agency has invited you to review Spring Campaign");
       expect(body).toContain("https://squint.test/s/abc");
-      expect(body).toContain("You can comment until Sun, Nov 15, 4:30 PM UTC.");
+      expect(body).toContain("You have about 3 days to comment.");
       expect(body).toContain("password protected");
     }
     expect(email.html).toContain('<a href="https://squint.test/s/abc"');
@@ -50,7 +53,7 @@ describe("the invitation email", () => {
     expect(email.text.startsWith("Hi,\n")).toBe(true);
     expect(email.html).toContain(">Hi,</p>");
     for (const body of [email.text, email.html]) {
-      expect(body).not.toContain("comment until");
+      expect(body).not.toContain("to comment.");
       expect(body).not.toContain("password");
     }
   });

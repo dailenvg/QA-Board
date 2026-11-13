@@ -61,9 +61,11 @@ function Snores({ x, y }: { x: number; y: number }) {
 
 const SCENES: Record<ArtScene, SceneSpec> = {
   // An invitation on its way: an envelope, a speech bubble flying off it, Squiggy waving it off.
+  // Squiggy is larger than in the empty states and steps in front of the envelope's corner: the
+  // header draws it at its smallest size, beside a title, where a 50-unit Squiggy read as a speck.
   invite: {
     mood: "happy",
-    squiggy: { x: 10, y: 76, size: 50 },
+    squiggy: { x: 4, y: 62, size: 64 },
     back: (
       <>
         <motion.path d={FLOOR} {...draw(0)} />

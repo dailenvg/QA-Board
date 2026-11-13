@@ -43,7 +43,8 @@ export function ShareSettingRow({
           <p id={titleId} className="text-body font-semibold text-ink">
             {title}
           </p>
-          <div id={summaryId} className="text-meta text-muted">
+          {/* Pretty wrapping: no lone last word ("…can open / it") on a phone. */}
+          <div id={summaryId} className="text-meta text-pretty text-muted">
             {summary}
           </div>
         </div>

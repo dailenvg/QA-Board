@@ -49,8 +49,9 @@ test("the owner names the client and emails the link, and the guest's invitation
   await expect(preview.getByTestId("invite-preview-greeting")).toHaveText(`Hi ${CLIENT},`);
   if (!isMobile) {
     await expect(preview).toContainText(`What ${CLIENT} gets`);
-    await expect(preview.getByTestId("invite-preview-deadline")).toContainText(
-      "You can comment until",
+    // How long is left, not a clock time: the email can't know its reader's time zone.
+    await expect(preview.getByTestId("invite-preview-deadline")).toHaveText(
+      "You have about 3 days to comment.",
     );
   }
   const named = page.waitForResponse(
@@ -154,7 +155,7 @@ test("Slack copies the invitation message and opens Slack; Copy link copies the 
     `${E2E_COMPANY.name} has invited you to review ${PROJECT}:`,
     `${baseURL}/s/${token}`,
   ]);
-  expect(message).toContain("You can comment until");
+  expect(message).toContain("You have about 3 days to comment.");
   expect(message).not.toContain("password");
 
   await dialog.getByTestId("copy-share-link").click();

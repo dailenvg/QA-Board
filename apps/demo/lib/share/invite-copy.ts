@@ -18,21 +18,30 @@ export interface InviteDetails {
   reviewEndsAt: number | null;
   /** Whether guests need a password to open it. Its value never comes here. */
   hasPassword: boolean;
+  /**
+   * When it goes out (epoch ms), so the deadline can say how long is left;
+   * defaults to now. The Share window passes its clock, so its preview and
+   * the other ways' message say what an email sent now would.
+   */
+  sentAt?: number;
 }
 
-/** "Sun, Nov 15, 4:30 PM UTC": in UTC, since the email can't know where its reader is. */
-const DEADLINE = new Intl.DateTimeFormat("en-US", {
-  weekday: "short",
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-  timeZone: "UTC",
-  timeZoneName: "short",
-});
+const HOUR = 60 * 60 * 1000;
 
-export function inviteDeadline(endsAt: number): string {
-  return DEADLINE.format(endsAt);
+const plural = (count: number, unit: string) => `${count} ${unit}${count === 1 ? "" : "s"}`;
+
+/**
+ * How long the reader has to comment, counted from `sentAt`: "about 3 days",
+ * "about 20 hours", "less than an hour". Relative, never a clock time: the
+ * email can't know its reader's time zone, and a date or time in the
+ * server's zone (or UTC) would disagree with the owner's own Settings row.
+ * Rounded to the nearest day from two days up, else to the nearest hour.
+ */
+export function inviteTimeLeft(endsAt: number, sentAt: number): string {
+  const hours = Math.max(0, endsAt - sentAt) / HOUR;
+  if (hours < 1) return "less than an hour";
+  if (hours >= 48) return `about ${plural(Math.round(hours / 24), "day")}`;
+  return `about ${plural(Math.round(hours), "hour")}`;
 }
 
 export interface InviteCopy {
@@ -41,7 +50,7 @@ export interface InviteCopy {
   greeting: string;
   /** "{Company} has invited you to review {Project}" (no full stop: a heading). */
   headline: string;
-  /** "You can comment until {date}."; null without a review window. */
+  /** "You have about {3 days} to comment." (or that it's closed); null without a review window. */
   deadline: string | null;
   /** That it's password protected and who sends the password; null on an open link. */
   passwordNote: string | null;
@@ -50,14 +59,19 @@ export interface InviteCopy {
 }
 
 export function inviteCopy(details: InviteDetails): InviteCopy {
-  const { company, project, client, reviewEndsAt, hasPassword } = details;
+  const { company, project, client, reviewEndsAt, hasPassword, sentAt = Date.now() } = details;
   const headline = `${company} has invited you to review ${project}`;
   return {
     subject: headline,
     greeting: client ? `Hi ${client},` : "Hi,",
     headline,
+    // Closed: nothing can be sent then, but the Share window's preview still shows the truth.
     deadline:
-      reviewEndsAt === null ? null : `You can comment until ${inviteDeadline(reviewEndsAt)}.`,
+      reviewEndsAt === null
+        ? null
+        : sentAt >= reviewEndsAt
+          ? "The review window has closed."
+          : `You have ${inviteTimeLeft(reviewEndsAt, sentAt)} to comment.`,
     passwordNote: hasPassword
       ? `It's password protected. ${company} will send you the password separately.`
       : null,

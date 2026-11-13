@@ -41,7 +41,7 @@ export function InvitationEmailPreview({
       className="flex flex-col gap-3 rounded-card bg-story-stage p-4 sm:p-5"
       data-testid="invite-email-preview"
     >
-      <figcaption className="text-label font-bold tracking-wide text-brand-text uppercase">
+      <figcaption className="text-label font-bold tracking-wide wrap-break-word text-brand-text uppercase">
         {compact ? "Preview" : `What ${details.client ?? "your client"} gets`}
       </figcaption>
       <div className="mock-light flex flex-col gap-3 rounded-tile bg-card p-4 text-body text-ink shadow-float">
@@ -59,7 +59,8 @@ export function InvitationEmailPreview({
             </span>
           </p>
         )}
-        <p data-testid="invite-preview-greeting">
+        {/* A client's name can be one long word (80 characters): it wraps rather than overflow. */}
+        <p className="wrap-break-word" data-testid="invite-preview-greeting">
           {details.client ? (
             <>
               Hi{" "}
