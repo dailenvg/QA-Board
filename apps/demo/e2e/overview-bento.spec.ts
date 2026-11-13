@@ -311,8 +311,8 @@ test("the hero, comments waiting and client news have scenes, hidden from screen
 });
 
 /**
- * Every color drawn in the grey scenes (all but the hero's), outside Squiggy, that isn't a
- * grey (`.scene-grey`), and whether Squiggy, in the scenes it peeks into, still has its own colors.
+ * Every color drawn in the scenes, outside Squiggy, that isn't a grey (`.scene-grey` and the
+ * line art), and whether Squiggy, in the scenes it peeks into, still has its colors.
  */
 async function sceneColors(page: Page): Promise<{ colored: string[]; squiggy: boolean }> {
   return page.evaluate(() => {
@@ -327,7 +327,6 @@ async function sceneColors(page: Page): Promise<{ colored: string[]; squiggy: bo
     const colored: string[] = [];
     let squiggy = false;
     for (const scene of document.querySelectorAll('[data-testid="tile-scene"]')) {
-      if (scene.closest('[data-testid="overview-hero"]')) continue;
       for (const element of scene.querySelectorAll("*")) {
         const style = getComputedStyle(element);
         const paints = [style.backgroundColor, style.color, style.fill, style.stroke];
@@ -342,7 +341,7 @@ async function sceneColors(page: Page): Promise<{ colored: string[]; squiggy: bo
   });
 }
 
-test("the hero's scene keeps Squint's colors; the others are in greys", async ({
+test("the scenes are drawn in grey lines, Squiggy the only color in them", async ({
   page,
   isMobile,
 }) => {
@@ -350,14 +349,17 @@ test("the hero's scene keeps Squint's colors; the others are in greys", async ({
   await seedActivity(page);
   await openOverview(page);
   for (const name of SCENE_TILES) await tile(page, name).scrollIntoViewIfNeeded();
-  // Open pins and the resolved one on the hero's page, in color; client pins and the queue in grey.
+  // Open pins and the resolved one on the hero's page, client pins, the pile, and the line
+  // art's lime Squiggy on the hero's page and on the pile.
   const hero = page.getByTestId("overview-hero").getByTestId("tile-scene");
-  await expect(hero).not.toHaveClass(/scene-grey/);
   await expect(hero.getByTestId("story-pin")).toHaveCount(4);
   await expect(hero.locator('[data-testid="story-pin"][data-resolved]')).toHaveCount(1);
-  await expect(
-    hero.locator('[data-testid="story-pin"]:not([data-resolved])').first(),
-  ).not.toHaveAttribute("data-color", "scene");
+  for (const scene of [hero, tile(page, "waiting").getByTestId("tile-scene")]) {
+    await expect(scene.getByTestId("story-mascot").locator("path").first()).toHaveCSS(
+      "fill",
+      "rgb(222, 255, 91)",
+    );
+  }
   await expect(tile(page, "clients").getByTestId("story-pin")).toHaveCount(2);
   await expect(tile(page, "waiting").getByTestId("scene-bubble")).toHaveCount(3);
   for (const theme of ["light", "dark"]) {

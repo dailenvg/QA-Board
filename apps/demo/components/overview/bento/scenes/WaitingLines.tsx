@@ -1,100 +1,84 @@
-import { motion, type Transition } from "motion/react";
-import { duration, ease, sceneStep } from "@/lib/motion";
-import { StoryMascot } from "../../welcome/StoryMascot";
+import { motion } from "motion/react";
+import { draw, LimeSquiggy, LINE_SVG, LineBubble, type BubbleKind } from "./line-art";
 
-/** The most bubbles in the queue; a bigger count still shows in the tag. */
-const QUEUE = 4;
-
-/** Where each bubble stands, nearest Squiggy first (viewBox units). */
-const BUBBLES = [
-  { x: 194, y: 42, w: 52, h: 32 },
-  { x: 140, y: 36, w: 46, h: 34 },
-  { x: 95, y: 48, w: 38, h: 28 },
-  { x: 60, y: 57, w: 30, h: 22 },
-] as const;
-
-/** The art's width (viewBox units); it sits at the header's right end, under the tag's row. */
-const WIDTH = 300;
-
-/** Where the floor is: the box's bottom edge, which draws it. */
-const FLOOR = 112;
-
-function roundedRect(x: number, y: number, w: number, h: number, r: number): string {
-  return `M${x + r} ${y}H${x + w - r}A${r} ${r} 0 0 1 ${x + w} ${y + r}V${y + h - r}A${r} ${r} 0 0 1 ${x + w - r} ${y + h}H${x + r}A${r} ${r} 0 0 1 ${x} ${y + h - r}V${y + r}A${r} ${r} 0 0 1 ${x + r} ${y}Z`;
+interface Bubble {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  tail: "left" | "right";
+  tilt: number;
+  kind: BubbleKind;
 }
 
-/** A line drawing itself in, `order` steps after the scene starts. */
-function draw(order: number): {
-  initial: { pathLength: number; opacity: number };
-  animate: { pathLength: number; opacity: number };
-  transition: Transition;
-} {
-  return {
-    initial: { pathLength: 0, opacity: 0 },
-    animate: { pathLength: 1, opacity: 1 },
-    transition: { duration: duration.page, ease: ease.out, delay: order * sceneStep },
-  };
-}
+/** The pile on Squiggy, bottom first. */
+const PILE: readonly Bubble[] = [
+  { x: 214, y: 52, w: 50, h: 26, tail: "right", tilt: -5, kind: "lines" },
+  { x: 262, y: 46, w: 46, h: 24, tail: "left", tilt: 7, kind: "dots" },
+  { x: 232, y: 24, w: 44, h: 24, tail: "right", tilt: -3, kind: "line" },
+];
+
+/** Comments still in the air, on their way to the pile, the nearer one first. */
+const THROWN: readonly Bubble[] = [
+  { x: 140, y: 36, w: 34, h: 22, tail: "left", tilt: -6, kind: "question" },
+  { x: 72, y: 58, w: 30, h: 20, tail: "left", tilt: -18, kind: "dots" },
+];
+
+/** One that slid off the pile, lying on the floor. */
+const FALLEN: Bubble = { x: 304, y: 98, w: 34, h: 18, tail: "left", tilt: 14, kind: "line" };
+
+/** The art's size (viewBox units): it keeps to the header's right end, under the tag's row. */
+const WIDTH = 360;
+const HEIGHT = 124;
 
 interface WaitingLinesProps {
   open: number;
 }
 
 /**
- * Comments queueing up for Squiggy: speech bubbles on little legs, one per open comment up to
- * four, lined up under a wall clock, drawing themselves in. Line art on the tile's own panel, a
- * second plane behind its title; Squiggy, peeking over the floor at the front of the queue, is
- * the one filled shape. Decorative: the tile says the same in words.
+ * Comments piling up on Squiggy: up to three on the pile, then up to two more thrown in along a
+ * dashed arc, and a sixth slid off onto the floor. Line art on the tile's own panel, behind its
+ * title (`line-art.tsx`); Squiggy, in lime, is the one filled shape. The floor is the header's
+ * bottom edge. Decorative: the tile says the same in words.
  */
 export function WaitingLines({ open }: WaitingLinesProps) {
-  const queue = BUBBLES.slice(0, Math.min(open, QUEUE));
+  const pile = PILE.slice(0, Math.min(open, PILE.length));
+  const thrown = THROWN.slice(0, Math.max(0, Math.min(open - PILE.length, THROWN.length)));
+  const fallen = open > PILE.length + THROWN.length;
   return (
-    <span className="absolute inset-0 block overflow-hidden border-b-[1.5px] border-scene-line">
+    <span className="absolute inset-0 block overflow-hidden border-b-[1.6px] border-scene-line">
       <svg
-        viewBox={`0 0 ${WIDTH} ${FLOOR}`}
+        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         preserveAspectRatio="xMaxYMax meet"
-        className="absolute inset-0 size-full text-scene-line"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={1.75}
-        strokeLinecap="round"
-        strokeLinejoin="round"
+        {...LINE_SVG}
+        className={`absolute inset-0 size-full ${LINE_SVG.className}`}
       >
-        {/* The wall clock everyone's waiting under, hands at ten to two. */}
-        <motion.circle cx={28} cy={72} r={18} {...draw(0)} />
-        <motion.path d="M28 72V61M28 72L37 67" {...draw(1)} />
-        <motion.path d="M28 56V58M28 88V86M12 72H14M44 72H42" {...draw(1)} />
-        {/*
-          A spark of impatience over the queue, and a few stray dots; all below the title's row
-          (the top 30 units), so nothing crosses the words.
-        */}
-        <motion.path d="M168 32V40M164 36H172" {...draw(2)} />
-        <motion.circle cx={84} cy={40} r={2} {...draw(2)} />
-        <motion.circle cx={262} cy={36} r={2.5} {...draw(3)} />
-        {queue.map(({ x, y, w, h }, index) => {
-          const order = queue.length - index + 2;
-          const legs = [x + w * 0.35, x + w * 0.65];
-          return (
-            // Filled with the panel, so a bubble hides the lines behind it, not a fill of its own.
-            <g key={index} data-testid="scene-bubble">
-              <motion.path
-                d={roundedRect(x, y, w, h, Math.min(10, h / 2))}
-                fill="var(--color-panel)"
-                {...draw(order)}
-              />
-              <motion.path
-                d={`M${x + 8} ${y + h / 2 - 3}H${x + w - 8}M${x + 8} ${y + h / 2 + 4}H${x + w * 0.55}`}
-                {...draw(order + 1)}
-              />
-              <motion.path
-                d={legs.map((leg) => `M${leg} ${y + h}V${FLOOR - 1}H${leg + 4}`).join("")}
-                {...draw(order + 1)}
-              />
-            </g>
-          );
-        })}
+        {/* Stray dots and a spark, all below the title's row. */}
+        <motion.circle cx={120} cy={96} r={2.5} {...draw(0)} />
+        <motion.path d="M196 92v8M192 96h8" {...draw(1)} />
+        <motion.circle cx={330} cy={72} r={2} {...draw(1)} />
+        <LimeSquiggy x={236} y={76} width={50} tilt={-3} order={1} />
+        {pile.map((bubble, index) => (
+          <LineBubble key={`pile-${index}`} {...bubble} order={3 + index} />
+        ))}
+        {thrown.length > 0 ? (
+          <>
+            {/* The throw: a dashed arc in from the left, whoosh lines behind each comment. */}
+            <motion.path d="M18 112C40 60 120 34 196 48" strokeDasharray="2 5" {...draw(2)} />
+            <motion.path d="M176 30l4-5M182 36l6-3" {...draw(5)} />
+            {thrown.length > 1 ? <motion.path d="M64 84l-6 3M60 76h-7" {...draw(6)} /> : null}
+            {thrown.map((bubble, index) => (
+              <LineBubble key={`thrown-${index}`} {...bubble} order={4 + index} from={0} />
+            ))}
+          </>
+        ) : null}
+        {fallen ? (
+          <>
+            <LineBubble {...FALLEN} order={7} />
+            <motion.path d="M296 112c-3-4-3-8 0-12" {...draw(8)} />
+          </>
+        ) : null}
       </svg>
-      <StoryMascot mood="thinking" playing={false} still edge="bottom-right" size="3.5rem" />
     </span>
   );
 }

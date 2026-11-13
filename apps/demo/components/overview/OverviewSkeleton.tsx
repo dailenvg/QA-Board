@@ -69,8 +69,8 @@ export function OverviewSkeleton() {
         exactly: a taller placeholder would make the rows below jump up when the page arrives.
       */}
       <TileSkeleton rows={0} scene="h-28 bento-fit:h-24" />
-      {/* Comments waiting: its title on the queue's line art, 112px in all (96px fitting one screen). */}
-      <TileSkeleton rows={3} scene="h-18 bento-fit:h-14" className="md:row-span-2" />
+      {/* Comments waiting: its title on the pile's line art, 124px in all (104px fitting one screen). */}
+      <TileSkeleton rows={3} scene="h-21 bento-fit:h-17" className="md:row-span-2" />
       <TileSkeleton rows={2} scene="h-24" className="xl:col-span-2" />
       <TileSkeleton rows={2} scene="h-12" />
       <TileSkeleton rows={2} />

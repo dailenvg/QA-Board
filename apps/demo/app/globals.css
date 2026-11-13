@@ -111,8 +111,12 @@
   --scene-done: #a1a1aa;
   --scene-done-ink: #18181b;
   --scene-check: #3f3f46;
-  /* Line art drawn on the panel itself (Comments waiting's header): a second plane, behind the text. */
-  --scene-line: #a1a1aa;
+  /*
+   * The line art drawn on the panel itself (the hero's page, Comments waiting's header): a
+   * second plane, behind the text. `--scene-ink` outlines its lime Squiggy, the one fill.
+   */
+  --scene-line: #8b8b95;
+  --scene-ink: #3f3f46;
 
   --shadow-seg: 0 1px 2px rgb(0 0 0 / 0.12);
   --shadow-float: 0 20px 40px -24px rgb(0 0 0 / 0.35);
@@ -170,7 +174,7 @@
 
   --scene-tint: #a1a1aa;
   --scene-check: #d4d4d8;
-  --scene-line: #52525b;
+  --scene-line: #6b6b75;
 
   --shadow-seg: 0 1px 2px rgb(0 0 0 / 0.5);
   --shadow-float: 0 20px 40px -24px rgb(0 0 0 / 0.8);
@@ -299,6 +303,7 @@
   --color-scene-mark: var(--scene-mark);
   --color-scene-mark-ink: var(--scene-mark-ink);
   --color-scene-line: var(--scene-line);
+  --color-scene-ink: var(--scene-ink);
 
   --shadow-seg: var(--shadow-seg);
   --shadow-float: var(--shadow-float);

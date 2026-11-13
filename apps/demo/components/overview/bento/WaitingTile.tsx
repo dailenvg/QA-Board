@@ -33,8 +33,8 @@ interface WaitingTileProps {
 /**
  * How many comments are open, and the ones waiting longest, each opening its
  * project, with a bar of how long it has waited against the longest wait. Its
- * title sits on line art of the comments queueing up (`WaitingLines`), which
- * draws in again on hover or focus.
+ * title sits on line art of comments piling up on Squiggy (`WaitingLines`),
+ * which draws in again on hover or focus.
  */
 export function WaitingTile({ open, resolved, oldest, now, thumb }: WaitingTileProps) {
   const headingId = useId();
@@ -51,7 +51,7 @@ export function WaitingTile({ open, resolved, oldest, now, thumb }: WaitingTileP
       className={TILE_SURFACE}
     >
       {/* With comments waiting, the title sits on the queue's line art, one header. */}
-      <div className={open === 0 ? "contents" : "relative h-28 shrink-0 bento-fit:h-24"}>
+      <div className={open === 0 ? "contents" : "relative h-31 shrink-0 bento-fit:h-26"}>
         {open === 0 ? null : (
           <SceneBox sceneRef={sceneRef} scene={scene} className="absolute! inset-0">
             <WaitingLines open={open} />
