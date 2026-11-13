@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { APP_URLS, copiedMessage, smsHref } from "./share-other-ways";
+import { copiedMessage, smsHref } from "./share-other-ways";
 
 describe("sending a link another way", () => {
   it("fills a Messages link with the whole message, encoded", () => {
@@ -8,16 +8,7 @@ describe("sending a link another way", () => {
     );
   });
 
-  it("opens Slack and ClickUp on the web", () => {
-    expect(APP_URLS).toEqual({
-      clickup: "https://app.clickup.com",
-      slack: "https://app.slack.com/client",
-    });
-  });
-
   it("says what was copied, and where to paste it", () => {
-    expect(copiedMessage("slack")).toBe("Message copied. Paste it into Slack.");
-    expect(copiedMessage("clickup")).toBe("Message copied. Paste it into ClickUp.");
     expect(copiedMessage("messages")).toBe("Message copied. Paste it into Messages.");
     expect(copiedMessage("link")).toBe("Link copied.");
   });

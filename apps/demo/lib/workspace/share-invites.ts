@@ -4,9 +4,10 @@ import { authOrigin } from "../auth/auth-url";
 import { describeError } from "../auth/http";
 import type { Database } from "../db/database";
 import { workspaceFromHeader } from "../email/from-header";
-import type { EmailEnv } from "../email/resend";
+import { emailConfigured, type EmailEnv } from "../email/resend";
+import { brandColor, brandIconPath, toClientBrand } from "../share/brand";
 import type { InviteDetails } from "../share/invite-copy";
-import type { SendInvites } from "../share/invite-email";
+import type { InviteBrand, SendInvites } from "../share/invite-email";
 import { claimInviteSends } from "../share/invite-limits";
 import type { Queryable } from "../share/migrate";
 import { reviewClosed, reviewDeadline } from "../share/review-window";
@@ -30,6 +31,15 @@ export function inviteeKey(address: string, secret: string | undefined = process
     .digest("hex");
 }
 
+/**
+ * A deployment (Vercel) that can't email: invites answer `email-off` there
+ * rather than say they went. Local development and tests skip the email and
+ * go on, as every Squint email does without Resend settings.
+ */
+export function emailOff(env: EmailEnv = process.env): boolean {
+  return Boolean(env.VERCEL) && !emailConfigured(env);
+}
+
 /** On a Vercel preview, invitations only go to the workspace's own members. */
 export function membersOnly(env: EmailEnv = process.env): boolean {
   return env.VERCEL_ENV === "preview" || env.NEXT_PUBLIC_VERCEL_ENV === "preview";
@@ -46,6 +56,8 @@ interface TargetRow {
   archived_at: Date | null;
   company: string;
   from_email_name: string | null;
+  brand_color: string | null;
+  logo_key: string | null;
 }
 
 /** A live project's link, as an invitation needs it; null without one. */
@@ -53,12 +65,16 @@ async function inviteTarget(db: Queryable, workspaceId: string, projectId: strin
   const { rows } = await db.query<TargetRow>(
     `SELECT link.share_id, link.token_sealed, share.created_at, share.review_window_hours,
        share.password_set_at, share.client_name, share.project->>'name' AS project_name,
-       project.archived_at, workspace.name AS company, workspace.from_email_name
+       project.archived_at, workspace.name AS company, workspace.from_email_name,
+       workspace.brand_color, logo.key AS logo_key
      FROM project_share_links AS link
      JOIN projects AS project
        ON project.workspace_id = link.workspace_id AND project.id = link.project_id
      JOIN squint_shares AS share ON share.id = link.share_id
      JOIN workspaces AS workspace ON workspace.id = link.workspace_id
+     LEFT JOIN workspace_blobs AS logo
+       ON logo.workspace_id = workspace.id AND logo.key = workspace.logo_blob_key
+       AND logo.project_id IS NULL
      WHERE link.workspace_id = $1 AND link.project_id = $2 AND project.deleted_at IS NULL`,
     [workspaceId, projectId],
   );
@@ -121,7 +137,10 @@ async function recordInvites(
 
 export type InviteOutcome =
   | { ok: true; sent: number; invitedCount: number }
-  | { ok: false; reason: "not-found" | "link-closed" | "review-closed" | "send-failed" }
+  | {
+      ok: false;
+      reason: "not-found" | "link-closed" | "review-closed" | "email-off" | "send-failed";
+    }
   | { ok: false; reason: "members-only"; addresses: string[] }
   | { ok: false; reason: "rate-limited"; retryAfterSeconds: number };
 
@@ -155,6 +174,7 @@ export async function sendInvites(
   if (target.archived_at !== null) return { ok: false, reason: "link-closed" };
   const reviewEndsAt = reviewDeadline(Number(target.created_at), target.review_window_hours);
   if (reviewClosed(reviewEndsAt, now)) return { ok: false, reason: "review-closed" };
+  if (emailOff(env)) return { ok: false, reason: "email-off" };
   if (membersOnly(env)) {
     const outside = await nonMembers(db, workspaceId, addresses);
     if (outside.length) return { ok: false, reason: "members-only", addresses: outside };
@@ -173,12 +193,24 @@ export async function sendInvites(
     reviewEndsAt,
     hasPassword: target.password_set_at !== null,
   };
+  // The email's icon is the link's own (`/api/s/<token>/brand/icon`), as previews show it.
+  const color = brandColor(target.brand_color);
+  const shown = toClientBrand({
+    custom: true,
+    name: target.company,
+    color,
+    logoKey: target.logo_key,
+  });
+  const brand: InviteBrand = {
+    iconUrl: new URL(brandIconPath(token, shown), authOrigin(env)).toString(),
+    color,
+  };
   const from = workspaceFromHeader(
     { fromEmailName: target.from_email_name, workspaceName: target.company },
     env.EMAIL_FROM,
   );
   try {
-    await send({ to: addresses, from, details });
+    await send({ to: addresses, from, details, brand });
   } catch (error) {
     console.error(`squint share: invites not sent (${describeError(error)})`);
     return { ok: false, reason: "send-failed" };

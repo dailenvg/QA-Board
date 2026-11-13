@@ -53,6 +53,11 @@ export class EmailRefused extends LoggableError {
 
 type Refusal = new (code: string, message: string) => EmailRefused;
 
+/** Whether emails go out: `RESEND_API_KEY` and `EMAIL_FROM` are both set. */
+export function emailConfigured(env: EmailEnv): boolean {
+  return Boolean(env.RESEND_API_KEY?.trim() && env.EMAIL_FROM?.trim());
+}
+
 /** Resend and the default From, or null without `RESEND_API_KEY` or `EMAIL_FROM`. */
 function configured(env: EmailEnv): { resend: Resend; from: string } | null {
   const key = env.RESEND_API_KEY?.trim();

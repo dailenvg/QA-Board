@@ -21,6 +21,8 @@ export type InviteResult =
   | { ok: false; reason: "rate-limited"; retryAt: number }
   /** The review window closed: a longer one in Settings opens it again. */
   | { ok: false; reason: "review-closed" }
+  /** This site has no email settings (a preview, usually): nothing went, and retrying won't help. */
+  | { ok: false; reason: "email-off" }
   /** The link doesn't open: revoked or gone (`gone`), or its project archived (`closed`). */
   | { ok: false; reason: "gone" | "closed" }
   /** No answer, or Resend refused: nothing went, and trying again may work. */
@@ -57,6 +59,8 @@ export function inviteResult(
       return { ok: false, reason: "review-closed" };
     case "link-closed":
       return { ok: false, reason: "closed" };
+    case "email-off":
+      return { ok: false, reason: "email-off" };
     default:
       return answer.status === 404
         ? { ok: false, reason: "gone" }
@@ -107,6 +111,8 @@ export function inviteError(
       return "This project is archived, so its link doesn't open. Unarchive it to send invites.";
     case "gone":
       return "This link no longer works. Close this window and create a new link.";
+    case "email-off":
+      return "Email isn't set up on this site, so nothing was sent. Use Copy link or Messages instead.";
     case "failed":
       return "The invites didn't go out. Check your connection and try again.";
   }

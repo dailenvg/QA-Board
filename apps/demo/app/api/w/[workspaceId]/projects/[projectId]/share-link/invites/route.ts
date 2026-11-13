@@ -32,6 +32,8 @@ function refused(outcome: Exclude<InviteOutcome, { ok: true }>): Response {
           },
         },
       );
+    case "email-off":
+      return json({ error: outcome.reason }, 503);
     case "send-failed":
       return json({ error: outcome.reason }, 502);
   }
@@ -46,7 +48,8 @@ function refused(outcome: Exclude<InviteOutcome, { ok: true }>): Response {
  * 404 without a link; 409 `link-closed` (project archived) or
  * `review-closed`; 403 `members-only` (with `addresses`) on a preview, for
  * anyone outside the workspace; 429 `rate-limited` with `Retry-After` (30 per
- * workspace and 20 per member an hour); 502 `send-failed`. Keeps no list of
+ * workspace and 20 per member an hour); 503 `email-off` on a deployment
+ * without Resend settings (nothing sent or counted); 502 `send-failed`. Keeps no list of
  * who was invited: the audit log holds HMACs of the addresses only.
  */
 export const POST = withMember<Params>(async (request, { db, user, workspaceId, now }, params) => {

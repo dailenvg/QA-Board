@@ -24,9 +24,8 @@ interface ShareInviteStepProps {
   closed: string | null;
   /** Takes the owner to the review window, to open the review again. */
   onOpenSettings: () => void;
-  /** The invitation as a message, and its subject, for the other ways. */
+  /** The invitation as a message, for Messages. */
   message: string;
-  subject: string;
   url: string;
   share: ProjectShare;
   status: SyncStatus;
@@ -45,7 +44,7 @@ function sendBlocker(invites: ShareInvites, closed: string | null): string | nul
 /**
  * Step 1, who's reviewing and how it reaches them: the client's name, then
  * email (the main way: chips and Send, with how many people it has reached),
- * then the other ways (ClickUp, Slack, Messages, Copy link), and a notice
+ * then the other ways (Messages, Copy link), and a notice
  * only when the link is uploading or out of sync.
  */
 export function ShareInviteStep({
@@ -55,7 +54,6 @@ export function ShareInviteStep({
   closed,
   onOpenSettings,
   message,
-  subject,
   url,
   share,
   status,
@@ -126,7 +124,7 @@ export function ShareInviteStep({
           </motion.div>
         ) : null}
       </AnimatePresence>
-      <ShareOtherWays message={message} url={url} title={subject} unavailable={closed} />
+      <ShareOtherWays message={message} url={url} unavailable={closed} />
       <ShareSyncNotice share={share} status={status} onRetry={onRetry} />
     </ShareStep>
   );

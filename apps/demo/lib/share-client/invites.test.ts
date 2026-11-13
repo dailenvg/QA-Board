@@ -50,6 +50,13 @@ describe("a send's answer", () => {
     expect(inviteResult(refused(409, "link-closed"), NOW)).toEqual({ ok: false, reason: "closed" });
     expect(inviteResult(refused(404, "not-found"), NOW)).toEqual({ ok: false, reason: "gone" });
     expect(inviteResult(refused(502, "send-failed"), NOW)).toEqual({ ok: false, reason: "failed" });
+    expect(inviteResult(refused(503, "email-off"), NOW)).toEqual({
+      ok: false,
+      reason: "email-off",
+    });
+    expect(inviteError({ ok: false, reason: "email-off" }, 0)).toBe(
+      "Email isn't set up on this site, so nothing was sent. Use Copy link or Messages instead.",
+    );
     expect(inviteResult({ ok: false, status: 0, error: "offline" }, NOW)).toEqual({
       ok: false,
       reason: "failed",

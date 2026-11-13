@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useId, useRef, useState } from "react";
 import { useSwapVariants } from "@/lib/motion";
 import { clientNameError, storedClientName } from "@/lib/share/client-name";
-import { inviteCopy, inviteMessage, type InviteDetails } from "@/lib/share/invite-copy";
+import { inviteMessage, type InviteDetails } from "@/lib/share/invite-copy";
 import { reviewClosed, type ReviewWindowChoice } from "@/lib/share/review-window";
 import type { InviteResult } from "@/lib/share-client/invites";
 import type { SyncStatus } from "@/lib/share-client/owner-sync";
@@ -276,7 +276,6 @@ export function ShareDialog({
         closed={closed ? CLOSED : null}
         onOpenSettings={openSettings}
         message={inviteMessage(details)}
-        subject={inviteCopy(details).subject}
         url={url}
         share={share}
         status={status}
