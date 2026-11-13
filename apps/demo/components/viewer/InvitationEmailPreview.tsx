@@ -63,8 +63,8 @@ export function InvitationEmailPreview({
         <p className="wrap-break-word" data-testid="invite-preview-greeting">
           {details.client ? (
             <>
-              Hi{" "}
-              <mark className="rounded-kbd bg-highlight px-1 text-on-highlight">
+              Hi {/* No padding on its right: the comma sits right after the highlight. */}
+              <mark className="rounded-kbd bg-highlight pl-0.5 text-on-highlight">
                 {details.client}
               </mark>
               ,

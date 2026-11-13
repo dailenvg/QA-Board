@@ -96,7 +96,7 @@ export function inviteError(
 ): string {
   switch (result.reason) {
     case "invalid-addresses":
-      return "Some of these aren't email addresses. Fix or remove the marked ones, then send again.";
+      return "Some of these aren't email addresses. Remove the marked ones, type them again, then send.";
     case "members-only":
       return "This preview site only emails people in your workspace. Remove the marked addresses, or send from the live site.";
     case "rate-limited":

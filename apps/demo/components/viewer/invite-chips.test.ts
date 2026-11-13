@@ -61,10 +61,10 @@ describe("invite chips", () => {
   it("say what's wrong, under the field and to screen readers", () => {
     expect(chipsMessage([chip("a@b.co")], 0)).toBeNull();
     expect(chipsMessage([chip("nope", "invalid")], 0)).toBe(
-      `"nope" isn't an email address. Fix it or remove it.`,
+      `"nope" isn't an email address. Remove it and type it again.`,
     );
     expect(chipsMessage([chip("x", "invalid"), chip("y", "invalid")], 0)).toBe(
-      "2 entries aren't email addresses. Fix or remove the marked ones.",
+      "2 entries aren't email addresses. Remove the marked ones and type them again.",
     );
     expect(chipsMessage([chip("ana@acme.studio", "outside")], 0)).toBe(
       "This preview site only emails people in your workspace. Remove the marked address.",

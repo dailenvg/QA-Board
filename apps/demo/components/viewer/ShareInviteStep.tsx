@@ -38,7 +38,7 @@ function sendBlocker(invites: ShareInvites, closed: string | null): string | nul
   if (closed) return closed;
   if (invites.waitSeconds > 0) return `Wait ${minutesLeft(invites.waitSeconds)} to send more.`;
   if (invites.chips.length === 0) return "Add at least one email address to send.";
-  if (!invites.ready && !invites.sending) return "Fix or remove the marked addresses first.";
+  if (!invites.ready && !invites.sending) return "Remove the marked addresses first.";
   return null;
 }
 
@@ -83,7 +83,8 @@ export function ShareInviteStep({
           {sentToLine(invited)}
         </p>
         <Button
-          onClick={() => void invites.send()}
+          // Off while anything's in the way (a closed window included): only the reason is read.
+          onClick={blocker === null ? () => void invites.send() : undefined}
           aria-disabled={blocker !== null || invites.sending || undefined}
           aria-describedby={
             `${blocker ? blockerId : ""} ${error ? errorId : ""}`.trim() || undefined

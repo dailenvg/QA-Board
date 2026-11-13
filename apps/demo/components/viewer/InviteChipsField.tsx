@@ -153,7 +153,8 @@ export function InviteChipsField({ chips, onChange, readOnly }: InviteChipsField
           spellCheck={false}
           value={draft}
           readOnly={readOnly}
-          placeholder={full ? "" : "Add an email and press Enter"}
+          // Shorter once a chip shares its row, so it fits a phone's width beside one.
+          placeholder={full ? "" : chips.length ? "Add another" : "Add an email and press Enter"}
           aria-describedby={`${hintId} ${errorId}`}
           aria-invalid={message ? true : undefined}
           onChange={(event) => {

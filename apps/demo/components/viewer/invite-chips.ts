@@ -78,9 +78,11 @@ export function chipsMessage(chips: readonly InviteChip[], overflow: number): st
   const outside = chips.filter((chip) => chip.problem === "outside");
   const lines: string[] = [];
   if (invalid.length === 1 && invalid[0]) {
-    lines.push(`"${invalid[0].address}" isn't an email address. Fix it or remove it.`);
+    lines.push(`"${invalid[0].address}" isn't an email address. Remove it and type it again.`);
   } else if (invalid.length > 1) {
-    lines.push(`${invalid.length} entries aren't email addresses. Fix or remove the marked ones.`);
+    lines.push(
+      `${invalid.length} entries aren't email addresses. Remove the marked ones and type them again.`,
+    );
   }
   if (outside.length) {
     lines.push(
