@@ -80,6 +80,12 @@ describe("purgeDeletedAccounts", () => {
   it("deletes an owner's account and workspace for good once the date comes, files after", async () => {
     const { db, owner, workspaceId, other } = world;
     await db.query("UPDATE users SET name = 'Ana' WHERE id = $1", [owner.id]);
+    await db.query(
+      `INSERT INTO workspace_clickup_connections (workspace_id, clickup_team_id,
+         clickup_team_name, clickup_user_id, clickup_username, access_token_sealed, connected_by)
+       VALUES ($1, '9012', 'Acme Design', '81', 'Ana Ruiz', 'sealed', $2)`,
+      [workspaceId, owner.id],
+    );
     await remove(owner, WORKSPACE_NAME);
     const { services, discarded } = recordingServices();
 
@@ -102,6 +108,7 @@ describe("purgeDeletedAccounts", () => {
       "squint_shares",
       "project_share_links",
       "memberships",
+      "workspace_clickup_connections",
     ]) {
       const column = table === "workspaces" ? "id" : "workspace_id";
       expect(await countRows(db, table, column, workspaceId)).toBe(0);

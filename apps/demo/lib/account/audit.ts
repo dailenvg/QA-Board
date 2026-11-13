@@ -22,7 +22,9 @@ export type WorkspaceAction =
   | "workspace.deletion_scheduled"
   | "workspace.restored"
   | "workspace.created"
-  | "workspace.deleted";
+  | "workspace.deleted"
+  | "workspace.clickup_connected"
+  | "workspace.clickup_disconnected";
 
 /** Who joined or left a workspace: targets the user, with the workspace's id. */
 export type MembershipAction = "membership.added" | "membership.removed";

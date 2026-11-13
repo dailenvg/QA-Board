@@ -4,6 +4,7 @@ import { describeError } from "../auth/http";
 import { findOwnWorkspace, type Membership } from "../auth/memberships";
 import type { SessionUser } from "../auth/users";
 import { database, type Database } from "../db/database";
+import { loadClickUpSection, type ClickUpSection } from "../integrations/clickup/section";
 import { avatarSrc, workspaceLogoSrc } from "../routes";
 import { sessionDeletionConfirm } from "./account-deletion";
 import { avatarVersion } from "./avatar";
@@ -124,13 +125,22 @@ async function readOwnWorkspacePage<T>(
   }
 }
 
-/** The workspace settings page: the settings of the signed-in user's workspace and whether they own it. */
-export type WorkspaceSettingsPage = PageRead<{ settings: WorkspaceSettings; isOwner: boolean }>;
+/**
+ * The workspace settings page: the settings of the signed-in user's workspace,
+ * whether they own it, and its ClickUp connection.
+ */
+export type WorkspaceSettingsPage = PageRead<{
+  settings: WorkspaceSettings;
+  isOwner: boolean;
+  clickUp: ClickUpSection;
+}>;
 
 export function loadWorkspaceSettingsPage(): Promise<WorkspaceSettingsPage> {
   return readOwnWorkspacePage("workspace settings", async (db, membership) => {
     const settings = await loadWorkspaceSettings(db, membership.workspaceId);
-    return settings && { settings, isOwner: membership.role === "owner" };
+    if (!settings) return null;
+    const clickUp = await loadClickUpSection(db, membership.workspaceId);
+    return { settings, isOwner: membership.role === "owner", clickUp };
   });
 }
 
