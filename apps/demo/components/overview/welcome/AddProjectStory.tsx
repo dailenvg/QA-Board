@@ -60,7 +60,7 @@ export function AddProjectStory({ beat, playing, still }: SceneProps) {
             </AnimatePresence>
           </span>
           <motion.span
-            className="mock-button grid h-8 place-items-center rounded-pill bg-brand px-3 text-label font-semibold text-on-brand"
+            className="mock-button mock-primary grid h-8 place-items-center rounded-pill bg-brand px-3 text-label font-semibold text-on-brand"
             animate={{ scale: beat === at.press ? 0.88 : 1 }}
             transition={spring.snappy}
           >

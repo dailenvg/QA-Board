@@ -74,7 +74,7 @@ export function PinStory({ beat, playing, still }: SceneProps) {
 function Ripple() {
   return (
     <motion.span
-      className="absolute inset-0 block rounded-pill ring-2 ring-brand"
+      className="mock-ripple absolute inset-0 block rounded-pill ring-2 ring-brand"
       initial={{ opacity: 0.7, scale: 1 }}
       animate={{ opacity: 0, scale: 1.6 }}
       exit={{ opacity: 0 }}

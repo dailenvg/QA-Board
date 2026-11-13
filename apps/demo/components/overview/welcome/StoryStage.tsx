@@ -33,13 +33,13 @@ export function StoryStage({
   look = "color",
 }: StoryStageProps) {
   if (look === "line") {
-    // No tint or glow, and no light mock-ups in dark mode: grey lines on the card itself.
+    // No tint or glow, and no light mock-ups in dark mode: grey lines on its own blue stage.
     return (
       <span
         aria-hidden="true"
         data-look="line"
         style={{ "--tint": tint, "--art-surface": "var(--color-card)" } as CSSProperties}
-        className="story-line relative isolate block aspect-[4/3] w-full overflow-hidden rounded-tile"
+        className="story-line relative isolate block aspect-[4/3] w-full overflow-hidden rounded-tile bg-story-stage"
       >
         <StoryLookContext.Provider value="line">
           <MotionConfig skipAnimations={still}>{children}</MotionConfig>
