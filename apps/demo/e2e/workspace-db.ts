@@ -37,7 +37,7 @@ export async function e2eWorkspaceId(): Promise<string> {
 
 /**
  * Empties the workspace (folders, projects and everything in them, files,
- * share links), forgets the owner's comment name and photo and puts its brand
+ * share links and the invitation emails' rate limits), forgets the owner's comment name and photo and puts its brand
  * back to the seed's (name only, no logo, color or sender name) and its quota
  * to the default, so each test starts as a first visit did. Accounts and
  * sessions stay.
@@ -45,7 +45,8 @@ export async function e2eWorkspaceId(): Promise<string> {
 export async function resetWorkspace(): Promise<void> {
   await withClient(async (client) => {
     await client.query(
-      `TRUNCATE folders, projects, workspace_blobs, user_blobs, squint_shares RESTART IDENTITY CASCADE`,
+      `TRUNCATE folders, projects, workspace_blobs, user_blobs, squint_shares,
+         squint_share_invite_sends RESTART IDENTITY CASCADE`,
     );
     await client.query("UPDATE storage_usage SET bytes = 0, blob_count = 0");
     await client.query("UPDATE users SET name = NULL, avatar_blob_key = NULL");

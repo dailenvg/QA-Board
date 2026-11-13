@@ -8,6 +8,7 @@ import {
   setLinkPassword,
   shareImageProject,
   shareWorkspaceProject,
+  showShareTab,
   skipReviewGuide,
 } from "./squint-fixtures";
 import { e2eWorkspaceId } from "./workspace-db";
@@ -18,7 +19,8 @@ const SITE = "https://example.com/";
 
 /** The password screen's heading for `project`. */
 function invitedTo(project: string): string {
-  return `${E2E_COMPANY.name} has invited you to review ${project}`;
+  // The brand row shows the company; the heading's accessible name keeps it.
+  return `${E2E_COMPANY.name} invited you to review ${project}`;
 }
 
 /** The review's own heading: the project's name alone, not the password screen's invitation. */
@@ -250,11 +252,15 @@ test("the owner adds, changes and removes the password in the Share dialog; an o
   const link = await shareImageProject(page, "launch.png");
   await page.getByTestId("share-button").click();
   const dialog = page.getByTestId("share-dialog");
+  await showShareTab(dialog, "settings");
   const state = dialog.getByTestId("share-password-state");
-  await expect(state).toHaveText("Anyone with the link can open it.");
+  const toggle = dialog.getByRole("switch", { name: "Password" });
+  await expect(state).toHaveText("Off: anyone with the link can open it");
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
 
   // Add: checked on blur, 8 to 128 characters, then saved and never shown again.
-  await dialog.getByTestId("share-password-add").click();
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
   const field = dialog.getByLabel("Password for this link", { exact: true });
   await expect(field).toBeFocused();
   await expect(field).toHaveAttribute("autocomplete", "new-password");
@@ -265,10 +271,12 @@ test("the owner adds, changes and removes the password in the Share dialog; an o
   await field.press("Escape");
   await expect(dialog.getByTestId("share-password-form")).toHaveCount(0);
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByTestId("share-password-add")).toBeFocused();
-  await dialog.getByTestId("share-password-add").click();
+  await expect(toggle).toBeFocused();
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
+  await toggle.click();
   await savePassword(page, dialog, "Password for this link", "first password");
-  await expect(state).toContainText(/^Protected since \w{3} \d{1,2}, \d{4}$/);
+  await expect(state).toContainText(/^On since \w{3} \d{1,2}, \d{4}: guests enter it/);
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
   await expect(dialog.getByTestId("share-password-form")).toHaveCount(0);
   await expect(dialog.getByTestId("share-password-change")).toBeFocused();
   await expect(dialog).not.toContainText("first password");
@@ -309,13 +317,15 @@ test("the owner adds, changes and removes the password in the Share dialog; an o
   await expect(composer).toHaveCount(0);
 
   // Remove: asked first, here in the dialog, with Cancel focused.
-  await dialog.getByTestId("share-password-remove").click();
+  await toggle.click();
   const confirm = dialog.getByTestId("share-password-confirm");
   await expect(confirm.getByRole("button", { name: "Cancel" })).toBeFocused();
   await confirm.getByRole("button", { name: "Cancel" }).click();
   await expect(confirm).toHaveCount(0);
-  await expect(state).toContainText("Protected since");
-  await dialog.getByTestId("share-password-remove").click();
+  await expect(state).toContainText("On since");
+  await expect(toggle).toBeFocused();
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
+  await toggle.click();
   const removed = page.waitForResponse(
     (response) =>
       response.url().endsWith("/share-link/password") && response.request().method() === "DELETE",
@@ -323,8 +333,9 @@ test("the owner adds, changes and removes the password in the Share dialog; an o
   await confirm.getByTestId("share-password-remove-confirm").click();
   expect((await removed).status()).toBe(200);
   await expect(dialog.getByTestId("share-password-status")).toHaveText("Password removed");
-  await expect(state).toHaveText("Anyone with the link can open it.");
-  await expect(dialog.getByTestId("share-password-add")).toBeFocused();
+  await expect(state).toHaveText("Off: anyone with the link can open it");
+  await expect(toggle).toBeFocused();
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
   await context.close();
 
   // A new guest opens it without a password again.

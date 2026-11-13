@@ -12,6 +12,7 @@ import {
   postComment,
   shareImageProject,
   showComments,
+  showShareTab,
   skipReviewGuide,
 } from "./squint-fixtures";
 
@@ -62,7 +63,8 @@ test("an owner shares a project, a client comments, and the owner resolves and r
   await expect(dialog.getByRole("status").filter({ hasText: "Link created." })).toHaveCount(1);
   const link = await urlField.inputValue();
   await expect(dialog.getByTestId("sync-status")).toContainText("Synced");
-  // The review window starts with the link: 72 hours, give or take the seconds since.
+  // The review window starts with the link: 3 days, give or take the seconds since.
+  await showShareTab(dialog, "settings");
   await expect(dialog.getByTestId("review-window")).toContainText(
     /Clients can comment for (3 days|2 days, 23 hours)/,
   );
