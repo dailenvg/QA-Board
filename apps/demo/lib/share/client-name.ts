@@ -9,14 +9,17 @@ export const CLIENT_NAME_MAX = 80;
 
 /**
  * A client name that stays on one line wherever it's shown (a heading, an
- * email's greeting, a link preview): control characters, line and paragraph
- * separators turn into spaces, spaces collapse, and the ends are trimmed.
+ * email's greeting, a link preview) and reads as typed: control characters,
+ * line and paragraph separators turn into spaces; format characters (such as
+ * U+202E, which would flip the text after it, or zero-width spaces) go;
+ * spaces collapse, and the ends are trimmed.
  * Everything else is kept as typed (punctuation, apostrophes, accents): every
  * place that shows it escapes it.
  */
 export function cleanClientName(name: string | null | undefined): string {
   return (name ?? "")
     .replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, " ")
+    .replace(/\p{Cf}/gu, "")
     .replace(/\s+/g, " ")
     .trim();
 }

@@ -12,6 +12,12 @@ describe("client names", () => {
     expect(cleanClientName("Acme\tStudio ")).toBe("Acme Studio");
   });
 
+  it("drop format characters, so a name can't flip or hide the text around it", () => {
+    expect(cleanClientName("Acme\u202Eoidut S")).toBe("Acmeoidut S");
+    expect(cleanClientName("Ac\u200Bme\u2066 Studio\u2069\uFEFF")).toBe("Acme Studio");
+    expect(storedClientName("\u202E\u200B")).toBeNull();
+  });
+
   it("store nothing for a blank name", () => {
     expect(storedClientName("  \n ")).toBeNull();
     expect(storedClientName(null)).toBeNull();
