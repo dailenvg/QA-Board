@@ -3,7 +3,7 @@
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { arrowNudge, rowLift } from "@/lib/motion";
+import { arrowNudge, rowPress } from "@/lib/motion";
 import { Icon } from "../../ui/Icon";
 
 const MotionLink = motion.create(Link);
@@ -21,16 +21,17 @@ interface TileRowProps {
 
 /**
  * One row of a tile's list, a link: a thumbnail, its text, and an arrow that
- * nudges forward as the row lifts on hover or keyboard focus and gives on
+ * nudges forward as the row tints on hover or keyboard focus; it gives on
  * press. The tint and pressed fill stay with reduced motion, which drops the
- * lift. The focus ring sits inside the row, so a tile's edge never clips it.
+ * nudge and the give. The focus ring sits inside the row, so a tile's edge
+ * never clips it.
  */
 export function TileRow({ href, thumb, children, testId, data }: TileRowProps) {
   const reduce = useReducedMotion() ?? false;
   const motionProps = reduce
     ? {}
     : {
-        variants: rowLift,
+        variants: rowPress,
         initial: "rest",
         animate: "rest",
         whileHover: "hover",

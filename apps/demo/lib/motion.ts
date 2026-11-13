@@ -43,30 +43,23 @@ export const press = {
   transition: spring.snappy,
 } as const;
 
-/** Hover and press feedback for cards: a subtle lift and grow, a small give on press. */
-export const hoverLift = {
-  whileHover: { y: -4, scale: 1.02 },
+/** Hover and press feedback for cards: a subtle grow in place, a small give on press. */
+export const hoverGrow = {
+  whileHover: { scale: 1.02 },
   whileTap: { scale: 0.98 },
   transition: spring.soft,
 } as const;
 
 /**
- * Links inside cards (list rows, a whole-card link): a small lift on hover or
- * keyboard focus, a give on press. Variant labels, so a trailing arrow can
- * follow (`arrowNudge`). Use with `initial="rest" animate="rest"
+ * Links inside cards (list rows): they stay put on hover or keyboard focus
+ * (their fill says so) and give on press. Variant labels, so a trailing arrow
+ * can follow (`arrowNudge`). Use with `initial="rest" animate="rest"
  * whileHover="hover" whileFocus="hover" whileTap="press"`.
  */
-export const rowLift: Variants = {
-  rest: { y: 0, scale: 1, transition: spring.snappy },
-  hover: { y: -2, scale: 1, transition: spring.snappy },
-  press: { y: 0, scale: 0.98, transition: spring.snappy },
-};
-
-/** `hoverLift` as variant labels, for a whole-card link whose arrow follows (`arrowNudge`). */
-export const cardLift: Variants = {
-  rest: { y: 0, scale: 1, transition: spring.soft },
-  hover: { y: -4, scale: 1.02, transition: spring.soft },
-  press: { y: 0, scale: 0.98, transition: spring.soft },
+export const rowPress: Variants = {
+  rest: { scale: 1, transition: spring.snappy },
+  hover: { scale: 1, transition: spring.snappy },
+  press: { scale: 0.98, transition: spring.snappy },
 };
 
 /** A link's trailing arrow, nudged forward while its row is hovered, focused or pressed. */

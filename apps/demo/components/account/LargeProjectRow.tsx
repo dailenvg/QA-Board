@@ -4,7 +4,7 @@ import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import type { LargeProject } from "@/lib/account/schemas";
 import { formatBytes } from "@/lib/account/storage-level";
-import { arrowNudge, rowLift } from "@/lib/motion";
+import { arrowNudge, rowPress } from "@/lib/motion";
 import { projectHref } from "@/lib/routes";
 import { Icon } from "../ui/Icon";
 import { fileCount, STORAGE_COPY } from "./storage-copy";
@@ -24,8 +24,9 @@ const CHIP: Record<Exclude<LargeProject["status"], "live">, { label: string; tin
 /**
  * One project in "Large projects": its name, size and files, and for an
  * archived or trashed one a chip and the date it's deleted for good. A live
- * or archived project links to it, lifting on hover or focus (the tint stays
- * with reduced motion); a trashed one can't be opened, so it's plain text.
+ * or archived project links to it, tinting on hover or focus and giving on
+ * press (the tint stays with reduced motion); a trashed one can't be opened,
+ * so it's plain text.
  */
 export function LargeProjectRow({ project }: { project: LargeProject }) {
   const reduce = useReducedMotion() ?? false;
@@ -40,7 +41,7 @@ export function LargeProjectRow({ project }: { project: LargeProject }) {
   const motionProps = reduce
     ? {}
     : {
-        variants: rowLift,
+        variants: rowPress,
         initial: "rest",
         animate: "rest",
         whileHover: "hover",

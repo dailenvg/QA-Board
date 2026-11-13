@@ -2,7 +2,7 @@
 
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
-import { hoverLift, useRevealVariants } from "@/lib/motion";
+import { hoverGrow, useRevealVariants } from "@/lib/motion";
 import { relativeTime } from "@/lib/relative-time";
 import { projectHref } from "@/lib/routes";
 import { isArchived } from "@/lib/store/archive";
@@ -78,7 +78,7 @@ export function ProjectCard({ summary, canMove, now, ...actions }: ProjectCardPr
       layout={reduce ? false : "position"}
       variants={variants}
       exit="exit"
-      {...(reduce ? {} : hoverLift)}
+      {...(reduce ? {} : hoverGrow)}
       data-testid="project-card"
       data-project-id={project.id}
       data-archived={isArchived(project) || undefined}
