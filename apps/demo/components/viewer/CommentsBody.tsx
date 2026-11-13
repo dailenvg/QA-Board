@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import type { RefObject } from "react";
 import { staggerGroup, useRevealVariants } from "@/lib/motion";
 import type { Comment } from "@/lib/store/types";
+import { StateArt } from "../ui/line-art/StateArt";
 import { CommentCard, type CommentCardActions } from "./CommentCard";
 import type { Placement } from "./surface";
 import type { CommentTab } from "./types";
@@ -34,14 +35,20 @@ function emptyCopy(tab: CommentTab, total: number, scope: string | undefined) {
     return {
       title: scope ? `Nothing resolved on ${scope} yet` : "Nothing resolved yet",
       body: "Resolved comments show up here.",
-    };
+      scene: "resolved",
+    } as const;
   }
   return total === 0
-    ? {
+    ? ({
         title: scope ? `No comments on ${scope} yet` : "No comments yet",
         body: "Choose Comment (or press C), then click or tap anywhere to drop a pin.",
-      }
-    : { title: "All caught up", body: "Every comment here is resolved." };
+        scene: "comments",
+      } as const)
+    : ({
+        title: "All caught up",
+        body: "Every comment here is resolved.",
+        scene: "caughtUp",
+      } as const);
 }
 
 const stagger = staggerGroup();
@@ -98,8 +105,9 @@ export function CommentsBody({
               animate="visible"
               exit="exit"
               data-testid="comments-empty"
-              className="rounded-tile border border-dashed border-field-line px-4 py-8 text-center"
+              className="flex flex-col items-center rounded-tile px-4 py-6 text-center"
             >
+              <StateArt scene={empty.scene} size="md" still className="mb-3" />
               <p className="text-body font-semibold">{empty.title}</p>
               <p className="mt-1 text-meta text-muted">{empty.body}</p>
             </motion.li>

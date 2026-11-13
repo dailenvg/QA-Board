@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { draw, LimeSquiggy, LINE_SVG, LinePin, roundedRect } from "./line-art";
+import { draw, LimeSquiggy, LINE_SVG, LinePin, roundedRect } from "../../../ui/line-art/line-art";
 
 /** Where each pin's tip lands on the page (before its tilt), in the order they drop. */
 const PIN_TIPS: ReadonlyArray<readonly [number, number]> = [

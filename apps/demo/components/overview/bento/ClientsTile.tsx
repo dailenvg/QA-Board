@@ -72,7 +72,7 @@ export function ClientsTile({ news, now, thumb }: ClientsTileProps) {
           <Skeleton className="h-11 w-full" />
         </div>
       ) : news.total === 0 ? (
-        <TileEmpty title="No new client comments">
+        <TileEmpty title="No new client comments" scene="caughtUp">
           Comments clients leave on review links show up here.
         </TileEmpty>
       ) : (

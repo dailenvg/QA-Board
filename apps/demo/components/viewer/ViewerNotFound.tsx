@@ -2,9 +2,9 @@
 
 import { motion } from "motion/react";
 import { useRevealVariants } from "@/lib/motion";
-import { Squiggy } from "../brand/mascot/Squiggy";
 import { ButtonLink } from "../ui/ButtonLink";
 import { Icon } from "../ui/Icon";
+import { StateArt } from "../ui/line-art/StateArt";
 
 /** Unknown or deleted project id. */
 export function ViewerNotFound() {
@@ -18,7 +18,7 @@ export function ViewerNotFound() {
         data-testid="project-not-found"
         className="flex w-full max-w-md flex-col items-center gap-4 rounded-panel bg-panel px-6 py-12 text-center"
       >
-        <Squiggy mood="thinking" size={120} />
+        <StateArt scene="missingPage" />
         <div>
           <h1 className="text-title font-bold">We can&apos;t find that project</h1>
           <p className="mt-2 text-body text-muted">

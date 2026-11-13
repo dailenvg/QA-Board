@@ -4,7 +4,7 @@ import { motion } from "motion/react";
 import { ACCOUNT_HREF } from "@/lib/routes";
 import { staggerGroup, useRevealVariants } from "@/lib/motion";
 import { ProfileCard } from "../auth/ProfileCard";
-import { Squiggy } from "../brand/mascot/Squiggy";
+import { StateArt } from "../ui/line-art/StateArt";
 import { ButtonLink } from "../ui/ButtonLink";
 import { Icon } from "../ui/Icon";
 
@@ -34,7 +34,7 @@ export function NoWorkspace({ email, name }: NoWorkspaceProps) {
         className="flex w-full max-w-md flex-col items-center gap-4 rounded-panel bg-panel px-6 py-12 text-center"
       >
         <motion.div variants={variants}>
-          <Squiggy mood="sleeping" size={120} followCursor={false} />
+          <StateArt scene="workspace" />
         </motion.div>
         <motion.div variants={variants}>
           <h1 id="no-workspace-title" className="text-title font-bold">

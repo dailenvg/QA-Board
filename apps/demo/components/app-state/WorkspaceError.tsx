@@ -5,10 +5,10 @@ import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { loginHref } from "@/lib/auth/next-path";
 import { press, useRevealVariants } from "@/lib/motion";
-import { Squiggy } from "../brand/mascot/Squiggy";
 import { Button } from "../ui/Button";
 import { buttonClass } from "../ui/button-styles";
 import { Icon } from "../ui/Icon";
+import { StateArt, type ArtScene } from "../ui/line-art/StateArt";
 
 /**
  * Why the workspace can't be shown: the server couldn't read it, the session
@@ -29,6 +29,13 @@ const COPY: Record<WorkspaceErrorReason, { title: string; body: string }> = {
     title: "This workspace isn't available",
     body: "This account no longer has access to it. Try again to see what you can open now.",
   },
+};
+
+/** Each reason's line-art scene: unplugged, locked out, or a link that no longer opens. */
+const SCENE: Record<WorkspaceErrorReason, ArtScene> = {
+  unavailable: "unplugged",
+  "signed-out": "locked",
+  gone: "brokenLink",
 };
 
 /** The way back: sign in again, or reload the page (with a busy state while it does). */
@@ -94,7 +101,7 @@ export function WorkspaceError({ reason }: { reason: WorkspaceErrorReason }) {
         data-reason={reason}
         className="flex w-full max-w-md flex-col items-center gap-4 rounded-panel bg-panel px-6 py-12 text-center"
       >
-        <Squiggy mood="surprised" size={120} followCursor={false} />
+        <StateArt scene={SCENE[reason]} />
         {/* The alert is the message alone: not the mascot's name, not the button. */}
         <div role="alert">
           <h1 id={titleId} ref={heading} tabIndex={-1} className="text-title font-bold">

@@ -41,7 +41,7 @@ export function StatusTile({ open, resolved }: CommentTotals) {
         }
       />
       {total === 0 ? (
-        <TileEmpty title="No comments yet">
+        <TileEmpty title="No comments yet" scene="comments">
           Once people comment, this shows how much is resolved.
         </TileEmpty>
       ) : (

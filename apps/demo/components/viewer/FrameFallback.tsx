@@ -3,10 +3,10 @@
 import { motion } from "motion/react";
 import { useRevealVariants } from "@/lib/motion";
 import { displayHost } from "@/lib/url";
-import { Squiggy } from "../brand/mascot/Squiggy";
 import { Button } from "../ui/Button";
 import { buttonClass } from "../ui/button-styles";
 import { Icon } from "../ui/Icon";
+import { StateArt } from "../ui/line-art/StateArt";
 import { ScreenshotUpload } from "./ScreenshotUpload";
 import type { ScreenshotHandler } from "./types";
 
@@ -65,7 +65,10 @@ export function FrameFallback({ reason, url, onScreenshot, onRetry }: FrameFallb
       className="absolute inset-0 z-[6] grid place-items-center overflow-y-auto bg-tile p-6 text-center"
     >
       <div className="flex max-w-md flex-col items-center gap-4">
-        <Squiggy mood={reason === "timeout" ? "thinking" : "surprised"} size={112} />
+        <StateArt
+          scene={reason === "blocked" ? "blocked" : reason === "unreachable" ? "unplugged" : "slow"}
+          surface="tile"
+        />
         <div>
           <h2 className="text-title font-bold">{copy.title}</h2>
           <p className="mt-2 text-body text-muted">{copy.body}</p>
