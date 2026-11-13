@@ -30,9 +30,12 @@ export type MembershipAction = "membership.added" | "membership.removed";
 /** What the daily cron does to a workspace's projects: an archived one deleted once its date came. */
 export type ProjectAction = "project.deleted";
 
-/** A member changed a project's review link settings or password: targets the project. */
+/**
+ * A member changed a project's review link settings or password, or emailed
+ * its invitation: targets the project.
+ */
 export type ShareAction =
-  "share.settings_changed" | "share.password_set" | "share.password_removed";
+  "share.settings_changed" | "share.password_set" | "share.password_removed" | "share.invites_sent";
 
 /** One audit entry, by whoever did it: a user, or null for Squint itself (the daily cron). */
 export interface AuditEntry {
@@ -44,10 +47,12 @@ export interface AuditEntry {
   /** The fields that changed: never a value, an email, a hash or a token. */
   fields: readonly string[];
   /**
-   * The only values an entry keeps besides the field names, each a fixed
-   * choice that says nothing about anyone: a review link's new window.
+   * The only values an entry keeps besides the field names: a review link's
+   * new window (a fixed choice), or which link an invitation went out on and
+   * to whom, as keyed HMACs of the addresses only (`share-invites.ts`), so the
+   * Share window can count people without the log holding an address.
    */
-  meta?: { reviewWindow: ReviewWindowChoice };
+  meta?: { reviewWindow: ReviewWindowChoice } | { shareId: string; recipients: readonly string[] };
 }
 
 export async function audit(db: Queryable, entry: AuditEntry, now: number): Promise<void> {

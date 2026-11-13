@@ -137,7 +137,17 @@ describe("request bodies", () => {
     ["PATCH", "/projects/p1/share-link", { cursor: -1, lastSyncedAt: 1 }, "cursor"],
     ["PATCH", "/projects/p1/share-link/settings", { reviewWindow: "48h" }, "reviewWindow"],
     ["PATCH", "/projects/p1/share-link/settings", { reviewWindow: 24 }, "reviewWindow"],
-    ["PATCH", "/projects/p1/share-link/settings", {}, "reviewWindow"],
+    ["PATCH", "/projects/p1/share-link/settings", {}, "body"],
+    ["PATCH", "/projects/p1/share-link/settings", { clientName: "x".repeat(81) }, "clientName"],
+    ["PATCH", "/projects/p1/share-link/settings", { clientName: 7 }, "clientName"],
+    ["POST", "/projects/p1/share-link/invites", { addresses: [] }, "addresses"],
+    [
+      "POST",
+      "/projects/p1/share-link/invites",
+      { addresses: Array.from({ length: 11 }, (_, i) => `p${i}@a.test`) },
+      "addresses",
+    ],
+    ["POST", "/projects/p1/share-link/invites", { addresses: "a@b.test" }, "addresses"],
     ["PUT", "/projects/p1/share-link/password", { password: "1234567" }, "password"],
     ["PUT", "/projects/p1/share-link/password", { password: "x".repeat(129) }, "password"],
     ["PUT", "/projects/p1/share-link/password", { password: 12345678 }, "password"],
@@ -308,7 +318,11 @@ describe("happy paths", () => {
       body: { reviewWindow: "none" },
     });
     expect(changed.status).toBe(200);
-    expect(await changed.json()).toEqual({ reviewWindowHours: null, reviewEndsAt: null });
+    expect(await changed.json()).toEqual({
+      reviewWindowHours: null,
+      reviewEndsAt: null,
+      clientName: null,
+    });
     const { rows: entries } = await db.query("SELECT action, target_id, meta FROM audit_log");
     expect(entries).toEqual([
       {
@@ -327,6 +341,115 @@ describe("happy paths", () => {
         body: { reviewWindow: "7d" },
       },
     );
+    expect(unlinked.status).toBe(404);
+  });
+
+  it("names the link's client, then emails its invitation and counts who it reached", async () => {
+    vi.stubEnv("AUTH_SECRET", TEST_AUTH_SECRET);
+    vi.stubEnv("RESEND_API_KEY", "");
+    vi.stubEnv("VERCEL_ENV", "");
+    vi.stubEnv("NEXT_PUBLIC_VERCEL_ENV", "");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const created = await createShare(
+      { store: createPostgresStore(db), blobs: inlineBackend },
+      STATE,
+      NOW,
+    );
+    const link = `/api/w/${a.workspaceId}/projects/p1/share-link`;
+    const proof = { shareId: created.shareId, token: created.token, ownerKey: created.ownerKey };
+    await call("PUT", link, { cookie: a.cookie, body: { ...proof, reviewWindow: "none" } });
+
+    const named = await call("PATCH", `${link}/settings`, {
+      cookie: a.cookie,
+      body: { clientName: "  Bravo\nStudio  " },
+    });
+    expect(await named.json()).toEqual({
+      reviewWindowHours: null,
+      reviewEndsAt: null,
+      clientName: "Bravo Studio",
+    });
+    const cleared = await call("PATCH", `${link}/settings`, {
+      cookie: a.cookie,
+      body: { clientName: " " },
+    });
+    expect(await cleared.json()).toMatchObject({ clientName: null });
+    const { rows: entries } = await db.query("SELECT meta FROM audit_log ORDER BY id");
+    // The field only: never the name.
+    expect(entries).toEqual([
+      { meta: { fields: ["clientName"] } },
+      { meta: { fields: ["clientName"] } },
+    ]);
+
+    const invalid = await call("POST", `${link}/invites`, {
+      cookie: a.cookie,
+      body: { addresses: ["ana@bravo.test", "not an address"] },
+    });
+    expect(invalid.status).toBe(400);
+    expect(await invalid.json()).toEqual({
+      error: "invalid-addresses",
+      addresses: ["not an address"],
+    });
+
+    const sent = await call("POST", `${link}/invites`, {
+      cookie: a.cookie,
+      body: { addresses: ["Ana@Bravo.test", "ana@bravo.test ", "leo@bravo.test"] },
+    });
+    expect(sent.status).toBe(200);
+    expect(await sent.json()).toEqual({ sent: 2, invitedCount: 2 });
+    expect(warn).toHaveBeenCalledWith(
+      "squint share: invite email skipped (RESEND_API_KEY or EMAIL_FROM not set)",
+    );
+    warn.mockRestore();
+
+    const snapshot = await call("GET", `/api/w/${a.workspaceId}/snapshot`, { cookie: a.cookie });
+    const data = (await snapshot.json()) as { projects: Array<{ share?: unknown }> };
+    expect(data.projects[0]?.share).toMatchObject({ clientName: null, invitedCount: 2 });
+  });
+
+  it("holds invitations over the hour's limit with Retry-After, and refuses non-members on a preview", async () => {
+    vi.stubEnv("AUTH_SECRET", TEST_AUTH_SECRET);
+    vi.stubEnv("RESEND_API_KEY", "");
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const created = await createShare(
+      { store: createPostgresStore(db), blobs: inlineBackend },
+      STATE,
+      NOW,
+    );
+    const link = `/api/w/${a.workspaceId}/projects/p1/share-link`;
+    const proof = { shareId: created.shareId, token: created.token, ownerKey: created.ownerKey };
+    await call("PUT", link, { cookie: a.cookie, body: { ...proof, reviewWindow: "none" } });
+
+    vi.stubEnv("NEXT_PUBLIC_VERCEL_ENV", "preview");
+    const outside = await call("POST", `${link}/invites`, {
+      cookie: a.cookie,
+      body: { addresses: ["ana@bravo.test"] },
+    });
+    expect(outside.status).toBe(403);
+    expect(await outside.json()).toEqual({ error: "members-only", addresses: ["ana@bravo.test"] });
+    vi.stubEnv("NEXT_PUBLIC_VERCEL_ENV", "");
+
+    const ten = Array.from({ length: 10 }, (_, index) => `p${index}@bravo.test`);
+    for (let send = 0; send < 2; send += 1) {
+      const ok = await call("POST", `${link}/invites`, {
+        cookie: a.cookie,
+        body: { addresses: ten },
+      });
+      expect(ok.status).toBe(200);
+    }
+    const limited = await call("POST", `${link}/invites`, {
+      cookie: a.cookie,
+      body: { addresses: ["late@bravo.test"] },
+    });
+    expect(limited.status).toBe(429);
+    expect(Number(limited.headers.get("retry-after"))).toBeGreaterThan(3500);
+    expect(await limited.json()).toMatchObject({ error: "rate-limited" });
+
+    // Without a link, there's nothing to send.
+    await createProject(db, a.workspaceId, URL_PROJECT("p2"), NOW);
+    const unlinked = await call("POST", `/api/w/${a.workspaceId}/projects/p2/share-link/invites`, {
+      cookie: a.cookie,
+      body: { addresses: ["ana@bravo.test"] },
+    });
     expect(unlinked.status).toBe(404);
   });
 

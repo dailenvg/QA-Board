@@ -3,6 +3,7 @@ import { database } from "@/lib/db/database";
 import { storageFromEnv } from "@/lib/pinpoint-storage";
 import { expireShares, sweepOrphanedBlobs } from "@/lib/share/expiry";
 import { json } from "@/lib/share/http";
+import { pruneInviteSends } from "@/lib/share/invite-limits";
 import { prunePasswordAttempts } from "@/lib/share/password-attempts";
 import { retentionCutoff } from "@/lib/share/retention";
 import { shareServices } from "@/lib/share/server";
@@ -23,6 +24,7 @@ type StepName =
   | "shares"
   | "blobs"
   | "passwordAttempts"
+  | "inviteSends"
   | "trash"
   | "archived"
   | "accounts"
@@ -89,6 +91,14 @@ function passwordAttemptSteps(now: number): Promise<StepResult> {
   });
 }
 
+/** Invitation email sends a day old, kept only for their rate limits (038). Skipped without a database. */
+function inviteSendSteps(now: number): Promise<StepResult> {
+  return step("inviteSends", async () => {
+    const pending = database();
+    return pending ? { count: await pruneInviteSends(await pending, now), done: true } : null;
+  });
+}
+
 /**
  * Workspace projects trashed more than 30 days ago, deleted for good, and
  * archived ones whose deletion date has come; then deleted accounts (and the
@@ -131,7 +141,7 @@ function pinSteps(now: number, deadline: number): Promise<StepResult> {
 /**
  * `GET /api/cron/expire`, daily. Independent steps, each with its own error
  * handling: shares past their `expiresAt`, then Blob files a failed delete
- * left behind; wrong review link passwords a day old; workspace projects
+ * left behind; wrong review link passwords and invitation sends a day old; workspace projects
  * past their time in the trash or the archive, deleted
  * accounts past theirs, then files nothing records; and, alongside them,
  * pinpoint pins 30 days old (when their storage can expire them). Answers
@@ -144,17 +154,24 @@ export async function GET(request: Request) {
   if (refused) return refused;
   const now = Date.now();
   const deadline = now + BUDGET_MS;
-  const [[shares, blobs], passwordAttempts, [trash, archived, accounts, workspaceBlobs], pinned] =
-    await Promise.all([
-      shareSteps(now, deadline),
-      passwordAttemptSteps(now),
-      workspaceSteps(now, deadline),
-      pinSteps(now, deadline),
-    ]);
+  const [
+    [shares, blobs],
+    passwordAttempts,
+    inviteSends,
+    [trash, archived, accounts, workspaceBlobs],
+    pinned,
+  ] = await Promise.all([
+    shareSteps(now, deadline),
+    passwordAttemptSteps(now),
+    inviteSendSteps(now),
+    workspaceSteps(now, deadline),
+    pinSteps(now, deadline),
+  ]);
   const steps = {
     shares,
     blobs,
     passwordAttempts,
+    inviteSends,
     trash,
     archived,
     accounts,
@@ -165,6 +182,7 @@ export async function GET(request: Request) {
     shares: shares.count,
     blobs: blobs.count,
     passwordAttempts: passwordAttempts.count,
+    inviteSends: inviteSends.count,
     trash: trash.count,
     archived: archived.count,
     accounts: accounts.count,
@@ -175,6 +193,7 @@ export async function GET(request: Request) {
       shares: shares.failed,
       blobs: blobs.failed,
       passwordAttempts: passwordAttempts.failed,
+      inviteSends: inviteSends.failed,
       trash: trash.failed,
       archived: archived.failed,
       accounts: accounts.failed,
