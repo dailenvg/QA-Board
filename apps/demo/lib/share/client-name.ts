@@ -7,6 +7,9 @@
 /** Longest client name kept, in characters; `squint_shares` checks it too. */
 export const CLIENT_NAME_MAX = 80;
 
+/** Bidi marks, embeddings, overrides and isolates, zero-width spaces and the BOM. */
+const HIDDEN = /[\u200B\u200E\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g;
+
 /**
  * A client name that stays on one line wherever it's shown (a heading, an
  * email's greeting, a link preview) and reads as typed: control characters,
@@ -18,9 +21,6 @@ export const CLIENT_NAME_MAX = 80;
  * Everything else is kept as typed (punctuation, apostrophes, accents): every
  * place that shows it escapes it.
  */
-/** Bidi marks, embeddings, overrides and isolates, zero-width spaces and the BOM. */
-const HIDDEN = /[\u200B\u200E\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g;
-
 export function cleanClientName(name: string | null | undefined): string {
   return (name ?? "")
     .replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, " ")
