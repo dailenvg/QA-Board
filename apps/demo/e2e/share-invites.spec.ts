@@ -3,6 +3,7 @@ import { expect, test } from "./test";
 import { SIGNED_OUT } from "./auth-fixtures";
 import { E2E_COMPANY } from "./e2e-env";
 import { mockFrameCheck, shareWorkspaceProject, showShareTab } from "./squint-fixtures";
+import { ageShareLink } from "./workspace-db";
 
 const PROJECT = "Spring Campaign";
 const CLIENT = "Acme Studio";
@@ -161,4 +162,42 @@ test("Slack copies the invitation message and opens Slack; Copy link copies the 
   await dialog.getByTestId("copy-share-link").click();
   await expect(status).toHaveText("Link copied.");
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`${baseURL}/s/${token}`);
+});
+
+test("a closed review holds Send, and Go to settings takes the keyboard to the review window", async ({
+  page,
+}) => {
+  const { projectId } = await shareWorkspaceProject(page, PROJECT);
+  // Created 80 hours ago: its 3 days are over.
+  await ageShareLink(projectId, 80);
+  const dialog = await openShareWindow(page, projectId);
+  const error = dialog.getByTestId("invite-error");
+  await expect(error).toContainText("The review window has closed");
+
+  // Send stays off: nothing goes, however it's pressed.
+  let sends = 0;
+  page.on("request", (request) => {
+    if (request.url().endsWith("/share-link/invites")) sends += 1;
+  });
+  const emails = dialog.getByLabel("Email them the link");
+  await emails.fill(`${E2E_COMPANY.email},`);
+  const send = dialog.getByTestId("send-invites");
+  await expect(send).toHaveAttribute("aria-disabled", "true");
+  // aria-disabled keeps it focusable and clickable: Playwright's click would wait for it to enable.
+  await send.dispatchEvent("click");
+  await expect(dialog.getByTestId("invite-chip")).toHaveCount(1);
+  expect(sends).toBe(0);
+
+  // On a phone the Settings tab opens first; the window's chosen length takes focus once it's there.
+  const goTo = error.getByRole("button", { name: "Go to settings" });
+  await goTo.focus();
+  await page.keyboard.press("Enter");
+  const chosen = dialog.getByTestId("share-settings-step").getByTestId("review-window-72h");
+  await expect(chosen).toBeFocused();
+  await expect(chosen).toHaveAttribute("aria-checked", "true");
+  expect(
+    await page.evaluate(() =>
+      Boolean(document.activeElement?.closest('[data-testid="share-dialog"]')),
+    ),
+  ).toBe(true);
 });

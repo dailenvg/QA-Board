@@ -157,8 +157,13 @@ export function ShareDialog({
     const to = SHARE_TABS.findIndex((item) => item.value === value);
     setTab({ value, direction: to >= from ? 1 : -1 });
   };
-  /** Bumped to send focus to the review window once it's on screen. */
+  /**
+   * "Go to settings" asks for the review window's focus (`windowFocus` goes up); the Settings
+   * step takes it once it's on screen and says so (`windowFocused` catches up). On a phone that's
+   * after the Invite tab has faded out, whenever that is.
+   */
   const [windowFocus, setWindowFocus] = useState(0);
+  const [windowFocused, setWindowFocused] = useState(0);
 
   // The client's name as typed, for this link; null shows the saved one.
   const shareId = share?.id ?? null;
@@ -242,15 +247,6 @@ export function ShareDialog({
     target?.focus();
   }, [open, returnFocus]);
 
-  // "Go to settings": the review window, once its tab (on a phone) is showing.
-  useEffect(() => {
-    if (windowFocus === 0) return;
-    const frame = requestAnimationFrame(() =>
-      linkedView.current?.querySelector<HTMLElement>(RADIO)?.focus(),
-    );
-    return () => cancelAnimationFrame(frame);
-  }, [windowFocus, tab.value]);
-
   const openSettings = () => {
     if (phone) chooseTab("settings");
     setWindowFocus((count) => count + 1);
@@ -311,6 +307,8 @@ export function ShareDialog({
         onReviewWindowChange={onReviewWindowChange}
         onPasswordChange={onPasswordChange}
         revoking={revoking}
+        focusWindow={windowFocus > windowFocused}
+        onWindowFocused={() => setWindowFocused(windowFocus)}
       />
     ) : null;
 
