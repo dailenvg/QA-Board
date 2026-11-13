@@ -67,10 +67,10 @@ test("a link made for 24 hours says so, and No limit takes the guest's countdown
   await dialog.getByTestId("review-window-24h").click();
   await expect(dialog.getByTestId("review-window-24h")).toHaveAttribute("aria-checked", "true");
   await dialog.getByTestId("create-share-link").click();
-  const urlField = dialog.getByTestId("share-url");
-  await expect(urlField).toHaveValue(/\/s\/[A-Za-z0-9_-]{43}$/);
-  await expect(dialog.getByTestId("sync-status")).toContainText("Synced");
-  const link = await urlField.inputValue();
+  const urlField = dialog.getByTestId("copy-share-link");
+  await expect(urlField).toHaveAttribute("data-url", /\/s\/[A-Za-z0-9_-]{43}$/);
+  await expect(dialog.getByTestId("share-sync")).toHaveAttribute("data-sync", "synced");
+  const link = (await urlField.getAttribute("data-url"))!;
   await showShareTab(dialog, "settings");
   // The link's own settings (the Create view may still be fading out).
   const settings = dialog.getByTestId("share-settings-step");

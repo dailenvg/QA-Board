@@ -18,21 +18,11 @@ import { Dialog } from "../ui/Dialog";
 import { FieldError } from "../ui/FieldError";
 import { Icon } from "../ui/Icon";
 import { StateArt } from "../ui/line-art/StateArt";
-import { InvitationEmailPreview } from "./InvitationEmailPreview";
 import { ReviewWindowControl } from "./ReviewWindowControl";
 import { ShareInviteStep } from "./ShareInviteStep";
 import { ShareSettingsStep } from "./ShareSettingsStep";
 import { panelId, SHARE_TABS, ShareTabs, tabId, type ShareTab } from "./ShareTabs";
 import { useShareInvites } from "./use-share-invites";
-
-/** How the workspace meets its clients: for the invitation's preview. */
-export interface ShareSender {
-  /** The company guests see (the workspace's name). */
-  company: string;
-  /** "{Name} via Squint", as the inbox shows it. */
-  sender: string;
-  color: string | null;
-}
 
 interface ShareDialogProps {
   open: boolean;
@@ -56,7 +46,8 @@ interface ShareDialogProps {
   onPasswordChange: (password: string | null) => Promise<Result>;
   /** The project's name, as the invitation names it. */
   projectName: string;
-  sender: ShareSender;
+  /** The company guests see (the workspace's name), as the invitation names it. */
+  company: string;
   /** Saves who the link is for (blank clears it); resolves with the server's answer. */
   onClientNameChange: (name: string) => Promise<Result>;
   /** Emails the link to these addresses; resolves with what came of it. */
@@ -83,9 +74,8 @@ const NAME_SAVE_FAILED = "The client name didn't save. Check your connection and
 /** How long "Saved" stands in for "Optional" beside the client's name. */
 const NAME_SAVED_MS = 3000;
 
-/** Phones: a bottom sheet with tabs. Wide windows: the controls beside the preview. */
+/** Phones: a bottom sheet with tabs. */
 const PHONE = "(max-width: 39.999rem)";
-const WIDE = "(min-width: 64rem)";
 
 const RADIO = '[role="radiogroup"] [role="radio"][tabindex="0"]';
 
@@ -93,9 +83,8 @@ const RADIO = '[role="radiogroup"] [role="radio"][tabindex="0"]';
  * The Share window. Before a link exists: its size check, review window and
  * Create link. With one: 1, who's reviewing and how it reaches them (client
  * name, email invites, other ways, the link itself), and 2, its settings
- * (review window, password); beside them on wide screens, a live preview of
- * what the client gets. On phones, a bottom sheet with Invite and Settings
- * tabs and a compact preview. Revoke link and Done stay at the bottom.
+ * (review window, password). On phones, a bottom sheet with Invite and
+ * Settings tabs. Revoke link and Done stay at the bottom.
  */
 export function ShareDialog({
   open,
@@ -113,7 +102,7 @@ export function ShareDialog({
   onReviewWindowChange,
   onPasswordChange,
   projectName,
-  sender,
+  company,
   onClientNameChange,
   onSendInvites,
   onInvitesSent,
@@ -124,7 +113,6 @@ export function ShareDialog({
 }: ShareDialogProps) {
   const now = useNow();
   const phone = useMediaQuery(PHONE);
-  const wide = useMediaQuery(WIDE);
   const swap = useSwapVariants();
   const errorId = useId();
   const tabsId = useId();
@@ -256,13 +244,13 @@ export function ShareDialog({
   const details: InviteDetails | null =
     share && url
       ? {
-          company: sender.company,
+          company,
           project: projectName,
           client: storedClientName(nameValue),
           link: url,
           reviewEndsAt: share.reviewEndsAt,
           hasPassword: share.passwordSetAt !== undefined,
-          // The preview and the other ways' message say what an email sent now would.
+          // The other ways' message says what an email sent now would.
           ...(now ? { sentAt: now } : {}),
         }
       : null;
@@ -312,16 +300,6 @@ export function ShareDialog({
       />
     ) : null;
 
-  const preview = (compact: boolean) =>
-    details ? (
-      <InvitationEmailPreview
-        details={details}
-        sender={sender.sender}
-        color={sender.color}
-        compact={compact}
-      />
-    ) : null;
-
   const linkedBody = phone ? (
     <div className="flex flex-col gap-4">
       <ShareTabs value={tab.value} onChange={chooseTab} panelIdPrefix={tabsId} />
@@ -338,29 +316,13 @@ export function ShareDialog({
           exit="exit"
           className="flex flex-col gap-4"
         >
-          {tab.value === "invite" ? (
-            <>
-              {inviteStep(null)}
-              {preview(true)}
-            </>
-          ) : (
-            settingsStep(null)
-          )}
+          {tab.value === "invite" ? inviteStep(null) : settingsStep(null)}
         </motion.div>
       </AnimatePresence>
-    </div>
-  ) : wide ? (
-    <div className="grid grid-cols-[minmax(0,1fr)_22rem] items-start gap-5">
-      <div className="flex min-w-0 flex-col gap-4">
-        {inviteStep(1)}
-        {settingsStep(2)}
-      </div>
-      <div className="sticky top-0">{preview(false)}</div>
     </div>
   ) : (
     <div className="flex flex-col gap-4">
       {inviteStep(1)}
-      {preview(true)}
       {settingsStep(2)}
     </div>
   );
@@ -393,7 +355,7 @@ export function ShareDialog({
       testId="share-dialog"
       fitKeyboard
       sheet
-      size={linked ? "xl" : "md"}
+      size={linked ? "wide" : "md"}
       art={<StateArt scene="invite" size="sm" still />}
       footer={footer}
     >

@@ -135,8 +135,9 @@ function useFocusTrap(
 const WIDTHS = {
   sm: "max-w-sm",
   md: "max-w-lg",
+  /** One roomy column, between md and lg. */
+  wide: "max-w-2xl",
   lg: "max-w-4xl",
-  xl: "max-w-2xl lg:max-w-5xl",
 } as const;
 
 /** Below the `sm` breakpoint: where a `sheet` dialog becomes a bottom sheet. */

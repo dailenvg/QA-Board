@@ -10,9 +10,9 @@ import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { InviteChipsField } from "./InviteChipsField";
 import { ShareClientNameField } from "./ShareClientNameField";
-import { ShareLinkLine } from "./ShareLinkLine";
 import { ShareOtherWays } from "./ShareOtherWays";
 import { ShareStep } from "./ShareStep";
+import { ShareSyncNotice } from "./ShareSyncNotice";
 import type { ShareInvites } from "./use-share-invites";
 
 interface ShareInviteStepProps {
@@ -45,8 +45,8 @@ function sendBlocker(invites: ShareInvites, closed: string | null): string | nul
 /**
  * Step 1, who's reviewing and how it reaches them: the client's name, then
  * email (the main way: chips and Send, with how many people it has reached),
- * then the other ways (ClickUp, Slack, Messages, Copy link), and the link
- * itself, quiet, with its sync status.
+ * then the other ways (ClickUp, Slack, Messages, Copy link), and a notice
+ * only when the link is uploading or out of sync.
  */
 export function ShareInviteStep({
   step,
@@ -127,7 +127,7 @@ export function ShareInviteStep({
         ) : null}
       </AnimatePresence>
       <ShareOtherWays message={message} url={url} title={subject} unavailable={closed} />
-      <ShareLinkLine url={url} share={share} status={status} onRetry={onRetry} />
+      <ShareSyncNotice share={share} status={status} onRetry={onRetry} />
     </ShareStep>
   );
 }

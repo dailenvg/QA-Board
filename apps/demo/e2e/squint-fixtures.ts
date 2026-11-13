@@ -131,8 +131,8 @@ export async function shareImageProject(page: Page, fileName: string): Promise<s
   await page.getByTestId("share-button").click();
   const dialog = page.getByTestId("share-dialog");
   await dialog.getByTestId("create-share-link").click();
-  const link = await dialog.getByTestId("share-url").inputValue();
-  await expect(dialog.getByTestId("sync-status")).toContainText("Synced");
+  const link = (await dialog.getByTestId("copy-share-link").getAttribute("data-url"))!;
+  await expect(dialog.getByTestId("share-sync")).toHaveAttribute("data-sync", "synced");
   await page.keyboard.press("Escape");
   await page.unroute("**/api/shares");
   return link;

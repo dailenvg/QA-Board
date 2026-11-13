@@ -34,27 +34,12 @@ function invitesAnswer(page: Page) {
 test("the owner names the client and emails the link, and the guest's invitation names them", async ({
   page,
   browser,
-  isMobile,
 }) => {
   const { token, projectId } = await shareWorkspaceProject(page, PROJECT);
   const dialog = await openShareWindow(page, projectId);
-  const preview = dialog.getByTestId("invite-email-preview");
-  await expect(preview.getByTestId("invite-preview-greeting")).toHaveText("Hi,");
-  await expect(preview.getByTestId("invite-preview-headline")).toHaveText(
-    `${E2E_COMPANY.name} has invited you to review ${PROJECT}`,
-  );
-
-  // The preview follows the client's name as it's typed; Enter saves it.
+  // Enter saves the client's name.
   const name = dialog.getByLabel("Client name");
   await name.fill(CLIENT);
-  await expect(preview.getByTestId("invite-preview-greeting")).toHaveText(`Hi ${CLIENT},`);
-  if (!isMobile) {
-    await expect(preview).toContainText(`What ${CLIENT} gets`);
-    // How long is left, not a clock time: the email can't know its reader's time zone.
-    await expect(preview.getByTestId("invite-preview-deadline")).toHaveText(
-      "You have about 3 days to comment.",
-    );
-  }
   const named = page.waitForResponse(
     (response) =>
       response.url().endsWith("/share-link/settings") && response.request().method() === "PATCH",

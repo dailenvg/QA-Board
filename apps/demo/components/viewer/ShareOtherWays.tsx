@@ -142,6 +142,7 @@ export function ShareOtherWays({ message, url, title, unavailable }: ShareOtherW
           className="px-3"
           onClick={() => void copy(url).then((copied) => tell("link", copied))}
           data-testid="copy-share-link"
+          data-url={url}
         >
           <Icon name="copy" className="size-4" />
           Copy link

@@ -15,7 +15,6 @@ import {
   windowHours,
   type ReviewWindowChoice,
 } from "@/lib/share/review-window";
-import { senderDisplayName } from "@/lib/email/from-header";
 import {
   restoreReviewWindow,
   sendShareInvites,
@@ -36,7 +35,7 @@ import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { Icon } from "../ui/Icon";
 import { useToast, type ToastInput } from "../ui/ToastProvider";
 import { shareButtonState } from "./share-button-state";
-import { ShareDialog, type ShareSender } from "./ShareDialog";
+import { ShareDialog } from "./ShareDialog";
 
 interface ShareControlProps {
   data: SquintData;
@@ -87,27 +86,18 @@ function closesNow(share: ProjectShare, choice: ReviewWindowChoice, now: number)
   return reviewClosed(endsAt, now) && !reviewClosed(share.reviewEndsAt, now);
 }
 
-/** Stands in outside a workspace (never on a signed-in page), so the preview never shows a blank. */
+/** Stands in outside a workspace (never on a signed-in page), so the invitation never names a blank. */
 const UNNAMED = "Your company";
 
-/** Who the invitation comes from, as the workspace's settings have it. */
-function useShareSender(): ShareSender {
-  const identity = useWorkspaceIdentity();
-  const company = identity?.name.trim() || UNNAMED;
-  return {
-    company,
-    sender: senderDisplayName({
-      fromEmailName: identity?.fromEmailName,
-      workspaceName: company,
-    }),
-    color: identity?.brandColor ?? null,
-  };
+/** The company the invitation comes from, as the workspace's settings have it. */
+function useShareCompany(): string {
+  return useWorkspaceIdentity()?.name.trim() || UNNAMED;
 }
 
 /** The owner's Share button and dialog, and the sync that runs while the project is shared. */
 export function ShareControl({ data, project }: ShareControlProps) {
   const toast = useToast();
-  const sender = useShareSender();
+  const company = useShareCompany();
   const isClient = useIsClient();
   const now = useNow();
   const [open, setOpen] = useState(false);
@@ -277,7 +267,7 @@ export function ShareControl({ data, project }: ShareControlProps) {
         onReviewWindowChange={chooseWindow}
         onPasswordChange={(password) => setSharePassword(project.id, password)}
         projectName={project.name}
-        sender={sender}
+        company={company}
         onClientNameChange={(name) => setShareClientName(project.id, name)}
         onSendInvites={(addresses) => sendShareInvites(project.id, addresses)}
         onInvitesSent={(message) => toast({ message })}
