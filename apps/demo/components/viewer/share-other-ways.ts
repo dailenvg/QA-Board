@@ -25,7 +25,7 @@ const APP_NAMES: Record<Exclude<OtherWay, "link">, string> = {
 
 /** What the window says once it's copied. */
 export function copiedMessage(way: OtherWay): string {
-  return way === "link" ? "Link copied." : `Message copied. Paste it in ${APP_NAMES[way]}.`;
+  return way === "link" ? "Link copied." : `Message copied. Paste it into ${APP_NAMES[way]}.`;
 }
 
 /** What it says when the browser wouldn't copy. */

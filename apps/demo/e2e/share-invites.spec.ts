@@ -144,7 +144,7 @@ test("Slack copies the invitation message and opens Slack; Copy link copies the 
 
   const opened = context.waitForEvent("page");
   await dialog.getByTestId("share-via-slack").click();
-  await expect(status).toHaveText("Message copied. Paste it in Slack.");
+  await expect(status).toHaveText("Message copied. Paste it into Slack.");
   const slack = await opened;
   expect(slack.url()).toBe("https://app.slack.com/client");
   await slack.close();

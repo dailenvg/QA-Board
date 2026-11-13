@@ -68,7 +68,7 @@ const people = (count: number) => `${count} ${count === 1 ? "person" : "people"}
 
 /** The toast after a send. */
 export function sentMessage(sent: number): string {
-  return `Invite sent to ${people(sent)}.`;
+  return `${sent === 1 ? "Invite" : "Invites"} sent to ${people(sent)}.`;
 }
 
 /** The line beside Send: how many different people the link's invitations have reached. */
@@ -83,7 +83,7 @@ export function sendLabel(count: number, sending: boolean): string {
   return count === 1 ? "Send 1 invite" : `Send ${count} invites`;
 }
 
-/** "in 12 minutes": a wait, in whole minutes, never "0". */
+/** "12 minutes": a wait, in whole minutes, never "0". */
 export function minutesLeft(secondsLeft: number): string {
   const minutes = Math.max(1, Math.ceil(secondsLeft / 60));
   return `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
@@ -102,7 +102,7 @@ export function inviteError(
     case "rate-limited":
       return `You've sent a lot of invites this hour. Try again in ${minutesLeft(secondsLeft)}.`;
     case "review-closed":
-      return "The review window has closed, so clients can't comment. Choose a longer window in Settings, then send again.";
+      return "The review window has closed, so clients can't comment. Choose a longer window or No limit in Settings, then send again.";
     case "closed":
       return "This project is archived, so its link doesn't open. Unarchive it to send invites.";
     case "gone":

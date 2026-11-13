@@ -43,7 +43,7 @@ export function ShareLinkLine({ url, share, status, onRetry }: ShareLinkLineProp
     <div className="flex flex-col gap-1 border-t border-line pt-3">
       <div className="flex min-w-0 items-center gap-2">
         <label htmlFor={inputId} className="shrink-0 text-meta font-semibold text-muted">
-          Share link
+          Review link
         </label>
         <input
           id={inputId}

@@ -107,8 +107,8 @@ export function InvitationEmailPreview({
       </div>
       {compact ? null : (
         <p className="text-meta text-ink-2">
-          The message Slack, ClickUp and Messages get says the same. The link preview in chats names
-          the client and the project too.
+          The message for ClickUp, Slack and Messages says the same. In chats, the link preview also
+          names the client and the project.
         </p>
       )}
     </figure>

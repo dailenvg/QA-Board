@@ -67,7 +67,7 @@ export function ShareClientNameField({
         maxLength={CLIENT_NAME_MAX}
         autoComplete="organization"
         autoCapitalize="words"
-        placeholder="Who's reviewing, such as Acme Studio"
+        placeholder="For example, Acme Studio"
         aria-describedby={`${hintId} ${errorId}`}
         aria-invalid={error ? true : undefined}
         onChange={(event) => onChange(event.target.value)}

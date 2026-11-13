@@ -21,7 +21,8 @@ describe("an invitation's copy", () => {
       greeting: "Hi Acme Studio,",
       headline: "E2E Agency has invited you to review Spring Campaign",
       deadline: "You have about 3 days to comment.",
-      passwordNote: "It's password protected. E2E Agency will send you the password separately.",
+      passwordNote:
+        "The review is password protected. E2E Agency will send you the password separately.",
       howTo: "No account needed: open the link, drop a pin and leave a comment.",
     });
   });
@@ -63,7 +64,7 @@ describe("an invitation as a message", () => {
         "https://squint.test/s/abc",
         "",
         "You have about 3 days to comment.",
-        "It's password protected. E2E Agency will send you the password separately.",
+        "The review is password protected. E2E Agency will send you the password separately.",
       ].join("\n"),
     );
   });

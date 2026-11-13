@@ -73,7 +73,7 @@ export function inviteCopy(details: InviteDetails): InviteCopy {
           ? "The review window has closed."
           : `You have ${inviteTimeLeft(reviewEndsAt, sentAt)} to comment.`,
     passwordNote: hasPassword
-      ? `It's password protected. ${company} will send you the password separately.`
+      ? `The review is password protected. ${company} will send you the password separately.`
       : null,
     howTo: "No account needed: open the link, drop a pin and leave a comment.",
   };

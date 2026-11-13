@@ -16,9 +16,9 @@ describe("sending a link another way", () => {
   });
 
   it("says what was copied, and where to paste it", () => {
-    expect(copiedMessage("slack")).toBe("Message copied. Paste it in Slack.");
-    expect(copiedMessage("clickup")).toBe("Message copied. Paste it in ClickUp.");
-    expect(copiedMessage("messages")).toBe("Message copied. Paste it in Messages.");
+    expect(copiedMessage("slack")).toBe("Message copied. Paste it into Slack.");
+    expect(copiedMessage("clickup")).toBe("Message copied. Paste it into ClickUp.");
+    expect(copiedMessage("messages")).toBe("Message copied. Paste it into Messages.");
     expect(copiedMessage("link")).toBe("Link copied.");
   });
 });

@@ -46,7 +46,7 @@ export function inviteEmailText(details: InviteDetails): string {
     ...(copy.passwordNote ? [copy.passwordNote] : []),
     copy.howTo,
     "",
-    "--",
+    "-- ",
     footer(details.company),
   ].join("\n");
 }

@@ -62,7 +62,8 @@ describe("what the Share window says", () => {
     expect(sentToLine(0)).toBe("No invites sent yet");
     expect(sentToLine(1)).toBe("Sent to 1 person so far");
     expect(sentToLine(3)).toBe("Sent to 3 people so far");
-    expect(sentMessage(2)).toBe("Invite sent to 2 people.");
+    expect(sentMessage(1)).toBe("Invite sent to 1 person.");
+    expect(sentMessage(2)).toBe("Invites sent to 2 people.");
     expect(sendLabel(0, false)).toBe("Send invites");
     expect(sendLabel(1, false)).toBe("Send 1 invite");
     expect(sendLabel(4, false)).toBe("Send 4 invites");
@@ -80,7 +81,7 @@ describe("what the Share window says", () => {
 
   it("points a closed review to Settings", () => {
     expect(inviteError({ ok: false, reason: "review-closed" }, 0)).toMatch(
-      /longer window in Settings/,
+      /longer window or No limit in Settings/,
     );
   });
 });

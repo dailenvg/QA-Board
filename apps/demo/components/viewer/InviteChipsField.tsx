@@ -153,7 +153,7 @@ export function InviteChipsField({ chips, onChange, readOnly }: InviteChipsField
           spellCheck={false}
           value={draft}
           readOnly={readOnly}
-          placeholder={full ? "" : "Add an email, press Enter"}
+          placeholder={full ? "" : "Add an email and press Enter"}
           aria-describedby={`${hintId} ${errorId}`}
           aria-invalid={message ? true : undefined}
           onChange={(event) => {
