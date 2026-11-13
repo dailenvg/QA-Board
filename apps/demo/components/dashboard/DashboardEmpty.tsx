@@ -4,7 +4,7 @@ import { motion } from "motion/react";
 import { useRevealVariants } from "@/lib/motion";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
-import { EmptyArt, type EmptyScene } from "../ui/line-art/EmptyArt";
+import { StateArt, type ArtScene } from "../ui/line-art/StateArt";
 
 /**
  * `folder`: nothing in this folder yet. `filter`: none of its projects matches the status
@@ -66,9 +66,9 @@ const SCENE = {
   foldersArchived: "archive",
   label: "noMatch",
   foldersLabel: "noMatch",
-} as const satisfies Record<DashboardEmptyKind, EmptyScene>;
+} as const satisfies Record<DashboardEmptyKind, ArtScene>;
 
-/** Empty folder or empty filter result, over its line-art scene (`EmptyArt`). */
+/** Empty folder or empty filter result, over its line-art scene (`StateArt`). */
 export function DashboardEmpty({ kind, onAction }: DashboardEmptyProps) {
   const variants = useRevealVariants();
   const copy = COPY[kind];
@@ -82,7 +82,7 @@ export function DashboardEmpty({ kind, onAction }: DashboardEmptyProps) {
       className="grid flex-1 place-items-center rounded-panel bg-tile px-6 py-14 text-center"
     >
       <div className="flex max-w-sm flex-col items-center gap-4">
-        <EmptyArt scene={SCENE[kind]} surface="tile" />
+        <StateArt scene={SCENE[kind]} surface="tile" />
         <div>
           <h2 className="text-title font-bold">{copy.title}</h2>
           <p className="mt-2 text-body text-muted">{copy.body}</p>

@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import type { RefObject } from "react";
 import { staggerGroup, useRevealVariants } from "@/lib/motion";
 import type { Comment } from "@/lib/store/types";
-import { EmptyArt } from "../ui/line-art/EmptyArt";
+import { StateArt } from "../ui/line-art/StateArt";
 import { CommentCard, type CommentCardActions } from "./CommentCard";
 import type { Placement } from "./surface";
 import type { CommentTab } from "./types";
@@ -107,7 +107,7 @@ export function CommentsBody({
               data-testid="comments-empty"
               className="flex flex-col items-center rounded-tile px-4 py-6 text-center"
             >
-              <EmptyArt scene={empty.scene} size="md" still className="mb-3" />
+              <StateArt scene={empty.scene} size="md" still className="mb-3" />
               <p className="text-body font-semibold">{empty.title}</p>
               <p className="mt-1 text-meta text-muted">{empty.body}</p>
             </motion.li>

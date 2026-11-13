@@ -2,9 +2,9 @@
 
 import { motion } from "motion/react";
 import { useRevealVariants } from "@/lib/motion";
-import { Squiggy } from "../brand/mascot/Squiggy";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
+import { StateArt } from "../ui/line-art/StateArt";
 import { ScreenshotUpload } from "./ScreenshotUpload";
 import type { ScreenshotHandler } from "./types";
 
@@ -27,7 +27,7 @@ export function CaptureFailed({ message, onRetry, onScreenshot, onBrowse }: Capt
       className="grid min-h-80 place-items-center py-6 text-center"
     >
       <div className="flex max-w-md flex-col items-center gap-4">
-        <Squiggy mood="surprised" size={112} />
+        <StateArt scene="camera" surface="tile" />
         {/* Only the message is the alert, so the buttons aren't read out as part of it. */}
         <div role="alert">
           <h2 className="text-title font-bold">We couldn&apos;t take a snapshot</h2>

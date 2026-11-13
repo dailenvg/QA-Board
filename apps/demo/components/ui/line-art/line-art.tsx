@@ -24,7 +24,7 @@ export const LINE_SVG = {
 
 /**
  * The surface the art sits on, as a shape's fill: it hides what's behind it without a fill of
- * its own. The panel unless a parent sets `--art-surface` (`EmptyArt`'s `surface`).
+ * its own. The panel unless a parent sets `--art-surface` (`StateArt`'s `surface`).
  */
 export const SURFACE = "var(--art-surface, var(--color-panel))";
 

@@ -6,6 +6,7 @@ import { Skeleton } from "../ui/Skeleton";
 import { ScreenshotUpload } from "./ScreenshotUpload";
 import { SurfaceImage } from "./SurfaceImage";
 import type { ScreenshotHandler } from "./types";
+import { StateArt } from "../ui/line-art/StateArt";
 
 interface ImageStageProps {
   blobKey: string;
@@ -22,6 +23,7 @@ function ImageUnavailable({ onReplace }: { onReplace: ScreenshotHandler | null }
   return (
     <div role="alert" className="grid h-full min-h-80 place-items-center p-6 text-center">
       <div className="flex max-w-sm flex-col items-center gap-3">
+        <StateArt scene="brokenImage" surface="tile" />
         <h2 className="text-title font-bold">This image couldn&apos;t be displayed</h2>
         {/* No onReplace: a shared link, where the image comes from the server. */}
         {onReplace ? (

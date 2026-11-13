@@ -3,7 +3,7 @@
 import { motion } from "motion/react";
 import type { LargeProject } from "@/lib/account/schemas";
 import { revealViewport, staggerGroup, useRevealVariants } from "@/lib/motion";
-import { EmptyArt } from "../ui/line-art/EmptyArt";
+import { StateArt } from "../ui/line-art/StateArt";
 import { LargeProjectRow } from "./LargeProjectRow";
 import { SettingsCard } from "./SettingsCard";
 import { STORAGE_COPY } from "./storage-copy";
@@ -26,7 +26,7 @@ export function LargeProjects({ projects }: { projects: readonly LargeProject[] 
           className="flex flex-col items-center gap-3 rounded-tile bg-tile px-6 py-8 text-center"
           data-testid="large-projects-empty"
         >
-          <EmptyArt scene="storage" size="md" surface="tile" still />
+          <StateArt scene="storage" size="md" surface="tile" still />
           <div className="flex flex-col gap-1">
             <p className="text-heading font-semibold">{COPY.emptyTitle}</p>
             <p className="text-body text-pretty text-muted">{COPY.emptyBody}</p>
