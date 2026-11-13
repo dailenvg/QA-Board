@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { Comment, Folder, Project, SquintData } from "../store/types";
 import type { ClientCommentActivity } from "../workspace/types";
 import {
-  busiestFolder,
   commentTotals,
+  leavingSoon,
   isNewSince,
   newFromClients,
   oldestOpen,
@@ -196,34 +196,45 @@ describe("overview activity", () => {
     });
   });
 
-  describe("busiest folder", () => {
-    it("is the folder with the most open comments in its own projects", () => {
-      expect(busiestFolder(WORKSPACE)).toEqual({
-        id: "new",
-        name: "Folder new",
-        measure: "comments",
-        count: 2,
-        share: 2 / 3,
-        percent: 67,
-      });
+  describe("leaving soon", () => {
+    const archived = (id: string, folderId: string, deleteAfter: number): Project => ({
+      ...project(id, folderId, 1),
+      archivedAt: deleteAfter - 30,
+      deleteAfter,
     });
 
-    it("goes to the older folder on a tie", () => {
-      const tie = data({ ...WORKSPACE, comments: [comment("x", "a", 1), comment("y", "b", 1)] });
-      expect(busiestFolder(tie)?.id).toBe("old");
+    it("lists archived projects only, the one deleted soonest first", () => {
+      const workspace = data({
+        ...WORKSPACE,
+        projects: [
+          ...WORKSPACE.projects,
+          archived("late", "old", 900),
+          archived("soon", "new", 300),
+          archived("lost", "gone", 600),
+        ],
+      });
+      expect(leavingSoon(workspace)).toEqual([
+        {
+          id: "soon",
+          name: "Project soon",
+          folderName: "Folder new",
+          archivedAt: 270,
+          deleteAfter: 300,
+        },
+        { id: "lost", name: "Project lost", folderName: null, archivedAt: 570, deleteAfter: 600 },
+        {
+          id: "late",
+          name: "Project late",
+          folderName: "Folder old",
+          archivedAt: 870,
+          deleteAfter: 900,
+        },
+      ]);
+      expect(leavingSoon(workspace, 1).map((row) => row.id)).toEqual(["soon"]);
     });
 
-    it("falls back to the most projects with nothing open, and is null without projects", () => {
-      const quiet = data({ ...WORKSPACE, comments: [] });
-      expect(busiestFolder(quiet)).toEqual({
-        id: "new",
-        name: "Folder new",
-        measure: "projects",
-        count: 2,
-        share: 2 / 3,
-        percent: 67,
-      });
-      expect(busiestFolder(data({ folders: [folder("old", 1)] }))).toBeNull();
+    it("is empty with nothing archived", () => {
+      expect(leavingSoon(WORKSPACE)).toEqual([]);
     });
   });
 });

@@ -17,6 +17,7 @@ export const LIST_ROWS = {
   waiting: { most: 6, natural: 3 },
   recent: { most: 6, natural: 4 },
   clients: { most: 6, natural: 3 },
+  leaving: { most: 6, natural: 2 },
 } as const;
 
 /** Whether something at `at` came after the last visit. Nothing is new until that's known. */
@@ -196,64 +197,37 @@ export function newFromClients(
   };
 }
 
-export interface BusiestFolder {
+export interface LeavingProject {
   id: string;
   name: string;
-  /** What made it the busiest: open comments, or, with none open anywhere, projects. */
-  measure: "comments" | "projects";
-  count: number;
-  /** Its share of that measure across the workspace, 0 to 1. */
-  share: number;
-  /** That share in words' terms (`percentOf`): 100 only when it's all of it. */
-  percent: number;
-}
-
-/** The folder with the highest count in `counts`; a tie goes to the older folder. */
-function topFolder(data: SquintData, counts: ReadonlyMap<string, number>) {
-  let top: { id: string; name: string; count: number } | null = null;
-  const byAge = [...data.folders].sort((a, b) => a.createdAt - b.createdAt);
-  for (const folder of byAge) {
-    const count = counts.get(folder.id) ?? 0;
-    if (count > (top?.count ?? 0)) top = { id: folder.id, name: folder.name, count };
-  }
-  return top;
+  /** Null when its folder isn't loaded (a project the store hasn't filed yet). */
+  folderName: string | null;
+  archivedAt: number;
+  /** When the daily cron deletes it for good (epoch ms). */
+  deleteAfter: number;
 }
 
 /**
- * The folder holding the most open comments in its own projects (not its
- * subfolders'), as Squiggy's "waiting in" line picks it; with nothing open
- * anywhere, the one holding the most projects. Null without projects.
+ * The archived projects, the one deleted for good soonest first. Pass the
+ * whole workspace (`allData`): `activeData` has already left them out.
  */
-export function busiestFolder(data: SquintData): BusiestFolder | null {
-  const folderOf = new Map(data.projects.map((project) => [project.id, project.folderId]));
-  const comments = new Map<string, number>();
-  let open = 0;
-  for (const comment of data.comments) {
-    const folderId = folderOf.get(comment.projectId);
-    if (folderId === undefined || comment.status !== "active") continue;
-    open += 1;
-    comments.set(folderId, (comments.get(folderId) ?? 0) + 1);
-  }
-  const byComments = topFolder(data, comments);
-  if (byComments) {
-    return {
-      ...byComments,
-      measure: "comments",
-      share: byComments.count / open,
-      percent: percentOf(byComments.count, open),
-    };
-  }
-  const projects = new Map<string, number>();
+export function leavingSoon(
+  data: SquintData,
+  limit: number = LIST_ROWS.leaving.most,
+): LeavingProject[] {
+  const folders = new Map(data.folders.map((folder) => [folder.id, folder.name]));
+  const leaving: LeavingProject[] = [];
   for (const project of data.projects) {
-    projects.set(project.folderId, (projects.get(project.folderId) ?? 0) + 1);
+    if (project.archivedAt === undefined || project.deleteAfter === undefined) continue;
+    leaving.push({
+      id: project.id,
+      name: project.name,
+      folderName: folders.get(project.folderId) ?? null,
+      archivedAt: project.archivedAt,
+      deleteAfter: project.deleteAfter,
+    });
   }
-  const byProjects = topFolder(data, projects);
-  return byProjects
-    ? {
-        ...byProjects,
-        measure: "projects",
-        share: byProjects.count / data.projects.length,
-        percent: percentOf(byProjects.count, data.projects.length),
-      }
-    : null;
+  return leaving
+    .sort((a, b) => a.deleteAfter - b.deleteAfter || a.name.localeCompare(b.name))
+    .slice(0, limit);
 }

@@ -1,13 +1,12 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import { folderSwatches } from "@/lib/brand-palette";
 import { perDay, startOfDay } from "@/lib/overview/charts";
 import { childFolders } from "@/lib/store/folders";
 import { previewKeyOf } from "@/lib/store/selectors";
 import {
-  busiestFolder,
   commentTotals,
+  leavingSoon,
   newFromClients,
   oldestOpen,
   recentProjects,
@@ -17,10 +16,10 @@ import { useNow } from "@/lib/use-now";
 import { useClientActivity } from "@/lib/workspace-client/use-client-activity";
 import type { Workspace } from "../../dashboard/workspace-context";
 import { BentoTile } from "./BentoTile";
-import { BusiestTile } from "./BusiestTile";
 import { ClientsTile } from "./ClientsTile";
 import { BENTO_GRID } from "./bento-grid";
 import { HeroTile } from "./HeroTile";
+import { LeavingTile } from "./LeavingTile";
 import { ProjectThumb } from "./ProjectThumb";
 import { RecentTile } from "./RecentTile";
 import { StatusTile } from "./StatusTile";
@@ -47,7 +46,7 @@ interface OverviewBentoProps {
  * rest of the screen and no more (`BENTO_GRID`): lists show the rows that fit.
  */
 export function OverviewBento({ workspace, workspaceId }: OverviewBentoProps) {
-  const { data, folders } = workspace;
+  const { data, allData, folders } = workspace;
   const activity = useClientActivity();
   const visit = useVisit(workspaceId);
   const since = visit?.since ?? null;
@@ -70,35 +69,22 @@ export function OverviewBento({ workspace, workspaceId }: OverviewBentoProps) {
         : [],
     [data.projects, now],
   );
+  // From the whole workspace: Deleting soon shows archived projects' thumbnails too.
   const byId = useMemo(
-    () => new Map(data.projects.map((project) => [project.id, project])),
-    [data.projects],
+    () => new Map(allData.projects.map((project) => [project.id, project])),
+    [allData.projects],
   );
   const thumb = useCallback(
     (projectId: string) => {
       const project = byId.get(projectId);
       return project ? (
-        <ProjectThumb source={project.source} previewKey={previewKeyOf(data, project)} />
+        <ProjectThumb source={project.source} previewKey={previewKeyOf(allData, project)} />
       ) : null;
     },
-    [byId, data],
+    [byId, allData],
   );
-  const busiest = useMemo(() => busiestFolder(data), [data]);
-  const swatch = useMemo(
-    () => (busiest ? (folderSwatches(folders).get(busiest.id) ?? null) : null),
-    [busiest, folders],
-  );
-  const busiestThumbs = useMemo(
-    () =>
-      busiest
-        ? data.projects
-            .filter((project) => project.folderId === busiest.id)
-            .sort((a, b) => b.updatedAt - a.updatedAt)
-            .slice(0, 3)
-            .map((project) => thumb(project.id))
-        : [],
-    [busiest, data.projects, thumb],
-  );
+  const leaving = useMemo(() => leavingSoon(allData), [allData]);
+  const archivedCount = allData.projects.length - data.projects.length;
   // Top-level folders, as Folders counts them: every project sits in one of them.
   const topLevel = childFolders(folders, null).length;
   const summary = `${plural(data.projects.length, "project")} in ${plural(topLevel, "folder")}.`;
@@ -127,7 +113,7 @@ export function OverviewBento({ workspace, workspaceId }: OverviewBentoProps) {
         />
       </BentoTile>
       <BentoTile order={5}>
-        <BusiestTile folder={busiest} swatch={swatch} thumbs={busiestThumbs} />
+        <LeavingTile projects={leaving} total={archivedCount} now={now} thumb={thumb} />
       </BentoTile>
     </div>
   );
