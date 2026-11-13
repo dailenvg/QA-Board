@@ -2,6 +2,8 @@ import { defineConfig, devices } from "@playwright/test";
 import { e2eDatabaseUrl, SESSION_STATE } from "./e2e/e2e-env";
 
 const PORT = 3100;
+/** The stand-in for ClickUp's API (`e2e/clickup-stub.mjs`). */
+const CLICKUP_STUB = "http://127.0.0.1:3101";
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 const CI = Boolean(process.env.CI);
 /** Refuses to start without a local E2E_DATABASE_URL: the global setup empties it. */
@@ -12,6 +14,8 @@ const DATABASE_URL = e2eDatabaseUrl();
  * dist folder, with the widget enabled as on a Vercel preview, storing shares
  * and accounts in the e2e Postgres. The global setup empties and seeds it;
  * the `setup` project signs in once and every other project reuses that session.
+ * ClickUp's API is a stub on this machine (`e2e/clickup-stub.mjs`), so no test
+ * reaches ClickUp.
  */
 export default defineConfig({
   testDir: "./e2e",
@@ -41,29 +45,38 @@ export default defineConfig({
       dependencies: ["setup"],
     },
   ],
-  webServer: {
-    command: `pnpm run pdfjs-assets && pnpm exec next build && pnpm exec next start --port ${PORT} --hostname 127.0.0.1`,
-    url: BASE_URL,
-    reuseExistingServer: !CI,
-    timeout: 240_000,
-    env: {
-      NEXT_DIST_DIR: ".next-e2e",
-      NEXT_TELEMETRY_DISABLED: "1",
-      NEXT_PUBLIC_VERCEL_ENV: "preview",
-      PINPOINT_REVIEW_TOKEN: "e2e-token",
-      PINPOINT_ENABLE_REVIEW_LINK: "1",
-      PINPOINT_RATE_LIMIT: "1000",
-      GITHUB_TOKEN: "",
-      GITHUB_REPO: "",
-      // Through the process env, which beats .env.local in Next.
-      DATABASE_URL,
-      // Never reach real services from a test run, whatever .env.local holds.
-      BLOB_READ_WRITE_TOKEN: "",
-      RESEND_API_KEY: "",
-      EMAIL_FROM: "",
-      AUTH_URL: "",
-      // Seals review link secrets in the e2e database; a test value, never a real one.
-      AUTH_SECRET: "e2e-auth-secret-not-for-production-0123456789",
+  webServer: [
+    {
+      command: "node e2e/clickup-stub.mjs",
+      url: `${CLICKUP_STUB}/health`,
+      reuseExistingServer: !CI,
     },
-  },
+    {
+      command: `pnpm run pdfjs-assets && pnpm exec next build && pnpm exec next start --port ${PORT} --hostname 127.0.0.1`,
+      url: BASE_URL,
+      reuseExistingServer: !CI,
+      timeout: 240_000,
+      env: {
+        NEXT_DIST_DIR: ".next-e2e",
+        NEXT_TELEMETRY_DISABLED: "1",
+        NEXT_PUBLIC_VERCEL_ENV: "preview",
+        PINPOINT_REVIEW_TOKEN: "e2e-token",
+        PINPOINT_ENABLE_REVIEW_LINK: "1",
+        PINPOINT_RATE_LIMIT: "1000",
+        GITHUB_TOKEN: "",
+        GITHUB_REPO: "",
+        // Through the process env, which beats .env.local in Next.
+        DATABASE_URL,
+        // Never reach real services from a test run, whatever .env.local holds.
+        BLOB_READ_WRITE_TOKEN: "",
+        RESEND_API_KEY: "",
+        EMAIL_FROM: "",
+        AUTH_URL: "",
+        // Seals review link secrets in the e2e database; a test value, never a real one.
+        AUTH_SECRET: "e2e-auth-secret-not-for-production-0123456789",
+        // ClickUp's API is the stub's: only taken as plain http on this machine (`clickUpApiUrl`).
+        CLICKUP_API_URL: `${CLICKUP_STUB}/api/v2`,
+      },
+    },
+  ],
 });

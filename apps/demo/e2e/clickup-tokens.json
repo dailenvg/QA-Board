@@ -1,0 +1,9 @@
+{
+  "ONE_WORKSPACE": "pk_1001_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  "TWO_WORKSPACES": "pk_1002_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+  "USER": { "id": 1001, "username": "E2E ClickUp User" },
+  "TEAMS": [
+    { "id": "9012", "name": "E2E ClickUp" },
+    { "id": "9013", "name": "E2E Side Projects" }
+  ]
+}

@@ -37,6 +37,14 @@ interface AuthFieldProps {
   required?: boolean;
   /** Shown but not editable, such as while the form's request is in flight. */
   readOnly?: boolean;
+  /** What a password field hides, for its button's name ("Show password", "Show token"). */
+  secretNoun?: string;
+  /**
+   * For a hidden secret that isn't a sign-in password (an API token): asks password
+   * managers (1Password, LastPass, Bitwarden, Dashlane) not to offer to fill or save it.
+   * Pair with `autoComplete="off"`.
+   */
+  notAPassword?: boolean;
   testId?: string;
 }
 
@@ -57,6 +65,8 @@ export function AuthField({
   autoCapitalize,
   required = true,
   readOnly = false,
+  secretNoun = "password",
+  notAPassword = false,
   testId,
 }: AuthFieldProps) {
   const inputId = useId();
@@ -88,6 +98,10 @@ export function AuthField({
           // Only on pages that are nothing but this form.
           autoFocus={autoFocus}
           data-autofocus={dialogAutofocus || undefined}
+          data-1p-ignore={notAPassword || undefined}
+          data-lpignore={notAPassword ? "true" : undefined}
+          data-bwignore={notAPassword || undefined}
+          data-form-type={notAPassword ? "other" : undefined}
           value={value}
           aria-invalid={error ? true : undefined}
           aria-describedby={hint ? `${hintId} ${errorId}` : errorId}
@@ -109,7 +123,7 @@ export function AuthField({
             {...(reduce ? {} : { whileTap: press.whileTap, transition: press.transition })}
           >
             {revealed ? "Hide" : "Show"}
-            <span className="sr-only"> password</span>
+            <span className="sr-only"> {secretNoun}</span>
           </motion.button>
         ) : null}
       </div>
