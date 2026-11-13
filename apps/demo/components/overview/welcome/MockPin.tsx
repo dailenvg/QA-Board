@@ -56,13 +56,13 @@ export function MockPin({ color, resolved = false, number = 1, delay = 0 }: Mock
             <motion.span
               key="resolved"
               // Edged in Forest as the app's resolved pins are (flat grey in the scenes' greys).
-              className="pin-line absolute inset-0 grid place-items-center rounded-pin bg-resolved-pin text-on-resolved-pin [--pin-line:var(--resolved-pin-line)]"
+              className="mock-done pin-line absolute inset-0 grid place-items-center rounded-pin bg-resolved-pin text-on-resolved-pin [--pin-line:var(--resolved-pin-line)]"
               style={{ originX: 0, originY: 1 }}
               {...fill}
               transition={spring.snappy}
             >
               {number}
-              <span className="absolute -top-1.5 -right-1.5 grid size-3.5 place-items-center rounded-full bg-card text-resolved-text shadow-seg">
+              <span className="mock-dot absolute -top-1.5 -right-1.5 grid size-3.5 place-items-center rounded-full bg-card text-resolved-text shadow-seg">
                 <Icon name="check" className="size-2.5" />
               </span>
             </motion.span>

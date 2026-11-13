@@ -14,6 +14,7 @@ import {
   STORY_DELAYS,
 } from "./story-script";
 import type { StoryPlayback } from "./use-story-playback";
+import type { StoryLook } from "./story-look";
 
 /** The owner's welcome: add a project, pin comments, resolve them. */
 export const WELCOME_STORIES: readonly StoryDefinition[] = [
@@ -45,6 +46,8 @@ interface WelcomeStoriesProps {
   playback: StoryPlayback;
   /** Three stories, played left to right. Defaults to the owner's welcome. */
   stories?: readonly StoryDefinition[];
+  /** Squint's line art (the default), or its colors. */
+  look?: StoryLook;
 }
 
 /**
@@ -57,7 +60,11 @@ interface WelcomeStoriesProps {
  * Add your first project) sits below them, so pinning and resolving never seem
  * to open it, and keyboard users don't tab through three copies of it.
  */
-export function WelcomeStories({ playback, stories = WELCOME_STORIES }: WelcomeStoriesProps) {
+export function WelcomeStories({
+  playback,
+  stories = WELCOME_STORIES,
+  look = "line",
+}: WelcomeStoriesProps) {
   return (
     <div className="@container w-full">
       {/* role="list": Safari drops list semantics from lists styled without markers. */}
@@ -75,6 +82,7 @@ export function WelcomeStories({ playback, stories = WELCOME_STORIES }: WelcomeS
             running={playback.running}
             still={playback.still}
             wide={index === stories.length - 1}
+            look={look}
           />
         ))}
       </ol>

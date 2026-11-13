@@ -55,15 +55,15 @@ interface MessageProps {
 function Message({ pressed, pose }: MessageProps) {
   return (
     <motion.span
-      className="absolute inset-x-[7%] top-[24%] block rounded-tile bg-card p-3 shadow-float"
+      className="mock-surface absolute inset-x-[7%] top-[24%] block rounded-tile bg-card p-3 shadow-float"
       exit={{ opacity: 0, scale: 0.94, transition: { duration: duration.micro } }}
     >
       <span className="flex items-center gap-1.5 text-label font-semibold">
-        <span className="size-5 shrink-0 rounded-pill bg-(--tint)" />
+        <span className="mock-dot size-5 shrink-0 rounded-pill bg-(--tint)" />
         {STORY_TEXT.shareMessage}
       </span>
       <motion.span
-        className="relative mt-2.5 inline-flex h-8 items-center gap-1.5 rounded-pill bg-brand px-3 text-label font-semibold text-on-brand"
+        className="mock-button relative mt-2.5 inline-flex h-8 items-center gap-1.5 rounded-pill bg-brand px-3 text-label font-semibold text-on-brand"
         animate={{ scale: pressed ? 0.88 : 1 }}
         transition={spring.snappy}
       >

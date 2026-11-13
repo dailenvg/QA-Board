@@ -16,7 +16,7 @@ function ReviewResolveStory({ timeLeft, ...props }: SceneProps & { timeLeft: str
   return (
     <>
       <ResolveStory {...props} />
-      <span className="absolute top-[3%] right-[5%] z-10 inline-flex items-center gap-1 rounded-pill bg-comments-soft px-2 py-1 text-kbd font-semibold text-comments-text shadow-float">
+      <span className="mock-chip absolute top-[3%] right-[5%] z-10 inline-flex items-center gap-1 rounded-pill bg-comments-soft px-2 py-1 text-kbd font-semibold text-comments-text shadow-float">
         <Icon name="clock" className="size-3" />
         {timeLeft}
       </span>

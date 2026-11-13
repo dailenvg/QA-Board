@@ -6,6 +6,7 @@ import { useRevealVariants } from "@/lib/motion";
 import type { StoryDefinition } from "./story-scene";
 import { StoryStage } from "./StoryStage";
 import { useStoryLoop } from "./use-story-loop";
+import type { StoryLook } from "./story-look";
 
 /** How much of a card must be on screen for its story to play. */
 const IN_VIEW = { amount: 0.4 } as const;
@@ -21,6 +22,7 @@ interface StoryCardProps {
   still: boolean;
   /** Spans two columns in the two-column bento, laying its scene beside its text. */
   wide?: boolean;
+  look?: StoryLook;
 }
 
 /**
@@ -29,7 +31,15 @@ interface StoryCardProps {
  * New project), so it has no hover lift or focus stop. Pointing at it plays
  * the story again from the top, a bonus only; it plays while on screen.
  */
-export function StoryCard({ step, story, delay, running, still, wide = false }: StoryCardProps) {
+export function StoryCard({
+  step,
+  story,
+  delay,
+  running,
+  still,
+  wide = false,
+  look = "color",
+}: StoryCardProps) {
   const reveal = useRevealVariants();
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, IN_VIEW);
@@ -50,7 +60,7 @@ export function StoryCard({ step, story, delay, running, still, wide = false }: 
           wide ? "@[34rem]:grid @[34rem]:grid-cols-2 @[34rem]:items-center @[52rem]:flex" : ""
         }`}
       >
-        <StoryStage tint={story.tint} pale={story.pale} still={still}>
+        <StoryStage tint={story.tint} pale={story.pale} still={still} look={look}>
           <Scene beat={beat} playing={playing} still={still} />
         </StoryStage>
         <div className="flex flex-col gap-1 p-3">

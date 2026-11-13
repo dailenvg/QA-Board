@@ -45,7 +45,7 @@ export function MockCursor({ pose, anchor = "top-1/2 left-1/2" }: MockCursorProp
       animate={pose}
       transition={GLIDE}
     >
-      <svg viewBox="0 0 24 24" className="size-full drop-shadow-sm" aria-hidden="true">
+      <svg viewBox="0 0 24 24" className="mock-cursor size-full drop-shadow-sm" aria-hidden="true">
         <path
           d="M3.5 2.5v17l4.6-4.4 3 6.6 3.1-1.4-3-6.5h6.3z"
           className="fill-pin-band stroke-pin-halo"

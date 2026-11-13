@@ -99,24 +99,14 @@
   --logo-bg: #ffffff;
 
   /*
-   * The Overview's scene art (`.scene-grey`): greys only, so Squiggy is the one color in it.
-   * The tint washes the stage and glows behind it; marks (open pins, the mock page's button,
-   * bubble dots) and resolved pins sit on the mock pages, which stay light in both themes, so
-   * they stay the same too. `--scene-check` is the resolved pin's check, on a card.
-   */
-  --scene-tint: #71717a;
-  --scene-stage: color-mix(in oklab, var(--scene-tint) 14%, var(--panel));
-  --scene-mark: #52525b;
-  --scene-mark-ink: #ffffff;
-  --scene-done: #a1a1aa;
-  --scene-done-ink: #18181b;
-  --scene-check: #3f3f46;
-  /*
-   * The line art drawn on the panel itself (the hero's page, Comments waiting's header): a
-   * second plane, behind the text. `--scene-ink` outlines its lime Squiggy, the one fill.
+   * Squint's line art (`components/ui/line-art`: the Overview's scenes, empty and error
+   * states), drawn on the surface itself: a second plane, behind the text. `--scene-ink`
+   * outlines its lime Squiggy, the one fill.
    */
   --scene-line: #8b8b95;
   --scene-ink: #3f3f46;
+  /* Behind the welcome stories' line art: a light blue stage (a dark blue-grey one in dark mode). */
+  --story-stage: #e6eeff;
 
   --shadow-seg: 0 1px 2px rgb(0 0 0 / 0.12);
   --shadow-float: 0 20px 40px -24px rgb(0 0 0 / 0.35);
@@ -172,9 +162,8 @@
   --danger: #ff6f68;
   --danger-soft: rgb(255 60 65 / 0.18);
 
-  --scene-tint: #a1a1aa;
-  --scene-check: #d4d4d8;
   --scene-line: #6b6b75;
+  --story-stage: #1c2230;
 
   --shadow-seg: 0 1px 2px rgb(0 0 0 / 0.5);
   --shadow-float: 0 20px 40px -24px rgb(0 0 0 / 0.8);
@@ -208,26 +197,68 @@
   --resolved: #004132;
   --resolved-soft: #c8ffc8;
   --resolved-text: #004132;
-  --scene-check: #3f3f46;
   /* Text that inherits its color (no text-* class) inherits it already resolved: reset it. */
   color: var(--ink);
   color-scheme: light;
 }
 
 /*
- * The Overview's scenes, in greys: the mock-ups they borrow from the welcome stories draw
- * their button and resolved pins in the scene's greys here, and the scenes pass the greys for
- * what they color themselves (the stage's tint, open pins). Squiggy keeps its own colors.
- * Set again on `.mock-light`, which resets `--resolved-text` in dark mode. Their resolved pins
- * stay a flat grey: the line takes the fill's color.
+ * The welcome stories in line art (`StoryStage look="line"`), on their blue stage: the
+ * mock-ups' marked parts drawn as grey outlines over the card's color (`--art-surface`), their
+ * bars as single lines. What the person acts on or looks for keeps a fill, edged in ink as the
+ * lime Squiggy is: buttons in lime (New project's Create in Squint blue), open pins in Coral
+ * Red, resolved pins and chips in Mint with Forest. The click's ripple turns grey. Squiggy
+ * turns lime on its own (`StoryMascot`). Plain rules beat the utilities they redraw, which sit
+ * in a layer.
  */
-.scene-grey,
-.scene-grey .mock-light {
-  --brand: var(--scene-mark);
-  --resolved-pin: var(--scene-done);
-  --on-resolved-pin: var(--scene-done-ink);
-  --resolved-pin-line: var(--scene-done);
-  --resolved-text: var(--scene-check);
+.story-line :is(.mock-surface, .mock-block, .mock-chip) {
+  background: var(--art-surface);
+  box-shadow: inset 0 0 0 1.5px var(--scene-line);
+}
+.story-line .mock-surface {
+  color: var(--ink);
+}
+.story-line .mock-chip {
+  color: var(--ink-2);
+}
+.story-line :is(.mock-button, .pin-marker, .mock-done) {
+  box-shadow: inset 0 0 0 1.5px var(--scene-ink);
+}
+.story-line .mock-button {
+  background: var(--highlight);
+  color: var(--on-highlight);
+}
+.story-line .mock-button.mock-primary {
+  background: var(--brand);
+  color: var(--on-brand);
+}
+.story-line .mock-ripple {
+  box-shadow: 0 0 0 2px var(--scene-line);
+}
+.story-line .pin-marker {
+  background: var(--comments);
+  color: #ffffff;
+}
+.story-line .mock-done {
+  background: var(--resolved-pin);
+  color: var(--on-resolved-pin);
+}
+.story-line .mock-dot {
+  background: none;
+  color: var(--scene-line);
+  box-shadow: inset 0 0 0 1.5px var(--scene-line);
+}
+.story-line .mock-bar {
+  height: 0;
+  background: none;
+  border-top: 1.5px solid var(--scene-line);
+}
+.story-line .mock-cursor {
+  filter: none;
+}
+.story-line .mock-cursor path {
+  fill: var(--art-surface);
+  stroke: var(--scene-line);
 }
 
 /*
@@ -298,12 +329,9 @@
   --color-favicon-bg: var(--favicon-bg);
   --color-logo-bg: var(--logo-bg);
 
-  --color-scene-tint: var(--scene-tint);
-  --color-scene-stage: var(--scene-stage);
-  --color-scene-mark: var(--scene-mark);
-  --color-scene-mark-ink: var(--scene-mark-ink);
   --color-scene-line: var(--scene-line);
   --color-scene-ink: var(--scene-ink);
+  --color-story-stage: var(--story-stage);
 
   --shadow-seg: var(--shadow-seg);
   --shadow-float: var(--shadow-float);

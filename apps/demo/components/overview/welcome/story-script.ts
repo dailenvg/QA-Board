@@ -86,13 +86,13 @@ export const STORY_TEXT = {
   newProject: "New project",
   addressPlaceholder: "Website address",
   add: "Create",
-  address: "acme.studio",
+  address: "dvgraphic.com",
   comment: "Make this button bigger",
   /**
    * Whose pin it is. Pin and Resolve tell one comment's story (pinned, then
    * resolved), so both show this name, in STORY_COMMENTER's color.
    */
-  commenter: "Sam",
+  commenter: "Dailen",
   resolve: "Resolve",
   resolved: "Resolved",
   toast: "Comment resolved",
