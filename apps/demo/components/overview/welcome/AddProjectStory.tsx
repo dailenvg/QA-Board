@@ -23,9 +23,9 @@ export function AddProjectStory({ beat, playing, still }: SceneProps) {
   const captured = beat >= at.snapshot;
   return (
     <>
-      <span className="absolute inset-x-[7%] top-[9%] block rounded-tile bg-card p-3 shadow-float">
+      <span className="mock-surface absolute inset-x-[7%] top-[9%] block rounded-tile bg-card p-3 shadow-float">
         <span className="flex items-center gap-1.5 text-label font-semibold">
-          <span className="grid size-5 place-items-center rounded-pill bg-brand-soft text-brand-text">
+          <span className="mock-dot grid size-5 place-items-center rounded-pill bg-brand-soft text-brand-text">
             <Icon name="globe" className="size-3" />
           </span>
           {STORY_TEXT.newProject}
@@ -60,7 +60,7 @@ export function AddProjectStory({ beat, playing, still }: SceneProps) {
             </AnimatePresence>
           </span>
           <motion.span
-            className="grid h-8 place-items-center rounded-pill bg-brand px-3 text-label font-semibold text-on-brand"
+            className="mock-button grid h-8 place-items-center rounded-pill bg-brand px-3 text-label font-semibold text-on-brand"
             animate={{ scale: beat === at.press ? 0.88 : 1 }}
             transition={spring.snappy}
           >
@@ -92,7 +92,7 @@ function Snapshot() {
   return (
     <motion.span
       data-testid="story-snapshot"
-      className="absolute -bottom-[6%] left-[7%] z-10 block w-[58%] overflow-hidden rounded-tile bg-card shadow-pop ring-1 ring-line"
+      className="mock-surface absolute -bottom-[6%] left-[7%] z-10 block w-[58%] overflow-hidden rounded-tile bg-card shadow-pop ring-1 ring-line"
       style={{ originX: 1, originY: 0 }}
       initial={{ opacity: 0, scale: 0.55, y: -32 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -100,18 +100,18 @@ function Snapshot() {
       transition={spring.soft}
     >
       <span className="flex items-center gap-1 border-b border-line px-2 py-1.5">
-        <span className="size-1.5 rounded-full bg-line-strong" />
-        <span className="size-1.5 rounded-full bg-line-strong" />
-        <span className="size-1.5 rounded-full bg-line-strong" />
-        <span className="ml-1 min-w-0 truncate rounded-pill bg-tile px-1.5 text-kbd text-muted">
+        <span className="mock-dot size-1.5 rounded-full bg-line-strong" />
+        <span className="mock-dot size-1.5 rounded-full bg-line-strong" />
+        <span className="mock-dot size-1.5 rounded-full bg-line-strong" />
+        <span className="mock-chip ml-1 min-w-0 truncate rounded-pill bg-tile px-1.5 text-kbd text-muted">
           {STORY_TEXT.address}
         </span>
       </span>
       <span className="flex flex-col gap-1.5 p-2">
-        <span className="block h-10 rounded-kbd bg-(--tint)/30" />
-        <span className="h-1.5 w-3/4 rounded-pill bg-line-strong" />
-        <span className="h-1.5 w-1/2 rounded-pill bg-line" />
-        <span className="h-1.5 w-2/3 rounded-pill bg-line" />
+        <span className="mock-block block h-10 rounded-kbd bg-(--tint)/30" />
+        <span className="mock-bar h-1.5 w-3/4 rounded-pill bg-line-strong" />
+        <span className="mock-bar h-1.5 w-1/2 rounded-pill bg-line" />
+        <span className="mock-bar h-1.5 w-2/3 rounded-pill bg-line" />
       </span>
     </motion.span>
   );

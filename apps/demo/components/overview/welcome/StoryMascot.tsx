@@ -3,7 +3,10 @@
 import { AnimatePresence, motion, useReducedMotion, type Variants } from "motion/react";
 import { duration, ease, spring } from "@/lib/motion";
 import { Squiggy } from "../../brand/mascot/Squiggy";
+import { BRAND } from "../../brand/mascot/paths";
+import { LIME } from "../../ui/line-art/line-art";
 import type { Mood } from "../../brand/mascot/moods";
+import { useStoryLook } from "./story-look";
 
 /**
  * The edge Squiggy peeks in from. Each story uses its own spot (and Pin and
@@ -67,6 +70,8 @@ export function StoryMascot({
   show = true,
 }: StoryMascotProps) {
   const reduce = useReducedMotion() ?? false;
+  // In line art it's the lime Squiggy, outlined in ink: the scene's one fill.
+  const line = useStoryLook() === "line";
   // A held frame holds fully still: no blinks either (WCAG 2.2.2).
   const blinks = playing && !reduce;
   return (
@@ -90,6 +95,9 @@ export function StoryMascot({
             still={still}
             blinks={blinks}
             as="span"
+            {...(line
+              ? { color: LIME, eyeColor: BRAND.ink, outline: "var(--color-scene-ink)" }
+              : {})}
           />
         </motion.span>
       )}

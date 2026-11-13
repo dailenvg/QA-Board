@@ -200,6 +200,45 @@
 }
 
 /*
+ * The welcome stories in line art (`StoryStage look="line"`): the mock-ups' marked parts drawn
+ * as grey outlines on the card (`--art-surface`), their bars as single lines, their pins and
+ * buttons outlined, the brand blue (field focus, the click's ripple) grey too. Squiggy turns lime
+ * on its own (`StoryMascot`). Plain rules beat the utilities they redraw, which sit in a layer.
+ */
+.story-line {
+  --brand: var(--scene-line);
+}
+.story-line :is(.mock-surface, .mock-block, .mock-chip, .mock-button, .pin-marker, .mock-pin-done) {
+  background: var(--art-surface);
+  box-shadow: inset 0 0 0 1.5px var(--scene-line);
+}
+.story-line .mock-surface {
+  color: var(--ink);
+}
+.story-line :is(.mock-chip, .mock-button) {
+  color: var(--ink-2);
+}
+.story-line :is(.pin-marker, .mock-pin-done, .mock-dot) {
+  color: var(--scene-line);
+}
+.story-line .mock-dot {
+  background: none;
+  box-shadow: inset 0 0 0 1.5px var(--scene-line);
+}
+.story-line .mock-bar {
+  height: 0;
+  background: none;
+  border-top: 1.5px solid var(--scene-line);
+}
+.story-line .mock-cursor {
+  filter: none;
+}
+.story-line .mock-cursor path {
+  fill: var(--art-surface);
+  stroke: var(--scene-line);
+}
+
+/*
  * Phones: body and nav text step up to 16px so reading text meets the 16px
  * mobile minimum and iOS doesn't zoom into focused fields (it does below 16px).
  */

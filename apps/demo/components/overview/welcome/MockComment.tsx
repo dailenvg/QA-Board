@@ -20,7 +20,7 @@ export function MockComment({ author, color, children, footer }: MockCommentProp
     <motion.span
       data-testid="story-comment"
       data-author={author}
-      className="absolute top-[12%] left-[51%] z-10 block w-[45%] rounded-tile bg-card p-2 shadow-pop ring-1 ring-line"
+      className="mock-surface absolute top-[12%] left-[51%] z-10 block w-[45%] rounded-tile bg-card p-2 shadow-pop ring-1 ring-line"
       style={{ originX: 0, originY: 1 }}
       variants={pop}
       initial="hidden"
@@ -30,7 +30,7 @@ export function MockComment({ author, color, children, footer }: MockCommentProp
       <span className="flex items-center gap-1.5 text-kbd font-semibold">
         <span
           style={{ "--dot": color.hex } as CSSProperties}
-          className="size-2.5 rounded-full bg-(--dot)"
+          className="mock-dot size-2.5 rounded-full bg-(--dot)"
         />
         {author}
       </span>
