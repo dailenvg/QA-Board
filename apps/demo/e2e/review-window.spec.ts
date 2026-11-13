@@ -84,10 +84,10 @@ test("a link made for 24 hours says so, and No limit takes the guest's countdown
 
   // No limit: the owner's dialog and the server say so, and the guest's countdown goes.
   const saved = windowSaved(page);
-  await dialog.getByTestId("review-window-none").click();
+  await settings.getByTestId("review-window-none").click();
   expect((await saved).status()).toBe(200);
   await expect(dialog.getByTestId("review-window")).toContainText("No time limit.");
-  await expect(dialog.getByTestId("review-window-none")).toHaveAttribute("aria-checked", "true");
+  await expect(settings.getByTestId("review-window-none")).toHaveAttribute("aria-checked", "true");
 
   await guest.reload();
   await expect(guest.getByRole("heading", { level: 1, name: "Window review" })).toBeVisible();

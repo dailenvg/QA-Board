@@ -18,6 +18,14 @@ describe("client names", () => {
     expect(storedClientName("\u202E\u200B")).toBeNull();
   });
 
+  it("keep the joiners emoji and some scripts need", () => {
+    const family = "\u{1F468}\u200D\u{1F469}\u200D\u{1F467}";
+    expect(cleanClientName(`${family} Studio`)).toBe(`${family} Studio`);
+    expect(cleanClientName("\u0645\u06CC\u200C\u062E\u0648\u0627\u0647\u0645")).toBe(
+      "\u0645\u06CC\u200C\u062E\u0648\u0627\u0647\u0645",
+    );
+  });
+
   it("store nothing for a blank name", () => {
     expect(storedClientName("  \n ")).toBeNull();
     expect(storedClientName(null)).toBeNull();

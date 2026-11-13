@@ -10,16 +10,21 @@ export const CLIENT_NAME_MAX = 80;
 /**
  * A client name that stays on one line wherever it's shown (a heading, an
  * email's greeting, a link preview) and reads as typed: control characters,
- * line and paragraph separators turn into spaces; format characters (such as
- * U+202E, which would flip the text after it, or zero-width spaces) go;
+ * line and paragraph separators turn into spaces; the format characters that
+ * can flip or hide text go (bidi marks, embeddings, overrides and isolates
+ * such as U+202E, zero-width spaces, the BOM), while the joiners U+200C and
+ * U+200D stay, since emoji sequences and some scripts' spelling need them;
  * spaces collapse, and the ends are trimmed.
  * Everything else is kept as typed (punctuation, apostrophes, accents): every
  * place that shows it escapes it.
  */
+/** Bidi marks, embeddings, overrides and isolates, zero-width spaces and the BOM. */
+const HIDDEN = /[\u200B\u200E\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g;
+
 export function cleanClientName(name: string | null | undefined): string {
   return (name ?? "")
     .replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, " ")
-    .replace(/\p{Cf}/gu, "")
+    .replace(HIDDEN, "")
     .replace(/\s+/g, " ")
     .trim();
 }
