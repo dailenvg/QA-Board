@@ -13,8 +13,6 @@ interface InviteChipsFieldProps {
   onChange: (chips: InviteChip[]) => void;
   /** Busy sending: the chips stay, and nothing can be added or removed. */
   readOnly: boolean;
-  /** Why the last send didn't go, when it's about the chips (shown with theirs). */
-  sendError: string | null;
 }
 
 /** Keys that end an address: it becomes a chip. Tab only with text typed, so focus can still move. */
@@ -28,7 +26,7 @@ const SPLIT_KEYS = new Set(["Enter", ",", " ", ";"]);
  * it's added, and as the field loses focus) is marked, and said under the
  * field. At most `MAX_INVITES_PER_SEND`.
  */
-export function InviteChipsField({ chips, onChange, readOnly, sendError }: InviteChipsFieldProps) {
+export function InviteChipsField({ chips, onChange, readOnly }: InviteChipsFieldProps) {
   const inputId = useId();
   const hintId = useId();
   const errorId = useId();
@@ -39,7 +37,7 @@ export function InviteChipsField({ chips, onChange, readOnly, sendError }: Invit
   const variants = usePopVariants();
   const reduce = useReducedMotion();
   const full = chips.length >= MAX_INVITES_PER_SEND;
-  const message = sendError ?? chipsMessage(chips, overflow);
+  const message = chipsMessage(chips, overflow);
 
   const commit = (text: string) => {
     if (!text.trim()) return;

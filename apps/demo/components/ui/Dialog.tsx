@@ -236,7 +236,8 @@ export function Dialog({
             </div>
             <div className="mt-5">{children}</div>
             {footer ? (
-              <div className="sticky bottom-0 z-10 -mx-5 mt-5 -mb-5 border-t border-line bg-panel px-5 py-3 sm:-mx-6 sm:-mb-6 sm:px-6">
+              // Sticky against the panel's own edge: its padding is the sticky inset, hence -bottom.
+              <div className="sticky -bottom-5 z-10 -mx-5 mt-5 -mb-5 border-t border-line bg-panel px-5 py-3 sm:-bottom-6 sm:-mx-6 sm:-mb-6 sm:px-6">
                 {footer}
               </div>
             ) : null}

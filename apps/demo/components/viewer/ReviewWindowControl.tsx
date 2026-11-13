@@ -24,6 +24,11 @@ interface ReviewWindowControlProps {
    * sent to a link on its way out. The choices stay visible, dimmed.
    */
   disabled?: boolean;
+  /**
+   * The thumb's `layoutId`: unique per control on screen. The Create view and the link's
+   * settings each have their own, so the one fading out never holds on to the other's thumb.
+   */
+  layoutId: string;
 }
 
 const LABEL = "How long clients can comment";
@@ -64,6 +69,7 @@ export function ReviewWindowControl({
   saving,
   error,
   disabled = false,
+  layoutId,
 }: ReviewWindowControlProps) {
   const titleId = useId();
   const summaryId = useId();
@@ -90,7 +96,7 @@ export function ReviewWindowControl({
         <SegmentedControl
           label={LABEL}
           describedBy={[error ? errorId : null, summaryId].filter(Boolean).join(" ")}
-          layoutId="share-review-window-thumb"
+          layoutId={layoutId}
           stretch
           value={value}
           onChange={onChange}

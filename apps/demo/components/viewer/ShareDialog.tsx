@@ -417,6 +417,7 @@ export function ShareDialog({
               saving={false}
               error={null}
               disabled={creating}
+              layoutId="share-new-window-thumb"
             />
             {/* aria-disabled while busy, so keyboard focus stays here if creating fails. */}
             <Button

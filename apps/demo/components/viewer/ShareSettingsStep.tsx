@@ -44,6 +44,7 @@ export function ShareSettingsStep({
         saving={savingWindow}
         error={windowError}
         disabled={revoking}
+        layoutId="share-review-window-thumb"
       />
       <SharePasswordControl
         passwordSetAt={share.passwordSetAt}

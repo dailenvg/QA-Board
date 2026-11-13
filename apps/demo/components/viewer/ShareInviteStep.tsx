@@ -76,7 +76,6 @@ export function ShareInviteStep({
         chips={invites.chips}
         onChange={invites.setChips}
         readOnly={invites.sending}
-        sendError={null}
       />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="flex items-center gap-2 text-meta text-muted" data-testid="invites-sent">
