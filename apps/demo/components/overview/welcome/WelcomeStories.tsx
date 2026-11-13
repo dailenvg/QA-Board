@@ -46,7 +46,7 @@ interface WelcomeStoriesProps {
   playback: StoryPlayback;
   /** Three stories, played left to right. Defaults to the owner's welcome. */
   stories?: readonly StoryDefinition[];
-  /** Squint's colors (the default), or its line art. */
+  /** Squint's line art (the default), or its colors. */
   look?: StoryLook;
 }
 
@@ -63,7 +63,7 @@ interface WelcomeStoriesProps {
 export function WelcomeStories({
   playback,
   stories = WELCOME_STORIES,
-  look = "color",
+  look = "line",
 }: WelcomeStoriesProps) {
   return (
     <div className="@container w-full">

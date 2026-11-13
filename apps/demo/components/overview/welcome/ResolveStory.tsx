@@ -72,7 +72,7 @@ function ResolveButton({ pressed, resolved, pose }: ResolveButtonProps) {
     <motion.span
       className={`mock-chip relative mt-1.5 inline-flex h-5 items-center gap-1 rounded-pill px-2 text-kbd font-semibold transition-[background-color,color,box-shadow] duration-200 ${
         resolved
-          ? "bg-resolved-soft text-resolved-text"
+          ? "mock-done bg-resolved-soft text-resolved-text"
           : "bg-card text-ink ring-1 ring-line-strong ring-inset"
       }`}
       animate={{ scale: pressed ? 0.88 : 1 }}
@@ -108,7 +108,7 @@ function Toast() {
       exit={{ opacity: 0, y: 8, transition: { duration: duration.micro } }}
       transition={spring.snappy}
     >
-      <span className="mock-dot pin-line grid size-4.5 place-items-center rounded-full bg-resolved-pin text-on-resolved-pin [--pin-line:var(--resolved-pin-line)]">
+      <span className="mock-done pin-line grid size-4.5 place-items-center rounded-full bg-resolved-pin text-on-resolved-pin [--pin-line:var(--resolved-pin-line)]">
         <Icon name="check" className="size-3" />
       </span>
       {STORY_TEXT.toast}

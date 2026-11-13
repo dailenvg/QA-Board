@@ -201,28 +201,43 @@
 
 /*
  * The welcome stories in line art (`StoryStage look="line"`): the mock-ups' marked parts drawn
- * as grey outlines on the card (`--art-surface`), their bars as single lines, their pins and
- * buttons outlined, the brand blue (field focus, the click's ripple) grey too. Squiggy turns lime
- * on its own (`StoryMascot`). Plain rules beat the utilities they redraw, which sit in a layer.
+ * as grey outlines on the card (`--art-surface`), their bars as single lines. What the person
+ * acts on or looks for keeps a fill, edged in ink as the lime Squiggy is: buttons in lime, open
+ * pins in Coral Red, resolved pins and chips in Mint with Forest. The brand blue (field focus,
+ * the click's ripple) turns grey. Squiggy turns lime on its own (`StoryMascot`). Plain rules
+ * beat the utilities they redraw, which sit in a layer.
  */
 .story-line {
   --brand: var(--scene-line);
 }
-.story-line :is(.mock-surface, .mock-block, .mock-chip, .mock-button, .pin-marker, .mock-pin-done) {
+.story-line :is(.mock-surface, .mock-block, .mock-chip) {
   background: var(--art-surface);
   box-shadow: inset 0 0 0 1.5px var(--scene-line);
 }
 .story-line .mock-surface {
   color: var(--ink);
 }
-.story-line :is(.mock-chip, .mock-button) {
+.story-line .mock-chip {
   color: var(--ink-2);
 }
-.story-line :is(.pin-marker, .mock-pin-done, .mock-dot) {
-  color: var(--scene-line);
+.story-line :is(.mock-button, .pin-marker, .mock-done) {
+  box-shadow: inset 0 0 0 1.5px var(--scene-ink);
+}
+.story-line .mock-button {
+  background: var(--highlight);
+  color: var(--on-highlight);
+}
+.story-line .pin-marker {
+  background: var(--comments);
+  color: #ffffff;
+}
+.story-line .mock-done {
+  background: var(--resolved-pin);
+  color: var(--on-resolved-pin);
 }
 .story-line .mock-dot {
   background: none;
+  color: var(--scene-line);
   box-shadow: inset 0 0 0 1.5px var(--scene-line);
 }
 .story-line .mock-bar {
