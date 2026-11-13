@@ -10,6 +10,8 @@ interface SceneBoxProps {
   scene: Scene;
   /** Size and placement; the box keeps its room before the scene is drawn. */
   className?: string;
+  /** Keeps the scene's own colors instead of greys (the hero's). */
+  colored?: boolean;
   children: ReactNode;
 }
 
@@ -17,16 +19,22 @@ interface SceneBoxProps {
  * Where a card's scene draws: decorative (the card says the same in words),
  * empty until it's on screen, then the scene, remounted on each replay so it
  * plays from the start, its animations skipped with reduced motion. Its art is in greys
- * (`.scene-grey`), so Squiggy is the one color in it.
+ * (`.scene-grey`), so Squiggy is the one color in it, unless it's `colored`.
  */
-export function SceneBox({ sceneRef, scene, className = "", children }: SceneBoxProps) {
+export function SceneBox({
+  sceneRef,
+  scene,
+  className = "",
+  colored = false,
+  children,
+}: SceneBoxProps) {
   return (
     <div
       ref={sceneRef}
       aria-hidden="true"
       data-testid="tile-scene"
       data-run={scene.run}
-      className={`scene-grey pointer-events-none relative ${className}`}
+      className={`${colored ? "" : "scene-grey"} pointer-events-none relative ${className}`}
     >
       {scene.shown ? (
         <MotionConfig skipAnimations={scene.still}>

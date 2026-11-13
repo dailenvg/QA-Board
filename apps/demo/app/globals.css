@@ -3,7 +3,7 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 /*
  * The Overview's bento fits one screen: wide (xl) and tall enough to hold every tile whole
- * (49rem: with the status tile's pin row, the busiest card needs about 773px; a little to spare).
+ * (49rem: with the status tile's pin row, the bottom row needs about 773px; a little to spare).
  * Keep in step with BENTO_FIT_QUERY (use-fit-rows.ts).
  */
 @custom-variant bento-fit (@media (width >= 80rem) and (height >= 49rem));
@@ -111,6 +111,8 @@
   --scene-done: #a1a1aa;
   --scene-done-ink: #18181b;
   --scene-check: #3f3f46;
+  /* Line art drawn on the panel itself (Comments waiting's header): a second plane, behind the text. */
+  --scene-line: #a1a1aa;
 
   --shadow-seg: 0 1px 2px rgb(0 0 0 / 0.12);
   --shadow-float: 0 20px 40px -24px rgb(0 0 0 / 0.35);
@@ -168,6 +170,7 @@
 
   --scene-tint: #a1a1aa;
   --scene-check: #d4d4d8;
+  --scene-line: #52525b;
 
   --shadow-seg: 0 1px 2px rgb(0 0 0 / 0.5);
   --shadow-float: 0 20px 40px -24px rgb(0 0 0 / 0.8);
@@ -295,6 +298,7 @@
   --color-scene-stage: var(--scene-stage);
   --color-scene-mark: var(--scene-mark);
   --color-scene-mark-ink: var(--scene-mark-ink);
+  --color-scene-line: var(--scene-line);
 
   --shadow-seg: var(--shadow-seg);
   --shadow-float: var(--shadow-float);

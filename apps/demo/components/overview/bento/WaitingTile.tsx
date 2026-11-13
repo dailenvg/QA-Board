@@ -11,7 +11,7 @@ import { MoreLink } from "./MoreLink";
 import { ResolvedPin } from "./ResolvedPin";
 import { SceneBox } from "./scenes/SceneBox";
 import { useScene } from "./scenes/use-scene";
-import { WaitingScene } from "./scenes/WaitingScene";
+import { WaitingLines } from "./scenes/WaitingLines";
 import { TileEmpty } from "./TileEmpty";
 import { TileHeading } from "./TileHeading";
 import { TILE_LIST, TILE_LIST_BOX, TILE_SURFACE } from "./tile-styles";
@@ -32,7 +32,9 @@ interface WaitingTileProps {
 
 /**
  * How many comments are open, and the ones waiting longest, each opening its
- * project, with a bar of how long it has waited against the longest wait.
+ * project, with a bar of how long it has waited against the longest wait. Its
+ * title sits on line art of the comments queueing up (`WaitingLines`), which
+ * draws in again on hover or focus.
  */
 export function WaitingTile({ open, resolved, oldest, now, thumb }: WaitingTileProps) {
   const headingId = useId();
@@ -48,15 +50,25 @@ export function WaitingTile({ open, resolved, oldest, now, thumb }: WaitingTileP
       onFocus={scene.replay}
       className={TILE_SURFACE}
     >
-      <TileHeading
-        id={headingId}
-        title="Comments waiting"
-        tag={
-          <TileTag>
-            <AnimatedNumber value={open} testId="tile-count" /> open
-          </TileTag>
-        }
-      />
+      {/* With comments waiting, the title sits on the queue's line art, one header. */}
+      <div className={open === 0 ? "contents" : "relative h-28 shrink-0 bento-fit:h-24"}>
+        {open === 0 ? null : (
+          <SceneBox sceneRef={sceneRef} scene={scene} className="absolute! inset-0">
+            <WaitingLines open={open} />
+          </SceneBox>
+        )}
+        <div className="relative">
+          <TileHeading
+            id={headingId}
+            title="Comments waiting"
+            tag={
+              <TileTag>
+                <AnimatedNumber value={open} testId="tile-count" /> open
+              </TileTag>
+            }
+          />
+        </div>
+      </div>
       {open === 0 ? (
         <TileEmpty title="No comments waiting" art={resolved > 0 ? <ResolvedPin /> : null}>
           {resolved > 0
@@ -65,9 +77,6 @@ export function WaitingTile({ open, resolved, oldest, now, thumb }: WaitingTileP
         </TileEmpty>
       ) : (
         <>
-          <SceneBox sceneRef={sceneRef} scene={scene} className="h-16 shrink-0">
-            <WaitingScene open={open} />
-          </SceneBox>
           <div className={TILE_LIST_BOX}>
             <ol ref={ref} role="list" className={TILE_LIST}>
               {oldest.slice(0, shown).map((comment) => (

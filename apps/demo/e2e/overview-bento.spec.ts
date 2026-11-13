@@ -9,10 +9,11 @@ import {
   settled,
   shareWorkspaceProject,
 } from "./squint-fixtures";
-import { addWaitingClientComment } from "./workspace-db";
+import { addWaitingClientComment, storeProjects } from "./workspace-db";
 import { WORKSPACE_SEED } from "./workspace-seed";
 
 const HOUR = 3_600_000;
+const DAY = 24 * HOUR;
 
 function sidebar(page: Page): Locator {
   return page.getByRole("complementary", { name: "Workspace" });
@@ -26,7 +27,7 @@ function folderRow(page: Page, name: string): Locator {
   return page.getByRole("treeitem", { name: new RegExp(`^${name} \\d`) });
 }
 
-function tile(page: Page, name: "waiting" | "clients" | "recent" | "status" | "busiest") {
+function tile(page: Page, name: "waiting" | "clients" | "recent" | "status" | "leaving") {
   return page.getByTestId(`tile-${name}`);
 }
 
@@ -67,6 +68,18 @@ const WITH_COMMENTS: SquintData = {
     comment("pulled", "nested", "nested-1", 1, { author: "Cleo" }),
   ],
 };
+
+/**
+ * Archives two projects straight in the workspace (in a Stored folder of their own): one due
+ * to be deleted for good in about 4 days, one in about 20. Reload to see them.
+ */
+async function archiveTwo(): Promise<void> {
+  const archivedDaysAgo = (days: number) => new Date(Date.now() - days * DAY).toISOString();
+  await storeProjects([
+    { id: "later", name: "Summer flyer", archivedAt: archivedDaysAgo(10), files: [] },
+    { id: "soon", name: "Old landing", archivedAt: archivedDaysAgo(26), files: [] },
+  ]);
+}
 
 /** WITH_COMMENTS, plus a shared project whose client left a comment it hasn't pulled yet. */
 async function seedActivity(page: Page): Promise<string> {
@@ -146,10 +159,11 @@ test("Folders shows the folder grid and its sort; the Overview doesn't", async (
   await expect(page.getByTestId("workspace-header")).toBeVisible();
 });
 
-test("the bento counts comments, client news, recent projects and the busiest folder", async ({
+test("the bento counts comments, client news, recent projects and what's deleting soon", async ({
   page,
 }) => {
   const sharedId = await seedActivity(page);
+  await archiveTwo();
   await openOverview(page);
 
   await expect(tile(page, "status")).toHaveAttribute("data-open", "3");
@@ -181,14 +195,15 @@ test("the bento counts comments, client news, recent projects and the busiest fo
   await expect(recent.first()).toContainText("Shared site");
   await expect(recent.first().getByTestId("new-mark")).toBeVisible();
 
-  // Two open comments in My projects' own projects, one in Launch.
-  const busiest = tile(page, "busiest");
-  await expect(busiest).toHaveAttribute("data-measure", "comments");
-  await expect(busiest).toHaveAttribute("data-count", "2");
-  await expect(busiest).toHaveAccessibleName(
-    /^Busiest folder.*My projects.*67% of all open comments$/,
-  );
-  await expect(busiest).toHaveAttribute("href", `/f/${DEFAULT_FOLDER.id}`);
+  // Archived projects, the one deleted for good soonest first; the rest of the bento leaves them out.
+  const leaving = tile(page, "leaving");
+  await expect(leaving).toHaveAttribute("data-count", "2");
+  await expect(leaving.getByTestId("leaving-row")).toHaveText([
+    /^Old landing\s*Deletes for good on .+in 4 days/,
+    /^Summer flyer\s*Deletes for good on .+in 20 days/,
+  ]);
+  await expect(leaving.getByTestId("leaving-row").first()).toHaveAttribute("href", "/p/soon");
+  await expect(tile(page, "recent")).not.toContainText("Old landing");
 
   // The client row opens its project.
   await clients.getByTestId("client-row").first().click();
@@ -212,10 +227,10 @@ test("a tile opens what it's about", async ({ page }) => {
   await tile(page, "waiting").getByTestId("waiting-row").first().click();
   await expect(page).toHaveURL(/\/p\/deck$/);
 
-  await page.goBack();
-  await tile(page, "busiest").click();
-  await expect(page).toHaveURL(new RegExp(`/f/${DEFAULT_FOLDER.id}$`));
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(DEFAULT_FOLDER.name);
+  await archiveTwo();
+  await page.goto("/");
+  await tile(page, "leaving").getByTestId("leaving-row").first().click();
+  await expect(page).toHaveURL(/\/p\/soon$/);
 });
 
 test("tiles without anything to show say so", async ({ page }) => {
@@ -225,12 +240,10 @@ test("tiles without anything to show say so", async ({ page }) => {
   await expect(tile(page, "clients").getByTestId("tile-empty")).toHaveText(
     /^No new client comments/,
   );
-  // With nothing open anywhere, the busiest folder is the one with the most projects.
-  await expect(tile(page, "busiest")).toHaveAttribute("data-measure", "projects");
-  await expect(tile(page, "busiest")).toHaveAttribute("data-count", "4");
+  await expect(tile(page, "leaving").getByTestId("tile-empty")).toHaveText(/^Nothing to delete/);
 
   // Every tile fully in (each rises in as it's scrolled to), so axe sees real colors.
-  for (const name of ["status", "waiting", "clients", "recent", "busiest"] as const) {
+  for (const name of ["status", "waiting", "clients", "recent", "leaving"] as const) {
     await tile(page, name).scrollIntoViewIfNeeded();
   }
   await settled(page.getByTestId("overview-bento").getByRole("heading"));
@@ -247,10 +260,10 @@ test("an empty workspace keeps the welcome and its stories instead of the bento"
   await expect(page.getByTestId("overview-bento")).toHaveCount(0);
 });
 
-/** Every tile with its illustrated scene. */
-const SCENE_TILES = ["waiting", "clients", "busiest"] as const;
+/** Every tile with its illustrated scene, besides the hero. */
+const SCENE_TILES = ["waiting", "clients"] as const;
 
-test("each card has an illustrated scene, hidden from screen readers, that plays again on hover", async ({
+test("the hero, comments waiting and client news have scenes, hidden from screen readers, that play again on hover", async ({
   page,
   isMobile,
 }) => {
@@ -265,22 +278,29 @@ test("each card has an illustrated scene, hidden from screen readers, that plays
     "aria-hidden",
     "true",
   );
-  // A client's cursor drops a pin per new comment; the waiting stack has a bubble per comment.
+  // A client's cursor drops a pin per new comment; a bubble queues up per waiting comment.
   const clients = tile(page, "clients").getByTestId("tile-scene");
   await expect(clients.getByTestId("story-pin")).toHaveCount(2);
   await expect(tile(page, "waiting").getByTestId("scene-bubble")).toHaveCount(3);
   // One-off entrances, never a loop: there's nothing to pause anywhere in the bento.
   await expect(page.getByRole("button", { name: "Pause animations" })).toHaveCount(0);
 
-  // Every row has its project's thumbnail and an arrow; on a pointer, hovering lifts the row,
-  // and hovering a card plays its scene again (the pins drop anew).
+  // Every row has its project's thumbnail and an arrow; on a pointer, hovering tints the row
+  // without moving it, and hovering a card plays its scene again (the pins drop anew).
   const row = tile(page, "recent").getByTestId("recent-row").first();
   await expect(row.locator("svg")).not.toHaveCount(0);
   if (isMobile) return;
   await row.hover();
+  // The arrow's nudge has had time to play, so the row would have moved by now.
   await expect
-    .poll(() => row.evaluate((element) => getComputedStyle(element).transform))
+    .poll(() =>
+      row
+        .locator("span")
+        .last()
+        .evaluate((el) => getComputedStyle(el).transform),
+    )
     .not.toBe("none");
+  expect(await row.evaluate((element) => getComputedStyle(element).transform)).toBe("none");
   await expect(clients).toHaveAttribute("data-run", "0");
   await page.mouse.move(0, 0);
   // A replay waits for the play under way to end (each takes at most 0.8s).
@@ -291,8 +311,8 @@ test("each card has an illustrated scene, hidden from screen readers, that plays
 });
 
 /**
- * Every color drawn in the scenes, outside Squiggy, that isn't a grey (`.scene-grey`), and
- * whether Squiggy, in the scenes it peeks into, still has its own colors.
+ * Every color drawn in the grey scenes (all but the hero's), outside Squiggy, that isn't a
+ * grey (`.scene-grey`), and whether Squiggy, in the scenes it peeks into, still has its own colors.
  */
 async function sceneColors(page: Page): Promise<{ colored: string[]; squiggy: boolean }> {
   return page.evaluate(() => {
@@ -307,6 +327,7 @@ async function sceneColors(page: Page): Promise<{ colored: string[]; squiggy: bo
     const colored: string[] = [];
     let squiggy = false;
     for (const scene of document.querySelectorAll('[data-testid="tile-scene"]')) {
+      if (scene.closest('[data-testid="overview-hero"]')) continue;
       for (const element of scene.querySelectorAll("*")) {
         const style = getComputedStyle(element);
         const paints = [style.backgroundColor, style.color, style.fill, style.stroke];
@@ -321,7 +342,7 @@ async function sceneColors(page: Page): Promise<{ colored: string[]; squiggy: bo
   });
 }
 
-test("the scenes are drawn in greys, Squiggy the only color in them", async ({
+test("the hero's scene keeps Squint's colors; the others are in greys", async ({
   page,
   isMobile,
 }) => {
@@ -329,10 +350,14 @@ test("the scenes are drawn in greys, Squiggy the only color in them", async ({
   await seedActivity(page);
   await openOverview(page);
   for (const name of SCENE_TILES) await tile(page, name).scrollIntoViewIfNeeded();
-  // Open pins and the resolved one on the hero's page, client pins, the waiting bubbles.
+  // Open pins and the resolved one on the hero's page, in color; client pins and the queue in grey.
   const hero = page.getByTestId("overview-hero").getByTestId("tile-scene");
+  await expect(hero).not.toHaveClass(/scene-grey/);
   await expect(hero.getByTestId("story-pin")).toHaveCount(4);
   await expect(hero.locator('[data-testid="story-pin"][data-resolved]')).toHaveCount(1);
+  await expect(
+    hero.locator('[data-testid="story-pin"]:not([data-resolved])').first(),
+  ).not.toHaveAttribute("data-color", "scene");
   await expect(tile(page, "clients").getByTestId("story-pin")).toHaveCount(2);
   await expect(tile(page, "waiting").getByTestId("scene-bubble")).toHaveCount(3);
   for (const theme of ["light", "dark"]) {
@@ -422,7 +447,7 @@ test("every count tag wears the file-type tag's lime", async ({ page }) => {
 async function cutOffInLists(page: Page): Promise<string[]> {
   return page.evaluate(() => {
     const cut: string[] = [];
-    for (const name of ["waiting", "clients", "recent"]) {
+    for (const name of ["waiting", "clients", "recent", "leaving"]) {
       const parent = document.querySelector(`[data-testid="tile-${name}"] ol`)?.parentElement;
       if (!parent) continue;
       const box = parent.getBoundingClientRect();
@@ -438,13 +463,13 @@ async function cutOffInLists(page: Page): Promise<string[]> {
 }
 
 async function expectFitsOneScreen(page: Page, height: number) {
-  await expect(tile(page, "busiest")).toBeVisible();
+  await expect(tile(page, "leaving")).toBeVisible();
   await expect
     .poll(() =>
       page.evaluate(() => (document.scrollingElement?.scrollHeight ?? 0) <= window.innerHeight),
     )
     .toBe(true);
-  for (const name of ["status", "waiting", "clients", "recent", "busiest"] as const) {
+  for (const name of ["status", "waiting", "clients", "recent", "leaving"] as const) {
     const box = await tile(page, name).boundingBox();
     expect(box && box.y + box.height <= height, name).toBe(true);
   }
