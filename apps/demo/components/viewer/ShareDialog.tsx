@@ -355,6 +355,8 @@ export function ShareDialog({
       testId="share-dialog"
       fitKeyboard
       sheet
+      // Invite and Settings, on a phone's tabs, share one height.
+      tall={linked}
       size={linked ? "wide" : "md"}
       art={<StateArt scene="invite" size="sm" still />}
       footer={footer}

@@ -186,3 +186,20 @@ test("a closed review holds Send, and Go to settings takes the keyboard to the r
     ),
   ).toBe(true);
 });
+
+test("on a phone, the Invite and Settings tabs keep the sheet one height", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(!isMobile, "Phones only: wider windows show both steps at once.");
+  const { projectId } = await shareWorkspaceProject(page, PROJECT);
+  const dialog = await openShareWindow(page, projectId);
+  const height = async () => (await dialog.boundingBox())?.height;
+  const invite = await height();
+  await showShareTab(dialog, "settings");
+  await expect(dialog.getByTestId("share-settings-step")).toBeVisible();
+  expect(await height()).toBe(invite);
+  await showShareTab(dialog, "invite");
+  await expect(dialog.getByTestId("share-invite-step")).toBeVisible();
+  expect(await height()).toBe(invite);
+});

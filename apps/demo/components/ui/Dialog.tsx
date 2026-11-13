@@ -36,6 +36,11 @@ interface DialogProps {
   footer?: ReactNode;
   /** On phones, a bottom sheet: edge to edge, flat at the bottom, with a grabber. */
   sheet?: boolean;
+  /**
+   * A sheet that fills the screen's height, so swapping what's in it (tabs)
+   * never resizes it. The keyboard fit's cap still wins.
+   */
+  tall?: boolean;
 }
 
 /** Tab stops only: roving-tabindex items (such as unselected radios) are skipped. */
@@ -157,6 +162,7 @@ export function Dialog({
   art,
   footer,
   sheet = false,
+  tall = false,
 }: DialogProps) {
   const { container: backdrop, panel } = useLiftAboveKeyboard<HTMLDivElement, HTMLDivElement>(
     open && fitKeyboard,
@@ -204,7 +210,7 @@ export function Dialog({
             // footer the footer's, so nothing scrolls by in a strip under the footer.
             className={`relative flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-y-auto rounded-panel bg-panel p-5 shadow-pop sm:p-6 ${WIDTHS[size]} ${
               sheet
-                ? `max-sm:rounded-b-none ${footer ? "" : "max-sm:pb-[max(1.25rem,env(safe-area-inset-bottom))]"}`
+                ? `max-sm:rounded-b-none ${tall ? "max-sm:h-[calc(100dvh-1.5rem)]" : ""} ${footer ? "" : "max-sm:pb-[max(1.25rem,env(safe-area-inset-bottom))]"}`
                 : ""
             }`}
           >
@@ -237,7 +243,8 @@ export function Dialog({
                 </button>
               ) : null}
             </div>
-            <div className="mt-5">{children}</div>
+            {/* Grows in a tall sheet, so the footer stays at the bottom under short content. */}
+            <div className={`mt-5 ${sheet && tall ? "max-sm:flex-1" : ""}`}>{children}</div>
             {footer ? (
               // Sticky against the panel's own edge: its padding is the sticky inset, hence -bottom.
               <div
