@@ -340,7 +340,7 @@ export function ShareDialog({
         <Icon name="trash" className="size-4" />
         {revoking ? "Revoking…" : "Revoke link"}
       </Button>
-      <Button variant="secondary" size="sm" onClick={onClose} data-testid="share-done">
+      <Button size="sm" onClick={onClose} data-testid="share-done">
         Done
       </Button>
     </div>
