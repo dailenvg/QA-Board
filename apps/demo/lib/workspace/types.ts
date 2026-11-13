@@ -14,15 +14,23 @@ export interface ReviewWindowState {
   reviewEndsAt: number | null;
 }
 
+/** A link's settings as `PATCH .../share-link/settings` answers them. */
+export interface ShareSettingsState extends ReviewWindowState {
+  /** Who the link is for, as its guests read it; null without a name. */
+  clientName: string | null;
+}
+
 /**
  * A project's review link, without its secrets (those come from `share-link`
  * alone), with whether it asks guests for a password.
  */
-export interface WorkspaceShareSummary extends ReviewWindowState, SharePasswordState {
+export interface WorkspaceShareSummary extends ShareSettingsState, SharePasswordState {
   id: string;
   createdAt: number;
   cursor: number;
   lastSyncedAt?: number;
+  /** How many different people its invitation emails have gone to (038). */
+  invitedCount: number;
 }
 
 export interface WorkspaceProject {
@@ -93,9 +101,21 @@ export interface ClientCommentActivity {
   cursor: number;
 }
 
+/** The workspace as its guests meet it, besides its id and slug. */
+export interface WorkspaceIdentity {
+  id: string;
+  slug: string;
+  /** The company guests see. */
+  name: string;
+  /** Who its emails come from (`from_email_name`); null uses `name`. */
+  fromEmailName: string | null;
+  /** Its brand color (`#rrggbb`); null keeps Squint's own. */
+  brandColor: string | null;
+}
+
 /** Everything a signed-in browser needs to show a workspace. */
 export interface WorkspaceData {
-  workspace: { id: string; slug: string; name: string };
+  workspace: WorkspaceIdentity;
   folders: Folder[];
   projects: WorkspaceProject[];
   snapshots: Snapshot[];

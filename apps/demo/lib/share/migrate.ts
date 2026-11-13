@@ -35,6 +35,7 @@ import sharesInviter from "../../migrations/034_squint_shares_inviter_backfill.s
 import sharesReviewWindow from "../../migrations/035_squint_shares_review_window.sql";
 import sharesPassword from "../../migrations/036_squint_shares_password.sql";
 import passwordAttempts from "../../migrations/037_squint_share_password_attempts.sql";
+import shareInvites from "../../migrations/038_squint_share_invites.sql";
 
 /** The slice of `pg.Pool` the stores use (PGlite matches it in tests). */
 export interface Queryable {
@@ -80,6 +81,7 @@ export const MIGRATIONS: ReadonlyArray<{ id: string; sql: string }> = [
   { id: "035_squint_shares_review_window", sql: sharesReviewWindow },
   { id: "036_squint_shares_password", sql: sharesPassword },
   { id: "037_squint_share_password_attempts", sql: passwordAttempts },
+  { id: "038_squint_share_invites", sql: shareInvites },
 ];
 
 type Migration = (typeof MIGRATIONS)[number];

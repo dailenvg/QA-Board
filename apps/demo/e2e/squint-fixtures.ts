@@ -131,11 +131,23 @@ export async function shareImageProject(page: Page, fileName: string): Promise<s
   await page.getByTestId("share-button").click();
   const dialog = page.getByTestId("share-dialog");
   await dialog.getByTestId("create-share-link").click();
-  const link = await dialog.getByTestId("share-url").inputValue();
-  await expect(dialog.getByTestId("sync-status")).toContainText("Synced");
+  const link = (await dialog.getByTestId("copy-share-link").getAttribute("data-url"))!;
+  await expect(dialog.getByTestId("share-sync")).toHaveAttribute("data-sync", "synced");
   await page.keyboard.press("Escape");
   await page.unroute("**/api/shares");
   return link;
+}
+
+/**
+ * Shows one of the Share window's steps: on a phone it's a tab (Invite or
+ * Settings) to choose; on wider screens both are always there.
+ */
+export async function showShareTab(dialog: Locator, tab: "invite" | "settings"): Promise<void> {
+  const button = dialog.getByTestId(`share-tab-${tab}`);
+  if (await button.isVisible()) {
+    await button.click();
+    await expect(button).toHaveAttribute("aria-selected", "true");
+  }
 }
 
 /** Revokes a project's review link, as its Share dialog does. */

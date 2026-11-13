@@ -133,7 +133,7 @@ test("a workspace's review link unfurls as its invitation, with a card of its ow
   const project = "Spring launch";
   const { token } = await shareWorkspaceProject(page, project);
   await brandWorkspace({ color: "#e03b9d", logo: snapshotPng(64, 64) });
-  const copy = invitationPreview({ company: E2E_COMPANY.name, project });
+  const copy = invitationPreview({ company: E2E_COMPANY.name, project, client: null });
 
   const tags = await unfurl(request, `/s/${token}`);
   expect(tag(tags, "og:title")).toBe(copy.title);
@@ -158,7 +158,7 @@ test("a workspace's review link unfurls as its invitation, with a card of its ow
   const fall = await shareWorkspaceProject(page, "Fall menu");
   const other = await unfurl(request, `/s/${fall.token}`);
   expect(tag(other, "og:title")).toBe(
-    invitationPreview({ company: E2E_COMPANY.name, project: "Fall menu" }).title,
+    invitationPreview({ company: E2E_COMPANY.name, project: "Fall menu", client: null }).title,
   );
   expect(tag(other, "og:image")).not.toBe(tag(tags, "og:image"));
   const otherCard = await expectCard(request, tag(other, "og:image"));
@@ -176,7 +176,7 @@ test("a password-protected workspace link unfurls as it did before its password,
   await setLinkPassword(page, projectId, "launch password");
 
   const tags = await unfurl(request, `/s/${token}`);
-  const copy = invitationPreview({ company: E2E_COMPANY.name, project });
+  const copy = invitationPreview({ company: E2E_COMPANY.name, project, client: null });
   expect(tag(tags, "og:title")).toBe(copy.title);
   expect(tag(tags, "og:description")).toBe(copy.description);
   expect(tag(tags, "twitter:title")).toBe(copy.title);

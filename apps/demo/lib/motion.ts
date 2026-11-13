@@ -114,6 +114,27 @@ export const popIn: Variants = {
   exit: { opacity: 0, scale: 0.96, y: 4, transition: { duration: duration.micro } },
 };
 
+/** A phone's bottom sheet: up from below its edge, and back down. */
+export const sheetUp: Variants = {
+  hidden: { opacity: 0, y: 48 },
+  visible: { opacity: 1, y: 0, transition: spring.soft },
+  exit: { opacity: 0, y: 48, transition: { duration: duration.micro, ease: ease.out } },
+};
+
+/**
+ * Content swapped in place (a dialog's tabs, a section's states): a short
+ * sideways fade, `direction` 1 forward, -1 back.
+ */
+export const swapIn: Variants = {
+  hidden: (direction: number = 1) => ({ opacity: 0, x: 12 * direction }),
+  visible: { opacity: 1, x: 0, transition: { duration: duration.component, ease: ease.out } },
+  exit: (direction: number = 1) => ({
+    opacity: 0,
+    x: -12 * direction,
+    transition: { duration: duration.micro, ease: ease.out },
+  }),
+};
+
 /** `whileInView` for content below the fold: reveal once, a little after it enters. */
 export const revealViewport = { once: true, margin: "-10%" } as const;
 
@@ -137,4 +158,14 @@ export function useScreenVariants(): Variants {
 /** `popIn`, collapsed to a plain fade when the user prefers reduced motion. */
 export function usePopVariants(): Variants {
   return useReducedMotion() ? fadeOnly : popIn;
+}
+
+/** `sheetUp`, collapsed to a plain fade when the user prefers reduced motion. */
+export function useSheetVariants(): Variants {
+  return useReducedMotion() ? fadeOnly : sheetUp;
+}
+
+/** `swapIn`, collapsed to a plain fade when the user prefers reduced motion. */
+export function useSwapVariants(): Variants {
+  return useReducedMotion() ? fadeOnly : swapIn;
 }

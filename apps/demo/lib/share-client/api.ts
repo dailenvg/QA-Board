@@ -13,7 +13,10 @@ import type { ProjectShare } from "../store/types";
 import { fetchInRanges, uploadParts } from "./transfer";
 
 /** `status` 0 means the request never got an answer (offline, aborted). */
-export type ApiResult<T> = { ok: true; value: T } | { ok: false; status: number; error: string };
+export type ApiResult<T> =
+  | { ok: true; value: T }
+  /** `body`: the refusal as the server sent it, for routes that explain more than `error`. */
+  | { ok: false; status: number; error: string; body?: unknown };
 
 /** A JSON API call; never throws. */
 export async function call<T>(input: string, init: RequestInit = {}): Promise<ApiResult<T>> {
@@ -29,7 +32,7 @@ export async function call<T>(input: string, init: RequestInit = {}): Promise<Ap
     typeof body === "object" && body !== null && "error" in body && typeof body.error === "string"
       ? body.error
       : "failed";
-  return { ok: false, status: response.status, error };
+  return { ok: false, status: response.status, error, body };
 }
 
 export const jsonInit = (method: string, body: unknown, headers: Record<string, string> = {}) => ({

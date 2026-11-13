@@ -108,6 +108,11 @@ export interface ShareRecord {
    * ever has one. Server-side only: never sent to an owner or a guest.
    */
   password: SharePassword | null;
+  /**
+   * Who the link is for, as its owner names them (038): "{Company} has invited
+   * {Client} to review". Null without a name. Only a workspace's link has one.
+   */
+  clientName: string | null;
 }
 
 /** A review link's password as stored: its Argon2id hash, and when it was set (epoch ms). */
@@ -152,12 +157,16 @@ export interface ClientBrand {
 export interface LockedShare {
   brand: ClientBrand;
   projectName: string;
+  /** Who the link is for (its invitation names them); null: "invited you". */
+  clientName: string | null;
 }
 
 /** What a client sees: the share without its secrets or bookkeeping. */
 export interface ClientView {
   project: SharedProject;
   brand: ClientBrand;
+  /** Who the link is for (its invitation names them); null: "invited you". */
+  clientName: string | null;
   snapshots: SharedSnapshot[];
   comments: SharedComment[];
   /** When the review window closes (epoch ms): after it, clients can only read. Null: never. */

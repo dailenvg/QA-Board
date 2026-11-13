@@ -182,6 +182,7 @@ export async function createShare(
     expiresAt,
     reviewWindowHours: DEFAULT_REVIEW_WINDOW_HOURS,
     password: null,
+    clientName: null,
   };
   await store.create(share);
   for (const snapshot of state.snapshots) await store.upsertSnapshot(share.id, snapshot, "owner");
@@ -395,6 +396,7 @@ export async function clientView(store: ShareStore, share: ShareRecord): Promise
   return {
     project: share.project,
     brand: toClientBrand(brand),
+    clientName: share.clientName,
     snapshots: items(snapshots),
     comments: items(comments),
     reviewEndsAt: shareReviewEndsAt(share),

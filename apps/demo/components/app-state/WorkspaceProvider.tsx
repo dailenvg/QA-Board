@@ -4,6 +4,7 @@ import { useCallback, type ReactNode } from "react";
 import { BlobSourceContext } from "@/lib/blob-store/blob-source";
 import { ClientActivityStartContext } from "@/lib/workspace-client/use-client-activity";
 import { useWorkspaceData, WorkspaceStartContext } from "@/lib/workspace-client/use-workspace-data";
+import { WorkspaceIdentityContext } from "@/lib/workspace-client/workspace-identity";
 import { StorageStartContext } from "@/lib/workspace-client/use-workspace-storage";
 import type { WorkspaceStart } from "@/lib/workspace/types";
 import { useToast } from "../ui/ToastProvider";
@@ -29,7 +30,9 @@ export function WorkspaceProvider({ start, children }: WorkspaceProviderProps) {
       <ClientActivityStartContext value={start.data.clientActivity}>
         <StorageStartContext value={start.data.storage}>
           <BlobSourceContext value={blobs}>
-            {children}
+            <WorkspaceIdentityContext value={start.data.workspace}>
+              {children}
+            </WorkspaceIdentityContext>
             <ImportLocalData
               workspaceId={start.data.workspace.id}
               workspaceName={start.data.workspace.name}

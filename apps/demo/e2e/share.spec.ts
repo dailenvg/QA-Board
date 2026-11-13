@@ -12,6 +12,7 @@ import {
   postComment,
   shareImageProject,
   showComments,
+  showShareTab,
   skipReviewGuide,
 } from "./squint-fixtures";
 
@@ -57,12 +58,13 @@ test("an owner shares a project, a client comments, and the owner resolves and r
   const dialog = page.getByTestId("share-dialog");
   await expect(dialog).toContainText("Clients can view and add comments");
   await dialog.getByTestId("create-share-link").click();
-  const urlField = dialog.getByTestId("share-url");
-  await expect(urlField).toHaveValue(/\/s\/[A-Za-z0-9_-]{43}$/);
+  const urlField = dialog.getByTestId("copy-share-link");
+  await expect(urlField).toHaveAttribute("data-url", /\/s\/[A-Za-z0-9_-]{43}$/);
   await expect(dialog.getByRole("status").filter({ hasText: "Link created." })).toHaveCount(1);
-  const link = await urlField.inputValue();
-  await expect(dialog.getByTestId("sync-status")).toContainText("Synced");
-  // The review window starts with the link: 72 hours, give or take the seconds since.
+  const link = (await urlField.getAttribute("data-url"))!;
+  await expect(dialog.getByTestId("share-sync")).toHaveAttribute("data-sync", "synced");
+  // The review window starts with the link: 3 days, give or take the seconds since.
+  await showShareTab(dialog, "settings");
   await expect(dialog.getByTestId("review-window")).toContainText(
     /Clients can comment for (3 days|2 days, 23 hours)/,
   );
@@ -204,10 +206,10 @@ async function sharedProject(
   await page.getByTestId("share-button").click();
   const dialog = page.getByTestId("share-dialog");
   await dialog.getByTestId("create-share-link").click();
-  const urlField = dialog.getByTestId("share-url");
-  await expect(urlField).toHaveValue(/\/s\/[A-Za-z0-9_-]{43}$/);
-  await expect(dialog.getByTestId("sync-status")).toContainText("Synced");
-  const link = await urlField.inputValue();
+  const urlField = dialog.getByTestId("copy-share-link");
+  await expect(urlField).toHaveAttribute("data-url", /\/s\/[A-Za-z0-9_-]{43}$/);
+  await expect(dialog.getByTestId("share-sync")).toHaveAttribute("data-sync", "synced");
+  const link = (await urlField.getAttribute("data-url"))!;
   await page.keyboard.press("Escape");
   return link;
 }
@@ -364,7 +366,7 @@ test("a server with nowhere lasting to keep links says so instead of creating on
   await dialog.getByTestId("create-share-link").click();
   await expect(dialog).toContainText("It needs a database to store links");
   await expect(dialog).not.toContainText("Check your connection");
-  await expect(dialog.getByTestId("share-url")).toHaveCount(0);
+  await expect(dialog.getByTestId("copy-share-link")).toHaveCount(0);
 });
 
 test("an image project is shared as its page, and a client's comment comes back on it", async ({
@@ -378,8 +380,8 @@ test("an image project is shared as its page, and a client's comment comes back 
   await page.getByTestId("share-button").click();
   const dialog = page.getByTestId("share-dialog");
   await dialog.getByTestId("create-share-link").click();
-  const link = await dialog.getByTestId("share-url").inputValue();
-  await expect(dialog.getByTestId("sync-status")).toContainText("Synced");
+  const link = (await dialog.getByTestId("copy-share-link").getAttribute("data-url"))!;
+  await expect(dialog.getByTestId("share-sync")).toHaveAttribute("data-sync", "synced");
   await page.keyboard.press("Escape");
 
   const clientContext = await browser.newContext({ storageState: SIGNED_OUT });
@@ -501,7 +503,7 @@ test("a client's first visit opens How it works once, and its button opens it ag
   await expect(guide.getByRole("heading", { level: 3 })).toHaveText([
     "Look around",
     "Pin a comment",
-    "Send feedback within 72 hours",
+    "Send feedback within 3 days",
   ]);
   await client.keyboard.press("Escape");
   await expect(guide).toHaveCount(0);

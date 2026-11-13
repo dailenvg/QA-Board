@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import {
   REVIEW_WINDOW_LABELS,
   REVIEW_WINDOWS,
@@ -8,10 +8,13 @@ import {
 } from "@/lib/share/review-window";
 import { FieldError } from "../ui/FieldError";
 import { SegmentedControl, type SegmentOption } from "../ui/SegmentedControl";
+import { ShareSettingRow } from "./ShareSettingRow";
 
 interface ReviewWindowControlProps {
   value: ReviewWindowChoice;
   onChange: (choice: ReviewWindowChoice) => void;
+  /** What the choice means now: "Open until …", or when it starts. */
+  summary: ReactNode;
   /** A change is on its way to the server. */
   saving: boolean;
   /** Why the last change didn't save (it was undone); null when it did. */
@@ -21,8 +24,11 @@ interface ReviewWindowControlProps {
    * sent to a link on its way out. The choices stay visible, dimmed.
    */
   disabled?: boolean;
-  /** Id of the text under the control that says what the choice means now (time left). */
-  describedBy?: string;
+  /**
+   * The thumb's `layoutId`: unique per control on screen. The Create view and the link's
+   * settings each have their own, so the one fading out never holds on to the other's thumb.
+   */
+  layoutId: string;
 }
 
 const LABEL = "How long clients can comment";
@@ -33,7 +39,7 @@ const LABEL = "How long clients can comment";
  */
 const SHORT_LABELS: Partial<Record<ReviewWindowChoice, string>> = {
   "24h": "24h",
-  "72h": "72h",
+  "72h": "3d",
   "7d": "7d",
 };
 
@@ -50,27 +56,33 @@ const OPTIONS: ReadonlyArray<SegmentOption<ReviewWindowChoice>> = REVIEW_WINDOWS
 const DISABLED_OPTIONS = OPTIONS.map((option) => ({ ...option, disabled: true }));
 
 /**
- * The review window of a link, before it's created and after: four choices,
- * always counted from when the link was created. Saving is said in words
- * beside the label; a change that didn't save says why under the control
- * (announced as an alert, and read again with the group).
+ * The review window of a link, before it's created and after, as a settings
+ * row: four choices, always counted from when the link was created, and what
+ * the choice means now under its name. Saving is said in words beside it; a
+ * change that didn't save says why under the choices (announced as an alert,
+ * and read again with the group).
  */
 export function ReviewWindowControl({
   value,
   onChange,
+  summary,
   saving,
   error,
   disabled = false,
-  describedBy,
+  layoutId,
 }: ReviewWindowControlProps) {
+  const titleId = useId();
+  const summaryId = useId();
   const errorId = useId();
-  const description = [error ? errorId : null, describedBy ?? null].filter(Boolean).join(" ");
   return (
-    // No gap: the error brings its own 8px above it, so it sits as close as the label does.
-    <div className="flex w-full flex-col">
-      {/* Same size and spacing as the Share link field's label above it. */}
-      <div className="mb-3 flex items-baseline justify-between gap-3">
-        <p className="text-body font-semibold text-ink">{LABEL}</p>
+    <ShareSettingRow
+      icon="clock"
+      titleId={titleId}
+      title="Review window"
+      summary={summary}
+      summaryId={summaryId}
+      testId="review-window-row"
+      aside={
         <p
           role="status"
           className="shrink-0 text-meta text-muted"
@@ -78,17 +90,20 @@ export function ReviewWindowControl({
         >
           {saving ? "Saving…" : ""}
         </p>
+      }
+    >
+      <div className="flex flex-col">
+        <SegmentedControl
+          label={LABEL}
+          describedBy={[error ? errorId : null, summaryId].filter(Boolean).join(" ")}
+          layoutId={layoutId}
+          stretch
+          value={value}
+          onChange={onChange}
+          options={disabled ? DISABLED_OPTIONS : OPTIONS}
+        />
+        <FieldError id={errorId} message={error} />
       </div>
-      <SegmentedControl
-        label={LABEL}
-        describedBy={description}
-        layoutId="share-review-window-thumb"
-        stretch
-        value={value}
-        onChange={onChange}
-        options={disabled ? DISABLED_OPTIONS : OPTIONS}
-      />
-      <FieldError id={errorId} message={error} />
-    </div>
+    </ShareSettingRow>
   );
 }

@@ -17,7 +17,7 @@ function lastScene(hours: number | null): string {
 describe("reviewer stories", () => {
   it("name the link's own review window in the last step", () => {
     expect(lastTitle(24)).toBe("Send feedback within 24 hours");
-    expect(lastTitle(72)).toBe("Send feedback within 72 hours");
+    expect(lastTitle(72)).toBe("Send feedback within 3 days");
     expect(lastTitle(168)).toBe("Send feedback within 7 days");
   });
 

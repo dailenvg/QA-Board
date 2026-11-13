@@ -47,12 +47,14 @@ export const RECORD = {
   expiresAt: shareExpiresAt(STATE.project, 1),
   reviewWindowHours: DEFAULT_REVIEW_WINDOW_HOURS,
   password: null,
+  clientName: null,
 } satisfies ShareRecord;
 
 /** What a client of `RECORD` sees. */
 export const VIEW: ClientView = {
   ...STATE,
   brand: toClientBrand(SQUINT_BRAND),
+  clientName: null,
   reviewEndsAt: reviewDeadline(RECORD.createdAt, RECORD.reviewWindowHours),
   reviewWindowHours: RECORD.reviewWindowHours,
   expiresAt: RECORD.expiresAt,

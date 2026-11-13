@@ -7,6 +7,7 @@ import {
   mockFrameCheck,
   openFolder,
   shareWorkspaceProject,
+  showShareTab,
   skipReviewGuide,
 } from "./squint-fixtures";
 import { ageShareLink, shareWindowHours } from "./workspace-db";
@@ -58,7 +59,7 @@ test("a link made for 24 hours says so, and No limit takes the guest's countdown
   await page.getByTestId("mode-comment").click();
   await expect(page.getByRole("img", { name: /^Snapshot of/ })).toBeVisible();
 
-  // Chosen before the link exists: 72 hours unless changed.
+  // Chosen before the link exists: 3 days unless changed.
   await page.getByTestId("share-button").click();
   const dialog = page.getByTestId("share-dialog");
   const window72 = dialog.getByTestId("review-window-72h");
@@ -66,24 +67,27 @@ test("a link made for 24 hours says so, and No limit takes the guest's countdown
   await dialog.getByTestId("review-window-24h").click();
   await expect(dialog.getByTestId("review-window-24h")).toHaveAttribute("aria-checked", "true");
   await dialog.getByTestId("create-share-link").click();
-  const urlField = dialog.getByTestId("share-url");
-  await expect(urlField).toHaveValue(/\/s\/[A-Za-z0-9_-]{43}$/);
-  await expect(dialog.getByTestId("sync-status")).toContainText("Synced");
-  await expect(dialog.getByTestId("review-window-24h")).toHaveAttribute("aria-checked", "true");
+  const urlField = dialog.getByTestId("copy-share-link");
+  await expect(urlField).toHaveAttribute("data-url", /\/s\/[A-Za-z0-9_-]{43}$/);
+  await expect(dialog.getByTestId("share-sync")).toHaveAttribute("data-sync", "synced");
+  const link = (await urlField.getAttribute("data-url"))!;
+  await showShareTab(dialog, "settings");
+  // The link's own settings (the Create view may still be fading out).
+  const settings = dialog.getByTestId("share-settings-step");
+  await expect(settings.getByTestId("review-window-24h")).toHaveAttribute("aria-checked", "true");
   await expect(dialog.getByTestId("review-window")).toContainText(
-    /Clients can comment for (1 day|23 hours)/,
+    /Open until .+\. Clients can comment for (1 day|23 hours)/,
   );
-  const link = await urlField.inputValue();
 
   const { context, guest } = await openAsGuest(browser, link, baseURL);
   await expect(guest.getByTestId("review-countdown")).toContainText(/(1d 0h 0m|23h \d+m) left/);
 
   // No limit: the owner's dialog and the server say so, and the guest's countdown goes.
   const saved = windowSaved(page);
-  await dialog.getByTestId("review-window-none").click();
+  await settings.getByTestId("review-window-none").click();
   expect((await saved).status()).toBe(200);
   await expect(dialog.getByTestId("review-window")).toContainText("No time limit.");
-  await expect(dialog.getByTestId("review-window-none")).toHaveAttribute("aria-checked", "true");
+  await expect(settings.getByTestId("review-window-none")).toHaveAttribute("aria-checked", "true");
 
   await guest.reload();
   await expect(guest.getByRole("heading", { level: 1, name: "Window review" })).toBeVisible();
@@ -112,6 +116,7 @@ test("shortening an old link past its age asks first and closes it; a longer win
   await page.goto(`/p/${projectId}`);
   await page.getByTestId("share-button").click();
   const dialog = page.getByTestId("share-dialog");
+  await showShareTab(dialog, "settings");
   await expect(dialog.getByTestId("review-window")).toContainText(
     /Clients can comment for 1 day(,| and) 1[78] hours/,
   );

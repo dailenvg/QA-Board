@@ -166,6 +166,7 @@ const ICONS = {
     ["path", { d: "M9 21H3v-6" }],
   ],
   message: [["path", { d: "M7.9 20A9 9 0 1 0 4 16.1L2 22Z" }]],
+  messageSquare: [["path", { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" }]],
   messagePlus: [
     ["path", { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" }],
     ["path", { d: "M12 7v6M9 10h6" }],
@@ -227,9 +228,27 @@ const ICONS = {
     ["circle", { cx: 11, cy: 11, r: 8 }],
     ["path", { d: "m21 21-4.3-4.3" }],
   ],
+  send: [
+    [
+      "path",
+      {
+        d: "M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z",
+      },
+    ],
+    ["path", { d: "m21.854 2.147-10.94 10.939" }],
+  ],
+  share: [
+    ["path", { d: "M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" }],
+    ["path", { d: "m16 6-4-4-4 4" }],
+    ["path", { d: "M12 2v13" }],
+  ],
   smartphone: [
     ["rect", { x: 5, y: 2, width: 14, height: 20, rx: 2 }],
     ["path", { d: "M12 18h.01" }],
+  ],
+  squareCheck: [
+    ["rect", { x: 3, y: 3, width: 18, height: 18, rx: 2 }],
+    ["path", { d: "m9 12 2 2 4-4" }],
   ],
   sun: [
     ["circle", { cx: 12, cy: 12, r: 4 }],

@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { CLIENT_NAME_MAX, storedClientName } from "../share/client-name";
+import { MAX_INVITES_PER_SEND } from "../share/invite-addresses";
 import { SHARE_LIMITS } from "../share/limits";
 import { REVIEW_WINDOWS } from "../share/review-window";
 import { isSecretShape } from "../share/tokens";
@@ -163,8 +165,37 @@ export const shareAttachSchema = z.object({
   reviewWindow: reviewWindow.optional(),
 });
 
-/** A workspace link's settings: how long its clients can comment, from the link's creation. */
-export const shareSettingsSchema = z.object({ reviewWindow });
+/**
+ * A typed client name, cleaned (`cleanClientName`): blank or null clears it.
+ * Longer than `CLIENT_NAME_MAX` once cleaned is refused, never cut.
+ */
+const clientName = z
+  .string()
+  .max(CLIENT_NAME_MAX * 4)
+  .nullable()
+  .transform(storedClientName)
+  .refine((name) => name === null || Array.from(name).length <= CLIENT_NAME_MAX, {
+    message: `At most ${CLIENT_NAME_MAX} characters`,
+  });
+
+/**
+ * A workspace link's settings, one or both: how long its clients can comment
+ * (from the link's creation), and who it's for.
+ */
+export const shareSettingsSchema = z
+  .object({ reviewWindow: reviewWindow.optional(), clientName: clientName.optional() })
+  .refine((settings) => settings.reviewWindow !== undefined || settings.clientName !== undefined, {
+    message: "Nothing to change",
+  });
+
+/**
+ * Who to email a link's invitation to: 1 to `MAX_INVITES_PER_SEND` entries
+ * as typed. The route sorts them into addresses and what isn't one
+ * (`prepareInvitees`).
+ */
+export const shareInvitesSchema = z.object({
+  addresses: z.array(z.string().max(320)).min(1).max(MAX_INVITES_PER_SEND),
+});
 
 /** A workspace link's new password, kept exactly as typed (no trimming, no complexity rules). */
 export const sharePasswordSchema = z.object({

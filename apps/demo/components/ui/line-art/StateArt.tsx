@@ -28,7 +28,9 @@ export type ArtScene =
   | "blocked"
   | "slow"
   | "camera"
-  | "brokenImage";
+  | "brokenImage"
+  // Not a state: the Share window's header.
+  | "invite";
 
 /** Every scene is drawn on this stage (viewBox units); the box keeps its shape. */
 const W = 200;
@@ -58,6 +60,24 @@ function Snores({ x, y }: { x: number; y: number }) {
 }
 
 const SCENES: Record<ArtScene, SceneSpec> = {
+  // An invitation on its way: an envelope, a speech bubble flying off it, Squiggy waving it off.
+  // Squiggy is larger than in the empty states and steps in front of the envelope's corner: the
+  // header draws it at its smallest size, beside a title, where a 50-unit Squiggy read as a speck.
+  invite: {
+    mood: "happy",
+    squiggy: { x: 4, y: 62, size: 64 },
+    back: (
+      <>
+        <motion.path d={FLOOR} {...draw(0)} />
+        <motion.path d={roundedRect(58, 54, 94, 64, 6)} fill={PANEL} {...draw(0)} />
+        <motion.path d="M60 58l45 32 45-32" {...draw(1)} />
+        <LineBubble x={134} y={40} w={48} h={28} tail="left" tilt={-10} kind="lines" order={2} />
+        <motion.path d="M116 30l8-6M126 40l9-2M106 24l2-9" {...draw(3)} />
+        <motion.circle cx={36} cy={36} r={2.5} {...draw(4)} />
+        <motion.path d="M184 96v8M180 100h8" {...draw(4)} />
+      </>
+    ),
+  },
   // An empty folder, open, with Squiggy peeking out and a dashed page waiting to go in.
   folder: {
     mood: "idle",

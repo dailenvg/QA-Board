@@ -1,5 +1,5 @@
 export type ButtonVariant =
-  "primary" | "secondary" | "ghost" | "danger-ghost" | "inverse" | "danger";
+  "primary" | "secondary" | "ghost" | "danger-ghost" | "inverse" | "danger" | "lime";
 
 const VARIANTS: Record<ButtonVariant, string> = {
   primary: "bg-brand text-on-brand shadow-seg hover:bg-brand-hover active:bg-brand-hover",
@@ -11,6 +11,8 @@ const VARIANTS: Record<ButtonVariant, string> = {
   "danger-ghost": "text-danger hover:bg-danger-soft active:bg-danger-soft",
   inverse: "bg-inv text-on-inv hover:opacity-90 active:opacity-90",
   danger: "bg-danger text-card hover:opacity-90 active:opacity-90",
+  // Squint's lime under dark ink, edged in the line art's ink as the lime Squiggy is (16:1).
+  lime: "bg-highlight text-on-highlight shadow-seg ring-1 ring-scene-ink ring-inset hover:bg-highlight-line active:bg-highlight-line",
 };
 
 const BASE =

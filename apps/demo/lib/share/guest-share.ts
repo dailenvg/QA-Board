@@ -28,14 +28,19 @@ export const openGuestShare = cache(
     if (!share) return null;
     if (!verifyGuestPass(cookieHeader, share, now)) {
       const brand = toClientBrand(await store.brandOf(share.id));
-      return { locked: true, brand, projectName: share.project.name };
+      return {
+        locked: true,
+        brand,
+        projectName: share.project.name,
+        clientName: share.clientName,
+      };
     }
     return { locked: false, view: await clientView(store, share) };
   },
 );
 
 /**
- * Who invites to review what; null on an anonymous share, which keeps the
+ * Who invites whom to review what; null on an anonymous share, which keeps the
  * generic preview. Password-protected or not, locked or not, the same.
  */
 export function invitationOf(guest: GuestShare | null): Invitation | null {
@@ -43,7 +48,8 @@ export function invitationOf(guest: GuestShare | null): Invitation | null {
   const brand = guest.locked ? guest.brand : guest.view.brand;
   if (!brand.custom) return null;
   const project = guest.locked ? guest.projectName : guest.view.project.name;
-  return { company: brand.name, project };
+  const client = guest.locked ? guest.clientName : guest.view.clientName;
+  return { company: brand.name, project, client };
 }
 
 export interface InvitationCard extends Invitation {
@@ -66,6 +72,7 @@ export async function invitationCard(token: string): Promise<InvitationCard | nu
   return {
     company: brand.name,
     project: share.project.name,
+    client: share.clientName,
     color: brand.color,
     logoUri: logo && cardLogoUri(logo),
   };

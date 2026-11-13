@@ -64,7 +64,7 @@ describe("uploading a workspace file", () => {
     answers[TOKEN] = Response.json({ error: "exists" }, { status: 409 });
     expect(await upload()).toEqual({ ok: true });
     answers[TOKEN] = Response.json({ error: "quota" }, { status: 413 });
-    expect(await upload()).toEqual({ ok: false, status: 413, error: "quota" });
+    expect(await upload()).toMatchObject({ ok: false, status: 413, error: "quota" });
   });
 
   it("reports an upload the store refused, without committing it", async () => {

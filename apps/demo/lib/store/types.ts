@@ -75,6 +75,10 @@ export interface ProjectShare {
    * for one. The password itself never reaches the browser.
    */
   passwordSetAt?: number;
+  /** Who the link is for, as its guests read it ("invited Acme Studio"); missing without a name. */
+  clientName?: string;
+  /** How many different people its invitation emails have gone to; missing before the first. */
+  invitedCount?: number;
 }
 
 export interface Project {

@@ -186,7 +186,10 @@ export function writesFor(action: Action, before: SquintData, after: SquintData)
     }
     case "share/window-restore":
     case "share/password":
+    case "share/invited":
       return [];
+    case "share/client":
+      return [write("PATCH", `${linkPath(action.id)}/settings`, { clientName: action.clientName })];
     case "share/window":
       return [
         write("PATCH", `${linkPath(action.id)}/settings`, {
@@ -226,6 +229,6 @@ export function refusalMessage(action: Action, status: number): string {
   if (action.type.startsWith("comment/") && action.type !== "comment/add") {
     return status === 404 ? COMMENT_GONE : SAVE_FAILED;
   }
-  if (action.type === "share/window") return LINK_GONE;
+  if (action.type === "share/window" || action.type === "share/client") return LINK_GONE;
   return PROJECT_GONE;
 }

@@ -53,7 +53,13 @@ describe("loadWorkspace", () => {
     const membership = await findMembership(db, a.userId, a.workspaceId);
     if (!membership) throw new Error("no membership");
     const data = await loadWorkspace(db, membership, a.userId);
-    expect(data.workspace).toEqual({ id: a.workspaceId, slug: "acme", name: "acme" });
+    expect(data.workspace).toEqual({
+      id: a.workspaceId,
+      slug: "acme",
+      name: "acme",
+      fromEmailName: null,
+      brandColor: null,
+    });
     expect(data.folders.map((folder) => folder.id)).toEqual(["f1"]);
     expect(data.projects.map((project) => project.id).sort()).toEqual(["deck", "web"]);
     expect(data.snapshots.map((snapshot) => snapshot.id)).toEqual(["s1"]);

@@ -7,6 +7,7 @@ import { addFolder, NOW, PNG, twoWorkspaces, URL_PROJECT } from "@/test/workspac
 import { ACCOUNT_DELETION_GRACE_MS, scheduleAccountDeletion } from "../account/account-deletion";
 import type { Database } from "../db/database";
 import { inlineBackend } from "../share/blob-backend";
+import { claimInviteSends } from "../share/invite-limits";
 import { addressKey, claimPasswordAttempt } from "../share/password-attempts";
 import { createPostgresStore } from "../share/postgres-store";
 import { RETENTION_MS } from "../share/retention";
@@ -120,6 +121,31 @@ describe("expiry cron: workspace steps", () => {
     });
     const { rows } = await db.query("SELECT share_id FROM squint_share_password_attempts");
     expect(rows).toEqual([{ share_id: "locked" }]);
+  });
+
+  it("deletes invitation sends a day old, and keeps newer ones", async () => {
+    const { db, a } = await twoWorkspaces();
+    holder.db = db;
+    shares.squintShares = Promise.resolve({ store: createPostgresStore(db), blobs: inlineBackend });
+    const sender = { workspaceId: a.workspaceId, userId: a.userId };
+    const day = 24 * 60 * 60 * 1000;
+    await claimInviteSends(db, sender, 3, Date.now() - day - 1);
+    await claimInviteSends(db, sender, 1, Date.now());
+
+    const response = await cronRoute.GET(
+      new Request("http://localhost/api/cron/expire", {
+        headers: { authorization: `Bearer ${SECRET}` },
+      }),
+    );
+
+    expect(await response.json()).toMatchObject({
+      inviteSends: 3,
+      failed: { inviteSends: false },
+    });
+    const { rows } = await db.query<{ count: number }>(
+      "SELECT count(*)::int AS count FROM squint_share_invite_sends",
+    );
+    expect(rows[0]?.count).toBe(1);
   });
 
   it("deletes accounts and workspaces whose 30 days are up, and keeps the rest", async () => {

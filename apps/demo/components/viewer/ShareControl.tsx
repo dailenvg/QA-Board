@@ -17,7 +17,9 @@ import {
 } from "@/lib/share/review-window";
 import {
   restoreReviewWindow,
+  sendShareInvites,
   setReviewWindow,
+  setShareClientName,
   setSharePassword,
   shareProject,
   unshareProject,
@@ -27,6 +29,7 @@ import { snapshotsFor } from "@/lib/store/snapshots";
 import type { Project, ProjectShare, SquintData } from "@/lib/store/types";
 import { useIsClient } from "@/lib/use-is-client";
 import { useNow } from "@/lib/use-now";
+import { useWorkspaceIdentity } from "@/lib/workspace-client/workspace-identity";
 import { Button } from "../ui/Button";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { Icon } from "../ui/Icon";
@@ -83,9 +86,18 @@ function closesNow(share: ProjectShare, choice: ReviewWindowChoice, now: number)
   return reviewClosed(endsAt, now) && !reviewClosed(share.reviewEndsAt, now);
 }
 
+/** Stands in outside a workspace (never on a signed-in page), so the invitation never names a blank. */
+const UNNAMED = "Your company";
+
+/** The company the invitation comes from, as the workspace's settings have it. */
+function useShareCompany(): string {
+  return useWorkspaceIdentity()?.name.trim() || UNNAMED;
+}
+
 /** The owner's Share button and dialog, and the sync that runs while the project is shared. */
 export function ShareControl({ data, project }: ShareControlProps) {
   const toast = useToast();
+  const company = useShareCompany();
   const isClient = useIsClient();
   const now = useNow();
   const [open, setOpen] = useState(false);
@@ -254,6 +266,11 @@ export function ShareControl({ data, project }: ShareControlProps) {
         windowError={windowError}
         onReviewWindowChange={chooseWindow}
         onPasswordChange={(password) => setSharePassword(project.id, password)}
+        projectName={project.name}
+        company={company}
+        onClientNameChange={(name) => setShareClientName(project.id, name)}
+        onSendInvites={(addresses) => sendShareInvites(project.id, addresses)}
+        onInvitesSent={(message) => toast({ message })}
         returnFocus={returnFocus}
         onCreate={() => void create()}
         onRetry={() => syncNow(project.id)}

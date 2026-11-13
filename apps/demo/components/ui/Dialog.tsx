@@ -3,7 +3,8 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useId, useRef, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { duration, usePopVariants } from "@/lib/motion";
+import { duration, usePopVariants, useSheetVariants } from "@/lib/motion";
+import { useMediaQuery } from "@/lib/use-media-query";
 import { useLiftAboveKeyboard } from "@/lib/use-fit-above-keyboard";
 import { useIsClient } from "@/lib/use-is-client";
 import { Icon } from "./Icon";
@@ -17,7 +18,7 @@ interface DialogProps {
   title: string;
   description?: ReactNode;
   children: ReactNode;
-  size?: "sm" | "md" | "lg";
+  size?: keyof typeof WIDTHS;
   testId?: string;
   /**
    * False while the dialog must stay up (work in progress that can't be left
@@ -29,6 +30,17 @@ interface DialogProps {
    * dialog sits above it, cut to the screen left, instead of behind it.
    */
   fitKeyboard?: boolean;
+  /** A small illustration beside the title, from the `sm` breakpoint up; phones leave it out. */
+  art?: ReactNode;
+  /** Stays at the bottom while the body scrolls (the dialog's closing actions). */
+  footer?: ReactNode;
+  /** On phones, a bottom sheet: edge to edge, flat at the bottom, with a grabber. */
+  sheet?: boolean;
+  /**
+   * A sheet that fills the screen's height, so swapping what's in it (tabs)
+   * never resizes it. The keyboard fit's cap still wins.
+   */
+  tall?: boolean;
 }
 
 /** Tab stops only: roving-tabindex items (such as unselected radios) are skipped. */
@@ -125,7 +137,16 @@ function useFocusTrap(
   }, [open, panel]);
 }
 
-const WIDTHS = { sm: "max-w-sm", md: "max-w-lg", lg: "max-w-4xl" } as const;
+const WIDTHS = {
+  sm: "max-w-sm",
+  md: "max-w-lg",
+  /** One roomy column, between md and lg. */
+  wide: "max-w-2xl",
+  lg: "max-w-4xl",
+} as const;
+
+/** Below the `sm` breakpoint: where a `sheet` dialog becomes a bottom sheet. */
+const PHONE = "(max-width: 39.999rem)";
 
 /** Modal dialog: focus-trapped, Escape and backdrop close it, focus returns to the opener. */
 export function Dialog({
@@ -138,13 +159,21 @@ export function Dialog({
   testId,
   dismissible = true,
   fitKeyboard = false,
+  art,
+  footer,
+  sheet = false,
+  tall = false,
 }: DialogProps) {
   const { container: backdrop, panel } = useLiftAboveKeyboard<HTMLDivElement, HTMLDivElement>(
     open && fitKeyboard,
   );
   const titleId = useId();
   const descriptionId = useId();
-  const variants = usePopVariants();
+  const pop = usePopVariants();
+  const slide = useSheetVariants();
+  const phone = useMediaQuery(PHONE);
+  const asSheet = sheet && phone;
+  const variants = asSheet ? slide : pop;
   const isClient = useIsClient();
   useFocusTrap(open, panel, onClose, dismissible);
 
@@ -154,7 +183,9 @@ export function Dialog({
       {open ? (
         <div
           ref={backdrop}
-          className="fixed inset-0 z-50 grid place-items-end p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:place-items-center sm:p-6"
+          className={`fixed inset-0 z-50 grid place-items-end sm:place-items-center sm:p-6 ${
+            sheet ? "max-sm:pt-3" : "p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+          }`}
         >
           <motion.div
             className="absolute inset-0 bg-scrim"
@@ -175,10 +206,23 @@ export function Dialog({
             initial="hidden"
             animate="visible"
             exit="exit"
-            className={`relative flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-y-auto rounded-panel bg-panel p-5 shadow-pop sm:p-6 ${WIDTHS[size]}`}
+            // A sheet keeps clear of the home indicator: its own bottom padding does, or with a
+            // footer the footer's, so nothing scrolls by in a strip under the footer.
+            className={`relative flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-y-auto rounded-panel bg-panel p-5 shadow-pop sm:p-6 ${WIDTHS[size]} ${
+              sheet
+                ? `max-sm:rounded-b-none ${tall ? "max-sm:h-[calc(100dvh-1.5rem)]" : ""} ${footer ? "" : "max-sm:pb-[max(1.25rem,env(safe-area-inset-bottom))]"}`
+                : ""
+            }`}
           >
+            {sheet ? (
+              <span
+                aria-hidden="true"
+                className="mx-auto -mt-2 mb-3 block h-1.5 w-10 shrink-0 rounded-pill bg-line-strong sm:hidden"
+              />
+            ) : null}
             <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
+              {art ? <div className="shrink-0 max-sm:hidden">{art}</div> : null}
+              <div className="min-w-0 flex-1">
                 <h2 id={titleId} className="text-title font-bold wrap-break-word">
                   {title}
                 </h2>
@@ -199,7 +243,18 @@ export function Dialog({
                 </button>
               ) : null}
             </div>
-            <div className="mt-5">{children}</div>
+            {/* Grows in a tall sheet, so the footer stays at the bottom under short content. */}
+            <div className={`mt-5 ${sheet && tall ? "max-sm:flex-1" : ""}`}>{children}</div>
+            {footer ? (
+              // Sticky against the panel's own edge: its padding is the sticky inset, hence -bottom.
+              <div
+                className={`sticky -bottom-5 z-10 -mx-5 mt-5 -mb-5 border-t border-line bg-panel px-5 py-3 sm:-bottom-6 sm:-mx-6 sm:-mb-6 sm:px-6 ${
+                  sheet ? "max-sm:pb-[max(0.75rem,env(safe-area-inset-bottom))]" : ""
+                }`}
+              >
+                {footer}
+              </div>
+            ) : null}
           </motion.div>
         </div>
       ) : null}

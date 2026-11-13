@@ -65,6 +65,13 @@ export type Action =
    * none (null). Nothing to send: the server answered the change already.
    */
   | { type: "share/password"; id: string; passwordSetAt: number | null }
+  /** Names the client the link is for, or with null clears the name; saved to the server. */
+  | { type: "share/client"; id: string; clientName: string | null }
+  /**
+   * How many people the link's invitation emails have now gone to, as the
+   * server counted them after a send. Nothing to send: the server answered already.
+   */
+  | { type: "share/invited"; id: string; invitedCount: number }
   /** A push or pull succeeded. */
   | { type: "share/synced"; id: string; at: number }
   /**
@@ -342,6 +349,15 @@ export function reduce(data: SquintData, action: Action): SquintData {
       return updateShare(data, action.id, ({ passwordSetAt: _previous, ...share }) =>
         action.passwordSetAt === null ? share : { ...share, passwordSetAt: action.passwordSetAt },
       );
+    case "share/client":
+      return updateShare(data, action.id, ({ clientName: _previous, ...share }) =>
+        action.clientName === null ? share : { ...share, clientName: action.clientName },
+      );
+    case "share/invited":
+      return updateShare(data, action.id, (share) => ({
+        ...share,
+        invitedCount: action.invitedCount,
+      }));
     case "share/merge":
       return mergeShared(data, action);
   }

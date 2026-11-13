@@ -67,7 +67,12 @@ export default async function SharedReviewPage({ params }: Props) {
   const guest = await openGuestShare(token, cookies);
   if (!guest) notFound();
   const initial = guest.locked
-    ? { locked: true as const, brand: guest.brand, projectName: guest.projectName }
+    ? {
+        locked: true as const,
+        brand: guest.brand,
+        projectName: guest.projectName,
+        clientName: guest.clientName,
+      }
     : { locked: false as const, view: guest.view };
   return <ShareGate token={token} initial={initial} authorName={reviewerNameOf(cookies)} />;
 }
