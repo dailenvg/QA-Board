@@ -170,7 +170,6 @@ test("a shared link opens the page it names, and a client's comment comes back o
 
   await page.getByTestId("share-button").click();
   const share = page.getByTestId("share-dialog");
-  await share.getByTestId("create-share-link").click();
   const link = (await share.getByTestId("copy-share-link").getAttribute("data-url"))!;
   await expect(share.getByTestId("share-sync")).toHaveAttribute("data-sync", "synced");
   await page.keyboard.press("Escape");

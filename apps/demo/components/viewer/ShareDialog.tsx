@@ -8,18 +8,16 @@ import { inviteMessage, type InviteDetails } from "@/lib/share/invite-copy";
 import { reviewClosed, type ReviewWindowChoice } from "@/lib/share/review-window";
 import type { InviteResult } from "@/lib/share-client/invites";
 import type { SyncStatus } from "@/lib/share-client/owner-sync";
-import type { ShareFit } from "@/lib/share-client/use-share-fit";
 import type { Result } from "@/lib/store/store";
 import type { ProjectShare } from "@/lib/store/types";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { useNow } from "@/lib/use-now";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
-import { FieldError } from "../ui/FieldError";
 import { Icon } from "../ui/Icon";
 import { StateArt } from "../ui/line-art/StateArt";
-import { ReviewWindowControl } from "./ReviewWindowControl";
 import { ShareInviteStep } from "./ShareInviteStep";
+import { ShareLinkSkeleton } from "./ShareLinkSkeleton";
 import { ShareSettingsStep } from "./ShareSettingsStep";
 import { panelId, SHARE_TABS, ShareTabs, tabId, type ShareTab } from "./ShareTabs";
 import { useShareInvites } from "./use-share-invites";
@@ -30,12 +28,13 @@ interface ShareDialogProps {
   share: ProjectShare | undefined;
   url: string | null;
   status: SyncStatus;
-  /** Whether the project fits in a share; a link is only offered once it does. */
-  fit: ShareFit;
+  /** Why the project is too big to share, so no link is made; null when it fits. */
+  tooBig: string | null;
+  /** The link is being made (opening the window makes it): a placeholder holds its place. */
   creating: boolean;
   revoking: boolean;
   error: string | null;
-  /** The link's review window, or the one a new link will get. */
+  /** The link's review window. */
   reviewWindow: ReviewWindowChoice;
   /** A change of the link's window is on its way to the server. */
   savingWindow: boolean;
@@ -70,6 +69,8 @@ const DESCRIPTION =
   "Clients can view and add comments. Only your team can resolve, edit or delete them.";
 const CLOSED =
   "The review window has closed, so clients can't comment and invites can't go out. Choose a longer window or No limit in Settings to reopen it.";
+const GONE =
+  "This project's share link no longer works. It was revoked, or the server no longer has it. Create a new link to share again.";
 const NAME_SAVE_FAILED = "The client name didn't save. Check your connection and try again.";
 /** How long "Saved" stands in for "Optional" beside the client's name. */
 const NAME_SAVED_MS = 3000;
@@ -80,11 +81,12 @@ const PHONE = "(max-width: 39.999rem)";
 const RADIO = '[role="radiogroup"] [role="radio"][tabindex="0"]';
 
 /**
- * The Share window. Before a link exists: its size check, review window and
- * Create link. With one: 1, who's reviewing and how it reaches them (client
- * name, email invites, other ways, the link itself), and 2, its settings
- * (review window, password). On phones, a bottom sheet with Invite and
- * Settings tabs. Revoke link and Done stay at the bottom.
+ * The Share window. Opening it makes the link, so it opens on the link's
+ * steps: a placeholder while the link is made, or why it couldn't be, with
+ * a way to try again. With the link: 1, who's reviewing and how it reaches
+ * them (client name, email invites, other ways, the link itself), and 2,
+ * its settings (review window, password). On phones, a bottom sheet with
+ * Invite and Settings tabs. Revoke link and Done stay at the bottom.
  */
 export function ShareDialog({
   open,
@@ -92,7 +94,7 @@ export function ShareDialog({
   share,
   url,
   status,
-  fit,
+  tooBig,
   creating,
   revoking,
   error,
@@ -120,16 +122,6 @@ export function ShareDialog({
   // The store shows a new link before the server has kept it. Hold the link view until it has, so
   // a refused save doesn't flash a link (and announce "Link created.") and then take it back.
   const linked = Boolean(share && url && !gone && !creating);
-  // Disabled while checking or too big; aria-disabled keeps it focusable, so the reason is read.
-  const blocked = creating || fit.status !== "fits";
-  const createLabel =
-    fit.status === "checking"
-      ? "Checking size…"
-      : creating
-        ? "Creating link…"
-        : gone
-          ? "Create a new link"
-          : "Create link";
   const linkedView = useRef<HTMLDivElement>(null);
   const createView = useRef<HTMLDivElement>(null);
   const revokeButton = useRef<HTMLButtonElement>(null);
@@ -354,9 +346,9 @@ export function ShareDialog({
       testId="share-dialog"
       fitKeyboard
       sheet
-      // Invite and Settings, on a phone's tabs, share one height.
-      tall={linked}
-      size={linked ? "wide" : "md"}
+      // One size from the placeholder to the link, and for Invite and Settings on a phone's tabs.
+      tall
+      size="wide"
       art={<StateArt scene="invite" size="sm" still />}
       footer={footer}
     >
@@ -386,38 +378,40 @@ export function ShareDialog({
             exit="exit"
             className="flex flex-col gap-4"
           >
-            {gone ? (
-              <p role="alert" className="text-body text-muted">
-                This project&apos;s share link no longer works. It was revoked, or the server no
-                longer has it. Create a new link to share again.
-              </p>
+            {creating ? (
+              <ShareLinkSkeleton />
             ) : (
-              <p className="text-body text-muted">
-                Anyone with the link can open this project. Their comments come back here.
-              </p>
+              // Why there's no link: a failure in the danger tone, a project too big or a link
+              // gone in the tile's. Each but too big has its way forward.
+              <div
+                className={`flex flex-col items-start gap-4 rounded-card p-4 sm:p-5 ${
+                  error && !tooBig ? "bg-danger-soft text-danger" : "bg-tile text-ink-2"
+                }`}
+                data-testid="share-link-problem"
+              >
+                <p
+                  role="alert"
+                  id={errorId}
+                  className="flex items-start gap-2 text-body text-pretty"
+                >
+                  <Icon name="alert" className="mt-1 size-4 shrink-0" />
+                  <span>{tooBig ?? error ?? GONE}</span>
+                </p>
+                {/* A project too big to share gets no button: there's nothing to try again. */}
+                {tooBig ? null : (
+                  <Button
+                    onClick={onCreate}
+                    aria-describedby={errorId}
+                    className="max-sm:w-full"
+                    data-view-focus
+                    data-testid="create-share-link"
+                  >
+                    <Icon name="link" className="size-4" />
+                    {error ? "Try again" : "Create a new link"}
+                  </Button>
+                )}
+              </div>
             )}
-            <ReviewWindowControl
-              value={reviewWindow}
-              onChange={onReviewWindowChange}
-              summary="Starts when you create the link."
-              saving={false}
-              error={null}
-              disabled={creating}
-              layoutId="share-new-window-thumb"
-            />
-            {/* aria-disabled while busy, so keyboard focus stays here if creating fails. */}
-            <Button
-              onClick={blocked ? undefined : onCreate}
-              aria-disabled={blocked || undefined}
-              aria-describedby={errorId}
-              className="sm:self-end"
-              data-view-focus
-              data-testid="create-share-link"
-            >
-              <Icon name="link" className="size-4" />
-              {createLabel}
-            </Button>
-            <FieldError id={errorId} message={fit.status === "too-big" ? fit.message : error} />
           </motion.div>
         )}
       </AnimatePresence>

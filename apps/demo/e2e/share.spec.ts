@@ -57,7 +57,6 @@ test("an owner shares a project, a client comments, and the owner resolves and r
   await page.getByTestId("share-button").click();
   const dialog = page.getByTestId("share-dialog");
   await expect(dialog).toContainText("Clients can view and add comments");
-  await dialog.getByTestId("create-share-link").click();
   const urlField = dialog.getByTestId("copy-share-link");
   await expect(urlField).toHaveAttribute("data-url", /\/s\/[A-Za-z0-9_-]{43}$/);
   await expect(dialog.getByRole("status").filter({ hasText: "Link created." })).toHaveCount(1);
@@ -168,6 +167,8 @@ test("an owner shares a project, a client comments, and the owner resolves and r
   await page.unroute("**/api/w/*/projects/*/share-link");
   await failed.getByRole("button", { name: "Retry" }).click();
   await expect(page.getByTestId("toast").filter({ hasText: "Link revoked" })).toBeVisible();
+  // Revoking closes the window rather than making a new link straight away.
+  await expect(dialog).toBeHidden();
 
   const revoked = await client.goto(link);
   expect(revoked?.status()).toBe(404);
@@ -205,7 +206,6 @@ async function sharedProject(
   await expect(page.getByRole("img", { name: /^Snapshot of/ })).toBeVisible();
   await page.getByTestId("share-button").click();
   const dialog = page.getByTestId("share-dialog");
-  await dialog.getByTestId("create-share-link").click();
   const urlField = dialog.getByTestId("copy-share-link");
   await expect(urlField).toHaveAttribute("data-url", /\/s\/[A-Za-z0-9_-]{43}$/);
   await expect(dialog.getByTestId("share-sync")).toHaveAttribute("data-sync", "synced");
@@ -363,9 +363,10 @@ test("a server with nowhere lasting to keep links says so instead of creating on
 
   await page.getByTestId("share-button").click();
   const dialog = page.getByTestId("share-dialog");
-  await dialog.getByTestId("create-share-link").click();
+  // Opening it tries to make the link and says why it couldn't, with a way to try again.
   await expect(dialog).toContainText("It needs a database to store links");
   await expect(dialog).not.toContainText("Check your connection");
+  await expect(dialog.getByTestId("create-share-link")).toHaveText("Try again");
   await expect(dialog.getByTestId("copy-share-link")).toHaveCount(0);
 });
 
@@ -379,7 +380,6 @@ test("an image project is shared as its page, and a client's comment comes back 
 
   await page.getByTestId("share-button").click();
   const dialog = page.getByTestId("share-dialog");
-  await dialog.getByTestId("create-share-link").click();
   const link = (await dialog.getByTestId("copy-share-link").getAttribute("data-url"))!;
   await expect(dialog.getByTestId("share-sync")).toHaveAttribute("data-sync", "synced");
   await page.keyboard.press("Escape");
