@@ -13,10 +13,9 @@ export const dynamic = "force-dynamic";
 type Params = { workspaceId: string; projectId: string };
 
 /**
- * `POST { channelId, note?, assignee?, followers? }`: posts the project to a
- * ClickUp channel as the signed-in member (`sendProjectToClickUp`): its
- * name linking to its page in Squint, the note, and who it's assigned to and
- * followed by (up to 10). Answers `{ url }`: the message's link when ClickUp
+ * `POST { channelId, note?, assignee? }`: posts the project to a ClickUp
+ * channel as the signed-in member (`sendProjectToClickUp`): its name and
+ * its page's address in Squint, the note, and who it's assigned to. Answers `{ url }`: the message's link when ClickUp
  * gives one, else null. 400 `invalid` with the field; 404 for a project
  * that isn't in the workspace (or is in the trash); 409 `archived`,
  * `not-connected`, `channel-gone` (ClickUp's 404) or `channel-forbidden`

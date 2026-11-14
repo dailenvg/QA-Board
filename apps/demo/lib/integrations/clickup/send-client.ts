@@ -94,7 +94,6 @@ export interface ClickUpSendRequest {
   channelId: string;
   note: string;
   assignee: string | null;
-  followers: readonly string[];
 }
 
 /** Sends the project to a ClickUp channel; `url` is the message's link, when ClickUp gave one. */

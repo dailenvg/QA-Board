@@ -125,7 +125,7 @@ export function ShareLocked({
           {brand.color ? (
             <span
               aria-hidden="true"
-              className="pointer-events-none absolute inset-x-6 top-0 h-1 rounded-b-pill bg-guest-accent dark:bg-guest-accent-dark"
+              className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-guest-accent dark:bg-guest-accent-dark"
             />
           ) : null}
           {/* display: contents: only orchestrates, so the section's gap still spaces its children. */}

@@ -18,8 +18,6 @@ export interface ClickUpMessage {
   content: string;
   /** A ClickUp user id. */
   assignee?: string;
-  /** ClickUp user ids. */
-  followers?: readonly string[];
 }
 
 /** What ClickUp says of a message it took: where it can be opened, when it says. */
@@ -119,7 +117,7 @@ export async function postClickUpMessage(
   apiUrl: string,
   token: string,
   target: { teamId: string; channelId: string },
-  { content, assignee, followers }: ClickUpMessage,
+  { content, assignee }: ClickUpMessage,
   fetcher: Fetch = fetch,
 ): Promise<PostedMessage> {
   const answer = await requestClickUp(
@@ -133,7 +131,6 @@ export async function postClickUpMessage(
         content,
         content_format: "text/md",
         ...(assignee ? { assignee } : {}),
-        ...(followers?.length ? { followers: [...followers] } : {}),
       },
     },
     fetcher,

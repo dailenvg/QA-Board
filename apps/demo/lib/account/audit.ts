@@ -42,12 +42,11 @@ export type ProjectAction = "project.deleted" | "project.clickup_sent";
 export type ShareAction =
   "share.settings_changed" | "share.password_set" | "share.password_removed" | "share.invites_sent";
 
-/** What `project.clickup_sent` keeps: the ClickUp workspace and channel ids, and counts. */
+/** What `project.clickup_sent` keeps: the ClickUp workspace and channel ids, and whether it was assigned. */
 export interface ClickUpSentMeta {
   clickUpTeamId: string;
   channelId: string;
   assigned: number;
-  followers: number;
 }
 
 /** One audit entry, by whoever did it: a user, or null for Squint itself (the daily cron). */
@@ -64,8 +63,8 @@ export interface AuditEntry {
    * new window (a fixed choice), which link an invitation went out on and to
    * whom, as keyed HMACs of the addresses only (`share-invites.ts`), so the
    * Share window can count people without the log holding an address; or
-   * which ClickUp channel a project went to, with how many people it was
-   * assigned to and followed by (never the message, a ClickUp user or the token).
+   * which ClickUp channel a project went to, and whether it was assigned to
+   * someone (never the message, a ClickUp user or the token).
    */
   meta?:
     | { reviewWindow: ReviewWindowChoice }

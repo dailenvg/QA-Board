@@ -88,13 +88,13 @@ describe("listClickUpChannels", () => {
 describe("postClickUpMessage", () => {
   const target = { teamId: "9012", channelId: "c/1" };
 
-  it("posts Markdown with who it's assigned to and followed by", async () => {
+  it("posts Markdown with who it's assigned to", async () => {
     const { fetcher, calls } = answering({ body: { id: "m-1" } });
     const posted = await postClickUpMessage(
       API,
       TOKEN,
       target,
-      { content: "**Hi**", assignee: "81", followers: ["82", "83"] },
+      { content: "**Hi**", assignee: "81" },
       fetcher,
     );
     expect(posted).toEqual({ url: null });
@@ -108,13 +108,12 @@ describe("postClickUpMessage", () => {
       content: "**Hi**",
       content_format: "text/md",
       assignee: "81",
-      followers: ["82", "83"],
     });
   });
 
-  it("leaves out an empty assignee and followers", async () => {
+  it("leaves out an empty assignee", async () => {
     const { fetcher, calls } = answering({ body: {} });
-    await postClickUpMessage(API, TOKEN, target, { content: "x", followers: [] }, fetcher);
+    await postClickUpMessage(API, TOKEN, target, { content: "x", assignee: "" }, fetcher);
     expect(JSON.parse(calls[0]?.init.body as string)).toEqual({
       type: "message",
       content: "x",

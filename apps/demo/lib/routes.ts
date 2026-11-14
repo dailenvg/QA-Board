@@ -17,6 +17,11 @@ export function projectHref(projectId: string): string {
   return `/p/${encodeURIComponent(projectId)}`;
 }
 
+/** A project link's preview card, as link unfurlers (and the Send to ClickUp preview) get it. */
+export function projectCardHref(projectId: string): string {
+  return `${projectHref(projectId)}/opengraph-image`;
+}
+
 /** Account settings; it opens on its first section, the profile. */
 export const ACCOUNT_HREF = "/account";
 export const ACCOUNT_PROFILE_HREF = "/account/profile";

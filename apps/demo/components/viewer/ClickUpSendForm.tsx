@@ -4,14 +4,14 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useRef, type FormEvent, type KeyboardEvent } from "react";
 import type { ClickUpPerson } from "@/lib/integrations/clickup/api";
 import type { ClickUpChannel } from "@/lib/integrations/clickup/chat-api";
-import { FOLLOWERS_MAX } from "@/lib/integrations/clickup/message";
 import { usePopVariants } from "@/lib/motion";
-import { projectHref } from "@/lib/routes";
+import { projectCardHref, projectHref } from "@/lib/routes";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { ClickUpMessagePreview } from "./ClickUpMessagePreview";
 import { ClickUpNoteField } from "./ClickUpNoteField";
 import { ClickUpPicker } from "./ClickUpPicker";
+import { ShareStep } from "./ShareStep";
 import { CLICKUP_SEND_COPY } from "./clickup-send-copy";
 import { focusLost, type ClickUpOption } from "./clickup-options";
 import type { ClickUpDraft } from "./use-clickup-send";
@@ -51,15 +51,16 @@ const personOption = ({ id, username, email }: ClickUpPerson): ClickUpOption => 
   detail: email,
 });
 
-/** Enter in a field of the form (a search, a radio, a checkbox) never submits it. */
+/** Enter in a field of the form (a search, a radio) never submits it. */
 function holdEnter(event: KeyboardEvent<HTMLFormElement>) {
   if (event.key === "Enter" && event.target instanceof HTMLInputElement) event.preventDefault();
 }
 
 /**
- * The Send to ClickUp form: the channel (searchable, required), who it's
- * assigned to and who follows it (both optional, searchable), a note, and
- * the message as ClickUp will show it. Submitted by the window's Send
+ * The Send to ClickUp form, in numbered steps on tiles as the Share window
+ * is: where it goes (a channel, searchable, required), who reviews it (one
+ * person or nobody, searchable), and a note with the message as ClickUp
+ * will show it beside the lists on wide screens. Submitted by the window's Send
  * button only: Enter in the lists never sends (a message to a team is
  * costly to send by accident). Focus moves to the channel as the form
  * appears (from the window's Close button, or from the page when the control
@@ -152,39 +153,41 @@ export function ClickUpSendForm({
       onKeyDown={holdEnter}
       noValidate
       aria-busy={sending}
-      className="flex flex-col gap-5"
+      className="grid gap-4 lg:grid-cols-2 lg:items-start"
       data-testid="clickup-send-form"
     >
       {/* Held while a send is on its way, so a change can't look like it went with it. */}
-      <fieldset disabled={sending} className="flex min-w-0 flex-col gap-5">
-        <ClickUpPicker
-          label={COPY.channel.label}
-          searchPlaceholder={COPY.channel.search}
-          options={channelOptions}
-          value={draft.channelId ? [draft.channelId] : []}
-          onChange={([channelId]) => onChange({ channelId: channelId ?? null })}
-          prefix="#"
-          required
-          empty={COPY.channel.empty}
-          emptyAction={
-            <Button variant="secondary" size="sm" onClick={onReload}>
-              <Icon name="refresh" className="size-4" />
-              {COPY.retry}
-            </Button>
-          }
-          noMatch={COPY.channel.noMatch}
-          error={channelError}
-          busy={refreshing}
-          searchRef={channelSearch}
-          testId="clickup-channel"
-        />
-        <div className="grid gap-5 sm:grid-cols-2">
+      <fieldset disabled={sending} className="flex min-w-0 flex-col gap-4">
+        <ShareStep step={1} title={COPY.steps.channel} testId="clickup-step-channel">
+          <ClickUpPicker
+            label={COPY.channel.label}
+            searchPlaceholder={COPY.channel.search}
+            options={channelOptions}
+            value={draft.channelId}
+            onChange={(channelId) => onChange({ channelId })}
+            prefix="#"
+            required
+            empty={COPY.channel.empty}
+            emptyAction={
+              <Button variant="secondary" size="sm" onClick={onReload}>
+                <Icon name="refresh" className="size-4" />
+                {COPY.retry}
+              </Button>
+            }
+            noMatch={COPY.channel.noMatch}
+            error={channelError}
+            busy={refreshing}
+            searchRef={channelSearch}
+            testId="clickup-channel"
+          />
+        </ShareStep>
+        <ShareStep step={2} title={COPY.steps.assignee} testId="clickup-step-assignee">
           <ClickUpPicker
             label={COPY.assignee.label}
             searchPlaceholder={COPY.assignee.search}
             options={peopleOptions}
-            value={draft.assignee ? [draft.assignee] : []}
-            onChange={([person]) => onChange({ assignee: person ?? null })}
+            value={draft.assignee}
+            onChange={(person) => onChange({ assignee: person })}
             noneLabel={COPY.assignee.nobody}
             aside={COPY.optional}
             hint={COPY.people.notified}
@@ -192,35 +195,28 @@ export function ClickUpSendForm({
             noMatch={COPY.assignee.noMatch}
             testId="clickup-assignee"
           />
-          <ClickUpPicker
-            label={COPY.followers.label}
-            searchPlaceholder={COPY.followers.search}
-            options={peopleOptions}
-            multiple
-            value={draft.followers}
-            onChange={(followers) => onChange({ followers })}
-            max={{ count: FOLLOWERS_MAX, message: COPY.followers.full }}
-            aside={COPY.followers.hint}
-            hint={COPY.people.notified}
-            empty={COPY.people.empty}
-            noMatch={COPY.followers.noMatch}
-            removeLabel={COPY.followers.remove}
-            testId="clickup-followers"
-          />
-        </div>
+        </ShareStep>
       </fieldset>
-      <ClickUpNoteField
-        value={draft.note}
-        onChange={(note) => onChange({ note })}
-        readOnly={sending}
-      />
-      <ClickUpMessagePreview
-        projectName={project.name}
-        projectUrl={new URL(projectHref(project.id), window.location.origin).href}
-        note={draft.note}
-        assignee={assignee?.username ?? null}
-        followers={draft.followers.length}
-      />
+      {/*
+        Two columns: the note and its preview stay in view (top-6, the window's own padding) as
+        the lists scroll by on a short screen, so picking who reviews it shows in the preview.
+      */}
+      <div className="min-w-0 lg:sticky lg:top-6">
+        <ShareStep step={3} title={COPY.steps.note} testId="clickup-step-note">
+          <ClickUpNoteField
+            value={draft.note}
+            onChange={(note) => onChange({ note })}
+            readOnly={sending}
+          />
+          <ClickUpMessagePreview
+            projectName={project.name}
+            projectUrl={new URL(projectHref(project.id), window.location.origin).href}
+            cardSrc={projectCardHref(project.id)}
+            note={draft.note}
+            assignee={assignee?.username ?? null}
+          />
+        </ShareStep>
+      </div>
       <AnimatePresence initial={false}>
         {error ? (
           <motion.p
@@ -231,7 +227,7 @@ export function ClickUpSendForm({
             initial="hidden"
             animate="visible"
             exit="exit"
-            className="flex items-start gap-2 rounded-tile bg-danger-soft p-3 text-meta text-danger"
+            className="flex items-start gap-2 rounded-tile bg-danger-soft p-3 text-meta text-danger lg:col-span-2"
             data-testid="clickup-send-error"
           >
             <Icon name="alert" className="mt-0.5 size-4 shrink-0" />

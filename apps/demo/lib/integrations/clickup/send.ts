@@ -140,8 +140,8 @@ export function projectUrl(projectId: string): string {
 }
 
 /**
- * Posts project `projectId` to a ClickUp channel as the actor: its name
- * linking to its page, their note, and who it's assigned to and followed by.
+ * Posts project `projectId` to a ClickUp channel as the actor: its name and
+ * its page's address, their note, and who it's assigned to.
  * At most 20 sends per member in 10 minutes. Audits each send
  * (`project.clickup_sent`: the channel and counts only).
  */
@@ -160,7 +160,7 @@ export async function sendProjectToClickUp(
   if ("ok" in connection) return connection;
   const claim = sends(actor.userId, now);
   if (!claim.ok) return { ...claim, reason: "rate-limited" };
-  const { channelId, note, assignee, followers } = input;
+  const { channelId, note, assignee } = input;
   const content = clickUpMessage({
     projectName: project.name,
     projectUrl: projectUrl(projectId),
@@ -172,7 +172,7 @@ export async function sendProjectToClickUp(
       apiUrl,
       connection.token,
       { teamId: connection.teamId, channelId },
-      { content, ...(assignee ? { assignee } : {}), followers },
+      { content, ...(assignee ? { assignee } : {}) },
       fetcher,
     );
   } catch (error) {
@@ -191,7 +191,6 @@ export async function sendProjectToClickUp(
         clickUpTeamId: connection.teamId,
         channelId,
         assigned: assignee ? 1 : 0,
-        followers: followers.length,
       },
     },
     now,

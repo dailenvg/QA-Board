@@ -1,4 +1,5 @@
 import { renderBrandIcon } from "@/components/link-preview/render-brand-icon";
+import { invitationCard } from "@/lib/share/guest-share";
 import { notFound, rateLimit } from "@/lib/share/http";
 
 export const runtime = "nodejs";
@@ -17,5 +18,5 @@ export async function GET(request: Request, { params }: Params) {
   const limited = rateLimit(request, "card");
   if (limited) return limited;
   const { token } = await params;
-  return (await renderBrandIcon(token)) ?? notFound();
+  return (await renderBrandIcon(await invitationCard(token))) ?? notFound();
 }

@@ -1,10 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { loginHref, PATH_HEADER } from "@/lib/auth/next-path";
-import { isPublicPath } from "@/lib/auth/public-paths";
+import { isPublicPath, opensSignedOut } from "@/lib/auth/public-paths";
 import { SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth/session-cookie";
 
 /**
- * Sends browsers without a session cookie to /login (API routes get a 401).
+ * Sends browsers without a session cookie to /login (API routes get a 401),
+ * except to pages that answer them themselves (a project's link).
  * Checks only that the cookie is there: the session itself is checked in
  * server code (`lib/auth/guards.ts`). Passes the asked-for path on as
  * `PATH_HEADER`, so a server-side redirect to /login can return there, and
@@ -19,6 +20,7 @@ export function middleware(request: NextRequest) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
     }
+    if (opensSignedOut(pathname)) return NextResponse.next();
     return NextResponse.redirect(new URL(loginHref(`${pathname}${search}`), request.url));
   }
 

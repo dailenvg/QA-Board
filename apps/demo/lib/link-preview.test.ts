@@ -4,6 +4,8 @@ import {
   invitationPreview,
   previewMetadata,
   SHARED_REVIEW_PREVIEW,
+  TEAM_REVIEW_CARD_ALT,
+  teamReviewPreview,
 } from "./link-preview";
 
 describe("a review link's preview", () => {
@@ -42,5 +44,16 @@ describe("a review link's preview", () => {
     expect(SHARED_REVIEW_PREVIEW.description).toBe(
       "Open the link, drop a pin and leave a comment. No account needed.",
     );
+  });
+});
+
+describe("a project link's preview", () => {
+  it("names the project and the company, for the team, who sign in to open it", () => {
+    const copy = teamReviewPreview({ company: "ONE Agency", project: "Spring launch" });
+    expect(copy.title).toBe("Spring launch · ONE Agency");
+    expect(copy.description).toBe(
+      "Ready for your team's review. Sign in to Squint to open it.",
+    );
+    expect(copy.alt).toBe(TEAM_REVIEW_CARD_ALT);
   });
 });

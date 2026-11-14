@@ -1,5 +1,4 @@
 import { accountErrorMessage } from "@/lib/account/account-client";
-import { FOLLOWERS_MAX } from "@/lib/integrations/clickup/message";
 import type { ClickUpSendError } from "@/lib/integrations/clickup/send-client";
 
 /** Every line the Send to ClickUp window shows, in one place for review. */
@@ -8,7 +7,13 @@ export const CLICKUP_SEND_COPY = {
   buttonLabel: "Send to ClickUp",
   title: "Send to ClickUp",
   description:
-    "Post this project to a ClickUp Chat channel for your team to review. It appears under your ClickUp name.",
+    "Post this project in a ClickUp Chat channel for your team. It goes out under your ClickUp name.",
+  /** Each step's title, numbered as the Share window's are. */
+  steps: {
+    channel: "Where should it go?",
+    assignee: "Who reviews it?",
+    note: "Add a note",
+  },
   notConnected: {
     title: "Plug in your ClickUp",
     body: "Add your ClickUp token once, then send projects straight to your team's channels.",
@@ -39,23 +44,13 @@ export const CLICKUP_SEND_COPY = {
     nobody: "Nobody",
     noMatch: (query: string) => `Nobody matches “${query}”.`,
   },
-  followers: {
-    label: "Followers",
-    search: "Search people",
-    hint: `Optional, up to ${FOLLOWERS_MAX}`,
-    full: `That's ${FOLLOWERS_MAX}, the most one message can have.`,
-    noMatch: (query: string) => `Nobody matches “${query}”.`,
-    remove: (name: string) => `Remove ${name}`,
-  },
-  /** Read out as a picked person's chip is removed. */
-  removed: (name: string) => `Removed ${name}.`,
   /** Read out as Enter in a search field picks its first match: "Picked #design.". */
   picked: (name: string) => `Picked ${name}.`,
   /** Read out as a search narrows a list: "3 matches". */
   matches: (count: number) => `${count} ${count === 1 ? "match" : "matches"}`,
   people: {
     empty: "Your ClickUp workspace has nobody else in it yet.",
-    /** Under Assign to and Followers. */
+    /** Under Assign to. */
     notified: "They're notified in ClickUp.",
   },
   optional: "Optional",
@@ -68,8 +63,13 @@ export const CLICKUP_SEND_COPY = {
   },
   preview: {
     label: "Preview",
+    /** The sender, as the preview shows them: ClickUp shows their own name. */
+    sender: "You",
+    /** When it's sent, as the preview shows it. */
+    when: "now",
+    /** The link's card under the message, as ClickUp unfurls it. */
+    card: (project: string) => `Link preview: ${project}, ready for your team's review.`,
     assigned: (name: string) => `Assigned to ${name}`,
-    followers: (count: number) => `${count} ${count === 1 ? "follower" : "followers"}`,
   },
   cancel: "Cancel",
   send: "Send",

@@ -207,8 +207,9 @@ export function Dialog({
             animate="visible"
             exit="exit"
             // A sheet keeps clear of the home indicator: its own bottom padding does, or with a
-            // footer the footer's, so nothing scrolls by in a strip under the footer.
-            className={`relative flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-y-auto rounded-panel bg-panel p-5 shadow-pop sm:p-6 ${WIDTHS[size]} ${
+            // footer the footer's, so nothing scrolls by in a strip under the footer. With a
+            // footer, a control Tab scrolls to stops above it, not under it (scroll-pb, WCAG 2.4.11).
+            className={`relative flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-y-auto rounded-panel bg-panel p-5 shadow-pop sm:p-6 ${footer ? "scroll-pb-24" : ""} ${WIDTHS[size]} ${
               sheet
                 ? `max-sm:rounded-b-none ${tall ? "max-sm:h-[calc(100dvh-1.5rem)]" : ""} ${footer ? "" : "max-sm:pb-[max(1.25rem,env(safe-area-inset-bottom))]"}`
                 : ""
