@@ -11,6 +11,8 @@ import { ClickUpError, clickUpId, requestClickUp, shownName, type Fetch } from "
 export interface ClickUpChannel {
   id: string;
   name: string;
+  /** The channel in ClickUp's web app, where a link pasted by hand unfurls into its card. */
+  url: string;
 }
 
 /** A message for `postClickUpMessage`: Markdown, from `clickUpMessage`. */
@@ -51,13 +53,18 @@ const postedAnswer = z.object({
 
 const teamPath = (teamId: string) => `/v3/workspaces/${encodeURIComponent(teamId)}/chat/channels`;
 
+/** Where ClickUp's web app opens channel `channelId` of workspace `teamId`. */
+export function clickUpChannelUrl(teamId: string, channelId: string): string {
+  return `https://app.clickup.com/${encodeURIComponent(teamId)}/chat/r/${encodeURIComponent(channelId)}`;
+}
+
 /** A channel that takes a message: a channel (not a DM), neither archived nor hidden. */
-function openChannel(entry: unknown): ClickUpChannel | null {
+function openChannel(entry: unknown, teamId: string): ClickUpChannel | null {
   const parsed = channel.safeParse(entry);
   if (!parsed.success) return null;
   const { id, name, type, archived, is_hidden: hidden } = parsed.data;
   if (type !== "CHANNEL" || archived || hidden) return null;
-  return { id, name: shownName(name, `Channel ${id}`) };
+  return { id, name: shownName(name, `Channel ${id}`), url: clickUpChannelUrl(teamId, id) };
 }
 
 /**
@@ -87,7 +94,7 @@ export async function listClickUpChannels(
       throw new ClickUpError("GET /v3/workspaces/…/chat/channels answered in an unknown shape");
     }
     for (const entry of parsed.data.data) {
-      const open = openChannel(entry);
+      const open = openChannel(entry, teamId);
       if (open) channels.set(open.id, open);
     }
     cursor = parsed.data.next_cursor || null;

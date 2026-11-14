@@ -5,6 +5,8 @@ import { listClickUpChannels, postClickUpMessage } from "./chat-api";
 const API = "https://api.clickup.com/api";
 const TOKEN = `pk_1234_${"A".repeat(32)}`;
 const CHANNELS = `${API}/v3/workspaces/9012/chat/channels`;
+/** Where ClickUp's web app opens workspace 9012's channels. */
+const CHAT = "https://app.clickup.com/9012/chat/r";
 
 /** A fake `fetch` answering each call in turn, recording what it was asked. */
 function answering(...answers: Array<{ body: unknown; status?: number }>) {
@@ -61,9 +63,9 @@ describe("listClickUpChannels", () => {
     expect(new Headers(calls[0]?.init.headers).get("authorization")).toBe(TOKEN);
     expect(calls[0]?.init.redirect).toBe("error");
     expect(channels).toEqual([
-      { id: "c-1", name: "Announcements" },
-      { id: "c-3", name: "bugs" },
-      { id: "c-2", name: "design" },
+      { id: "c-1", name: "Announcements", url: `${CHAT}/c-1` },
+      { id: "c-3", name: "bugs", url: `${CHAT}/c-3` },
+      { id: "c-2", name: "design", url: `${CHAT}/c-2` },
     ]);
   });
 

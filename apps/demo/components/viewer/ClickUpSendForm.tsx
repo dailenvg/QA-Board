@@ -10,6 +10,7 @@ import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { ClickUpMessagePreview } from "./ClickUpMessagePreview";
 import { ClickUpNoteField } from "./ClickUpNoteField";
+import { ClickUpPasteCard } from "./ClickUpPasteCard";
 import { ClickUpPicker } from "./ClickUpPicker";
 import { ShareStep } from "./ShareStep";
 import { CLICKUP_SEND_COPY } from "./clickup-send-copy";
@@ -39,6 +40,8 @@ interface ClickUpSendFormProps {
   repick: number;
   /** Sends the draft; resolves false when it didn't go. */
   onSend: () => Promise<boolean>;
+  /** Copies the link and opens the channel in ClickUp, to paste it by hand; false when it didn't. */
+  onCopyAndOpen: () => Promise<boolean>;
   /** Reads the lists again (no channels yet: one may have been created in ClickUp since). */
   onReload: () => void;
   /** Phones: the keyboard isn't raised by moving focus to the channel search. */
@@ -60,7 +63,9 @@ function holdEnter(event: KeyboardEvent<HTMLFormElement>) {
  * The Send to ClickUp form, in numbered steps on tiles as the Share window
  * is: where it goes (a channel, searchable, required), who reviews it (one
  * person or nobody, searchable), and a note with the message as ClickUp
- * will show it beside the lists on wide screens. Submitted by the window's Send
+ * will show it beside the lists on wide screens; then, unnumbered, posting
+ * the link by hand so it shows its card (Copy link & open ClickUp, which
+ * needs a channel too). Submitted by the window's Send
  * button only: Enter in the lists never sends (a message to a team is
  * costly to send by accident). Focus moves to the channel as the form
  * appears (from the window's Close button, or from the page when the control
@@ -83,6 +88,7 @@ export function ClickUpSendForm({
   refreshing,
   repick,
   onSend,
+  onCopyAndOpen,
   onReload,
   phone,
 }: ClickUpSendFormProps) {
@@ -98,6 +104,7 @@ export function ClickUpSendForm({
   );
   const peopleOptions = useMemo(() => people.map(personOption), [people]);
   const assignee = people.find((person) => person.id === draft.assignee) ?? null;
+  const channel = channels.find(({ id: channelId }) => channelId === draft.channelId) ?? null;
 
   /** The channel choice: its search field, or on a phone a radio (no keyboard). */
   const focusChannel = () => {
@@ -144,6 +151,12 @@ export function ClickUpSendForm({
     event.preventDefault();
     if (!draft.channelId) focusChannel();
     await onSend();
+  };
+
+  const copyAndOpen = () => {
+    if (sending) return;
+    if (!draft.channelId) focusChannel();
+    void onCopyAndOpen();
   };
 
   return (
@@ -200,8 +213,9 @@ export function ClickUpSendForm({
       {/*
         Two columns: the note and its preview stay in view (top-6, the window's own padding) as
         the lists scroll by on a short screen, so picking who reviews it shows in the preview.
+        Posting it by hand, with its card, comes after.
       */}
-      <div className="min-w-0 lg:sticky lg:top-6">
+      <div className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-6">
         <ShareStep step={3} title={COPY.steps.note} testId="clickup-step-note">
           <ClickUpNoteField
             value={draft.note}
@@ -211,11 +225,17 @@ export function ClickUpSendForm({
           <ClickUpMessagePreview
             projectName={project.name}
             projectUrl={new URL(projectHref(project.id), window.location.origin).href}
-            cardSrc={projectCardHref(project.id)}
             note={draft.note}
             assignee={assignee?.username ?? null}
           />
         </ShareStep>
+        <ClickUpPasteCard
+          projectName={project.name}
+          cardSrc={projectCardHref(project.id)}
+          channel={channel?.name ?? null}
+          busy={sending}
+          onCopy={copyAndOpen}
+        />
       </div>
       <AnimatePresence initial={false}>
         {error ? (
