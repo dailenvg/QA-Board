@@ -2,11 +2,9 @@
 
 import { useState } from "react";
 import type { WorkspaceSettings as Settings } from "@/lib/account/workspace-settings";
-import type { ClickUpSection } from "@/lib/integrations/clickup/section";
 import { workspaceLogoSrc } from "@/lib/routes";
 import { MonogramTile } from "../brand/MonogramTile";
 import { ImageUploader } from "./ImageUploader";
-import { IntegrationsSettings } from "./IntegrationsSettings";
 import { SettingsCard } from "./SettingsCard";
 import { WorkspaceForm } from "./WorkspaceForm";
 
@@ -14,31 +12,25 @@ interface WorkspaceSettingsProps {
   settings: Settings;
   /** Only the owner changes them; anyone else is told so. */
   isOwner: boolean;
-  clickUp: ClickUpSection;
 }
 
 /**
  * The workspace section: its logo, then its name, brand color and sender
- * name with a preview of what guests see, then its integrations. The logo
- * saves on its own, and the preview shows the new one at once. Members see
- * that only the owner changes these, and what's connected.
+ * name with a preview of what guests see. The logo saves on its own, and the
+ * preview shows the new one at once. Members see that only the owner changes these.
  */
-export function WorkspaceSettings({ settings, isOwner, clickUp }: WorkspaceSettingsProps) {
+export function WorkspaceSettings({ settings, isOwner }: WorkspaceSettingsProps) {
   const [logoVersion, setLogoVersion] = useState(settings.logoVersion);
-  const integrations = <IntegrationsSettings clickUp={clickUp} isOwner={isOwner} />;
   if (!isOwner) {
     return (
-      <div className="flex flex-col gap-4">
-        <SettingsCard
-          title={settings.name}
-          description="Only the workspace's owner can change its name, logo and brand. Ask them if something needs updating."
-          icon="lock"
-          testId="workspace-settings"
-        >
-          {null}
-        </SettingsCard>
-        {integrations}
-      </div>
+      <SettingsCard
+        title={settings.name}
+        description="Only the workspace's owner can change its name, logo and brand. Ask them if something needs updating."
+        icon="lock"
+        testId="workspace-settings"
+      >
+        {null}
+      </SettingsCard>
     );
   }
   const logoSrc = logoVersion && workspaceLogoSrc(logoVersion);
@@ -76,7 +68,6 @@ export function WorkspaceSettings({ settings, isOwner, clickUp }: WorkspaceSetti
         slug={settings.slug}
         logoSrc={logoSrc}
       />
-      {integrations}
     </div>
   );
 }

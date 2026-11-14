@@ -1,15 +1,15 @@
 import { isLocalHttp } from "../../auth/session-cookie";
 
 /**
- * Where Squint reaches ClickUp's API. No setup: a workspace's owner connects
- * with their own personal token. The only knob is a test stub's URL.
+ * Where Squint reaches ClickUp's API. No setup: each member connects with
+ * their own personal token. The only knob is a test stub's URL.
  */
 
 /** Reads CLICKUP_API_URL, VERCEL_ENV and AUTH_SECRET. */
 export type ClickUpEnv = Readonly<Record<string, string | undefined>>;
 
-/** ClickUp's API, up to and including `/v2`. */
-const API_URL = "https://api.clickup.com/api/v2";
+/** ClickUp's API, up to its version: calls add `/v2/…` (users, teams) or `/v3/…` (chat). */
+const API_URL = "https://api.clickup.com/api";
 
 /**
  * ClickUp's API URL, or null when the integration can't work here. Without

@@ -51,6 +51,25 @@ export async function sessionDeletion(user: SessionUser): Promise<DeletionConfir
   }
 }
 
+/**
+ * The profile's ClickUp card for the signed-in user, in the workspace they
+ * work in; null outside one (the admin), without a database, or when reading
+ * it fails (logged by kind only): the page leaves the card out then.
+ */
+export async function sessionClickUpSection(userId: string): Promise<ClickUpSection | null> {
+  const pending = database();
+  if (!pending) return null;
+  try {
+    const db = await pending;
+    const membership = await findOwnWorkspace(db, userId);
+    if (!membership) return null;
+    return await loadClickUpSection(db, { userId, workspaceId: membership.workspaceId });
+  } catch (error) {
+    console.error(`squint account: clickup read failed (${describeError(error)})`);
+    return null;
+  }
+}
+
 /** `sessionAvatarVersion`, as the avatar's URL. */
 export async function sessionAvatarSrc(userId: string): Promise<string | null> {
   const version = await sessionAvatarVersion(userId);
@@ -125,22 +144,13 @@ async function readOwnWorkspacePage<T>(
   }
 }
 
-/**
- * The workspace settings page: the settings of the signed-in user's workspace,
- * whether they own it, and its ClickUp connection.
- */
-export type WorkspaceSettingsPage = PageRead<{
-  settings: WorkspaceSettings;
-  isOwner: boolean;
-  clickUp: ClickUpSection;
-}>;
+/** The workspace settings page: the settings of the signed-in user's workspace, and whether they own it. */
+export type WorkspaceSettingsPage = PageRead<{ settings: WorkspaceSettings; isOwner: boolean }>;
 
 export function loadWorkspaceSettingsPage(): Promise<WorkspaceSettingsPage> {
   return readOwnWorkspacePage("workspace settings", async (db, membership) => {
     const settings = await loadWorkspaceSettings(db, membership.workspaceId);
-    if (!settings) return null;
-    const clickUp = await loadClickUpSection(db, membership.workspaceId);
-    return { settings, isOwner: membership.role === "owner", clickUp };
+    return settings && { settings, isOwner: membership.role === "owner" };
   });
 }
 

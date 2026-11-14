@@ -22,7 +22,7 @@ function tokenProblem(token: string): string | null {
 }
 
 /**
- * The owner's connect form: a personal API token (hidden like a password,
+ * The member's connect form: a personal API token (hidden like a password,
  * with Show; its shape checked as the field loses focus), sent to Squint,
  * which checks it with ClickUp. A token that reaches several ClickUp
  * workspaces opens a choice of them here, and Connect sends it again with

@@ -6,28 +6,21 @@ import type { ClickUpSection } from "@/lib/integrations/clickup/section";
 import { usePopVariants } from "@/lib/motion";
 import { FormAlert } from "../auth/FormAlert";
 import { ClickUpConnected } from "./ClickUpConnected";
-import { ClickUpLogo } from "./ClickUpLogo";
 import { ClickUpTokenForm } from "./ClickUpTokenForm";
 import { INTEGRATIONS_COPY, type ClickUpNotice } from "./integrations-copy";
 
 const COPY = INTEGRATIONS_COPY.clickUp;
-
-interface ClickUpIntegrationProps {
-  section: ClickUpSection;
-  /** Only the owner connects or disconnects. */
-  isOwner: boolean;
-}
 
 function Muted({ children }: { children: ReactNode }) {
   return <p className="text-body text-pretty text-muted">{children}</p>;
 }
 
 /**
- * ClickUp's row in the Integrations card: can't connect from this site, not
- * connected (the token form, for the owner), or connected. States swap with
- * a pop (a fade with reduced motion); how the last step went shows above them.
+ * The ClickUp card's body: can't connect from this site, not connected (the
+ * token form), or connected. States swap with a pop (a fade with reduced
+ * motion); how the last step went shows above them.
  */
-export function ClickUpIntegration({ section, isOwner }: ClickUpIntegrationProps) {
+export function ClickUpIntegration({ section }: { section: ClickUpSection }) {
   const [notice, setNotice] = useState<ClickUpNotice | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const variants = usePopVariants();
@@ -37,19 +30,16 @@ export function ClickUpIntegration({ section, isOwner }: ClickUpIntegrationProps
       case "unavailable":
         return <Muted>{COPY.unavailable}</Muted>;
       case "disconnected":
-        return isOwner ? (
+        return (
           <div className="flex flex-col gap-4">
             <Muted>{COPY.disconnected}</Muted>
             <ClickUpTokenForm onNotice={setNotice} onConnected={() => root.current?.focus()} />
           </div>
-        ) : (
-          <Muted>{COPY.memberOnly}</Muted>
         );
       case "connected":
         return (
           <ClickUpConnected
             connection={section.connection}
-            isOwner={isOwner}
             onNotice={setNotice}
             onDisconnected={() => root.current?.focus()}
           />
@@ -61,14 +51,10 @@ export function ClickUpIntegration({ section, isOwner }: ClickUpIntegrationProps
     <div
       ref={root}
       tabIndex={-1}
-      className="flex flex-col rounded-tile bg-panel p-4 outline-none focus-visible:ring-2 focus-visible:ring-focus"
+      className="flex flex-col rounded-tile outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-4 focus-visible:ring-offset-card"
       data-testid="clickup-integration"
       data-state={section.kind}
     >
-      <h3 className="mb-4 flex items-center gap-2 text-heading font-semibold">
-        <ClickUpLogo className="size-6 shrink-0" />
-        {COPY.name}
-      </h3>
       {/*
        * The live regions stay mounted so changes are announced, but take room (their space
        * below) only while a message shows: a flex gap would count them even when empty.

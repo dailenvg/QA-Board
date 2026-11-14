@@ -1,25 +1,25 @@
 import type { Queryable } from "../../share/migrate";
 import { clickUpApiUrl } from "./config";
-import { loadClickUpConnection, type ClickUpConnection } from "./connections";
+import { loadClickUpConnection, type ClickUpActor, type ClickUpConnection } from "./connections";
 
-/** What the settings page's ClickUp row shows. */
+/** What the profile's ClickUp card shows. */
 export type ClickUpSection =
   | { kind: "connected"; connection: ClickUpConnection }
   | { kind: "disconnected" }
-  /** ClickUp can't be reached from this site (`clickUpApiUrl`). */
+  /** ClickUp is switched off on this site (`clickUpApiUrl` is null). */
   | { kind: "unavailable" };
 
 /**
- * A workspace's ClickUp row: its connection, which shows even if the site
- * can no longer reach ClickUp (so the owner can still disconnect it), else
- * whether it can connect.
+ * A member's ClickUp card: their connection, which shows even if the site
+ * can no longer reach ClickUp (so they can still disconnect it), else
+ * whether they can connect.
  */
 export async function loadClickUpSection(
   db: Queryable,
-  workspaceId: string,
+  actor: ClickUpActor,
   apiUrl: string | null = clickUpApiUrl(),
 ): Promise<ClickUpSection> {
-  const connection = await loadClickUpConnection(db, workspaceId);
+  const connection = await loadClickUpConnection(db, actor);
   if (connection) return { kind: "connected", connection };
   return apiUrl ? { kind: "disconnected" } : { kind: "unavailable" };
 }

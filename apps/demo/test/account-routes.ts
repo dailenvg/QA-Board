@@ -7,7 +7,7 @@ import * as sessions from "@/app/api/account/sessions/route";
 import * as storage from "@/app/api/account/storage/route";
 import * as logo from "@/app/api/account/workspace/logo/route";
 import * as workspace from "@/app/api/account/workspace/route";
-import * as clickUp from "@/app/api/account/workspace/integrations/clickup/route";
+import * as clickUp from "@/app/api/account/integrations/clickup/route";
 
 type Handler = (request: Request) => Promise<Response>;
 
@@ -18,10 +18,10 @@ const ROUTES: Array<[string, Partial<Record<string, unknown>>]> = [
   ["/api/account/password", password],
   ["/api/account/email", email],
   ["/api/account/sessions", sessions],
+  ["/api/account/integrations/clickup", clickUp],
   ["/api/account/avatar", avatar],
   ["/api/account/workspace", workspace],
   ["/api/account/workspace/logo", logo],
-  ["/api/account/workspace/integrations/clickup", clickUp],
   ["/api/account/storage", storage],
 ];
 

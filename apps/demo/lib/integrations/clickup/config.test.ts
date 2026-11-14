@@ -5,15 +5,15 @@ const SECRET = { AUTH_SECRET: "test-auth-secret-0123456789abcdef" };
 
 describe("clickUpApiUrl", () => {
   it("is ClickUp's API, as long as tokens can be sealed", () => {
-    expect(clickUpApiUrl(SECRET)).toBe("https://api.clickup.com/api/v2");
+    expect(clickUpApiUrl(SECRET)).toBe("https://api.clickup.com/api");
     expect(clickUpApiUrl({})).toBeNull();
     expect(clickUpApiUrl({ AUTH_SECRET: " " })).toBeNull();
   });
 
   it("takes a stub on this machine over plain http, without its trailing slash", () => {
     for (const host of ["127.0.0.1:3101", "localhost:3101", "[::1]:3101"]) {
-      expect(clickUpApiUrl({ ...SECRET, CLICKUP_API_URL: `http://${host}/v2/` })).toBe(
-        `http://${host}/v2`,
+      expect(clickUpApiUrl({ ...SECRET, CLICKUP_API_URL: `http://${host}/api/` })).toBe(
+        `http://${host}/api`,
       );
     }
   });

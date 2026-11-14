@@ -6,6 +6,7 @@ import { ViewerBackendContext } from "@/lib/viewer-backend/backend";
 import { serverBackend } from "@/lib/viewer-backend/server-backend";
 import { WorkspaceError } from "../app-state/WorkspaceError";
 import { ArchivedBanner } from "./ArchivedBanner";
+import { ClickUpControl } from "./ClickUpControl";
 import { FolderBackLink } from "./FolderBackLink";
 import { ShareControl } from "./ShareControl";
 import { ViewerNotFound } from "./ViewerNotFound";
@@ -17,7 +18,8 @@ import { ViewerView } from "./ViewerView";
  * not-found state, or the workspace's error state. Render it inside
  * `WorkspaceProvider`; changes go through the server backend. An archived
  * project opens as usual under a bar that offers Unarchive; its review link is
- * closed meanwhile, so Share (and the link's sync) waits until it's back.
+ * closed meanwhile, so Share (and the link's sync) and Send to ClickUp wait
+ * until it's back.
  */
 export function Viewer({ projectId }: { projectId: string }) {
   const state = useSquint();
@@ -34,7 +36,14 @@ export function Viewer({ projectId }: { projectId: string }) {
         data={state.data}
         project={project}
         leading={<FolderBackLink folder={folder} />}
-        actions={archived ? null : <ShareControl data={state.data} project={project} />}
+        actions={
+          archived ? null : (
+            <>
+              <ClickUpControl project={project} />
+              <ShareControl data={state.data} project={project} />
+            </>
+          )
+        }
         notice={archived ? <ArchivedBanner key="archived-banner" project={project} /> : null}
       />
     </ViewerBackendContext>

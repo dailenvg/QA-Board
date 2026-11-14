@@ -1,6 +1,6 @@
 /**
- * The browser side of the ClickUp settings route. Never throws: a network
- * failure is an outcome too.
+ * The browser side of the ClickUp card in the profile settings. Never
+ * throws: a network failure is an outcome too.
  */
 
 import type { ClickUpTeam } from "./api";
@@ -16,7 +16,6 @@ export type ClickUpRequestError =
   | "unreachable"
   /** This site can't reach ClickUp. */
   | "unavailable"
-  | "owner-only"
   | "rate-limited"
   | "signed-out"
   | "offline"
@@ -27,7 +26,7 @@ export type ClickUpConnectOutcome =
   | { ok: "choose"; teams: ClickUpTeam[] }
   | { ok: false; error: ClickUpRequestError; teams?: ClickUpTeam[]; retryAfterSeconds?: number };
 
-const PATH = "/api/account/workspace/integrations/clickup";
+const PATH = "/api/account/integrations/clickup";
 
 /** A 429 that somehow came without Retry-After: the budget's window. */
 const DEFAULT_RETRY_SECONDS = 10 * 60;
@@ -54,7 +53,6 @@ async function bodyOf(response: Response): Promise<Record<string, unknown>> {
 function errorOf(status: number, code: unknown, field: unknown = null): ClickUpRequestError {
   if (status === 400) return field === "token" ? "refused" : "failed";
   if (status === 401) return "signed-out";
-  if (status === 403) return "owner-only";
   if (status === 503) return "unavailable";
   if (status === 502) return "unreachable";
   const known = ["refused", "no-workspace", "unknown-team"];

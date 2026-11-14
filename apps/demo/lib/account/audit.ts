@@ -12,7 +12,9 @@ export type AccountAction =
   | "user.avatar_removed"
   | "user.deletion_scheduled"
   | "user.restored"
-  | "user.deleted";
+  | "user.deleted"
+  | "user.clickup_connected"
+  | "user.clickup_disconnected";
 
 /** What the workspace settings record in the audit log. */
 export type WorkspaceAction =
@@ -22,15 +24,16 @@ export type WorkspaceAction =
   | "workspace.deletion_scheduled"
   | "workspace.restored"
   | "workspace.created"
-  | "workspace.deleted"
-  | "workspace.clickup_connected"
-  | "workspace.clickup_disconnected";
+  | "workspace.deleted";
 
 /** Who joined or left a workspace: targets the user, with the workspace's id. */
 export type MembershipAction = "membership.added" | "membership.removed";
 
-/** What the daily cron does to a workspace's projects: an archived one deleted once its date came. */
-export type ProjectAction = "project.deleted";
+/**
+ * What happens to a workspace's projects: the daily cron deleting an archived
+ * one once its date came, or a member sending one to ClickUp.
+ */
+export type ProjectAction = "project.deleted" | "project.clickup_sent";
 
 /**
  * A member changed a project's review link settings or password, or emailed
@@ -38,6 +41,14 @@ export type ProjectAction = "project.deleted";
  */
 export type ShareAction =
   "share.settings_changed" | "share.password_set" | "share.password_removed" | "share.invites_sent";
+
+/** What `project.clickup_sent` keeps: the ClickUp workspace and channel ids, and counts. */
+export interface ClickUpSentMeta {
+  clickUpTeamId: string;
+  channelId: string;
+  assigned: number;
+  followers: number;
+}
 
 /** One audit entry, by whoever did it: a user, or null for Squint itself (the daily cron). */
 export interface AuditEntry {
@@ -50,11 +61,16 @@ export interface AuditEntry {
   fields: readonly string[];
   /**
    * The only values an entry keeps besides the field names: a review link's
-   * new window (a fixed choice), or which link an invitation went out on and
-   * to whom, as keyed HMACs of the addresses only (`share-invites.ts`), so the
-   * Share window can count people without the log holding an address.
+   * new window (a fixed choice), which link an invitation went out on and to
+   * whom, as keyed HMACs of the addresses only (`share-invites.ts`), so the
+   * Share window can count people without the log holding an address; or
+   * which ClickUp channel a project went to, with how many people it was
+   * assigned to and followed by (never the message, a ClickUp user or the token).
    */
-  meta?: { reviewWindow: ReviewWindowChoice } | { shareId: string; recipients: readonly string[] };
+  meta?:
+    | { reviewWindow: ReviewWindowChoice }
+    | { shareId: string; recipients: readonly string[] }
+    | ClickUpSentMeta;
 }
 
 export async function audit(db: Queryable, entry: AuditEntry, now: number): Promise<void> {

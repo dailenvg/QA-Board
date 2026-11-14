@@ -1,10 +1,13 @@
 import * as author from "@/app/api/w/[workspaceId]/author/route";
 import * as blobCommit from "@/app/api/w/[workspaceId]/blobs/commit/route";
 import * as blobToken from "@/app/api/w/[workspaceId]/blobs/token/route";
+import * as clickUpChannels from "@/app/api/w/[workspaceId]/clickup/channels/route";
+import * as clickUpPeople from "@/app/api/w/[workspaceId]/clickup/people/route";
 import * as folder from "@/app/api/w/[workspaceId]/folders/[folderId]/route";
 import * as folders from "@/app/api/w/[workspaceId]/folders/route";
 import * as importRoute from "@/app/api/w/[workspaceId]/import/route";
 import * as archive from "@/app/api/w/[workspaceId]/projects/[projectId]/archive/route";
+import * as clickUpSend from "@/app/api/w/[workspaceId]/projects/[projectId]/clickup/route";
 import * as blob from "@/app/api/w/[workspaceId]/projects/[projectId]/blobs/[key]/route";
 import * as comment from "@/app/api/w/[workspaceId]/projects/[projectId]/comments/[commentId]/route";
 import * as comments from "@/app/api/w/[workspaceId]/projects/[projectId]/comments/route";
@@ -47,9 +50,12 @@ const ROUTES: Array<[string, Partial<Record<string, unknown>>]> = [
   ["/projects/:projectId/share-link/settings", shareSettings],
   ["/projects/:projectId/share-link/password", sharePassword],
   ["/projects/:projectId/share-link/invites", shareInvites],
+  ["/projects/:projectId/clickup", clickUpSend],
   ["/projects/:projectId/blobs/:key", blob],
   ["/blobs/token", blobToken],
   ["/blobs/commit", blobCommit],
+  ["/clickup/channels", clickUpChannels],
+  ["/clickup/people", clickUpPeople],
 ];
 
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
