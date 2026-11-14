@@ -142,13 +142,14 @@ export function ClickUpDialog({ open, onClose, project, send }: ClickUpDialogPro
       open={open}
       onClose={onClose}
       title={COPY.title}
-      description={COPY.description}
+      // Blocked, the scene says it (ClickUp's mark included): no description or header mark.
+      description={lists.status === "blocked" ? undefined : COPY.description}
       testId="clickup-dialog"
       fitKeyboard
       sheet
       tall={lists.status === "loading" || ready}
       size={lists.status === "loading" || ready ? "wide" : "md"}
-      art={<ClickUpLogo className="size-12" />}
+      art={lists.status === "blocked" ? undefined : <ClickUpLogo className="size-12" />}
       footer={footer}
     >
       {/* Always present, so each change is announced (a region added with its words isn't). */}

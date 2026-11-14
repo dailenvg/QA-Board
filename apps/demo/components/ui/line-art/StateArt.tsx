@@ -30,7 +30,9 @@ export type ArtScene =
   | "camera"
   | "brokenImage"
   // Not a state: the Share window's header.
-  | "invite";
+  | "invite"
+  // Send to ClickUp before ClickUp is connected: plugging into ClickUp.
+  | "clickup";
 
 /** Every scene is drawn on this stage (viewBox units); the box keeps its shape. */
 const W = 200;
@@ -59,7 +61,77 @@ function Snores({ x, y }: { x: number; y: number }) {
   );
 }
 
+/** The ClickUp mark's two shapes (Simple Icons' path, split), on a 24-unit square. */
+const CLICKUP_SMILE =
+  "M2 18.439l3.69-2.828c1.961 2.56 4.044 3.739 6.363 3.739 2.307 0 4.33-1.166 6.203-3.704L22 18.405C19.298 22.065 15.941 24 12.053 24 8.178 24 4.788 22.078 2 18.439z";
+const CLICKUP_ARROW = "M12.04 6.15l-6.568 5.66-3.036-3.52L12.055 0l9.543 8.296-3.05 3.509z";
+
+/**
+ * ClickUp's mark in its own colors, the one filled thing in a scene besides Squiggy: it names
+ * the app being plugged into. Its gradients are drawn in viewBox units, so one id pair serves
+ * every copy on a page.
+ */
+function ClickUpMark({ x, y, size }: { x: number; y: number; size: number }) {
+  const scale = size / 24;
+  return (
+    <motion.g
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ delay: 0.35, duration: 0.3 }}
+      transform={`translate(${x} ${y}) scale(${scale})`}
+      stroke="none"
+    >
+      <defs>
+        <linearGradient
+          id="state-art-clickup-smile"
+          x1="2"
+          y1="20"
+          x2="22"
+          y2="20"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop offset="0" stopColor="#8930FD" />
+          <stop offset="1" stopColor="#49CCF9" />
+        </linearGradient>
+        <linearGradient
+          id="state-art-clickup-arrow"
+          x1="2.4"
+          y1="6"
+          x2="21.6"
+          y2="6"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop offset="0" stopColor="#FF02F0" />
+          <stop offset="1" stopColor="#FFC800" />
+        </linearGradient>
+      </defs>
+      <path d={CLICKUP_SMILE} fill="url(#state-art-clickup-smile)" />
+      <path d={CLICKUP_ARROW} fill="url(#state-art-clickup-arrow)" />
+    </motion.g>
+  );
+}
+
 const SCENES: Record<ArtScene, SceneSpec> = {
+  // Almost connected: Squiggy holds a plug up to a ClickUp app tile, sparks in the gap.
+  clickup: {
+    mood: "happy",
+    squiggy: { x: 6, y: 74, size: 58 },
+    back: (
+      <>
+        <motion.path d={FLOOR} {...draw(0)} />
+        <motion.path d="M84 76C64 76 74 120 50 120H16" {...draw(1)} />
+        <motion.path d={roundedRect(84, 64, 22, 24, 5)} fill={PANEL} {...draw(1)} />
+        <motion.path d="M106 70h8M106 82h8" {...draw(2)} />
+        <motion.path d="M120 64l3-5M121 76h5M120 88l3 5" {...draw(4)} />
+        <motion.path d={roundedRect(132, 44, 58, 58, 16)} fill={PANEL} {...draw(1)} />
+        <motion.path d="M132 70h-3M132 82h-3" {...draw(2)} />
+        <ClickUpMark x={145} y={57} size={32} />
+        <motion.path d="M190 26v8M186 30h8" {...draw(5)} />
+        <motion.circle cx={128} cy={26} r={2.5} {...draw(5)} />
+        <motion.circle cx={30} cy={34} r={2} {...draw(5)} />
+      </>
+    ),
+  },
   // An invitation on its way: an envelope, a speech bubble flying off it, Squiggy waving it off.
   // Squiggy is larger than in the empty states and steps in front of the envelope's corner: the
   // header draws it at its smallest size, beside a title, where a 50-unit Squiggy read as a speck.
@@ -418,8 +490,8 @@ const SCENES: Record<ArtScene, SceneSpec> = {
 /** What the art sits on: its filled shapes take this color, so they read as unfilled. */
 export type ArtSurface = "panel" | "tile" | "card";
 
-/** Widths per size: a page's empty state, a panel's, or a tile's. */
-const SIZE = { lg: "w-60", md: "w-44", sm: "w-28" } as const;
+/** Widths per size: a window's feature scene, a page's empty state, a panel's, or a tile's. */
+const SIZE = { xl: "w-72", lg: "w-60", md: "w-44", sm: "w-28" } as const;
 
 interface StateArtProps {
   scene: ArtScene;
