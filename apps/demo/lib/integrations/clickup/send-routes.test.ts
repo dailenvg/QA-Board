@@ -138,8 +138,8 @@ describe("GET /api/w/<id>/clickup/channels and /people", () => {
     expect(listed.headers.get("cache-control")).toBe("no-store");
     expect(await listed.json()).toEqual({
       channels: [
-        { id: "c-1", name: "Announcements" },
-        { id: "c-2", name: "design" },
+        { id: "c-1", name: "Announcements", url: `https://app.clickup.com/${TEAM}/chat/r/c-1` },
+        { id: "c-2", name: "design", url: `https://app.clickup.com/${TEAM}/chat/r/c-2` },
       ],
     });
     const found = await people(a);

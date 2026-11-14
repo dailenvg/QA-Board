@@ -114,13 +114,8 @@ test("a member sends a project to a ClickUp channel, assigned, with a note", asy
   await expect(preview.getByTestId("clickup-preview-url")).toHaveText(
     new RegExp(`^https?://[^/]+/p/${projectId}$`),
   );
-  // The card the link unfurls into, as the project link's own image.
-  const card = preview.getByTestId("clickup-preview-card");
-  await expect(card).toHaveAttribute("data-state", "ready");
-  await expect(card.getByRole("img")).toHaveAttribute(
-    "src",
-    new RegExp(`/p/${projectId}/opengraph-image$`),
-  );
+  // A sent message shows a bare link (ClickUp unfurls only links pasted in it), so no card here.
+  await expect(preview.getByTestId("clickup-preview-card")).toHaveCount(0);
   await expect(preview.getByTestId("clickup-preview-note")).toHaveText(
     "Please check the [hero](https://evil.test)\n@everyone",
   );
@@ -157,6 +152,56 @@ test("a member sends a project to a ClickUp channel, assigned, with a note", asy
     dialog.getByTestId("clickup-channel").getByRole("radio", { name: "#design-review" }),
   ).toBeChecked();
   await expect(dialog.getByLabel("Note", { exact: true })).toHaveValue("");
+});
+
+test("Copy link & open ClickUp copies the project's link and opens the channel to paste it", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: baseURL });
+  // The channel's tab stays on this machine: ClickUp's web app answers with a stand-in.
+  await context.route("https://app.clickup.com/**", (route) =>
+    route.fulfill({ status: 200, contentType: "text/html", body: "<title>ClickUp</title>" }),
+  );
+  await connectClickUp();
+  const projectId = await workspaceProject(page, PROJECT);
+  const dialog = await openSendWindow(page, projectId);
+  const paste = dialog.getByTestId("clickup-paste");
+  await expect(dialog.getByTestId("clickup-channel-option")).toHaveCount(OPEN_CHANNELS.length);
+
+  // The card pasting the link shows, as the project link's own image.
+  const card = paste.getByTestId("clickup-preview-card");
+  await expect(card).toHaveAttribute("data-state", "ready");
+  await expect(card.getByRole("img")).toHaveAttribute(
+    "src",
+    new RegExp(`/p/${projectId}/opengraph-image$`),
+  );
+
+  // It needs a channel too: asked for, and no tab opens.
+  await paste.getByTestId("clickup-copy-open").click();
+  await expect(dialog.getByText("Pick a channel to send to.")).toBeVisible();
+  expect(context.pages()).toHaveLength(1);
+
+  await pick(dialog, "clickup-channel", "design", "design-review");
+  await expect(paste.getByTestId("clickup-paste-body")).toContainText("paste it in #design-review");
+  const [tab] = await Promise.all([
+    context.waitForEvent("page"),
+    paste.getByTestId("clickup-copy-open").click(),
+  ]);
+  const [team] = CLICKUP_STUB.TEAMS;
+  await expect(tab).toHaveURL(
+    `https://app.clickup.com/${team?.id}/chat/r/${channelId("design-review")}`,
+  );
+  await expect(dialog).toBeHidden();
+  await expect(page.getByTestId("toast")).toContainText(
+    "Link copied. Paste it in #design-review to show its card.",
+  );
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    `${baseURL}/p/${projectId}`,
+  );
+  // Nothing is sent through ClickUp's API.
+  expect(await stubMessages()).toEqual([]);
 });
 
 test("Send asks for a channel first, and nothing goes", async ({ page }) => {

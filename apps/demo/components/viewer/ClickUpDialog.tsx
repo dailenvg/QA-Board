@@ -100,6 +100,7 @@ export function ClickUpDialog({ open, onClose, project, send }: ClickUpDialogPro
             refreshing={send.refreshing}
             repick={send.repick}
             onSend={send.send}
+            onCopyAndOpen={send.copyAndOpen}
             onReload={() => void send.retry()}
             phone={phone}
           />

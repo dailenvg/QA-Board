@@ -5,7 +5,6 @@ import { useId } from "react";
 import { messageProjectName, noteParagraphs, SENT_FROM } from "@/lib/integrations/clickup/message";
 import { usePopVariants } from "@/lib/motion";
 import { Icon } from "../ui/Icon";
-import { ClickUpPreviewCard } from "./ClickUpPreviewCard";
 import { CLICKUP_SEND_COPY } from "./clickup-send-copy";
 
 const COPY = CLICKUP_SEND_COPY.preview;
@@ -14,8 +13,6 @@ interface ClickUpMessagePreviewProps {
   projectName: string;
   /** The project's page, as the message gives it. */
   projectUrl: string;
-  /** The link's card, as ClickUp unfurls it. */
-  cardSrc: string;
   note: string;
   /** Who it's assigned to, by name; null for nobody. */
   assignee: string | null;
@@ -23,16 +20,16 @@ interface ClickUpMessagePreviewProps {
 
 /**
  * The message as ClickUp's chat will show it: from you, the project's name
- * in bold, its address on a line of its own, the card it unfurls into, the
- * note's paragraphs, and "Sent for review from Squint", with who it's
- * assigned to underneath. Drawn from the same parts the server's Markdown is
+ * in bold, its address on a line of its own (a bare link: ClickUp unfurls
+ * cards only for links pasted in it, never for a message sent through its
+ * API, so there's no card here), the note's paragraphs, and "Sent for
+ * review from Squint", with who it's assigned to underneath. Drawn from the same parts the server's Markdown is
  * (`clickUpMessage`), never from the Markdown itself; the address is shown,
  * not followed, so the preview stays in the window.
  */
 export function ClickUpMessagePreview({
   projectName,
   projectUrl,
-  cardSrc,
   note,
   assignee,
 }: ClickUpMessagePreviewProps) {
@@ -71,7 +68,6 @@ export function ClickUpMessagePreview({
           <p className="cursor-default text-brand-text" data-testid="clickup-preview-url">
             {projectUrl}
           </p>
-          <ClickUpPreviewCard src={cardSrc} alt={COPY.card(name)} />
           {paragraphs.map((lines, index) => (
             <p key={index} className="whitespace-pre-line" data-testid="clickup-preview-note">
               {lines.join("\n")}

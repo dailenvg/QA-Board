@@ -2,8 +2,9 @@ import { cleanClientName, HIDDEN } from "../../share/client-name";
 
 /**
  * What "Send to ClickUp" posts: the project's name in bold, its page in
- * Squint as a bare address on its own line (so ClickUp, like Slack, can
- * unfurl it into the company's card), the sender's note, and a short "Sent
+ * Squint as a bare address on its own line (ClickUp shows it as a link: it
+ * unfurls cards only for links pasted in its app, which Copy link & open
+ * ClickUp is for), the sender's note, and a short "Sent
  * for review from Squint". Markdown (`text/md`), with every mark in the name
  * and the note made literal, so neither can add a link, a mention or
  * formatting. No Node imports: the dialog's limits and preview read this too.

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { projectHref } from "@/lib/routes";
 import type { ClickUpPerson } from "@/lib/integrations/clickup/api";
 import type { ClickUpChannel } from "@/lib/integrations/clickup/chat-api";
 import {
@@ -86,19 +87,30 @@ interface UseClickUpSendOptions {
   projectId: string;
   /** A send went: the channel's name, and the message's link when ClickUp gave one. */
   onSent: (channel: string, url: string | null) => void;
+  /**
+   * The project's link was copied for pasting by hand: the channel it goes in,
+   * and whether its tab opened (a browser can hold one back).
+   */
+  onCopied: (channel: ClickUpChannel, opened: boolean) => void;
 }
 
 /**
  * Send to ClickUp's state: the member's channels and ClickUp people (read
  * afresh each time the window opens, never kept beyond it), the draft
- * (channel, assignee, note), and sending it. A refused token or a
+ * (channel, assignee, note), and sending it, or copying the link to paste
+ * in the channel by hand (`copyAndOpen`). A refused token or a
  * missing connection turns the window into the way to settings. A channel
  * ClickUp refused (gone, or closed to the member) is said under the channel
  * list (`channelError`) and unpicked, and `repick` counts up so the form
  * moves focus there; a gone one is dropped and the channels read again in
  * place (`refreshing`), the form staying as it is.
  */
-export function useClickUpSend({ workspaceId, projectId, onSent }: UseClickUpSendOptions) {
+export function useClickUpSend({
+  workspaceId,
+  projectId,
+  onSent,
+  onCopied,
+}: UseClickUpSendOptions) {
   const [lists, setLists] = useState<ClickUpLists>({ status: "loading" });
   const [draft, setDraft] = useState<ClickUpDraft>(EMPTY);
   const [sending, setSending] = useState(false);
@@ -108,6 +120,8 @@ export function useClickUpSend({ workspaceId, projectId, onSent }: UseClickUpSen
   const [repick, setRepick] = useState(0);
   /** Each load's number: only the latest one's answer is shown. */
   const loads = useRef(0);
+  /** A copy is on its way: a second click meanwhile would open a second tab. */
+  const copying = useRef(false);
 
   const load = async () => {
     const load = ++loads.current;
@@ -164,14 +178,50 @@ export function useClickUpSend({ workspaceId, projectId, onSent }: UseClickUpSen
     if (change.channelId) setChannelError(null);
   };
 
+  /** The channel picked; when there's none, says so under the list. */
+  const pickedChannel = (): ClickUpChannel | null => {
+    if (lists.status !== "ready") return null;
+    const channel = lists.channels.find(({ id }) => id === draft.channelId) ?? null;
+    if (!channel) setChannelError(CLICKUP_SEND_COPY.channel.required);
+    return channel;
+  };
+
+  /**
+   * Copies the project's link and opens the channel picked in ClickUp, where
+   * pasting it shows its card (a message Squint sends shows a bare link).
+   * Copied first, while the page still has focus; the tab opens after, so a
+   * browser that holds it back still leaves the link copied. False when
+   * nothing was copied (the reason shows).
+   */
+  const copyAndOpen = async (): Promise<boolean> => {
+    if (copying.current || sending || lists.status !== "ready" || !workspaceId) return false;
+    const channel = pickedChannel();
+    if (!channel) return false;
+    setError(null);
+    copying.current = true;
+    try {
+      await navigator.clipboard.writeText(
+        new URL(projectHref(projectId), window.location.origin).href,
+      );
+    } catch {
+      setError(CLICKUP_SEND_COPY.paste.copyFailed);
+      return false;
+    } finally {
+      copying.current = false;
+    }
+    rememberClickUpChannel(workspaceId, channel.id);
+    // Not "noopener" in the features: then the tab is always null, and a blocked one can't be told.
+    const tab = window.open(channel.url, "_blank");
+    if (tab) tab.opener = null;
+    onCopied(channel, tab !== null);
+    return true;
+  };
+
   /** False when nothing went (the reason shows); true once it's sent. */
   const send = async (): Promise<boolean> => {
     if (sending || lists.status !== "ready" || !workspaceId) return false;
-    const channel = lists.channels.find(({ id }) => id === draft.channelId);
-    if (!channel) {
-      setChannelError(CLICKUP_SEND_COPY.channel.required);
-      return false;
-    }
+    const channel = pickedChannel();
+    if (!channel) return false;
     setSending(true);
     setError(null);
     const result = await sendToClickUp(workspaceId, projectId, {
@@ -222,5 +272,6 @@ export function useClickUpSend({ workspaceId, projectId, onSent }: UseClickUpSen
     start,
     retry: load,
     send,
+    copyAndOpen,
   };
 }

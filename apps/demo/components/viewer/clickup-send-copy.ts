@@ -67,9 +67,24 @@ export const CLICKUP_SEND_COPY = {
     sender: "You",
     /** When it's sent, as the preview shows it. */
     when: "now",
-    /** The link's card under the message, as ClickUp unfurls it. */
-    card: (project: string) => `Link preview: ${project}, ready for your team's review.`,
     assigned: (name: string) => `Assigned to ${name}`,
+  },
+  /** Posting the link by hand: ClickUp shows its card only for links pasted in ClickUp. */
+  paste: {
+    title: "Post it with its card",
+    /** "…then paste it in #design, which opens in a new tab." */
+    body: (channel: string | null) =>
+      `ClickUp shows this card only for links pasted in ClickUp itself. Copy the link, then paste it in ${
+        channel ? `#${channel}` : "the channel you pick"
+      }, which opens in a new tab.`,
+    /** The card, as pasting the link shows it. */
+    card: (project: string) => `Link card: ${project}, ready for your team's review.`,
+    action: "Copy link & open ClickUp",
+    /** "Link copied. Paste it in #design to show its card." */
+    copied: (channel: string) => `Link copied. Paste it in #${channel} to show its card.`,
+    /** The toast's way into ClickUp when the browser held the new tab back. */
+    open: "Open ClickUp",
+    copyFailed: "Copying was blocked. Allow this site to use the clipboard, then try again.",
   },
   cancel: "Cancel",
   send: "Send",
