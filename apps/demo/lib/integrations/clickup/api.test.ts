@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { ClickUpError, getClickUpUser, listClickUpTeams, type Fetch } from "./api";
+import {
+  ClickUpError,
+  getClickUpUser,
+  listClickUpPeople,
+  listClickUpTeams,
+  type Fetch,
+} from "./api";
 
-const API = "https://api.clickup.com/api/v2";
+const API = "https://api.clickup.com/api";
 const TOKEN = `pk_1234_${"A".repeat(32)}`;
 
 /** A fake `fetch` answering `body` with `status`, recording what it was asked. */
@@ -31,7 +37,7 @@ describe("getClickUpUser", () => {
     });
     expect(await getClickUpUser(API, TOKEN, fetcher)).toEqual({ id: "81", username: "Ana Ruiz" });
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.url).toBe(`${API}/user`);
+    expect(calls[0]?.url).toBe(`${API}/v2/user`);
     expect(new Headers(calls[0]?.init.headers).get("authorization")).toBe(TOKEN);
     expect(calls[0]?.init.signal).toBeInstanceOf(AbortSignal);
     expect(calls[0]?.init.redirect).toBe("error");
@@ -45,22 +51,26 @@ describe("getClickUpUser", () => {
     });
   });
 
-  it("says ClickUp refused the token on a 401, and nothing else does", async () => {
+  it("says ClickUp refused the token on a 401 or 403, and nothing else does", async () => {
     const refused = await thrown(
       getClickUpUser(API, TOKEN, answering({ err: "Token invalid" }, 401).fetcher),
     );
     expect(refused.refused).toBe(true);
-    expect(refused.message).toBe("GET /user answered 401");
+    expect(refused.status).toBe(401);
+    expect(refused.message).toBe("GET /v2/user answered 401");
+    const forbidden = await thrown(getClickUpUser(API, TOKEN, answering({}, 403).fetcher));
+    expect(forbidden.refused).toBe(true);
     const down = await thrown(getClickUpUser(API, TOKEN, answering({}, 503).fetcher));
     expect(down.refused).toBe(false);
+    expect(down.status).toBe(503);
   });
 
   it("fails without the token in its message when ClickUp can't be reached or answers oddly", async () => {
     const offline: Fetch = () => Promise.reject(new TypeError(`fetch failed for ${TOKEN}`));
     const unreachable = await thrown(getClickUpUser(API, TOKEN, offline));
-    expect(unreachable.message).toBe("GET /user unreachable (TypeError)");
+    expect(unreachable.message).toBe("GET /v2/user unreachable (TypeError)");
     const odd = await thrown(getClickUpUser(API, TOKEN, answering({ nobody: true }).fetcher));
-    expect(odd.message).toBe("GET /user answered in an unknown shape");
+    expect(odd.message).toBe("GET /v2/user answered in an unknown shape");
     for (const error of [unreachable, odd]) expect(error.message).not.toContain(TOKEN);
   });
 
@@ -78,7 +88,7 @@ describe("getClickUpUser", () => {
       const pending = thrown(getClickUpUser(API, TOKEN, hanging));
       await vi.advanceTimersByTimeAsync(10_000);
       expect((await pending).message).toMatch(
-        /^GET \/user unreachable \((TimeoutError|AbortError)\)$/,
+        /^GET \/v2\/user unreachable \((TimeoutError|AbortError)\)$/,
       );
     } finally {
       vi.useRealTimers();
@@ -96,7 +106,7 @@ describe("listClickUpTeams", () => {
       ],
     });
     const teams = await listClickUpTeams(API, TOKEN, fetcher);
-    expect(calls[0]?.url).toBe(`${API}/team`);
+    expect(calls[0]?.url).toBe(`${API}/v2/team`);
     expect(new Headers(calls[0]?.init.headers).get("authorization")).toBe(TOKEN);
     expect(teams.map(({ id }) => id)).toEqual(["9012", "77", "78"]);
     expect(teams[0]?.name).toBe("Acme Design");
@@ -106,5 +116,37 @@ describe("listClickUpTeams", () => {
 
   it("answers an empty list for a token that reaches none", async () => {
     expect(await listClickUpTeams(API, TOKEN, answering({ teams: [] }).fetcher)).toEqual([]);
+  });
+});
+
+describe("listClickUpPeople", () => {
+  const team = (members: unknown[]) => ({ teams: [{ id: "9012", name: "Acme", members }] });
+
+  it("lists the connected workspace's people by name, ids as text, without their pictures", async () => {
+    const { fetcher, calls } = answering(
+      team([
+        {
+          user: { id: 7, username: "zoë", email: "zoe@x.test", profilePicture: "https://x/z.png" },
+        },
+        { user: { id: "8", username: "Ana\u202E Ruiz", email: null } },
+        { user: { id: 9, username: null, email: "no-name@x.test" } },
+        { user: { id: 10 } },
+        { invited_by: {} },
+        { user: { id: 7, username: "Zoë again" } },
+      ]),
+    );
+    const people = await listClickUpPeople(API, TOKEN, "9012", fetcher);
+    expect(calls[0]?.url).toBe(`${API}/v2/team`);
+    expect(people).toEqual([
+      { id: "8", username: "Ana Ruiz", email: null },
+      { id: "10", username: "ClickUp user 10", email: null },
+      { id: "9", username: "no-name@x.test", email: "no-name@x.test" },
+      { id: "7", username: "Zoë again", email: null },
+    ]);
+  });
+
+  it("refuses when the token no longer reaches the connected workspace", async () => {
+    const error = await thrown(listClickUpPeople(API, TOKEN, "4040", answering(team([])).fetcher));
+    expect(error.refused).toBe(true);
   });
 });

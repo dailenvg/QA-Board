@@ -5,5 +5,20 @@
   "TEAMS": [
     { "id": "9012", "name": "E2E ClickUp" },
     { "id": "9013", "name": "E2E Side Projects" }
+  ],
+  "MEMBERS": [
+    { "id": 1001, "username": "E2E ClickUp User", "email": "e2e-clickup@e2e.test" },
+    { "id": 1002, "username": "Ana Ruiz", "email": "ana@e2e.test" },
+    { "id": 1003, "username": "Bo Chen", "email": "bo@e2e.test" },
+    { "id": 1004, "username": "Cy Park", "email": "cy@e2e.test" }
+  ],
+  "CHANNELS": [
+    { "id": "6-901-1", "name": "general", "type": "CHANNEL" },
+    { "id": "6-901-2", "name": "design-review", "type": "CHANNEL" },
+    { "id": "6-901-3", "name": "Ana Ruiz", "type": "DM" },
+    { "id": "6-901-4", "name": "old-launch", "type": "CHANNEL", "archived": true },
+    { "id": "6-901-5", "name": "bugs", "type": "CHANNEL" },
+    { "id": "6-901-6", "name": "secret", "type": "CHANNEL", "is_hidden": true },
+    { "id": "6-901-7", "name": "marketing", "type": "CHANNEL" }
   ]
 }

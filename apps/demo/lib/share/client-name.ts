@@ -8,7 +8,7 @@
 export const CLIENT_NAME_MAX = 80;
 
 /** Bidi marks, embeddings, overrides and isolates, zero-width spaces and the BOM. */
-const HIDDEN = /[\u200B\u200E\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g;
+export const HIDDEN = /[\u200B\u200E\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g;
 
 /**
  * A client name that stays on one line wherever it's shown (a heading, an

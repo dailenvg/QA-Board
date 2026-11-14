@@ -1,9 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
-import { e2eDatabaseUrl, SESSION_STATE } from "./e2e/e2e-env";
+import { CLICKUP_STUB_URL, E2E_AUTH_SECRET, e2eDatabaseUrl, SESSION_STATE } from "./e2e/e2e-env";
 
 const PORT = 3100;
-/** The stand-in for ClickUp's API (`e2e/clickup-stub.mjs`). */
-const CLICKUP_STUB = "http://127.0.0.1:3101";
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 const CI = Boolean(process.env.CI);
 /** Refuses to start without a local E2E_DATABASE_URL: the global setup empties it. */
@@ -48,7 +46,7 @@ export default defineConfig({
   webServer: [
     {
       command: "node e2e/clickup-stub.mjs",
-      url: `${CLICKUP_STUB}/health`,
+      url: `${CLICKUP_STUB_URL}/health`,
       reuseExistingServer: !CI,
     },
     {
@@ -73,9 +71,9 @@ export default defineConfig({
         EMAIL_FROM: "",
         AUTH_URL: "",
         // Seals review link secrets in the e2e database; a test value, never a real one.
-        AUTH_SECRET: "e2e-auth-secret-not-for-production-0123456789",
+        AUTH_SECRET: E2E_AUTH_SECRET,
         // ClickUp's API is the stub's: only taken as plain http on this machine (`clickUpApiUrl`).
-        CLICKUP_API_URL: `${CLICKUP_STUB}/api/v2`,
+        CLICKUP_API_URL: `${CLICKUP_STUB_URL}/api`,
       },
     },
   ],

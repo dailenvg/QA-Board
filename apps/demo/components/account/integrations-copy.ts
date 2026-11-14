@@ -2,22 +2,20 @@ import { accountErrorMessage } from "@/lib/account/account-client";
 import { loginErrorMessage } from "@/lib/auth/auth-client";
 import type { ClickUpRequestError } from "@/lib/integrations/clickup/settings-client";
 
-/** Every line the Integrations card shows, in one place for review. */
+/** Every line the profile's ClickUp card shows, in one place for review. */
 
 export const INTEGRATIONS_COPY = {
-  title: "Integrations",
-  description: "Connect the tools your team already works in.",
+  title: "Your ClickUp",
+  description:
+    "Send projects to your team's ClickUp Chat channels. Only you can see or use this connection.",
   clickUp: {
-    name: "ClickUp",
     unavailable:
       "ClickUp can't be connected on this site right now. If your team needs it, ask your Squint admin.",
     disconnected:
-      "Connect ClickUp with your personal API token so Squint can post to a ClickUp workspace.",
-    memberOnly:
-      "Only the workspace's owner can connect or disconnect ClickUp. Ask them if something needs changing.",
+      "Connect with your own ClickUp personal API token. Projects you send are posted under your ClickUp name.",
     token: {
       label: "ClickUp personal API token",
-      hint: "In ClickUp, click your avatar, then Settings, then Apps, and copy (or generate) your API Token. It starts with pk_.",
+      hint: "In ClickUp, click your avatar, then Settings, then Apps, and copy (or generate) your API token. It starts with pk_.",
       shape:
         "That doesn't look like a ClickUp API token, which starts with pk_. Copy the whole token from ClickUp and paste it again.",
       required: "Paste your ClickUp personal API token.",
@@ -31,14 +29,14 @@ export const INTEGRATIONS_COPY = {
     },
     /** "Connected to Acme Design". */
     connectedTo: "Connected to",
-    /** "Posts appear as Ana Ruiz". */
-    postsAs: "Posts appear as",
-    /** "Connected by Ana on Nov 12, 2026"; without a name, "Connected on …". */
-    connectedBy: (name: string | null) => (name ? `Connected by ${name} on` : "Connected on"),
+    /** "Messages appear as Ana Ruiz". */
+    postsAs: "Messages appear as",
+    /** "Connected on Nov 12, 2026". */
+    connectedOn: "Connected on",
     disconnect: "Disconnect",
     disconnecting: "Disconnecting…",
     confirmDisconnect: (team: string) =>
-      `Disconnect ClickUp? Squint will stop posting to ${team} and delete its copy of the token. The token still works in ClickUp until you regenerate it there, under Settings, then Apps.`,
+      `Disconnect ClickUp? You won't be able to send projects to ${team} until you connect again, and Squint will delete its copy of your token. The token still works in ClickUp until you regenerate it there, under Settings, then Apps.`,
     cancel: "Cancel",
     connected: "ClickUp is connected.",
     disconnectedNotice:
@@ -65,8 +63,6 @@ export function clickUpErrorMessage(error: ClickUpRequestError, retryAfterSecond
       return "ClickUp didn't answer just now. Try again in a moment.";
     case "unavailable":
       return INTEGRATIONS_COPY.clickUp.unavailable;
-    case "owner-only":
-      return INTEGRATIONS_COPY.clickUp.memberOnly;
     case "rate-limited":
       return loginErrorMessage("rate-limited", retryAfterSeconds);
     case "signed-out":

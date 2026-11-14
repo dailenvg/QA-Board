@@ -15,8 +15,6 @@ const COPY = INTEGRATIONS_COPY.clickUp;
 
 interface ClickUpConnectedProps {
   connection: ClickUpConnection;
-  /** Only the owner disconnects; members see what's connected. */
-  isOwner: boolean;
   onNotice: (notice: ClickUpNotice | null) => void;
   /** Once disconnected: the row this sits in takes focus, as the button goes. */
   onDisconnected: () => void;
@@ -25,17 +23,11 @@ interface ClickUpConnectedProps {
 type Status = "idle" | "confirming" | "disconnecting";
 
 /**
- * The connected ClickUp workspace, whose name posts appear under, who
- * connected it and when; for the owner,
- * Disconnect, which asks first, here in the row (Cancel focused, so Enter
- * never disconnects by accident).
+ * The connected ClickUp workspace, whose name messages appear under, and
+ * when it was connected; then Disconnect, which asks first, here in the card
+ * (Cancel focused, so Enter never disconnects by accident).
  */
-export function ClickUpConnected({
-  connection,
-  isOwner,
-  onNotice,
-  onDisconnected,
-}: ClickUpConnectedProps) {
+export function ClickUpConnected({ connection, onNotice, onDisconnected }: ClickUpConnectedProps) {
   const router = useRouter();
   const variants = usePopVariants();
   const confirmId = useId();
@@ -65,7 +57,7 @@ export function ClickUpConnected({
     router.refresh();
   };
 
-  const { teamName, clickUpUsername, connectedBy, connectedAt } = connection;
+  const { teamName, clickUpUsername, connectedAt } = connection;
   return (
     <div className="flex flex-col gap-4">
       <div className="flex min-w-0 flex-col gap-1">
@@ -81,85 +73,72 @@ export function ClickUpConnected({
             {clickUpUsername}
           </strong>
         </p>
-        <p className="text-meta text-muted wrap-anywhere" data-testid="clickup-connected-by">
-          {COPY.connectedBy(connectedBy)}{" "}
+        <p className="text-meta text-muted wrap-anywhere" data-testid="clickup-connected-on">
+          {COPY.connectedOn}{" "}
           <time dateTime={new Date(connectedAt).toISOString()} title={absoluteTime(connectedAt)}>
             {calendarDate(connectedAt)}
           </time>
         </p>
       </div>
-      {isOwner ? (
-        <AnimatePresence mode="wait" initial={false}>
-          {status === "idle" ? (
-            <motion.div
-              key="idle"
-              variants={variants}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-            >
-              <Button
-                ref={(button) => {
-                  if (!button || !refocus.current) return;
-                  refocus.current = false;
-                  button.focus();
-                }}
-                variant="danger-ghost"
-                onClick={() => setStatus("confirming")}
-                className="max-sm:w-full"
-                data-testid="clickup-disconnect"
-              >
-                <Icon name="close" className="size-5" />
-                {COPY.disconnect}
-              </Button>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="confirm"
-              role="group"
-              aria-labelledby={confirmId}
-              variants={variants}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-              onKeyDown={(event) => {
-                if (event.key === "Escape") cancel();
+      <AnimatePresence mode="wait" initial={false}>
+        {status === "idle" ? (
+          <motion.div key="idle" variants={variants} initial="hidden" animate="visible" exit="exit">
+            <Button
+              ref={(button) => {
+                if (!button || !refocus.current) return;
+                refocus.current = false;
+                button.focus();
               }}
-              className="flex flex-col gap-4 rounded-tile bg-card p-4 shadow-seg"
-              data-testid="clickup-disconnect-confirm"
+              variant="danger-ghost"
+              onClick={() => setStatus("confirming")}
+              className="max-sm:w-full"
+              data-testid="clickup-disconnect"
             >
-              <p id={confirmId} className="text-body text-pretty text-ink wrap-anywhere">
-                {COPY.confirmDisconnect(teamName)}
-              </p>
-              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={cancel}
-                  aria-disabled={busy || undefined}
-                  autoFocus
-                >
-                  {COPY.cancel}
-                </Button>
-                <Button
-                  variant="danger"
-                  size="sm"
-                  onClick={() => void disconnect()}
-                  aria-disabled={busy || undefined}
-                  data-testid="clickup-disconnect-confirm-button"
-                >
-                  {busy ? COPY.disconnecting : COPY.disconnect}
-                </Button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      ) : (
-        // Members see who can change it, as the not-connected state tells them.
-        <p className="text-meta text-muted" data-testid="clickup-member-note">
-          {COPY.memberOnly}
-        </p>
-      )}
+              <Icon name="close" className="size-5" />
+              {COPY.disconnect}
+            </Button>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="confirm"
+            role="group"
+            aria-labelledby={confirmId}
+            variants={variants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") cancel();
+            }}
+            className="flex flex-col gap-4 rounded-tile bg-panel p-4"
+            data-testid="clickup-disconnect-confirm"
+          >
+            <p id={confirmId} className="text-body text-pretty text-ink wrap-anywhere">
+              {COPY.confirmDisconnect(teamName)}
+            </p>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={cancel}
+                aria-disabled={busy || undefined}
+                autoFocus
+              >
+                {COPY.cancel}
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => void disconnect()}
+                aria-disabled={busy || undefined}
+                data-testid="clickup-disconnect-confirm-button"
+              >
+                {busy ? COPY.disconnecting : COPY.disconnect}
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

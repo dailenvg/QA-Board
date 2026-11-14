@@ -5,6 +5,12 @@
 
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
+/** Seals secrets (review links, ClickUp tokens) in the e2e database; a test value, never a real one. */
+export const E2E_AUTH_SECRET = "e2e-auth-secret-not-for-production-0123456789";
+
+/** The stand-in for ClickUp's API (`e2e/clickup-stub.mjs`), which Playwright starts. */
+export const CLICKUP_STUB_URL = "http://127.0.0.1:3101";
+
 /**
  * `E2E_DATABASE_URL`, refused unless it points at this machine: the global
  * setup empties every table in it.

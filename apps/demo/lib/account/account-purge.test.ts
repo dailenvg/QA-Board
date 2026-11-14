@@ -86,6 +86,12 @@ describe("purgeDeletedAccounts", () => {
        VALUES ($1, '9012', 'Acme Design', '81', 'Ana Ruiz', 'sealed', $2)`,
       [workspaceId, owner.id],
     );
+    await db.query(
+      `INSERT INTO user_clickup_connections (user_id, workspace_id, clickup_team_id,
+         clickup_team_name, clickup_user_id, clickup_username, access_token_sealed)
+       VALUES ($1, $2, '9012', 'Acme Design', '81', 'Ana Ruiz', 'sealed')`,
+      [owner.id, workspaceId],
+    );
     await remove(owner, WORKSPACE_NAME);
     const { services, discarded } = recordingServices();
 
@@ -109,6 +115,7 @@ describe("purgeDeletedAccounts", () => {
       "project_share_links",
       "memberships",
       "workspace_clickup_connections",
+      "user_clickup_connections",
     ]) {
       const column = table === "workspaces" ? "id" : "workspace_id";
       expect(await countRows(db, table, column, workspaceId)).toBe(0);
@@ -159,6 +166,19 @@ describe("purgeDeletedAccounts", () => {
   it("removes a member from the workspace and keeps their comments, under their name", async () => {
     const { db, workspaceId } = world;
     const memberId = await addMember(db, workspaceId, "bo@acme.test");
+    // Their own ClickUp, and the workspace's from before 040 that they connected.
+    await db.query(
+      `INSERT INTO user_clickup_connections (user_id, workspace_id, clickup_team_id,
+         clickup_team_name, clickup_user_id, clickup_username, access_token_sealed)
+       VALUES ($1, $2, '9012', 'Acme Design', '82', 'Bo', 'sealed')`,
+      [memberId, workspaceId],
+    );
+    await db.query(
+      `INSERT INTO workspace_clickup_connections (workspace_id, clickup_team_id,
+         clickup_team_name, clickup_user_id, clickup_username, access_token_sealed, connected_by)
+       VALUES ($1, '9012', 'Acme Design', '82', 'Bo', 'sealed', $2)`,
+      [workspaceId, memberId],
+    );
     await db.query(
       `INSERT INTO comments (project_id, id, x, y, body, author_name, author_user_id)
        VALUES ('p1', 'c1', 0.5, 0.5, 'Tighten this', 'Bo', $1)`,
@@ -177,6 +197,10 @@ describe("purgeDeletedAccounts", () => {
       done: true,
     });
     expect(await countRows(db, "memberships", "user_id", memberId)).toBe(0);
+    expect(await countRows(db, "user_clickup_connections", "user_id", memberId)).toBe(0);
+    expect(await countRows(db, "workspace_clickup_connections", "workspace_id", workspaceId)).toBe(
+      0,
+    );
     expect(await countRows(db, "projects", "workspace_id", workspaceId)).toBe(1);
     const { rows } = await db.query("SELECT author_name, author_user_id, origin FROM comments");
     expect(rows).toEqual([{ author_name: "Bo", author_user_id: memberId, origin: "team" }]);

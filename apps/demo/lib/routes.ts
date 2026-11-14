@@ -22,6 +22,8 @@ export const ACCOUNT_HREF = "/account";
 export const ACCOUNT_PROFILE_HREF = "/account/profile";
 export const ACCOUNT_WORKSPACE_HREF = "/account/workspace";
 export const ACCOUNT_STORAGE_HREF = "/account/storage";
+/** The profile's ClickUp card, where a member connects their own ClickUp. */
+export const ACCOUNT_CLICKUP_HREF = `${ACCOUNT_PROFILE_HREF}#clickup`;
 
 /** The signed-in user's avatar, at a version (`?v=`) that changes with each new one. */
 export function avatarSrc(version: string): string {

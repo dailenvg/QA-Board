@@ -10,16 +10,18 @@ import {
 
 const [ACME, SIDE] = CLICKUP_STUB.TEAMS;
 
-/** The Integrations card's ClickUp row, on the workspace settings. */
+/** The ClickUp card's body, on the profile settings. */
 async function openClickUp(page: Page) {
-  await page.goto("/account/workspace");
+  await page.goto("/account/profile");
   const row = page.getByTestId("clickup-integration");
   await row.scrollIntoViewIfNeeded();
   await expect(row).toBeVisible();
   return row;
 }
 
-test("the owner connects ClickUp with a personal token, then disconnects it", async ({ page }) => {
+test("a member connects their own ClickUp with a personal token, then disconnects it", async ({
+  page,
+}) => {
   const row = await openClickUp(page);
   await expect(row).toHaveAttribute("data-state", "disconnected");
   const field = row.getByLabel("ClickUp personal API token");
@@ -56,7 +58,7 @@ test("the owner connects ClickUp with a personal token, then disconnects it", as
   await expect(row.getByTestId("clickup-notice")).toHaveText("ClickUp is connected.");
   await expect(row.getByTestId("clickup-team")).toHaveText(ACME?.name ?? "");
   await expect(row.getByTestId("clickup-username")).toHaveText(CLICKUP_STUB.USER.username);
-  await expect(row.getByTestId("clickup-connected-by")).toContainText("Connected by");
+  await expect(row.getByTestId("clickup-connected-on")).toContainText("Connected on");
   await page.reload();
   await expect(page.getByTestId("clickup-team")).toHaveText(ACME?.name ?? "");
   expect(await page.content()).not.toContain(CLICKUP_STUB.ONE_WORKSPACE);
@@ -67,6 +69,7 @@ test("the owner connects ClickUp with a personal token, then disconnects it", as
   await disconnect.click();
   const confirm = reloaded.getByTestId("clickup-disconnect-confirm");
   await expect(confirm).toContainText("still works in ClickUp until you regenerate it");
+  await expect(confirm).toContainText(`send projects to ${ACME?.name}`);
   await expect(confirm.getByRole("button", { name: "Cancel" })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(confirm).toBeHidden();
@@ -122,7 +125,19 @@ test("editing the token closes the choice of ClickUp workspaces", async ({ page 
   await expect(row.getByTestId("clickup-connect")).toHaveText("Connect ClickUp");
 });
 
-test("a member sees what's connected, but can't connect or disconnect", async ({
+test("the card sits in the profile, not the workspace settings, and a link leads straight to it", async ({
+  page,
+}) => {
+  await page.goto("/account/workspace");
+  await expect(page.getByTestId("workspace-settings")).toBeVisible();
+  await expect(page.getByTestId("clickup-settings")).toHaveCount(0);
+  await page.goto("/account/profile#clickup");
+  const card = page.getByTestId("clickup-settings");
+  await expect(card).toBeInViewport();
+  await expect(card.getByRole("heading", { name: "Your ClickUp" })).toBeVisible();
+});
+
+test("every member connects their own ClickUp, and nobody sees anyone else's", async ({
   page,
   browser,
   baseURL,
@@ -132,26 +147,27 @@ test("a member sees what's connected, but can't connect or disconnect", async ({
     await context.addCookies([await sessionCookie(CLICKUP_MEMBER_EMAIL, baseURL ?? "")]);
     const member = await context.newPage();
     try {
-      const row = await openClickUp(member);
-      await expect(row).toContainText(
-        "Only the workspace's owner can connect or disconnect ClickUp.",
-      );
-      await expect(row.getByLabel("ClickUp personal API token")).toHaveCount(0);
-
       const owner = await openClickUp(page);
       await owner.getByLabel("ClickUp personal API token").fill(CLICKUP_STUB.ONE_WORKSPACE);
       await owner.getByTestId("clickup-connect").click();
       await expect(owner).toHaveAttribute("data-state", "connected");
 
-      const connected = await openClickUp(member);
-      await expect(connected.getByTestId("clickup-team")).toHaveText(ACME?.name ?? "");
-      await expect(connected.getByTestId("clickup-username")).toHaveText(
-        CLICKUP_STUB.USER.username,
-      );
-      await expect(connected.getByTestId("clickup-disconnect")).toHaveCount(0);
-      await expect(connected.getByTestId("clickup-member-note")).toContainText(
-        "Only the workspace's owner can connect or disconnect ClickUp.",
-      );
+      // The owner's connection is theirs: the member still connects their own.
+      const row = await openClickUp(member);
+      await expect(row).toHaveAttribute("data-state", "disconnected");
+      await row.getByLabel("ClickUp personal API token").fill(CLICKUP_STUB.TWO_WORKSPACES);
+      await row.getByTestId("clickup-connect").click();
+      await row.getByTestId(`clickup-team-${SIDE?.id}`).click();
+      await row.getByTestId("clickup-connect").click();
+      await expect(row).toHaveAttribute("data-state", "connected");
+      await expect(row.getByTestId("clickup-team")).toHaveText(SIDE?.name ?? "");
+
+      // Disconnecting theirs leaves the owner's as it was.
+      await row.getByTestId("clickup-disconnect").click();
+      await row.getByTestId("clickup-disconnect-confirm-button").click();
+      await expect(row).toHaveAttribute("data-state", "disconnected");
+      const ownerAgain = await openClickUp(page);
+      await expect(ownerAgain.getByTestId("clickup-team")).toHaveText(ACME?.name ?? "");
     } finally {
       await context.close();
     }

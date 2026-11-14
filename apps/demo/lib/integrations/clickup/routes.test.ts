@@ -6,8 +6,8 @@ import { migratedPglite } from "@/test/pglite";
 import { seat, TEST_AUTH_SECRET, type Seat } from "@/test/workspace-fixture";
 import { createSession } from "../../auth/sessions";
 import type { Database } from "../../db/database";
-import { openSecret } from "../../workspace/sealed-secrets";
-import { clickUpTokenContext } from "./connections";
+import { openSecret, sealSecret } from "../../workspace/sealed-secrets";
+import { clickUpTokenContext, legacyClickUpTokenContext } from "./connections";
 import { loadClickUpSection } from "./section";
 
 const holder = vi.hoisted(() => ({ db: null as Database | null }));
@@ -17,8 +17,8 @@ vi.mock("@/lib/db/database", async (importOriginal) => ({
   database: () => (holder.db ? Promise.resolve(holder.db) : null),
 }));
 
-const PATH = "/api/account/workspace/integrations/clickup";
-const API = "https://api.clickup.com/api/v2";
+const PATH = "/api/account/integrations/clickup";
+const API = "https://api.clickup.com/api";
 const TOKEN = `pk_81_${"A1b2".repeat(8)}`;
 
 const ACME = { id: "9012", name: "Acme Design" };
@@ -38,10 +38,10 @@ function fakeClickUp(href: string, init?: RequestInit): Promise<Response> {
       Response.json({ err: "Token invalid", ECODE: "OAUTH_025" }, { status: 401 }),
     );
   }
-  if (href === `${API}/user`) {
+  if (href === `${API}/v2/user`) {
     return Promise.resolve(Response.json({ user: { id: 81, username: "Ana Ruiz" } }));
   }
-  if (href === `${API}/team`) return Promise.resolve(Response.json({ teams: clickUp.teams }));
+  if (href === `${API}/v2/team`) return Promise.resolve(Response.json({ teams: clickUp.teams }));
   return Promise.resolve(Response.json({}, { status: 404 }));
 }
 
@@ -72,20 +72,29 @@ function connect(cookie: string, body: Record<string, unknown>) {
 
 async function rows() {
   const { rows: found } = await db.query<{
+    user_id: string;
     workspace_id: string;
     clickup_team_id: string;
     clickup_team_name: string;
     clickup_user_id: string;
     clickup_username: string;
     access_token_sealed: string;
-    connected_by: string | null;
-  }>("SELECT * FROM workspace_clickup_connections ORDER BY workspace_id");
+    sealed_for: string;
+  }>("SELECT * FROM user_clickup_connections ORDER BY workspace_id, user_id");
   return found;
 }
 
 async function auditActions() {
-  const { rows: found } = await db.query<{ action: string; workspace_id: string; meta: unknown }>(
-    "SELECT action, workspace_id, meta FROM audit_log WHERE action LIKE 'workspace.clickup%' ORDER BY id",
+  const { rows: found } = await db.query<{
+    action: string;
+    actor_user_id: string;
+    workspace_id: string;
+    target_type: string;
+    target_id: string;
+    meta: unknown;
+  }>(
+    `SELECT action, actor_user_id, workspace_id, target_type, target_id, meta FROM audit_log
+     WHERE action LIKE '%clickup%' ORDER BY id`,
   );
   return found;
 }
@@ -100,8 +109,22 @@ async function member(): Promise<{ userId: string; cookie: string }> {
   return { userId, cookie: `squint_session=${await createSession(db, userId, Date.now())}` };
 }
 
-describe("POST /api/account/workspace/integrations/clickup", () => {
-  it("connects the token's only ClickUp workspace to the session's workspace, sealing the token", async () => {
+/** `actor`'s connection as 039 kept it, before 040: one per workspace, sealed to the workspace. */
+async function legacyConnection(actor: { userId: string; workspaceId: string }) {
+  await db.query(
+    `INSERT INTO workspace_clickup_connections (workspace_id, clickup_team_id,
+       clickup_team_name, clickup_user_id, clickup_username, access_token_sealed, connected_by)
+     VALUES ($1, '9012', 'Acme Design', '81', 'Ana Ruiz', $2, $3)`,
+    [
+      actor.workspaceId,
+      sealSecret(TOKEN, legacyClickUpTokenContext(actor.workspaceId), TEST_AUTH_SECRET),
+      actor.userId,
+    ],
+  );
+}
+
+describe("POST /api/account/integrations/clickup", () => {
+  it("connects the member's own ClickUp in their workspace, sealing the token to them", async () => {
     const response = await connect(a.cookie, { token: ` ${TOKEN}\n`, workspaceId: b.workspaceId });
     expect(response.status).toBe(200);
     const text = await response.text();
@@ -110,34 +133,55 @@ describe("POST /api/account/workspace/integrations/clickup", () => {
       connection: {
         teamName: "Acme Design",
         clickUpUsername: "Ana Ruiz",
-        connectedBy: expect.stringMatching(/@acme\.test$/) as unknown,
         connectedAt: expect.any(Number) as unknown,
       },
     });
-    expect(clickUpCalls).toEqual([`${API}/user`, `${API}/team`]);
+    expect(clickUpCalls).toEqual([`${API}/v2/user`, `${API}/v2/team`]);
     const [row] = await rows();
     expect(await rows()).toHaveLength(1);
     expect(row).toMatchObject({
+      user_id: a.userId,
       workspace_id: a.workspaceId,
       clickup_team_id: "9012",
       clickup_team_name: "Acme Design",
       clickup_user_id: "81",
       clickup_username: "Ana Ruiz",
-      connected_by: a.userId,
+      sealed_for: "user",
     });
-    expect(row?.access_token_sealed).not.toContain(TOKEN);
     const sealed = row?.access_token_sealed ?? "";
-    expect(openSecret(sealed, clickUpTokenContext(a.workspaceId), TEST_AUTH_SECRET)).toBe(TOKEN);
-    expect(() =>
-      openSecret(sealed, clickUpTokenContext(b.workspaceId), TEST_AUTH_SECRET),
-    ).toThrow();
+    expect(sealed).not.toContain(TOKEN);
+    const mine = { userId: a.userId, workspaceId: a.workspaceId };
+    expect(openSecret(sealed, clickUpTokenContext(mine), TEST_AUTH_SECRET)).toBe(TOKEN);
+    // Sealed to this member in this workspace: no other member, workspace or binding opens it.
+    for (const context of [
+      clickUpTokenContext({ userId: b.userId, workspaceId: a.workspaceId }),
+      clickUpTokenContext({ userId: a.userId, workspaceId: b.workspaceId }),
+      legacyClickUpTokenContext(a.workspaceId),
+    ]) {
+      expect(() => openSecret(sealed, context, TEST_AUTH_SECRET), context).toThrow();
+    }
     expect(await auditActions()).toEqual([
       {
-        action: "workspace.clickup_connected",
+        action: "user.clickup_connected",
+        actor_user_id: a.userId,
         workspace_id: a.workspaceId,
+        target_type: "user",
+        target_id: a.userId,
         meta: { fields: ["clickup"] },
       },
     ]);
+  });
+
+  it("lets every member connect their own, side by side with the owner's", async () => {
+    const someone = await member();
+    expect((await connect(someone.cookie, { token: TOKEN })).status).toBe(200);
+    expect((await connect(a.cookie, { token: TOKEN })).status).toBe(200);
+    expect((await rows()).map(({ user_id }) => user_id).sort()).toEqual(
+      [a.userId, someone.userId].sort(),
+    );
+    expect(
+      await loadClickUpSection(db, { userId: b.userId, workspaceId: b.workspaceId }, API),
+    ).toEqual({ kind: "disconnected" });
   });
 
   it("asks which ClickUp workspace when the token reaches several, saving nothing until one is picked", async () => {
@@ -159,14 +203,17 @@ describe("POST /api/account/workspace/integrations/clickup", () => {
     ]);
   });
 
-  it("replaces an earlier connection, and records each", async () => {
+  it("replaces their earlier connection, and the workspace's from before, recording each", async () => {
+    await legacyConnection(a);
     await connect(a.cookie, { token: TOKEN });
     clickUp.teams = [SIDE];
     await connect(a.cookie, { token: TOKEN });
-    expect(await rows()).toMatchObject([{ clickup_team_id: SIDE.id }]);
+    expect(await rows()).toMatchObject([{ clickup_team_id: SIDE.id, sealed_for: "user" }]);
+    const { rows: legacy } = await db.query("SELECT 1 FROM workspace_clickup_connections");
+    expect(legacy).toEqual([]);
     expect((await auditActions()).map(({ action }) => action)).toEqual([
-      "workspace.clickup_connected",
-      "workspace.clickup_connected",
+      "user.clickup_connected",
+      "user.clickup_connected",
     ]);
   });
 
@@ -187,7 +234,7 @@ describe("POST /api/account/workspace/integrations/clickup", () => {
     expect(down.status).toBe(502);
     expect(await down.json()).toEqual({ error: "unreachable" });
     expect(logged).toHaveBeenCalledWith(
-      "squint clickup: token check failed (ClickUpError: GET /user answered 500)",
+      "squint clickup: token check failed (ClickUpError: GET /v2/user answered 500)",
     );
     expect(JSON.stringify(logged.mock.calls)).not.toContain(TOKEN);
 
@@ -204,12 +251,12 @@ describe("POST /api/account/workspace/integrations/clickup", () => {
     expect(clickUpCalls).toEqual([]);
   });
 
-  it("is the owner's only: a member gets a 403, and ClickUp is never asked", async () => {
-    const response = await connect((await member()).cookie, { token: TOKEN });
-    expect(response.status).toBe(403);
-    expect(await response.json()).toEqual({ error: "owner-only" });
+  it("answers 404 to an account in no workspace, and never asks ClickUp", async () => {
+    const loner = await insertUser(db, "loner@nowhere.test");
+    const cookie = `squint_session=${await createSession(db, loner, Date.now())}`;
+    const response = await connect(cookie, { token: TOKEN });
+    expect(response.status).toBe(404);
     expect(clickUpCalls).toEqual([]);
-    expect(await rows()).toEqual([]);
   });
 
   it("answers 503 when this site can't reach ClickUp", async () => {
@@ -235,53 +282,47 @@ describe("POST /api/account/workspace/integrations/clickup", () => {
   });
 });
 
-describe("DELETE /api/account/workspace/integrations/clickup", () => {
-  it("disconnects the session's workspace only, and records it", async () => {
+describe("DELETE /api/account/integrations/clickup", () => {
+  it("disconnects the session's member only, with any workspace connection they made before, and records it", async () => {
+    const someone = await member();
     await connect(a.cookie, { token: TOKEN });
-    await connect(b.cookie, { token: TOKEN });
+    await connect(someone.cookie, { token: TOKEN });
+    await legacyConnection(a);
     const response = await callAccount("DELETE", PATH, { cookie: a.cookie });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true });
-    expect((await rows()).map(({ workspace_id }) => workspace_id)).toEqual([b.workspaceId]);
-    expect((await auditActions()).at(-1)).toEqual({
-      action: "workspace.clickup_disconnected",
+    expect((await rows()).map(({ user_id }) => user_id)).toEqual([someone.userId]);
+    const { rows: legacy } = await db.query("SELECT 1 FROM workspace_clickup_connections");
+    expect(legacy).toEqual([]);
+    expect((await auditActions()).at(-1)).toMatchObject({
+      action: "user.clickup_disconnected",
+      actor_user_id: a.userId,
       workspace_id: a.workspaceId,
       meta: { fields: ["clickup"] },
     });
   });
 
-  it("records nothing when there was nothing to disconnect, and refuses a member", async () => {
+  it("records nothing when there was nothing to disconnect", async () => {
     expect((await callAccount("DELETE", PATH, { cookie: a.cookie })).status).toBe(200);
     expect(await auditActions()).toEqual([]);
-    await connect(a.cookie, { token: TOKEN });
-    const refused = await callAccount("DELETE", PATH, { cookie: (await member()).cookie });
-    expect(refused.status).toBe(403);
-    expect(await rows()).toHaveLength(1);
   });
 });
 
-describe("the settings page's ClickUp row", () => {
-  it("shows the connection to every member, never the token", async () => {
-    expect(await loadClickUpSection(db, a.workspaceId, API)).toEqual({ kind: "disconnected" });
-    expect(await loadClickUpSection(db, a.workspaceId, null)).toEqual({ kind: "unavailable" });
+describe("the profile's ClickUp card", () => {
+  it("shows the member's own connection, never the token", async () => {
+    const mine = { userId: a.userId, workspaceId: a.workspaceId };
+    expect(await loadClickUpSection(db, mine, API)).toEqual({ kind: "disconnected" });
+    expect(await loadClickUpSection(db, mine, null)).toEqual({ kind: "unavailable" });
     await connect(a.cookie, { token: TOKEN });
-    const section = await loadClickUpSection(db, a.workspaceId, null);
+    const section = await loadClickUpSection(db, mine, null);
     expect(section).toMatchObject({
       kind: "connected",
       connection: { teamName: "Acme Design", clickUpUsername: "Ana Ruiz" },
     });
     expect(JSON.stringify(section)).not.toContain(TOKEN);
-  });
-
-  it("names whoever connected it by name, and nobody once their account is deleted", async () => {
-    await db.query("UPDATE users SET name = 'Owen' WHERE id = $1", [a.userId]);
-    await connect(a.cookie, { token: TOKEN });
-    expect(await loadClickUpSection(db, a.workspaceId, API)).toMatchObject({
-      connection: { connectedBy: "Owen" },
-    });
-    await db.query("UPDATE users SET deleted_at = now() WHERE id = $1", [a.userId]);
-    expect(await loadClickUpSection(db, a.workspaceId, API)).toMatchObject({
-      connection: { connectedBy: null },
-    });
+    const someone = await member();
+    expect(
+      await loadClickUpSection(db, { userId: someone.userId, workspaceId: a.workspaceId }, API),
+    ).toEqual({ kind: "disconnected" });
   });
 });

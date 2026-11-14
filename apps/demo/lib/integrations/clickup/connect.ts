@@ -1,4 +1,3 @@
-import type { WorkspaceActor } from "../../account/workspace-logo";
 import { describeError } from "../../auth/http";
 import { createRateLimiter, type RateDecision } from "../../capture/rate-limit";
 import type { Database } from "../../db/database";
@@ -12,6 +11,7 @@ import {
 import {
   loadClickUpConnection,
   saveClickUpConnection,
+  type ClickUpActor,
   type ClickUpConnection,
 } from "./connections";
 import type { ClickUpConnectInput } from "./schemas";
@@ -51,14 +51,14 @@ interface Services {
 
 /**
  * Checks a personal token with ClickUp (whose it is, and the ClickUp
- * workspaces it reaches), then connects the actor's workspace: to its only
- * ClickUp workspace, or to `teamId` when it reaches several. Without a
- * `teamId` then, nothing is saved: the owner picks, and sends it again. The
- * token never goes back to the browser.
+ * workspaces it reaches), then connects the actor, in their workspace: to the
+ * token's only ClickUp workspace, or to `teamId` when it reaches several.
+ * Without a `teamId` then, nothing is saved: they pick, and send it again.
+ * The token never goes back to the browser.
  */
 export async function connectClickUp(
   db: Database,
-  actor: WorkspaceActor,
+  actor: ClickUpActor,
   { token, teamId }: ClickUpConnectInput,
   now: number,
   { apiUrl, fetcher, secret }: Services,
@@ -77,7 +77,7 @@ export async function connectClickUp(
   const team = teamId ? teams.find(({ id }) => id === teamId) : teams.length === 1 && teams[0];
   if (!team) return teamId ? { result: "unknown-team", teams } : { result: "choose", teams };
   await saveClickUpConnection(db, actor, { token, user, team }, now, secret);
-  const connection = await loadClickUpConnection(db, actor.workspaceId);
+  const connection = await loadClickUpConnection(db, actor);
   if (!connection) throw new Error("The ClickUp connection just saved is gone");
   return { result: "connected", connection };
 }

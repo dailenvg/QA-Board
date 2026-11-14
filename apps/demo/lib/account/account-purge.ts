@@ -37,7 +37,7 @@ const OWNS_OPEN_WORKSPACE = `EXISTS (
 
 /**
  * Deletes an account due by `now` for good, in one transaction: its
- * memberships and avatar row go, and the row itself is scrubbed (email,
+ * memberships (and ClickUp connections) and avatar row go, and the row itself is scrubbed (email,
  * name, password) and loses its date, so it's never picked again or restored.
  * Its avatar's file goes once that commits. False when it was restored first,
  * or still owns an open workspace (`OWNS_OPEN_WORKSPACE`).
@@ -56,7 +56,10 @@ export async function purgeAccount(
       [userId, toDate(now)],
     );
     if (rows.length === 0) return null;
+    // Their ClickUp connections go with their memberships (040's key); a workspace connection
+    // from before 040 that they made holds their token too.
     await tx.query("DELETE FROM memberships WHERE user_id = $1", [userId]);
+    await tx.query("DELETE FROM workspace_clickup_connections WHERE connected_by = $1", [userId]);
     const { rows: files } = await tx.query<{ bytes: Uint8Array | null; blob_url: string | null }>(
       "DELETE FROM user_blobs WHERE user_id = $1 RETURNING bytes, blob_url",
       [userId],
@@ -73,7 +76,7 @@ export async function purgeAccount(
         actorUserId: null,
         action: "user.deleted",
         target: { type: "user", id: userId },
-        fields: ["email", "name", "avatar", "password", "memberships"],
+        fields: ["email", "name", "avatar", "password", "memberships", "clickup"],
       },
       now,
     );
