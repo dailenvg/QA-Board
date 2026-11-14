@@ -10,13 +10,13 @@ export const CLICKUP_SEND_COPY = {
   description:
     "Post this project to a ClickUp Chat channel for your team to review. It appears under your ClickUp name.",
   notConnected: {
-    title: "Connect your ClickUp first",
-    body: "Squint sends to ClickUp as you, with your own ClickUp API token. Connect it once in your profile settings, then come back here.",
+    title: "Plug in your ClickUp",
+    body: "Add your ClickUp token once, then send projects straight to your team's channels.",
     action: "Connect ClickUp",
   },
   reconnect: {
-    title: "Reconnect ClickUp",
-    body: "ClickUp didn't accept your saved token. It may have been regenerated, or you may have left that ClickUp workspace. Connect again with a new token.",
+    title: "ClickUp came unplugged",
+    body: "ClickUp didn't accept your saved token. Connect again with a new one.",
     action: "Reconnect ClickUp",
   },
   unavailable:

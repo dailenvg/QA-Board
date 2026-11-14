@@ -272,7 +272,7 @@ test("without a connection, the window leads to the profile's ClickUp card", asy
   const dialog = await openSendWindow(page, await workspaceProject(page, PROJECT));
   const blocked = dialog.getByTestId("clickup-send-blocked");
   await expect(blocked).toHaveAttribute("data-reason", "not-connected");
-  await expect(blocked).toContainText("Connect your ClickUp first");
+  await expect(blocked).toContainText("Plug in your ClickUp");
   await expect(dialog.getByTestId("clickup-send")).toHaveCount(0);
   await blocked.getByRole("link", { name: "Connect ClickUp" }).click();
   await expect(page).toHaveURL(/\/account\/profile#clickup$/);

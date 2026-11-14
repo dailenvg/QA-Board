@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { ACCOUNT_CLICKUP_HREF } from "@/lib/routes";
 import { ButtonLink } from "../ui/ButtonLink";
 import { Icon } from "../ui/Icon";
+import type { Mood } from "../brand/mascot/moods";
 import { StateArt, type ArtScene } from "../ui/line-art/StateArt";
 import { focusLost } from "./clickup-options";
 import { CLICKUP_SEND_COPY } from "./clickup-send-copy";
@@ -11,13 +12,13 @@ import type { ClickUpBlocked } from "./use-clickup-send";
 
 const COPY = CLICKUP_SEND_COPY;
 
-/** Each state's picture, title, words and way forward (none when the member can't fix it). */
+/** Each state's picture (and Squiggy's mood in it), title, words and way forward (none when the member can't fix it). */
 const STATES: Record<
   ClickUpBlocked,
-  { scene: ArtScene; title: string | null; body: string; action: string | null }
+  { scene: ArtScene; mood?: Mood; title: string | null; body: string; action: string | null }
 > = {
-  "not-connected": { scene: "unplugged", ...COPY.notConnected },
-  reconnect: { scene: "brokenLink", ...COPY.reconnect },
+  "not-connected": { scene: "clickup", ...COPY.notConnected },
+  reconnect: { scene: "clickup", mood: "surprised", ...COPY.reconnect },
   unavailable: { scene: "blocked", title: null, body: COPY.unavailable, action: null },
 };
 
@@ -29,7 +30,7 @@ const STATES: Record<
  * else the window's Close button.
  */
 export function ClickUpSendBlocked({ reason }: { reason: ClickUpBlocked }) {
-  const { scene, title, body, action } = STATES[reason];
+  const { scene, mood, title, body, action } = STATES[reason];
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!focusLost()) return;
@@ -42,17 +43,20 @@ export function ClickUpSendBlocked({ reason }: { reason: ClickUpBlocked }) {
   return (
     <div
       ref={root}
-      className="flex flex-col items-center gap-3 py-2 text-center"
+      className="flex flex-col items-center gap-2 text-center"
       data-testid="clickup-send-blocked"
       data-reason={reason}
     >
-      <StateArt scene={scene} size="sm" still />
-      {title ? <h3 className="text-heading font-semibold text-pretty">{title}</h3> : null}
-      <p className="max-w-sm text-body text-pretty text-muted">{body}</p>
+      {/* The scene on its own stage, as the welcome stories sit on theirs. */}
+      <div className="mb-3 flex w-full justify-center rounded-card bg-story-stage px-4 pt-6 pb-2">
+        <StateArt scene={scene} mood={mood} size="xl" surface="card" still />
+      </div>
+      {title ? <h3 className="text-title font-bold text-pretty">{title}</h3> : null}
+      <p className="max-w-xs text-body text-pretty text-muted">{body}</p>
       {action ? (
         <ButtonLink
           href={ACCOUNT_CLICKUP_HREF}
-          className="mt-2 max-sm:w-full"
+          className="mt-3 max-sm:w-full"
           testId="clickup-settings-link"
         >
           <Icon name="link" className="size-4" />
