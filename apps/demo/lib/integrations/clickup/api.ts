@@ -24,7 +24,7 @@ export interface ClickUpTeam {
   name: string;
 }
 
-/** Someone in a ClickUp workspace, who can be assigned a message or follow it. */
+/** Someone in a ClickUp workspace, who can be assigned a message. */
 export interface ClickUpPerson {
   id: string;
   username: string;

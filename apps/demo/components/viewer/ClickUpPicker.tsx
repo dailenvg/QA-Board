@@ -1,8 +1,8 @@
 "use client";
 
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { useId, useState, type KeyboardEvent, type ReactNode, type Ref } from "react";
-import { instant, spring, usePopVariants } from "@/lib/motion";
+import { instant, spring } from "@/lib/motion";
 import { FIELD_CLASS } from "../ui/field-styles";
 import { FieldError } from "../ui/FieldError";
 import { Icon } from "../ui/Icon";
@@ -14,15 +14,12 @@ interface ClickUpPickerProps {
   /** The search field's placeholder; `label` names it. */
   searchPlaceholder: string;
   options: readonly ClickUpOption[];
-  /** Checkboxes (several) instead of radios (one). */
-  multiple?: boolean;
-  value: readonly string[];
-  onChange: (ids: string[]) => void;
-  /** The most that can be picked, with `multiple`; what says so when it's reached. */
-  max?: { count: number; message: string };
+  /** The picked option's id, or null. */
+  value: string | null;
+  onChange: (id: string | null) => void;
   /** A first radio that picks nobody, for a choice that can be left out. */
   noneLabel?: string;
-  /** Beside the label: "Optional", or a limit. */
+  /** Beside the label, such as "Optional". */
   aside?: string;
   /** A line under the label, such as who's told of the choice. */
   hint?: string;
@@ -38,32 +35,25 @@ interface ClickUpPickerProps {
   empty: string;
   noMatch: (query: string) => string;
   error?: string | null;
-  /** Each picked option's Remove button's name, with `multiple`. */
-  removeLabel?: (name: string) => string;
   searchRef?: Ref<HTMLInputElement>;
   testId: string;
 }
 
 /**
  * A searchable list of choices: a labelled search field over a short
- * scrolling list of native radios (one) or checkboxes (several), so it
- * works from the keyboard as any form does (Tab in, arrows between radios,
- * Space to tick). Several picked show as chips above, each with Remove
- * (focus goes back to the search, as in the Share window's invite chips).
- * The single choice's highlight glides to the one picked (jumps with reduced
- * motion); it's a fill, not a ring, so it never reads as keyboard focus.
- * Enter in the search picks its first match (ticks the first not yet ticked,
- * with several) and never submits the form. How many match, nothing
- * matching, the limit, a pick from the search and a removal are read out.
+ * scrolling list of native radios, so it works from the keyboard as any
+ * form does (Tab in, arrows between radios). The highlight glides to the
+ * one picked (jumps with reduced motion); it's a fill, not a ring, so it
+ * never reads as keyboard focus. Enter in the search picks its first match
+ * and never submits the form. How many match, nothing matching and a pick
+ * from the search are read out.
  */
 export function ClickUpPicker({
   label,
   searchPlaceholder,
   options,
-  multiple = false,
   value,
   onChange,
-  max,
   noneLabel,
   aside,
   hint,
@@ -74,12 +64,10 @@ export function ClickUpPicker({
   empty,
   noMatch,
   error = null,
-  removeLabel,
   searchRef,
   testId,
 }: ClickUpPickerProps) {
   const reduce = useReducedMotion();
-  const variants = usePopVariants();
   const searchId = useId();
   const labelId = useId();
   const listId = useId();
@@ -87,56 +75,34 @@ export function ClickUpPicker({
   const hintId = useId();
   const name = useId();
   const [query, setQuery] = useState("");
-  /** What the last chip removal said, until the next change. */
+  /** What a pick from the search said, until the next change. */
   const [announcement, setAnnouncement] = useState("");
   const { shown, more } = filterClickUpOptions(options, query);
-  const picked = new Set(value);
-  const full = multiple && max !== undefined && value.length >= max.count;
-  const chips = multiple ? options.filter((option) => picked.has(option.id)) : [];
   const typed = query.trim();
 
-  const toggle = (id: string) => {
+  const pick = (id: string) => {
     setAnnouncement("");
-    if (!multiple) {
-      onChange(id ? [id] : []);
-      return;
-    }
-    onChange(picked.has(id) ? value.filter((item) => item !== id) : [...value, id]);
-  };
-
-  /** The match Enter picks: the first, or with several the first not yet ticked (none once full). */
-  const firstMatch = (): ClickUpOption | undefined => {
-    if (!multiple) return shown[0];
-    return full ? undefined : shown.find(({ id }) => !picked.has(id));
+    onChange(id || null);
   };
 
   /** Enter in the search: the first match is picked, as a combobox would, and nothing is sent. */
   const pickFirst = (event: KeyboardEvent<HTMLInputElement>) => {
     event.preventDefault();
     if (event.nativeEvent.isComposing || !typed) return;
-    const first = firstMatch();
-    if (!first || picked.has(first.id)) return;
-    toggle(first.id);
+    const [first] = shown;
+    if (!first || first.id === value) return;
+    pick(first.id);
     setAnnouncement(CLICKUP_SEND_COPY.picked(`${prefix}${first.label}`));
   };
 
-  /** A chip's Remove: its button goes with it, so focus moves to the search, as in Share. */
-  const removeChip = (chip: ClickUpOption) => {
-    onChange(value.filter((item) => item !== chip.id));
-    setAnnouncement(CLICKUP_SEND_COPY.removed(chip.label));
-    document.getElementById(searchId)?.focus();
-  };
-
-  const row = (option: ClickUpOption, selected: boolean, disabled: boolean) => (
+  const row = (option: ClickUpOption, selected: boolean) => (
     <label
       key={option.id || "none"}
       data-testid={`${testId}-option`}
       data-selected={selected || undefined}
-      className={`relative flex min-h-11 items-center gap-3 rounded-tile px-3 py-2 has-[input:focus-visible]:outline-2 has-[input:focus-visible]:-outline-offset-2 has-[input:focus-visible]:outline-focus ${
-        disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-hover"
-      } ${selected && multiple ? "bg-brand-soft" : ""}`}
+      className="relative flex min-h-11 cursor-pointer items-center gap-3 rounded-tile px-3 py-2 hover:bg-hover has-[input:focus-visible]:outline-2 has-[input:focus-visible]:-outline-offset-2 has-[input:focus-visible]:outline-focus"
     >
-      {selected && !multiple ? (
+      {selected ? (
         <motion.span
           layoutId={`${name}-picked`}
           transition={reduce ? instant : spring.snappy}
@@ -145,24 +111,22 @@ export function ClickUpPicker({
         />
       ) : null}
       <input
-        type={multiple ? "checkbox" : "radio"}
+        type="radio"
         name={name}
         value={option.id}
         checked={selected}
-        disabled={disabled}
-        required={required && !multiple}
-        onChange={() => toggle(option.id)}
+        required={required}
+        onChange={() => pick(option.id)}
         className="sr-only"
       />
       {/* A mark, so a choice reads without telling the colors apart (WCAG 1.4.1). */}
       <span
         aria-hidden="true"
-        className={`relative grid size-5 shrink-0 place-items-center ring-2 ring-inset ${
-          multiple ? "rounded-kbd" : "rounded-pill"
-        } ${selected ? "bg-brand-text ring-brand-text text-card" : "ring-field-line"}`}
+        className={`relative grid size-5 shrink-0 place-items-center rounded-pill ring-2 ring-inset ${
+          selected ? "bg-brand-text ring-brand-text" : "ring-field-line"
+        }`}
       >
-        {selected && multiple ? <Icon name="check" className="size-3.5" /> : null}
-        {selected && !multiple ? <span className="size-2 rounded-pill bg-card" /> : null}
+        {selected ? <span className="size-2 rounded-pill bg-card" /> : null}
       </span>
       <span className="relative flex min-w-0 flex-1 flex-col">
         <span className="truncate text-body font-semibold">
@@ -170,7 +134,10 @@ export function ClickUpPicker({
           {option.label}
         </span>
         {option.detail ? (
-          <span className="truncate text-meta text-muted">{option.detail}</span>
+          // Darker on the picked row: its fill under the hover tint leaves muted text below 4.5:1.
+          <span className={`truncate text-meta ${selected ? "text-ink-2" : "text-muted"}`}>
+            {option.detail}
+          </span>
         ) : null}
       </span>
     </label>
@@ -178,11 +145,10 @@ export function ClickUpPicker({
 
   const nothing = options.length === 0;
   const status = nothing ? empty : shown.length === 0 ? noMatch(typed) : null;
-  // Read out as the search narrows the list (the status line in the list isn't live), with the
-  // limit once it's reached and a chip just removed.
+  // Read out as the search narrows the list (the status line in the list isn't live), and a pick
+  // from the search.
   const spoken = [
     typed ? (shown.length ? CLICKUP_SEND_COPY.matches(shown.length + more) : status) : "",
-    full && max ? max.message : "",
     announcement,
   ]
     .filter(Boolean)
@@ -214,35 +180,6 @@ export function ClickUpPicker({
           </p>
         ) : null}
       </div>
-      {chips.length ? (
-        <ul aria-label={label} className="flex flex-wrap gap-2">
-          <AnimatePresence initial={false}>
-            {chips.map((chip) => (
-              <motion.li
-                key={chip.id}
-                layout
-                variants={variants}
-                initial="hidden"
-                animate="visible"
-                exit="exit"
-                transition={reduce ? instant : spring.snappy}
-                className="flex max-w-full min-w-0 items-center gap-1 rounded-pill bg-brand-soft py-1 pr-1 pl-3 text-body font-semibold text-brand-text"
-                data-testid={`${testId}-chip`}
-              >
-                <span className="truncate">{chip.label}</span>
-                <button
-                  type="button"
-                  onClick={() => removeChip(chip)}
-                  aria-label={removeLabel?.(chip.label) ?? chip.label}
-                  className="-my-2 grid size-11 shrink-0 place-items-center rounded-pill transition-colors hover:bg-hover active:bg-seg"
-                >
-                  <Icon name="close" className="size-4" />
-                </button>
-              </motion.li>
-            ))}
-          </AnimatePresence>
-        </ul>
-      ) : null}
       <div className="relative">
         <Icon
           name="search"
@@ -286,11 +223,8 @@ export function ClickUpPicker({
         data-busy={busy || undefined}
         className="flex max-h-52 flex-col gap-1 overflow-y-auto overscroll-contain rounded-field bg-card p-1 ring-1 ring-line ring-inset"
       >
-        {noneLabel && !typed ? row({ id: "", label: noneLabel }, value.length === 0, false) : null}
-        {shown.map((option) => {
-          const selected = picked.has(option.id);
-          return row(option, selected, full && !selected);
-        })}
+        {noneLabel && !typed ? row({ id: "", label: noneLabel }, value === null) : null}
+        {shown.map((option) => row(option, option.id === value))}
         {status ? (
           <p className="px-3 py-2 text-meta text-muted" data-testid={`${testId}-status`}>
             {status}
@@ -304,7 +238,6 @@ export function ClickUpPicker({
       <p role="status" className="sr-only">
         {spoken}
       </p>
-      {full && max ? <p className="text-meta text-muted">{max.message}</p> : null}
       <FieldError id={errorId} message={error} />
     </div>
   );

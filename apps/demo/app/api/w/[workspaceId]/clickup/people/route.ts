@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 /**
  * `GET`: the people in the signed-in member's connected ClickUp workspace,
  * read with their own token (`{ people: [{ id, username, email }] }`, by
- * name), to assign a message to or have follow it. Refuses as
+ * name), to assign a message to. Refuses as
  * `GET .../clickup/channels` does.
  */
 export const GET = withMember(async (_request, { db, user, workspaceId, now }) => {

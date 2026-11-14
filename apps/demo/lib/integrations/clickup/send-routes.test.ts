@@ -242,7 +242,8 @@ describe("POST /api/w/<id>/projects/<id>/clickup", () => {
       channelId: "c-1",
       note: "  Please check the [hero](https://evil.test).\r\n@everyone  ",
       assignee: "82",
-      followers: ["81", "82", "81"],
+      // From a window opened before followers went: ignored, never passed on.
+      followers: ["81", "82"],
     });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ url: "https://app.clickup.com/9012/chat/r/c-1" });
@@ -251,13 +252,13 @@ describe("POST /api/w/<id>/projects/<id>/clickup", () => {
     expect(posted?.body).toEqual({
       type: "message",
       content: [
-        "**[Home \\[page\\] \\*v2\\*](https://squint.test/p/p1)**",
+        "**Home \\[page\\] \\*v2\\***",
+        "https://squint.test/p/p1",
         "Please check the \\[hero\\]\\(https\\:\\/\\/evil\\.test\\)\\.\\\n\\@everyone",
         "_Sent for review from Squint_",
       ].join("\n\n"),
       content_format: "text/md",
       assignee: "82",
-      followers: ["81", "82"],
     });
     expect(await sends()).toEqual([
       {
@@ -269,7 +270,6 @@ describe("POST /api/w/<id>/projects/<id>/clickup", () => {
           clickUpTeamId: TEAM,
           channelId: "c-1",
           assigned: 1,
-          followers: 2,
         },
       },
     ]);
@@ -277,14 +277,14 @@ describe("POST /api/w/<id>/projects/<id>/clickup", () => {
     expect(JSON.stringify(rows)).not.toContain("Please check");
   });
 
-  it("sends without a note, an assignee or followers, and without a link when ClickUp gives none", async () => {
+  it("sends without a note or an assignee, and without a link when ClickUp gives none", async () => {
     await connect(a);
     const response = await send(a, { channelId: "c-1" });
     expect(await response.json()).toEqual({ url: null });
     expect(clickUpCalls.at(-1)?.body).toEqual({
       type: "message",
       content:
-        "**[Home \\[page\\] \\*v2\\*](https://squint.test/p/p1)**\n\n_Sent for review from Squint_",
+        "**Home \\[page\\] \\*v2\\***\n\nhttps://squint.test/p/p1\n\n_Sent for review from Squint_",
       content_format: "text/md",
     });
   });
@@ -334,16 +334,12 @@ describe("POST /api/w/<id>/projects/<id>/clickup", () => {
     expect(await response.json()).toEqual({ error: "not-connected" });
   });
 
-  it("refuses a body it can't send: no channel, a long note, or too many followers", async () => {
+  it("refuses a body it can't send: no channel, a long note, or a malformed assignee", async () => {
     await connect(a);
     for (const [body, field] of [
       [{}, "channelId"],
       [{ channelId: "c 1" }, "channelId"],
       [{ channelId: "c-1", note: "x".repeat(1001) }, "note"],
-      [
-        { channelId: "c-1", followers: Array.from({ length: 11 }, (_, i) => String(i)) },
-        "followers",
-      ],
       [{ channelId: "c-1", assignee: "<script>" }, "assignee"],
     ] as const) {
       const response = await send(a, body);

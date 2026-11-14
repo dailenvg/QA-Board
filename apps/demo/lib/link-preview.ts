@@ -56,6 +56,25 @@ export function invitationPreview({ company, project, client }: Invitation): Lin
   };
 }
 
+/** A project's own link (`/p/<id>`), which its team opens signed in: whose it is, and what. */
+export interface TeamReview {
+  company: string;
+  project: string;
+}
+
+/** The alt text of a project link's card: the same for every project, as `INVITATION_CARD_ALT`. */
+export const TEAM_REVIEW_CARD_ALT =
+  "A project ready for the team's review, naming the company and the project. Squiggy, the blue Squint mascot, leans in among comment pins.";
+
+/** The preview of a project's own link: for the company's team, who sign in to open it. */
+export function teamReviewPreview({ company, project }: TeamReview): LinkPreviewCopy {
+  return {
+    title: `${project} · ${company}`,
+    description: `Ready for your team's review. Sign in to Squint to open it.`,
+    alt: TEAM_REVIEW_CARD_ALT,
+  };
+}
+
 /** Open Graph fields every page shares. A segment that sets `openGraph` replaces its parent's. */
 const OPEN_GRAPH_BASE = {
   type: "website",

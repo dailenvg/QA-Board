@@ -39,7 +39,7 @@ describe("the Send to ClickUp client", () => {
 
   it("posts the draft as JSON, and answers ClickUp's link when there is one", async () => {
     const calls = answering({ url: "https://app.clickup.com/9012/chat/r/c-1" });
-    const draft = { channelId: "c-1", note: "Hi", assignee: "81", followers: ["82"] };
+    const draft = { channelId: "c-1", note: "Hi", assignee: "81" };
     expect(await sendToClickUp(WORKSPACE, "p/1", draft)).toEqual({
       ok: true,
       url: "https://app.clickup.com/9012/chat/r/c-1",
@@ -52,7 +52,7 @@ describe("the Send to ClickUp client", () => {
   });
 
   it("tells each refusal apart, and never throws", async () => {
-    const draft = { channelId: "c-1", note: "", assignee: null, followers: [] };
+    const draft = { channelId: "c-1", note: "", assignee: null };
     for (const [status, body, error] of [
       [409, { error: "not-connected" }, "not-connected"],
       [422, { error: "reconnect" }, "reconnect"],

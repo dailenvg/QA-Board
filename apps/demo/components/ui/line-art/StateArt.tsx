@@ -32,7 +32,9 @@ export type ArtScene =
   // Not a state: the Share window's header.
   | "invite"
   // Send to ClickUp before ClickUp is connected: plugging into ClickUp.
-  | "clickup";
+  | "clickup"
+  // Not a state: the Send to ClickUp window's header, a message flying to ClickUp.
+  | "clickupSend";
 
 /** Every scene is drawn on this stage (viewBox units); the box keeps its shape. */
 const W = 200;
@@ -129,6 +131,24 @@ const SCENES: Record<ArtScene, SceneSpec> = {
         <motion.path d="M190 26v8M186 30h8" {...draw(5)} />
         <motion.circle cx={128} cy={26} r={2.5} {...draw(5)} />
         <motion.circle cx={30} cy={34} r={2} {...draw(5)} />
+      </>
+    ),
+  },
+  // A message on its way to ClickUp: Squiggy sends a speech bubble off toward ClickUp's tile.
+  // Sized for the window's header, as the invite scene is: a large Squiggy, few big shapes.
+  clickupSend: {
+    mood: "happy",
+    squiggy: { x: 4, y: 62, size: 64 },
+    back: (
+      <>
+        <motion.path d={FLOOR} {...draw(0)} />
+        <motion.path d={roundedRect(118, 44, 66, 66, 18)} fill={PANEL} {...draw(0)} />
+        <ClickUpMark x={133} y={59} size={36} />
+        <motion.path d="M60 70C70 54 80 48 92 46" {...dashed(1)} />
+        <LineBubble x={74} y={20} w={44} h={26} tail="left" tilt={-8} kind="lines" order={2} />
+        <motion.path d="M124 30l7-5M132 38l8-1" {...draw(3)} />
+        <motion.circle cx={30} cy={36} r={2.5} {...draw(4)} />
+        <motion.path d="M188 22v8M184 26h8" {...draw(4)} />
       </>
     ),
   },

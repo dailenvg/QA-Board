@@ -4,7 +4,6 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useId, useRef } from "react";
 import { useSwapVariants } from "@/lib/motion";
 import { useMediaQuery } from "@/lib/use-media-query";
-import { ClickUpLogo } from "../account/ClickUpLogo";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
 import { Icon } from "../ui/Icon";
@@ -63,12 +62,13 @@ interface ClickUpDialogProps {
 
 /**
  * The Send to ClickUp window, laid out as the Share window is (a bottom
- * sheet on phones, ClickUp's mark beside the title from tablets up): the
- * form once the member's lists load (skeletons until then), the way to
- * their settings when they aren't connected or ClickUp refused their token,
- * or what went wrong with Retry. States swap in place, and one live line
- * says the ones nothing else does. Cancel and Send stay at the bottom while
- * the form shows.
+ * sheet on phones; from tablets up, a small scene of a message flying to
+ * ClickUp beside the title, and numbered steps on tiles, in two columns on
+ * wide screens): the form once the member's lists load (skeletons until
+ * then), the way to their settings when they aren't connected or ClickUp
+ * refused their token, or what went wrong with Retry. States swap in place,
+ * and one live line says the ones nothing else does. Cancel and Send stay at
+ * the bottom while the form shows.
  */
 export function ClickUpDialog({ open, onClose, project, send }: ClickUpDialogProps) {
   const swap = useSwapVariants();
@@ -148,8 +148,10 @@ export function ClickUpDialog({ open, onClose, project, send }: ClickUpDialogPro
       fitKeyboard
       sheet
       tall={lists.status === "loading" || ready}
-      size={lists.status === "loading" || ready ? "wide" : "md"}
-      art={lists.status === "blocked" ? undefined : <ClickUpLogo className="size-12" />}
+      size={lists.status === "loading" || ready ? "lg" : "md"}
+      art={
+        lists.status === "blocked" ? undefined : <StateArt scene="clickupSend" size="sm" still />
+      }
       footer={footer}
     >
       {/* Always present, so each change is announced (a region added with its words isn't). */}

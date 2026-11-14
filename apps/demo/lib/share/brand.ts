@@ -75,3 +75,15 @@ export function brandIconPath(
 ): string {
   return `/api/s/${encodeURIComponent(token)}/brand/icon?v=${brandIconVersion(brand)}`;
 }
+
+/**
+ * Where a project link's company icon is (`/api/p/<projectId>/brand/icon`),
+ * as `brandIconPath` is for a review link: the logo, or the monogram, as a
+ * square PNG, its `?v=` changing with the company's name, color or logo.
+ */
+export function projectIconPath(
+  projectId: string,
+  brand: Pick<ClientBrand, "name" | "color" | "logoVersion">,
+): string {
+  return `/api/p/${encodeURIComponent(projectId)}/brand/icon?v=${brandIconVersion(brand)}`;
+}

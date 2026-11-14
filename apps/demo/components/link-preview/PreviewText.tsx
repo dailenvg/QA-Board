@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import { PREVIEW_COLORS } from "./preview-theme";
 
-interface TextSegment {
+export interface TextSegment {
   text: string;
   /** Draws the app's lime highlighter swash behind these words. */
   highlight?: boolean;

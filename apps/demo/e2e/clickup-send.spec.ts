@@ -14,7 +14,7 @@ import { addDefaultFolder, DEFAULT_FOLDER, mockFrameCheck } from "./squint-fixtu
 import { e2eWorkspaceId } from "./workspace-db";
 
 const PROJECT = "Spring brief";
-const [, ANA, BO, CY] = CLICKUP_STUB.MEMBERS;
+const [, ANA] = CLICKUP_STUB.MEMBERS;
 /** The channels a message can go to: no DMs, archived or hidden ones. */
 const OPEN_CHANNELS = ["bugs", "design-review", "general", "marketing"];
 const NOTIFIED = "They're notified in ClickUp.";
@@ -77,9 +77,7 @@ async function pick(dialog: Locator, picker: string, query: string, name: string
   await list.getByTestId(`${picker}-option`).filter({ hasText: name }).click();
 }
 
-test("a member sends a project to a ClickUp channel, assigned, with followers and a note", async ({
-  page,
-}) => {
+test("a member sends a project to a ClickUp channel, assigned, with a note", async ({ page }) => {
   await connectClickUp();
   const projectId = await workspaceProject(page, PROJECT);
   const dialog = await openSendWindow(page, projectId);
@@ -106,24 +104,28 @@ test("a member sends a project to a ClickUp channel, assigned, with followers an
   await expect(
     dialog.getByTestId("clickup-assignee").getByRole("radio", { name: ANA?.username }),
   ).toBeChecked();
-  await pick(dialog, "clickup-followers", "bo", BO?.username ?? "");
-  await pick(dialog, "clickup-followers", "cy@", CY?.username ?? "");
-  await expect(dialog.getByTestId("clickup-followers-chip")).toHaveText([
-    BO?.username ?? "",
-    CY?.username ?? "",
-  ]);
 
   // The note, previewed as typed; its link and mention go as plain text.
-  const note = dialog.getByLabel("Note");
+  const note = dialog.getByLabel("Note", { exact: true });
   await note.fill("Please check the [hero](https://evil.test)\n@everyone");
   await expect(dialog.getByTestId("clickup-note-left")).toHaveText("948 left");
   const preview = dialog.getByTestId("clickup-preview");
   await expect(preview.getByTestId("clickup-preview-project")).toHaveText(PROJECT);
+  await expect(preview.getByTestId("clickup-preview-url")).toHaveText(
+    new RegExp(`^https?://[^/]+/p/${projectId}$`),
+  );
+  // The card the link unfurls into, as the project link's own image.
+  const card = preview.getByTestId("clickup-preview-card");
+  await expect(card).toHaveAttribute("data-state", "ready");
+  await expect(card.getByRole("img")).toHaveAttribute(
+    "src",
+    new RegExp(`/p/${projectId}/opengraph-image$`),
+  );
   await expect(preview.getByTestId("clickup-preview-note")).toHaveText(
     "Please check the [hero](https://evil.test)\n@everyone",
   );
-  await expect(preview.getByTestId("clickup-preview-meta")).toHaveText(
-    `Assigned to ${ANA?.username} · 2 followers`,
+  await expect(preview.getByTestId("clickup-preview-assignee")).toHaveText(
+    `Assigned to ${ANA?.username}`,
   );
   await expect(preview.getByRole("link")).toHaveCount(0);
 
@@ -140,12 +142,12 @@ test("a member sends a project to a ClickUp channel, assigned, with followers an
     type: "message",
     content_format: "text/md",
     assignee: String(ANA?.id),
-    followers: [String(BO?.id), String(CY?.id)],
   });
-  const [title, body, footer] = message?.body.content.split("\n\n") ?? [];
-  expect(title).toMatch(
-    new RegExp(`^\\*\\*\\[Spring brief\\]\\(https?://[^)]+/p/${projectId}\\)\\*\\*$`),
-  );
+  expect(message?.body).not.toHaveProperty("followers");
+  const [title, address, body, footer] = message?.body.content.split("\n\n") ?? [];
+  expect(title).toBe("**Spring brief**");
+  // The bare address on its own line, so ClickUp can unfurl it into the project's card.
+  expect(address).toMatch(new RegExp(`^https?://[^\\s]+/p/${projectId}$`));
   expect(body).toBe("Please check the \\[hero\\]\\(https\\:\\/\\/evil\\.test\\)\\\n\\@everyone");
   expect(footer).toBe("_Sent for review from Squint_");
 
@@ -154,7 +156,7 @@ test("a member sends a project to a ClickUp channel, assigned, with followers an
   await expect(
     dialog.getByTestId("clickup-channel").getByRole("radio", { name: "#design-review" }),
   ).toBeChecked();
-  await expect(dialog.getByLabel("Note")).toHaveValue("");
+  await expect(dialog.getByLabel("Note", { exact: true })).toHaveValue("");
 });
 
 test("Send asks for a channel first, and nothing goes", async ({ page }) => {
@@ -166,10 +168,7 @@ test("Send asks for a channel first, and nothing goes", async ({ page }) => {
   expect(await stubMessages()).toEqual([]);
 });
 
-test("Enter in the lists picks without sending, and a removed follower's search takes focus", async ({
-  page,
-  isMobile,
-}) => {
+test("Enter in the lists picks without sending", async ({ page, isMobile }) => {
   await connectClickUp();
   const dialog = await openSendWindow(page, await workspaceProject(page, PROJECT));
   const channel = dialog.getByTestId("clickup-channel");
@@ -186,24 +185,16 @@ test("Enter in the lists picks without sending, and a removed follower's search 
   await expect(designReview).toBeChecked();
   await expect(dialog.getByTestId("clickup-send")).toHaveText("Send");
 
-  // Who's notified, under each of the people's lists.
+  // Who's notified, under the assignee's list; Enter picks the first person matching there too.
+  const assignee = dialog.getByTestId("clickup-assignee");
   await expect(dialog.getByTestId("clickup-assignee-hint")).toHaveText(NOTIFIED);
-  await expect(dialog.getByTestId("clickup-followers-hint")).toHaveText(NOTIFIED);
-
-  // Enter ticks the first follower matching; on the checkbox it leaves it ticked.
-  const followers = dialog.getByTestId("clickup-followers");
-  const followerSearch = followers.getByTestId("clickup-followers-search");
-  await followerSearch.fill("bo");
-  await followerSearch.press("Enter");
-  await expect(followers.getByTestId("clickup-followers-chip")).toHaveText([BO?.username ?? ""]);
-  const bo = followers.getByRole("checkbox", { name: BO?.username });
-  await bo.press("Enter");
-  await expect(bo).toBeChecked();
-
-  // Removing the chip takes its button away: focus goes to that list's search.
-  await followers.getByRole("button", { name: `Remove ${BO?.username}` }).click();
-  await expect(followers.getByTestId("clickup-followers-chip")).toHaveCount(0);
-  await expect(followerSearch).toBeFocused();
+  const assigneeSearch = assignee.getByTestId("clickup-assignee-search");
+  await assigneeSearch.fill("ana");
+  await assigneeSearch.press("Enter");
+  await expect(assignee.getByRole("radio", { name: ANA?.username })).toBeChecked();
+  // No followers any more: the assignee is the one person picked.
+  await expect(dialog.getByTestId("clickup-followers")).toHaveCount(0);
+  await expect(dialog.getByRole("checkbox")).toHaveCount(0);
 
   await expect(dialog).toBeVisible();
   expect(await stubMessages()).toEqual([]);

@@ -36,11 +36,10 @@ export type ClickUpLists =
 export interface ClickUpDraft {
   channelId: string | null;
   assignee: string | null;
-  followers: string[];
   note: string;
 }
 
-const EMPTY: ClickUpDraft = { channelId: null, assignee: null, followers: [], note: "" };
+const EMPTY: ClickUpDraft = { channelId: null, assignee: null, note: "" };
 
 /** A list that didn't load: the way to settings when it needs the member, else what went wrong. */
 function refusedList(refused: ClickUpRefused): ClickUpLists {
@@ -79,7 +78,6 @@ function fitDraft(draft: ClickUpDraft, lists: ClickUpLists, lastChannel: string 
     ...draft,
     channelId,
     assignee: draft.assignee && people.has(draft.assignee) ? draft.assignee : null,
-    followers: draft.followers.filter((id) => people.has(id)),
   };
 }
 
@@ -93,7 +91,7 @@ interface UseClickUpSendOptions {
 /**
  * Send to ClickUp's state: the member's channels and ClickUp people (read
  * afresh each time the window opens, never kept beyond it), the draft
- * (channel, assignee, followers, note), and sending it. A refused token or a
+ * (channel, assignee, note), and sending it. A refused token or a
  * missing connection turns the window into the way to settings. A channel
  * ClickUp refused (gone, or closed to the member) is said under the channel
  * list (`channelError`) and unpicked, and `repick` counts up so the form
@@ -180,7 +178,6 @@ export function useClickUpSend({ workspaceId, projectId, onSent }: UseClickUpSen
       channelId: channel.id,
       note: draft.note,
       assignee: draft.assignee,
-      followers: draft.followers,
     });
     setSending(false);
     if (result.ok) {

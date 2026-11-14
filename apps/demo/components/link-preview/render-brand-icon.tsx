@@ -1,7 +1,6 @@
 import { ImageResponse } from "next/og";
 import { PAPER } from "@/lib/brand-palette";
 import { monogram } from "@/lib/monogram";
-import { invitationCard } from "@/lib/share/guest-share";
 import { linkPreviewFonts } from "./link-preview-fonts";
 
 /** Big enough for an Apple touch icon; link previews and inboxes scale it down. */
@@ -48,13 +47,20 @@ function MonogramIcon({ company, color }: { company: string; color: string | nul
   );
 }
 
+/** The company behind a link, as its card reads it. */
+interface IconSource {
+  company: string;
+  color: string | null;
+  /** The logo as a data URI the renderer can draw; null for the monogram. */
+  logoUri: string | null;
+}
+
 /**
- * A workspace link's company icon as a square PNG: the logo when the
- * renderer can draw it (PNG, JPEG or GIF), the monogram otherwise. Null for
- * an anonymous link or one that doesn't open.
+ * A link's company icon as a square PNG (a review link's, a project link's):
+ * the logo when the renderer can draw it (PNG, JPEG or GIF), the monogram
+ * otherwise. Null without a company (an anonymous link, or one that doesn't open).
  */
-export async function renderBrandIcon(token: string): Promise<ImageResponse | null> {
-  const card = await invitationCard(token);
+export async function renderBrandIcon(card: IconSource | null): Promise<ImageResponse | null> {
   if (!card) return null;
   const icon = card.logoUri ? (
     <LogoIcon uri={card.logoUri} />

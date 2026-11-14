@@ -30,7 +30,6 @@ export interface StubMessage {
     content: string;
     content_format: string;
     assignee?: string;
-    followers?: string[];
   };
 }
 
