@@ -47,7 +47,7 @@ async function refreshUntil(guest: Page, state: "open" | "closed"): Promise<void
   }).toPass({ timeout: 15_000 });
 }
 
-test("a link made for 24 hours says so, and No limit takes the guest's countdown away", async ({
+test("a link set to 24 hours says so, and No limit takes the guest's countdown away", async ({
   page,
   browser,
   baseURL,
@@ -59,21 +59,19 @@ test("a link made for 24 hours says so, and No limit takes the guest's countdown
   await page.getByTestId("mode-comment").click();
   await expect(page.getByRole("img", { name: /^Snapshot of/ })).toBeVisible();
 
-  // Chosen before the link exists: 3 days unless changed.
+  // Opening Share makes the link, for 3 days; Settings makes it 24 hours.
   await page.getByTestId("share-button").click();
   const dialog = page.getByTestId("share-dialog");
-  const window72 = dialog.getByTestId("review-window-72h");
-  await expect(window72).toHaveAttribute("aria-checked", "true");
-  await dialog.getByTestId("review-window-24h").click();
-  await expect(dialog.getByTestId("review-window-24h")).toHaveAttribute("aria-checked", "true");
-  await dialog.getByTestId("create-share-link").click();
   const urlField = dialog.getByTestId("copy-share-link");
   await expect(urlField).toHaveAttribute("data-url", /\/s\/[A-Za-z0-9_-]{43}$/);
   await expect(dialog.getByTestId("share-sync")).toHaveAttribute("data-sync", "synced");
   const link = (await urlField.getAttribute("data-url"))!;
   await showShareTab(dialog, "settings");
-  // The link's own settings (the Create view may still be fading out).
   const settings = dialog.getByTestId("share-settings-step");
+  await expect(settings.getByTestId("review-window-72h")).toHaveAttribute("aria-checked", "true");
+  const shortened = windowSaved(page);
+  await settings.getByTestId("review-window-24h").click();
+  expect((await shortened).status()).toBe(200);
   await expect(settings.getByTestId("review-window-24h")).toHaveAttribute("aria-checked", "true");
   await expect(dialog.getByTestId("review-window")).toContainText(
     /Open until .+\. Clients can comment for (1 day|23 hours)/,

@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useBlobSource } from "@/lib/blob-store/blob-source";
 import { ownerApi, shareUrl } from "@/lib/share-client/api";
 import { createLatestSaves } from "@/lib/share-client/latest-saves";
 import { pushNow, resetSync, syncNow } from "@/lib/share-client/owner-sync";
 import { toShareState } from "@/lib/share-client/share-state";
-import { useShareFit } from "@/lib/share-client/use-share-fit";
+import { shareImages, shareSizeProblem } from "@/lib/share-client/share-size";
 import { useShareSync } from "@/lib/share-client/use-share-sync";
 import {
   REVIEW_WINDOW_LABELS,
@@ -72,6 +73,9 @@ async function revokeLink(job: RevokeJob): Promise<void> {
 
 const CREATE_FAILED = "The link couldn't be created. Check your connection and try again.";
 
+/** Every new link opens for 3 days; Settings changes it once the link exists. */
+const NEW_WINDOW: ReviewWindowChoice = "72h";
+
 /** The server has nowhere lasting to keep links (no database on this deployment). */
 const STORAGE_UNAVAILABLE =
   "Sharing isn't set up on this site yet. It needs a database to store links, so ask whoever runs Squint to connect one.";
@@ -104,9 +108,10 @@ export function ShareControl({ data, project }: ShareControlProps) {
   const [confirming, setConfirming] = useState(false);
   const [creating, setCreating] = useState(false);
   const [revoking, setRevoking] = useState(false);
+  /** Why the link couldn't be made; Try again makes it again. */
   const [error, setError] = useState<string | null>(null);
-  /** The window a new link gets; a link's own comes from the server. */
-  const [newWindow, setNewWindow] = useState<ReviewWindowChoice>("72h");
+  /** Why the project is too big to share: no link is made, and there's nothing to try again. */
+  const [tooBig, setTooBig] = useState<string | null>(null);
   /**
    * A shorter window waiting on the owner's confirmation, since it closes the
    * review now. Kept after the question closes, so its words don't change as it fades.
@@ -131,14 +136,28 @@ export function ShareControl({ data, project }: ShareControlProps) {
   );
   const status = useShareSync(project, share ? JSON.stringify(state) : null);
   const url = share && isClient ? shareUrl(share.token) : null;
-  // Checked while the dialog offers to create a link, so a project too big to share says so first.
-  const fit = useShareFit(data, project, open && (!share || status.phase === "gone"));
+  const blobs = useBlobSource();
 
   const create = async () => {
-    if (fit.status !== "fits") return;
     setCreating(true);
     setError(null);
-    if (status.phase === "gone") {
+    setTooBig(null);
+    // Checked before anything is uploaded, so a project too big to share says so instead.
+    let problem: string | null;
+    try {
+      problem = shareSizeProblem(await shareImages(data, project, (key) => blobs.get(key)));
+    } catch {
+      setCreating(false);
+      setError(CREATE_FAILED);
+      return;
+    }
+    if (problem) {
+      setCreating(false);
+      setTooBig(problem);
+      return;
+    }
+    const replacing = status.phase === "gone";
+    if (replacing) {
       await unshareProject(project.id);
       resetSync(project.id);
     }
@@ -151,7 +170,7 @@ export function ShareControl({ data, project }: ShareControlProps) {
     }
     // The server's creation time: the review window counts from it, whatever this clock says.
     const { shareId, token, ownerKey, createdAt } = created.value;
-    const hours = windowHours(newWindow);
+    const hours = windowHours(NEW_WINDOW);
     const saved = await shareProject(project.id, {
       id: shareId,
       token,
@@ -167,6 +186,21 @@ export function ShareControl({ data, project }: ShareControlProps) {
       return;
     }
     void pushNow(project.id);
+    if (replacing) toast({ message: "The old link had stopped working, so this is a new one." });
+  };
+
+  // Opening Share makes the link when there's none (or it stopped working), so the window opens
+  // on its steps. A link gone while the window is open waits for the owner's button.
+  const openShare = () => {
+    setOpen(true);
+    if ((!share || status.phase === "gone") && !creating) void create();
+  };
+
+  const close = () => {
+    setOpen(false);
+    setError(null);
+    setTooBig(null);
+    setReturnFocus(null);
   };
 
   const stopAsking = () => setShortening((current) => ({ ...current, asking: false }));
@@ -189,18 +223,17 @@ export function ShareControl({ data, project }: ShareControlProps) {
   };
 
   const chooseWindow = (choice: ReviewWindowChoice) => {
-    if (!share || status.phase === "gone") {
-      setNewWindow(choice);
-      return;
-    }
+    if (!share || status.phase === "gone") return;
     if (closesNow(share, choice, Date.now())) {
       setReturnFocus("window");
       setShortening({ to: choice, asking: true });
     } else void saveWindow(choice);
   };
 
+  // Revoking ends this sharing: the window closes rather than making a new link straight away.
   const revoke = () => {
     setConfirming(false);
+    close();
     if (share) void revokeLink({ projectId: project.id, toast, setRevoking });
   };
 
@@ -227,7 +260,7 @@ export function ShareControl({ data, project }: ShareControlProps) {
       <Button
         variant="secondary"
         size="sm"
-        onClick={() => setOpen(true)}
+        onClick={openShare}
         className="max-sm:size-11 max-sm:px-0"
         aria-label={button.label}
         title={button.title}
@@ -250,18 +283,15 @@ export function ShareControl({ data, project }: ShareControlProps) {
       </Button>
       <ShareDialog
         open={open && !confirming && !shortening.asking}
-        onClose={() => {
-          setOpen(false);
-          setReturnFocus(null);
-        }}
+        onClose={close}
         share={share}
         url={url}
         status={status}
-        fit={fit}
+        tooBig={tooBig}
         creating={creating}
         revoking={revoking}
         error={error}
-        reviewWindow={linkWindow ?? newWindow}
+        reviewWindow={linkWindow ?? NEW_WINDOW}
         savingWindow={windowSaves > 0}
         windowError={windowError}
         onReviewWindowChange={chooseWindow}

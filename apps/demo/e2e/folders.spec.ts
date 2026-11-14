@@ -200,7 +200,6 @@ test("deleting a folder deletes everything inside it, counted first, and revokes
   await postComment(page, "Inner note", { x: 100, y: 80 }, "Ana");
   await page.getByTestId("share-button").click();
   const share = page.getByTestId("share-dialog");
-  await share.getByTestId("create-share-link").click();
   const link = (await share.getByTestId("copy-share-link").getAttribute("data-url"))!;
   await expect(share.getByTestId("share-sync")).toHaveAttribute("data-sync", "synced");
   await page.keyboard.press("Escape");
