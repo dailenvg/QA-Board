@@ -72,8 +72,10 @@ describe.each(databases)("migration 033 (%s)", (_name, make) => {
       "SELECT count(*)::int AS count FROM users WHERE delete_after IS NOT NULL",
     );
     expect(rows).toEqual([{ count: 1 }]);
+    // This schema's only: other real-Postgres tests migrate other schemas of the same database.
     const { rows: constraints } = await db.query(
-      "SELECT 1 FROM pg_constraint WHERE conname = 'users_delete_after_deleted'",
+      `SELECT 1 FROM pg_constraint
+       WHERE conname = 'users_delete_after_deleted' AND connamespace = current_schema()::regnamespace`,
     );
     expect(constraints).toHaveLength(1);
   });
