@@ -85,43 +85,76 @@ function fitDraft(draft: ClickUpDraft, lists: ClickUpLists, lastChannel: string 
 interface UseClickUpSendOptions {
   workspaceId: string | null;
   projectId: string;
-  /** A send went: the channel's name, and the message's link when ClickUp gave one. */
-  onSent: (channel: string, url: string | null) => void;
+}
+
+/** Squint's message in the channel: on its way, posted, or why it didn't go. */
+export type ClickUpPost =
+  | { status: "posting" }
+  | { status: "posted" }
   /**
-   * The project's link was copied for pasting by hand: the channel it goes in,
-   * and whether its tab opened (a browser can hold one back).
+   * `again`: posting it again may work (Try again); `repick`: the channel
+   * can't take it (gone, or closed to the member), so another is picked.
    */
-  onCopied: (channel: ClickUpChannel, opened: boolean) => void;
+  | { status: "failed"; message: string; next: "again" | "repick" };
+
+/** What one click did, as the window's confirmation shows it. */
+export interface ClickUpSent {
+  channel: ClickUpChannel;
+  /** The project's link, absolute: copied, or there to copy by hand. */
+  link: string;
+  /** The clipboard took the link. */
+  copied: boolean;
+  /** Who it's assigned to, by name; null for nobody. */
+  assignee: string | null;
+  post: ClickUpPost;
+}
+
+/** The link copied, as a promise that rejects (never throws) when the clipboard isn't there. */
+function copyText(text: string): Promise<void> {
+  try {
+    return navigator.clipboard.writeText(text);
+  } catch (error) {
+    return Promise.reject(error instanceof Error ? error : new Error(String(error)));
+  }
+}
+
+/** Channel `channel` in a new tab, cut off from this page. */
+function openChannel(channel: ClickUpChannel) {
+  window.open(channel.url, "_blank", "noopener,noreferrer");
 }
 
 /**
  * Send to ClickUp's state: the member's channels and ClickUp people (read
  * afresh each time the window opens, never kept beyond it), the draft
- * (channel, assignee, note), and sending it, or copying the link to paste
- * in the channel by hand (`copyAndOpen`). A refused token or a
- * missing connection turns the window into the way to settings. A channel
- * ClickUp refused (gone, or closed to the member) is said under the channel
- * list (`channelError`) and unpicked, and `repick` counts up so the form
- * moves focus there; a gone one is dropped and the channels read again in
- * place (`refreshing`), the form staying as it is.
+ * (channel, assignee, note), and sending it (`send`): one click copies the
+ * project's link and opens the channel in ClickUp, where pasting it shows
+ * its card, and posts Squint's message there (title, note, assignee). What
+ * that did is `sent`, for the window's confirmation, with Copy link again,
+ * Open ClickUp again and Try again. A refused token or a missing connection
+ * turns the window into the way to settings. A channel ClickUp refused
+ * (gone, or closed to the member) is said under the channel list
+ * (`channelError`) and unpicked for when the member goes back to pick
+ * another (`repick` counts up so the form moves focus there); a gone one is
+ * dropped and the channels read again in place (`refreshing`).
  */
-export function useClickUpSend({
-  workspaceId,
-  projectId,
-  onSent,
-  onCopied,
-}: UseClickUpSendOptions) {
+export function useClickUpSend({ workspaceId, projectId }: UseClickUpSendOptions) {
   const [lists, setLists] = useState<ClickUpLists>({ status: "loading" });
   const [draft, setDraft] = useState<ClickUpDraft>(EMPTY);
   const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState<ClickUpSent | null>(null);
   const [channelError, setChannelError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [repick, setRepick] = useState(0);
   /** Each load's number: only the latest one's answer is shown. */
   const loads = useRef(0);
-  /** A copy is on its way: a second click meanwhile would open a second tab. */
-  const copying = useRef(false);
+  /** The draft last posted, for Try again (the form may have moved on). */
+  const posted = useRef<ClickUpDraft>(EMPTY);
+  /** A send is under way: a second click before the window re-renders would open a second tab. */
+  const busy = useRef(false);
+  /** Each send's number: a window opened again meanwhile never shows the old one's answer. */
+  const sends = useRef(0);
+  /** Try again is posting: a second click in the same moment would post twice. */
+  const reposting = useRef(false);
 
   const load = async () => {
     const load = ++loads.current;
@@ -166,9 +199,12 @@ export function useClickUpSend({
     );
   };
 
-  /** The window opened: fresh lists, and no leftover message from last time. */
+  /** The window opened: fresh lists, the form again, and no leftover message from last time. */
   const start = () => {
-    setError(null);
+    sends.current += 1;
+    busy.current = false;
+    setSending(false);
+    setSent(null);
     setChannelError(null);
     void load();
   };
@@ -187,91 +223,138 @@ export function useClickUpSend({
   };
 
   /**
-   * Copies the project's link and opens the channel picked in ClickUp, where
-   * pasting it shows its card (a message Squint sends shows a bare link).
-   * Copied first, while the page still has focus; the tab opens after, so a
-   * browser that holds it back still leaves the link copied. False when
-   * nothing was copied (the reason shows).
+   * Posts `message` to `channel` and says how it went. A refusal that needs
+   * the member's settings turns the window into the way there (null); a
+   * channel ClickUp refused is unpicked, said under the list, and forgotten.
    */
-  const copyAndOpen = async (): Promise<boolean> => {
-    if (copying.current || sending || lists.status !== "ready" || !workspaceId) return false;
-    const channel = pickedChannel();
-    if (!channel) return false;
-    setError(null);
-    copying.current = true;
-    try {
-      await navigator.clipboard.writeText(
-        new URL(projectHref(projectId), window.location.origin).href,
-      );
-    } catch {
-      setError(CLICKUP_SEND_COPY.paste.copyFailed);
-      return false;
-    } finally {
-      copying.current = false;
-    }
-    rememberClickUpChannel(workspaceId, channel.id);
-    // Not "noopener" in the features: then the tab is always null, and a blocked one can't be told.
-    const tab = window.open(channel.url, "_blank");
-    if (tab) tab.opener = null;
-    onCopied(channel, tab !== null);
-    return true;
-  };
-
-  /** False when nothing went (the reason shows); true once it's sent. */
-  const send = async (): Promise<boolean> => {
-    if (sending || lists.status !== "ready" || !workspaceId) return false;
-    const channel = pickedChannel();
-    if (!channel) return false;
-    setSending(true);
-    setError(null);
+  const post = async (
+    channel: ClickUpChannel,
+    message: ClickUpDraft,
+  ): Promise<ClickUpPost | null> => {
+    if (!workspaceId) return null;
     const result = await sendToClickUp(workspaceId, projectId, {
       channelId: channel.id,
-      note: draft.note,
-      assignee: draft.assignee,
+      note: message.note,
+      assignee: message.assignee,
     });
-    setSending(false);
     if (result.ok) {
       rememberClickUpChannel(workspaceId, channel.id);
       setDraft({ ...EMPTY, channelId: channel.id });
-      onSent(channel.name, result.url);
-      return true;
+      return { status: "posted" };
     }
     if (BLOCKING.has(result.error)) {
+      setSent(null);
       setLists({ status: "blocked", reason: result.error as ClickUpBlocked });
-      return false;
+      return null;
     }
-    const message = clickUpSendErrorMessage(result.error, {
+    const reason = clickUpSendErrorMessage(result.error, {
       retryAfterSeconds: result.retryAfterSeconds,
       channel: channel.name,
+      said: result.said,
     });
     if (result.error === "channel-gone" || result.error === "channel-forbidden") {
-      // Said under the channel list (where the next pick happens), which focus returns to.
-      setChannelError(message);
+      // Said under the channel list too, where the next pick happens.
+      setChannelError(reason);
       setDraft((current) => ({ ...current, channelId: null }));
       setRepick((count) => count + 1);
-      if (workspaceId) forgetClickUpChannel(workspaceId, channel.id);
+      forgetClickUpChannel(workspaceId, channel.id);
       if (result.error === "channel-gone") {
         setLists((current) => withoutChannel(current, channel.id));
         void refreshChannels();
       }
-      return false;
+      return { status: "failed", message: reason, next: "repick" };
     }
-    setError(message);
-    return false;
+    return { status: "failed", message: reason, next: "again" };
   };
+
+  /**
+   * The window's Send. Copying the link and opening the channel both happen
+   * here, before anything is awaited: a browser lets a page write the
+   * clipboard or open a tab only straight from a click. Squint's message is
+   * posted meanwhile; the confirmation shows once both have answered.
+   */
+  const send = () => {
+    if (busy.current || lists.status !== "ready" || !workspaceId) return;
+    const channel = pickedChannel();
+    if (!channel) return;
+    busy.current = true;
+    const send = ++sends.current;
+    const people = lists.people;
+    const link = new URL(projectHref(projectId), window.location.origin).href;
+    const copy = copyText(link);
+    openChannel(channel);
+    const message = { ...draft };
+    posted.current = message;
+    setSending(true);
+    void Promise.allSettled([copy, post(channel, message)]).then(([copied, answered]) => {
+      if (send !== sends.current) return;
+      busy.current = false;
+      setSending(false);
+      // Null: the window turned into the way to settings.
+      if (answered.status === "fulfilled" && answered.value === null) return;
+      const failed: ClickUpPost = {
+        status: "failed",
+        message: clickUpSendErrorMessage("failed"),
+        next: "again",
+      };
+      setSent({
+        channel,
+        link,
+        copied: copied.status === "fulfilled",
+        assignee: people.find(({ id }) => id === message.assignee)?.username ?? null,
+        post: answered.status === "fulfilled" ? (answered.value ?? failed) : failed,
+      });
+    });
+  };
+
+  /** Copy link again: true once the clipboard took it. */
+  const copyAgain = async (): Promise<boolean> => {
+    if (!sent) return false;
+    const copied = await copyText(sent.link).then(
+      () => true,
+      () => false,
+    );
+    setSent((current) => (current ? { ...current, copied } : current));
+    return copied;
+  };
+
+  /** Open ClickUp again: the channel's tab, for one the browser held back or that was closed. */
+  const openAgain = () => {
+    if (sent) openChannel(sent.channel);
+  };
+
+  /** Try again: posts the same message once more, the link and the tab left as they are. */
+  const postAgain = async () => {
+    if (!sent || reposting.current) return;
+    reposting.current = true;
+    const send = sends.current;
+    const { channel } = sent;
+    setSent((current) => (current ? { ...current, post: { status: "posting" } } : current));
+    const answered = await post(channel, posted.current);
+    reposting.current = false;
+    if (answered && send === sends.current) {
+      setSent((current) => (current ? { ...current, post: answered } : current));
+    }
+  };
+
+  /** Back from the confirmation to the form, to pick another channel. */
+  const pickAnother = () => setSent(null);
 
   return {
     lists,
     draft,
     update,
     sending,
-    error,
+    sent,
     channelError,
     refreshing,
     repick,
     start,
     retry: load,
     send,
-    copyAndOpen,
+    copyAgain,
+    openAgain,
+    postAgain,
+    pickAnother,
   };
 }

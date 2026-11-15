@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useSwapVariants } from "@/lib/motion";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { Button } from "../ui/Button";
@@ -9,6 +9,7 @@ import { Dialog } from "../ui/Dialog";
 import { Icon } from "../ui/Icon";
 import { StateArt } from "../ui/line-art/StateArt";
 import { ClickUpSendBlocked } from "./ClickUpSendBlocked";
+import { ClickUpSendDone } from "./ClickUpSendDone";
 import { ClickUpSendForm } from "./ClickUpSendForm";
 import { ClickUpSendSkeleton } from "./ClickUpSendSkeleton";
 import { focusLost } from "./clickup-options";
@@ -66,18 +67,44 @@ interface ClickUpDialogProps {
  * ClickUp beside the title, and numbered steps on tiles, in two columns on
  * wide screens): the form once the member's lists load (skeletons until
  * then), the way to their settings when they aren't connected or ClickUp
- * refused their token, or what went wrong with Retry. States swap in place,
- * and one live line says the ones nothing else does. Cancel and Send stay at
- * the bottom while the form shows.
+ * refused their token, or what went wrong with Retry, and after a send what's
+ * done and the paste that's left (`ClickUpSendDone`). States swap in place,
+ * and one live line says the ones nothing else does. Cancel and Copy link &
+ * open ClickUp stay at the bottom while the form shows.
  */
 export function ClickUpDialog({ open, onClose, project, send }: ClickUpDialogProps) {
   const swap = useSwapVariants();
   const phone = useMediaQuery(PHONE);
   const formId = useId();
-  const { lists } = send;
-  const ready = lists.status === "ready";
+  const { lists, sent } = send;
+  const ready = lists.status === "ready" && !sent;
+  const done = useRef<HTMLButtonElement>(null);
+  /** Copy link again, for a moment after it worked. */
+  const [copiedAgain, setCopiedAgain] = useState(false);
+  /** What the window shows: the lists' state, or the confirmation after a send. */
+  const view = sent ? "done" : lists.status;
+
+  useEffect(() => {
+    // The form's button went with the form: focus lands on Done, with the steps above it.
+    if (view === "done") done.current?.focus();
+  }, [view]);
+
+  useEffect(() => {
+    if (!copiedAgain) return;
+    const timer = window.setTimeout(() => setCopiedAgain(false), 2500);
+    return () => window.clearTimeout(timer);
+  }, [copiedAgain]);
 
   const body = (() => {
+    if (sent) {
+      return (
+        <ClickUpSendDone
+          sent={sent}
+          onPostAgain={() => void send.postAgain()}
+          onPickAnother={send.pickAnother}
+        />
+      );
+    }
     switch (lists.status) {
       case "loading":
         return <ClickUpSendSkeleton />;
@@ -95,12 +122,10 @@ export function ClickUpDialog({ open, onClose, project, send }: ClickUpDialogPro
             onChange={send.update}
             project={project}
             sending={send.sending}
-            error={send.error}
             channelError={send.channelError}
             refreshing={send.refreshing}
             repick={send.repick}
             onSend={send.send}
-            onCopyAndOpen={send.copyAndOpen}
             onReload={() => void send.retry()}
             phone={phone}
           />
@@ -110,8 +135,11 @@ export function ClickUpDialog({ open, onClose, project, send }: ClickUpDialogPro
 
   // One live line for the window's changes that nothing else says (errors are alerts, and a
   // send that went closes the window with a toast): loading, the way to settings, sending.
-  const spoken =
-    lists.status === "loading"
+  const spoken = sent
+    ? sent.post.status === "posting"
+      ? COPY.done.posting(sent.channel.name)
+      : `${COPY.done.title}. ${COPY.done.opened(sent.channel.name)}`
+    : lists.status === "loading"
       ? COPY.loading
       : lists.status === "blocked"
         ? BLOCKED_SPOKEN[lists.reason]
@@ -132,8 +160,32 @@ export function ClickUpDialog({ open, onClose, project, send }: ClickUpDialogPro
         className="max-sm:flex-1"
         data-testid="clickup-send"
       >
-        <Icon name="send" className="size-4" />
+        <Icon name="copy" className="size-4" />
         {send.sending ? COPY.sending : COPY.send}
+      </Button>
+    </div>
+  ) : sent ? (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() => void send.copyAgain().then(setCopiedAgain)}
+        data-testid="clickup-copy-again"
+      >
+        <Icon name={copiedAgain ? "check" : "copy"} className="size-4" />
+        {copiedAgain ? COPY.done.copiedAgain : COPY.done.copyAgain}
+      </Button>
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={send.openAgain}
+        data-testid="clickup-open-again"
+      >
+        <Icon name="external" className="size-4" />
+        {COPY.done.openAgain}
+      </Button>
+      <Button ref={done} size="sm" onClick={onClose} data-testid="clickup-done-close">
+        {COPY.done.close}
       </Button>
     </div>
   ) : undefined;
@@ -142,14 +194,20 @@ export function ClickUpDialog({ open, onClose, project, send }: ClickUpDialogPro
     <Dialog
       open={open}
       onClose={onClose}
-      title={COPY.title}
+      title={sent ? COPY.done.title : COPY.title}
       // Blocked, the scene says it (ClickUp's mark included): no description or header mark.
-      description={lists.status === "blocked" ? undefined : COPY.description}
+      description={
+        sent
+          ? COPY.done.opened(sent.channel.name)
+          : lists.status === "blocked"
+            ? undefined
+            : COPY.description
+      }
       testId="clickup-dialog"
       fitKeyboard
       sheet
       tall={lists.status === "loading" || ready}
-      size={lists.status === "loading" || ready ? "lg" : "md"}
+      size={lists.status === "loading" || ready || sent ? "lg" : "md"}
       art={
         lists.status === "blocked" ? undefined : <StateArt scene="clickupSend" size="sm" still />
       }
@@ -161,12 +219,12 @@ export function ClickUpDialog({ open, onClose, project, send }: ClickUpDialogPro
       </p>
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
-          key={lists.status}
+          key={view}
           variants={swap}
           initial="hidden"
           animate="visible"
           exit="exit"
-          data-state={lists.status}
+          data-state={view}
           data-testid="clickup-dialog-body"
         >
           {body}

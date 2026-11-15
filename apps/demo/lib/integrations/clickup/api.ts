@@ -6,7 +6,9 @@ import { cleanClientName } from "../../share/client-name";
  * Calling ClickUp's API with a personal token, and the v2 calls: whose token
  * it is, the ClickUp workspaces ("teams") it reaches, and their people. A
  * personal token goes in `Authorization` as it is, with no `Bearer`. Tokens
- * and ClickUp's answers are never logged: failures say which call and its status only.
+ * and ClickUp's answers are never logged: failures say which call and its
+ * status only. What ClickUp says of a refusal is kept apart (`said`), for
+ * the member to read.
  */
 
 /** `fetch`, or a stand-in for tests. */
@@ -38,21 +40,47 @@ const TIMEOUT_MS = 10_000;
 /** Longest name kept (the columns' limit), in characters. */
 const NAME_MAX = 200;
 
-/** A ClickUp call failed: which one and how, never the token or what ClickUp said. */
+/**
+ * A ClickUp call failed: which one and how, never the token or what ClickUp
+ * said (that's `said`, kept out of the message so it's never logged).
+ */
 export class ClickUpError extends LoggableError {
   override name = "ClickUpError";
   /** ClickUp's status; 0 when it didn't answer, or not in a known shape. */
   readonly status: number;
+  /** ClickUp's own words for a refusal (its `err` or `message`), on one line; null when it gave none. */
+  readonly said: string | null;
   /**
    * ClickUp refused the token itself (401 or 403): wrong, regenerated, or out of the workspace.
    * Posting tells a 403 apart (a channel the member can't post in: `sendProjectToClickUp`).
    */
   readonly refused: boolean;
-  constructor(message: string, status = 0) {
+  constructor(message: string, status = 0, said: string | null = null) {
     super(message);
     this.status = status;
+    this.said = said;
     this.refused = status === 401 || status === 403;
   }
+}
+
+const refusalAnswer = z.object({
+  err: z.string().nullish(),
+  message: z.string().nullish(),
+});
+
+/** Anything shaped like a personal token, anywhere in a text. */
+const TOKEN_LIKE = /pk_\d+_/i;
+
+/**
+ * What ClickUp said in a refusal's body, as `shownName` keeps a name; null
+ * for nothing, and for anything holding the token or one like it (it would
+ * reach the browser).
+ */
+async function refusalSaid(response: Response, token: string): Promise<string | null> {
+  const parsed = refusalAnswer.safeParse(await response.json().catch(() => null));
+  if (!parsed.success) return null;
+  const said = shownName(parsed.data.err || parsed.data.message, "");
+  return said && !said.includes(token) && !TOKEN_LIKE.test(said) ? said : null;
 }
 
 export const clickUpId = z
@@ -122,8 +150,8 @@ export async function requestClickUp(
     throw new ClickUpError(`${what} unreachable (${kind})`);
   }
   if (!response.ok) {
-    await response.body?.cancel().catch(() => undefined);
-    throw new ClickUpError(`${what} answered ${response.status}`, response.status);
+    const said = await refusalSaid(response, token);
+    throw new ClickUpError(`${what} answered ${response.status}`, response.status, said);
   }
   return response.json().catch(() => null);
 }

@@ -26,7 +26,8 @@ const MEMBERS = [
 ];
 
 /** What the fake ClickUp does: the token it takes, and a status to answer every call with. */
-let clickUp: { token: string; status?: number; messageUrl?: string };
+/** `said`: what ClickUp's refusal says (`status` set); the token itself unless a test gives one. */
+let clickUp: { token: string; status?: number; said?: string; messageUrl?: string };
 let clickUpCalls: Array<{ method: string; href: string; body: unknown }>;
 
 function fakeClickUp(href: string, init?: RequestInit): Promise<Response> {
@@ -34,7 +35,9 @@ function fakeClickUp(href: string, init?: RequestInit): Promise<Response> {
   const body: unknown = typeof init?.body === "string" ? JSON.parse(init.body) : null;
   clickUpCalls.push({ method, href, body });
   if (clickUp.status)
-    return Promise.resolve(Response.json({ err: TOKEN }, { status: clickUp.status }));
+    return Promise.resolve(
+      Response.json({ err: clickUp.said ?? TOKEN }, { status: clickUp.status }),
+    );
   if (new Headers(init?.headers).get("authorization") !== clickUp.token) {
     return Promise.resolve(Response.json({ err: "Token invalid" }, { status: 401 }));
   }
@@ -252,8 +255,7 @@ describe("POST /api/w/<id>/projects/<id>/clickup", () => {
     expect(posted?.body).toEqual({
       type: "message",
       content: [
-        "**Home \\[page\\] \\*v2\\***",
-        "https://squint.test/p/p1",
+        "**Review ready\\: Home \\[page\\] \\*v2\\***",
         "Please check the \\[hero\\]\\(https\\:\\/\\/evil\\.test\\)\\.\\\n\\@everyone",
         "_Sent for review from Squint_",
       ].join("\n\n"),
@@ -283,10 +285,28 @@ describe("POST /api/w/<id>/projects/<id>/clickup", () => {
     expect(await response.json()).toEqual({ url: null });
     expect(clickUpCalls.at(-1)?.body).toEqual({
       type: "message",
-      content:
-        "**Home \\[page\\] \\*v2\\***\n\nhttps://squint.test/p/p1\n\n_Sent for review from Squint_",
+      content: "**Review ready\\: Home \\[page\\] \\*v2\\***\n\n_Sent for review from Squint_",
       content_format: "text/md",
     });
+  });
+
+  it("passes on what ClickUp says of a refusal it doesn't tell apart, never the token", async () => {
+    await connect(a);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    clickUp.status = 400;
+    clickUp.said = "Message content is too long";
+    const refused = await send(a, { channelId: "c-1" });
+    expect(refused.status).toBe(502);
+    expect(await refused.json()).toEqual({
+      error: "unreachable",
+      said: "Message content is too long",
+    });
+    // Anything holding a token stays on the server.
+    clickUp.said = `Bad token ${TOKEN}`;
+    expect(await (await send(a, { channelId: "c-1" })).json()).toEqual({ error: "unreachable" });
+    clickUp.said = "Token pk_99_SomethingElse was revoked";
+    expect(await (await send(a, { channelId: "c-1" })).json()).toEqual({ error: "unreachable" });
+    expect(await sends()).toEqual([]);
   });
 
   it("refuses another workspace's project, one in the trash, and an archived one", async () => {

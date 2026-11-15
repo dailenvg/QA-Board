@@ -1,16 +1,13 @@
 "use client";
 
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useRef, type FormEvent, type KeyboardEvent } from "react";
 import type { ClickUpPerson } from "@/lib/integrations/clickup/api";
 import type { ClickUpChannel } from "@/lib/integrations/clickup/chat-api";
-import { usePopVariants } from "@/lib/motion";
 import { projectCardHref, projectHref } from "@/lib/routes";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { ClickUpMessagePreview } from "./ClickUpMessagePreview";
 import { ClickUpNoteField } from "./ClickUpNoteField";
-import { ClickUpPasteCard } from "./ClickUpPasteCard";
 import { ClickUpPicker } from "./ClickUpPicker";
 import { ShareStep } from "./ShareStep";
 import { CLICKUP_SEND_COPY } from "./clickup-send-copy";
@@ -30,18 +27,17 @@ interface ClickUpSendFormProps {
   onChange: (change: Partial<ClickUpDraft>) => void;
   project: { id: string; name: string };
   sending: boolean;
-  /** Why the last send didn't go, or null. */
-  error: string | null;
   /** Why the channel can't be sent to (none picked, gone from ClickUp, or closed to them), or null. */
   channelError: string | null;
   /** The channels are being read again, in place. */
   refreshing: boolean;
   /** Counts up each time ClickUp refuses the channel picked: focus goes back to the list. */
   repick: number;
-  /** Sends the draft; resolves false when it didn't go. */
-  onSend: () => Promise<boolean>;
-  /** Copies the link and opens the channel in ClickUp, to paste it by hand; false when it didn't. */
-  onCopyAndOpen: () => Promise<boolean>;
+  /**
+   * Sends the draft: copies the link and opens the channel, so it must run
+   * straight from the click, before anything is awaited.
+   */
+  onSend: () => void;
   /** Reads the lists again (no channels yet: one may have been created in ClickUp since). */
   onReload: () => void;
   /** Phones: the keyboard isn't raised by moving focus to the channel search. */
@@ -63,17 +59,15 @@ function holdEnter(event: KeyboardEvent<HTMLFormElement>) {
  * The Send to ClickUp form, in numbered steps on tiles as the Share window
  * is: where it goes (a channel, searchable, required), who reviews it (one
  * person or nobody, searchable), and a note with the message as ClickUp
- * will show it beside the lists on wide screens; then, unnumbered, posting
- * the link by hand so it shows its card (Copy link & open ClickUp, which
- * needs a channel too). Submitted by the window's Send
- * button only: Enter in the lists never sends (a message to a team is
- * costly to send by accident). Focus moves to the channel as the form
- * appears (from the window's Close button, or from the page when the control
- * that had it went with a reload), back to it when no channel is picked or
- * ClickUp refused the one picked (`repick`), and when the channels change
- * under a control that had focus: its search field, or on phones its picked
- * (else first) radio, so the keyboard doesn't come up. Why a send failed
- * scrolls into view above the footer.
+ * will show it beside the lists on wide screens, with the link's card.
+ * Submitted by the window's main button only: Enter in the lists never
+ * sends (a message to a team is costly to send by accident). Focus moves to
+ * the channel as the form appears (from the window's Close button, or from
+ * the page when the control that had it went with a reload), back to it
+ * when no channel is picked or ClickUp refused the one picked (`repick`),
+ * and when the channels change under a control that had focus: its search
+ * field, or on phones its picked (else first) radio, so the keyboard
+ * doesn't come up. How a send went shows in the window's confirmation.
  */
 export function ClickUpSendForm({
   id,
@@ -83,19 +77,14 @@ export function ClickUpSendForm({
   onChange,
   project,
   sending,
-  error,
   channelError,
   refreshing,
   repick,
   onSend,
-  onCopyAndOpen,
   onReload,
   phone,
 }: ClickUpSendFormProps) {
-  const variants = usePopVariants();
-  const reduce = useReducedMotion();
   const channelSearch = useRef<HTMLInputElement>(null);
-  const errorRef = useRef<HTMLParagraphElement>(null);
   /** The last `repick` acted on: only a new one moves focus. */
   const repicked = useRef(repick);
   const channelOptions = useMemo(
@@ -104,7 +93,6 @@ export function ClickUpSendForm({
   );
   const peopleOptions = useMemo(() => people.map(personOption), [people]);
   const assignee = people.find((person) => person.id === draft.assignee) ?? null;
-  const channel = channels.find(({ id: channelId }) => channelId === draft.channelId) ?? null;
 
   /** The channel choice: its search field, or on a phone a radio (no keyboard). */
   const focusChannel = () => {
@@ -141,28 +129,16 @@ export function ClickUpSendForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channels]);
 
-  useEffect(() => {
-    if (error) {
-      errorRef.current?.scrollIntoView({ block: "nearest", behavior: reduce ? "auto" : "smooth" });
-    }
-  }, [error, reduce]);
-
-  const submit = async (event: FormEvent) => {
+  const submit = (event: FormEvent) => {
     event.preventDefault();
     if (!draft.channelId) focusChannel();
-    await onSend();
-  };
-
-  const copyAndOpen = () => {
-    if (sending) return;
-    if (!draft.channelId) focusChannel();
-    void onCopyAndOpen();
+    onSend();
   };
 
   return (
     <form
       id={id}
-      onSubmit={(event) => void submit(event)}
+      onSubmit={submit}
       onKeyDown={holdEnter}
       noValidate
       aria-busy={sending}
@@ -213,9 +189,8 @@ export function ClickUpSendForm({
       {/*
         Two columns: the note and its preview stay in view (top-6, the window's own padding) as
         the lists scroll by on a short screen, so picking who reviews it shows in the preview.
-        Posting it by hand, with its card, comes after.
       */}
-      <div className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-6">
+      <div className="min-w-0 lg:sticky lg:top-6">
         <ShareStep step={3} title={COPY.steps.note} testId="clickup-step-note">
           <ClickUpNoteField
             value={draft.note}
@@ -225,36 +200,12 @@ export function ClickUpSendForm({
           <ClickUpMessagePreview
             projectName={project.name}
             projectUrl={new URL(projectHref(project.id), window.location.origin).href}
+            cardSrc={projectCardHref(project.id)}
             note={draft.note}
             assignee={assignee?.username ?? null}
           />
         </ShareStep>
-        <ClickUpPasteCard
-          projectName={project.name}
-          cardSrc={projectCardHref(project.id)}
-          channel={channel?.name ?? null}
-          busy={sending}
-          onCopy={copyAndOpen}
-        />
       </div>
-      <AnimatePresence initial={false}>
-        {error ? (
-          <motion.p
-            key="error"
-            ref={errorRef}
-            role="alert"
-            variants={variants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            className="flex items-start gap-2 rounded-tile bg-danger-soft p-3 text-meta text-danger lg:col-span-2"
-            data-testid="clickup-send-error"
-          >
-            <Icon name="alert" className="mt-0.5 size-4 shrink-0" />
-            <span className="min-w-0 wrap-anywhere">{error}</span>
-          </motion.p>
-        ) : null}
-      </AnimatePresence>
     </form>
   );
 }

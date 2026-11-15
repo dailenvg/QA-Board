@@ -5,7 +5,6 @@ import type { Project } from "@/lib/store/types";
 import { useWorkspaceIdentity } from "@/lib/workspace-client/workspace-identity";
 import { ClickUpLogo } from "../account/ClickUpLogo";
 import { Button } from "../ui/Button";
-import { useToast } from "../ui/ToastProvider";
 import { ClickUpDialog } from "./ClickUpDialog";
 import { CLICKUP_SEND_COPY } from "./clickup-send-copy";
 import { useClickUpSend } from "./use-clickup-send";
@@ -14,48 +13,13 @@ const COPY = CLICKUP_SEND_COPY;
 
 /**
  * The viewer's ClickUp button (beside Share, as it looks: icon only on
- * phones, named for screen readers) and its Send to ClickUp window. A send
- * closes the window and says where it went, with a way to open it in
- * ClickUp when ClickUp gave its link. Copying the link to paste by hand
- * closes it too, saying where to paste it.
+ * phones, named for screen readers) and its Send to ClickUp window, which
+ * stays open after a send to say what's left: pasting the link in ClickUp.
  */
 export function ClickUpControl({ project }: { project: Project }) {
-  const toast = useToast();
   const workspaceId = useWorkspaceIdentity()?.id ?? null;
   const [open, setOpen] = useState(false);
-  const send = useClickUpSend({
-    workspaceId,
-    projectId: project.id,
-    onSent: (channel, url) => {
-      setOpen(false);
-      toast({
-        message: COPY.sent(channel),
-        ...(url
-          ? {
-              action: {
-                label: COPY.open,
-                onAction: () => window.open(url, "_blank", "noopener,noreferrer"),
-              },
-            }
-          : {}),
-      });
-    },
-    onCopied: (channel, opened) => {
-      setOpen(false);
-      toast({
-        message: COPY.paste.copied(channel.name),
-        // The browser held the tab back: the toast's button is a fresh click, which it lets through.
-        ...(opened
-          ? {}
-          : {
-              action: {
-                label: COPY.paste.open,
-                onAction: () => window.open(channel.url, "_blank", "noopener,noreferrer"),
-              },
-            }),
-      });
-    },
-  });
+  const send = useClickUpSend({ workspaceId, projectId: project.id });
 
   return (
     <>

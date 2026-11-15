@@ -71,6 +71,12 @@ describe("the Send to ClickUp client", () => {
         error,
       });
     }
+    answering({ error: "unreachable", said: "Message content is too long" }, 502);
+    expect(await sendToClickUp(WORKSPACE, "p1", draft)).toEqual({
+      ok: false,
+      error: "unreachable",
+      said: "Message content is too long",
+    });
     answering({ error: "rate-limited", retryAfterSeconds: 120 }, 429);
     expect(await sendToClickUp(WORKSPACE, "p1", draft)).toEqual({
       ok: false,

@@ -6,9 +6,8 @@ import {
   messageProjectName,
   noteLength,
   noteParagraphs,
+  reviewReady,
 } from "./message";
-
-const URL = "https://squint.test/p/p-1";
 
 describe("escapeMarkdown", () => {
   it("makes every punctuation mark literal, and leaves letters, digits and spaces", () => {
@@ -57,17 +56,12 @@ describe("messageProjectName", () => {
 });
 
 describe("clickUpMessage", () => {
-  it("puts the name in bold, its page's address on a line of its own, the note, then where it came from", () => {
+  it("says the project is ready in bold, then the note, then where it came from, with no link", () => {
     expect(
-      clickUpMessage({
-        projectName: "Home page",
-        projectUrl: URL,
-        note: "Please check\nthe hero.\n\nThanks!",
-      }),
+      clickUpMessage({ projectName: "Home page", note: "Please check\nthe hero.\n\nThanks!" }),
     ).toBe(
       [
-        "**Home page**",
-        URL,
+        "**Review ready\\: Home page**",
         "Please check\\\nthe hero\\.",
         "Thanks\\!",
         "_Sent for review from Squint_",
@@ -75,21 +69,19 @@ describe("clickUpMessage", () => {
     );
   });
 
-  it("leaves out a blank note", () => {
-    expect(clickUpMessage({ projectName: "Home", projectUrl: URL, note: "  \n " })).toBe(
-      `**Home**\n\n${URL}\n\n_Sent for review from Squint_`,
+  it("leaves out a blank note, so there's no empty paragraph", () => {
+    expect(clickUpMessage({ projectName: "Home", note: "  \n " })).toBe(
+      "**Review ready\\: Home**\n\n_Sent for review from Squint_",
     );
   });
 
   it("can't be given a link, a mention, a heading or a list by the name or the note", () => {
     const message = clickUpMessage({
       projectName: "x](https://evil.test) [y",
-      projectUrl: URL,
       note: "# Heading\n- item\n1. first\n> quote\n    code\n@everyone [click](https://evil.test) <https://evil.test>",
     });
-    const [title, address, note] = message.split("\n\n");
-    expect(title).toBe("**x\\]\\(https\\:\\/\\/evil\\.test\\) \\[y**");
-    expect(address).toBe(URL);
+    const [title, note] = message.split("\n\n");
+    expect(title).toBe("**Review ready\\: x\\]\\(https\\:\\/\\/evil\\.test\\) \\[y**");
     expect(note).toBe(
       [
         "\\# Heading",
@@ -100,30 +92,25 @@ describe("clickUpMessage", () => {
         "\\@everyone \\[click\\]\\(https\\:\\/\\/evil\\.test\\) \\<https\\:\\/\\/evil\\.test\\>",
       ].join("\\\n"),
     );
-    // The one address left unescaped is the project's own.
-    expect(message.match(/https:\/\//g)).toEqual(["https://"]);
+    // No address is left as a link: the member pastes the project's own under the message.
+    expect(message).not.toMatch(/https:\/\//);
   });
 
   it("keeps the name on one line, whatever it holds", () => {
     const [title, ...rest] = clickUpMessage({
       projectName: "Line one\n\n    code\u2029\u202Eend",
-      projectUrl: URL,
       note: "",
     }).split("\n\n");
-    expect(title).toBe("**Line one code end**");
-    expect(rest).toEqual([URL, "_Sent for review from Squint_"]);
-    expect(clickUpMessage({ projectName: "\n \u200B", projectUrl: URL, note: "" })).toMatch(
-      /^\*\*Untitled project\*\*/,
+    expect(title).toBe("**Review ready\\: Line one code end**");
+    expect(rest).toEqual(["_Sent for review from Squint_"]);
+    expect(clickUpMessage({ projectName: "\n \u200B", note: "" })).toMatch(
+      /^\*\*Review ready\\: Untitled project\*\*/,
     );
   });
+});
 
-  it("encodes what would cut the address short or format part of it", () => {
-    expect(
-      clickUpMessage({
-        projectName: "P",
-        projectUrl: "https://squint.test/p/a(b)_c_*d*",
-        note: "",
-      }),
-    ).toContain("\n\nhttps://squint.test/p/a%28b%29%5Fc%5F%2Ad%2A\n\n");
+describe("reviewReady", () => {
+  it("is the message's first line, as the preview shows it", () => {
+    expect(reviewReady("  Home page ")).toBe("Review ready: Home page");
   });
 });

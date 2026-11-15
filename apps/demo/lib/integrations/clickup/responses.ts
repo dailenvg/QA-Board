@@ -13,12 +13,16 @@ const STATUS = {
   unreachable: 502,
 } as const;
 
-/** How a Send to ClickUp route answers a refusal: `{ error }`, and when to retry on a 429. */
+/**
+ * How a Send to ClickUp route answers a refusal: `{ error }` (with `said`,
+ * ClickUp's own words, when it gave some), and when to retry on a 429.
+ */
 export function clickUpRefusal(outcome: Exclude<ClickUpSendOutcome, { ok: true }>): Response {
   if (outcome.reason === "rate-limited") {
     return rateLimited(outcome.retryAfterSeconds ?? 60);
   }
-  return json({ error: outcome.reason }, STATUS[outcome.reason]);
+  const said = "said" in outcome && outcome.said ? { said: outcome.said } : {};
+  return json({ error: outcome.reason, ...said }, STATUS[outcome.reason]);
 }
 
 /** This site can't reach ClickUp (`clickUpApiUrl`). */
