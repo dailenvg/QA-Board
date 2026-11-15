@@ -10,6 +10,8 @@ import { shareServices } from "@/lib/share/server";
 import { blobDriverFromEnv } from "@/lib/workspace/blob-driver";
 import { purgeDeletedAccounts } from "@/lib/account/account-purge";
 import { purgeArchived, purgeTrash, sweepWorkspaceBlobs } from "@/lib/workspace/purge";
+import { pruneEndedInvites } from "@/lib/workspace/members/prune-invites";
+import { pruneWorkspaceInviteSends } from "@/lib/workspace/members/invite-sends";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +27,8 @@ type StepName =
   | "blobs"
   | "passwordAttempts"
   | "inviteSends"
+  | "memberInvites"
+  | "memberInviteSends"
   | "trash"
   | "archived"
   | "accounts"
@@ -100,6 +104,23 @@ function inviteSendSteps(now: number): Promise<StepResult> {
 }
 
 /**
+ * Workspace invites that ended (used, cancelled or expired) more than 30 days
+ * ago, so addresses don't linger, and their email sends a day old, kept only
+ * for the day's limit (044). Skipped without a database.
+ */
+function memberInviteSteps(now: number): Promise<[StepResult, StepResult]> {
+  const pending = database();
+  return Promise.all([
+    step("memberInvites", async () =>
+      pending ? { count: await pruneEndedInvites(await pending, now), done: true } : null,
+    ),
+    step("memberInviteSends", async () =>
+      pending ? { count: await pruneWorkspaceInviteSends(await pending, now), done: true } : null,
+    ),
+  ]);
+}
+
+/**
  * Workspace projects trashed more than 30 days ago, deleted for good, and
  * archived ones whose deletion date has come; then deleted accounts (and the
  * workspaces they owned) whose 30 days are up; then workspace and avatar
@@ -141,7 +162,8 @@ function pinSteps(now: number, deadline: number): Promise<StepResult> {
 /**
  * `GET /api/cron/expire`, daily. Independent steps, each with its own error
  * handling: shares past their `expiresAt`, then Blob files a failed delete
- * left behind; wrong review link passwords and invitation sends a day old; workspace projects
+ * left behind; wrong review link passwords and invitation sends a day old; workspace invites
+ * that ended 30 days ago and their sends a day old; workspace projects
  * past their time in the trash or the archive, deleted
  * accounts past theirs, then files nothing records; and, alongside them,
  * pinpoint pins 30 days old (when their storage can expire them). Answers
@@ -158,12 +180,14 @@ export async function GET(request: Request) {
     [shares, blobs],
     passwordAttempts,
     inviteSends,
+    [memberInvites, memberInviteSends],
     [trash, archived, accounts, workspaceBlobs],
     pinned,
   ] = await Promise.all([
     shareSteps(now, deadline),
     passwordAttemptSteps(now),
     inviteSendSteps(now),
+    memberInviteSteps(now),
     workspaceSteps(now, deadline),
     pinSteps(now, deadline),
   ]);
@@ -172,6 +196,8 @@ export async function GET(request: Request) {
     blobs,
     passwordAttempts,
     inviteSends,
+    memberInvites,
+    memberInviteSends,
     trash,
     archived,
     accounts,
@@ -183,6 +209,8 @@ export async function GET(request: Request) {
     blobs: blobs.count,
     passwordAttempts: passwordAttempts.count,
     inviteSends: inviteSends.count,
+    memberInvites: memberInvites.count,
+    memberInviteSends: memberInviteSends.count,
     trash: trash.count,
     archived: archived.count,
     accounts: accounts.count,
@@ -194,6 +222,8 @@ export async function GET(request: Request) {
       blobs: blobs.failed,
       passwordAttempts: passwordAttempts.failed,
       inviteSends: inviteSends.failed,
+      memberInvites: memberInvites.failed,
+      memberInviteSends: memberInviteSends.failed,
       trash: trash.failed,
       archived: archived.failed,
       accounts: accounts.failed,

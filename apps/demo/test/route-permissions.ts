@@ -83,6 +83,10 @@ export const ROUTE_PERMISSIONS: Record<string, Record<string, RouteAccess>> = {
     DELETE: may("workspace.manage"),
   },
   "/api/account/storage": { GET: READ },
+  // Invites (people switch): any invite, whoever made it (D2).
+  "/api/account/members/invites": { POST: may("members.manage") },
+  "/api/account/members/invites/:inviteId": { DELETE: may("members.manage") },
+  "/api/account/members/invites/:inviteId/resend": { POST: may("members.manage") },
 
   // The session's own account.
   "/api/account": { DELETE: SELF },
@@ -118,6 +122,8 @@ export const ROUTE_PERMISSIONS: Record<string, Record<string, RouteAccess>> = {
   "/api/auth/reset": { POST: PUBLIC },
   "/api/auth/reset/complete": { POST: PUBLIC },
   "/api/auth/email-change/confirm": { POST: PUBLIC },
+  // Accepting a workspace invite: the link's token, signed in or not.
+  "/api/auth/join": { POST: PUBLIC },
 
   // Everything else.
   "/api/capture": { POST: SIGNED_IN },

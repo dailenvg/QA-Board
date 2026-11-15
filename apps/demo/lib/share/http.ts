@@ -22,6 +22,8 @@ const LIMITS = {
    * (already rendered) answer instead, so an unfurl never breaks.
    */
   card: createRateLimiter({ limit: 60, windowMs: 60_000 }),
+  /** Accepting a workspace invite: a brake only, since the link's 256-bit token is the gate. */
+  join: createRateLimiter({ limit: 20, windowMs: 60_000 }),
 };
 
 export type LimitName = keyof typeof LIMITS;

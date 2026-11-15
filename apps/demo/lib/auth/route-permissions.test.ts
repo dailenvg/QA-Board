@@ -152,6 +152,7 @@ async function hit(method: string, path: string, who: Seat): Promise<Response> {
     key: "page:p1",
     shareId: share.shareId,
     token: share.token,
+    inviteId: "00000000-0000-4000-8000-000000000000",
   };
   const url = path.replace(/:(\w+)/g, (_match, name: string) => params[name] ?? name);
   const bytes = BYTES.has(`${method} ${path}`);
@@ -203,7 +204,7 @@ const EVERY_MEMBER = entries.filter(
 describe("switch-backed routes", () => {
   it("cover every switch, and the revoke of a workspace's share", () => {
     expect(new Set(SWITCHED.map(({ access }) => permissionOf(access)))).toEqual(
-      new Set(["links.manage", "projects.trash", "workspace.import"]),
+      new Set(["links.manage", "projects.trash", "workspace.import", "members.manage"]),
     );
     expect(SWITCHED.map(({ method, path }) => `${method} ${path}`)).toContain(
       "DELETE /api/shares/:shareId",

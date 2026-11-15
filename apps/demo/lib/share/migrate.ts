@@ -40,6 +40,8 @@ import clickUpConnections from "../../migrations/039_workspace_clickup_connectio
 import userClickUpConnections from "../../migrations/040_user_clickup_connections.sql";
 import membershipPermissions from "../../migrations/041_membership_permissions.sql";
 import commentsEditedAt from "../../migrations/042_comments_edited_at.sql";
+import seatLimit from "../../migrations/043_workspaces_seat_limit.sql";
+import workspaceInvites from "../../migrations/044_workspace_invites.sql";
 
 /** The slice of `pg.Pool` the stores use (PGlite matches it in tests). */
 export interface Queryable {
@@ -90,6 +92,8 @@ export const MIGRATIONS: ReadonlyArray<{ id: string; sql: string }> = [
   { id: "040_user_clickup_connections", sql: userClickUpConnections },
   { id: "041_membership_permissions", sql: membershipPermissions },
   { id: "042_comments_edited_at", sql: commentsEditedAt },
+  { id: "043_workspaces_seat_limit", sql: seatLimit },
+  { id: "044_workspace_invites", sql: workspaceInvites },
 ];
 
 type Migration = (typeof MIGRATIONS)[number];

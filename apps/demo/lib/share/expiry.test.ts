@@ -184,6 +184,8 @@ describe("expiry cron: each step on its own", () => {
     | "blobs"
     | "passwordAttempts"
     | "inviteSends"
+    | "memberInvites"
+    | "memberInviteSends"
     | "trash"
     | "archived"
     | "accounts"
@@ -194,6 +196,8 @@ describe("expiry cron: each step on its own", () => {
     blobs: false,
     passwordAttempts: false,
     inviteSends: false,
+    memberInvites: false,
+    memberInviteSends: false,
     trash: false,
     archived: false,
     accounts: false,
@@ -230,6 +234,8 @@ describe("expiry cron: each step on its own", () => {
       // No DATABASE_URL: the password and workspace steps are skipped.
       passwordAttempts: null,
       inviteSends: null,
+      memberInvites: null,
+      memberInviteSends: null,
       trash: null,
       archived: null,
       accounts: null,
@@ -259,6 +265,8 @@ describe("expiry cron: each step on its own", () => {
       blobs: null,
       passwordAttempts: null,
       inviteSends: null,
+      memberInvites: null,
+      memberInviteSends: null,
       trash: null,
       archived: null,
       accounts: null,

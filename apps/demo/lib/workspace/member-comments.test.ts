@@ -140,6 +140,29 @@ describe("what each member may change (A7, decision 6)", () => {
     expect((await list(owner)).map((comment) => comment.id)).toEqual(["owners"]);
   });
 
+  it("copies when a client last changed a comment from the review link, never from the browser (B2)", async () => {
+    const fromBrowser = { fromShare: true, createdAt: NOW, editedAt: NOW + 9_000 };
+    expect((await post(owner, "guest-1", fromBrowser)).status).toBe(201);
+    await remove(owner, "guest-1");
+    await db.query(
+      `UPDATE squint_share_comments SET data = data || jsonb_build_object('editedAt', $2::bigint)
+       WHERE id = $1`,
+      ["guest-1", NOW + 5_000],
+    );
+    expect((await post(owner, "guest-1", fromBrowser)).status).toBe(201);
+    const { rows } = await db.query<{ edited_at: Date | null }>(
+      "SELECT edited_at FROM comments WHERE id = 'guest-1'",
+    );
+    expect(rows).toEqual([{ edited_at: new Date(NOW + 5_000) }]);
+  });
+
+  it("leaves a client's comment unedited while the review link says nothing of an edit", async () => {
+    const fromBrowser = { fromShare: true, createdAt: NOW, editedAt: NOW + 9_000 };
+    expect((await post(owner, "guest-1", fromBrowser)).status).toBe(201);
+    const { rows } = await db.query("SELECT edited_at FROM comments WHERE id = 'guest-1'");
+    expect(rows).toEqual([{ edited_at: null }]);
+  });
+
   it("lets only the owner delete a client's comment", async () => {
     expect((await post(owner, "guest-1", { fromShare: true })).status).toBe(201);
     expect((await patch(ben, "guest-1", { body: "Changed" })).status).toBe(404);

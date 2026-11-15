@@ -334,23 +334,28 @@ export async function projectShareIds(
 }
 
 /**
- * Whether a guest posted comment `commentId` on the review link of the
- * workspace's project: the only comments a member may save as a guest's
- * (without an author account), so nobody can pass their own, or another
- * member's, off as one.
+ * The guest's comment `commentId` on the review link of the workspace's
+ * project, as the link holds it: the only comments a member may save as a
+ * guest's (without an author account), so nobody can pass their own, or
+ * another member's, off as one. Null when a guest didn't post it there.
+ * `editedAt` is when the guest last changed its words on the link (epoch ms),
+ * or null: the workspace copies it from here, never from the browser.
  */
-export async function isGuestComment(
+export async function findGuestComment(
   db: Queryable,
   workspaceId: string,
   projectId: string,
   commentId: string,
-): Promise<boolean> {
-  const { rows } = await db.query(
-    `SELECT 1 FROM project_share_links AS link
+): Promise<{ editedAt: number | null } | null> {
+  const { rows } = await db.query<{ edited_at: unknown }>(
+    `SELECT comment.data->'editedAt' AS edited_at FROM project_share_links AS link
      JOIN squint_share_comments AS comment ON comment.share_id = link.share_id
      WHERE link.workspace_id = $1 AND link.project_id = $2
        AND comment.id = $3 AND comment.origin = 'client'`,
     [workspaceId, projectId, commentId],
   );
-  return rows.length === 1;
+  const row = rows[0];
+  if (!row) return null;
+  const editedAt = Number(row.edited_at);
+  return { editedAt: row.edited_at !== null && Number.isFinite(editedAt) ? editedAt : null };
 }

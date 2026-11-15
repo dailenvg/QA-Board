@@ -13,6 +13,7 @@ import { createPostgresStore } from "../share/postgres-store";
 import { RETENTION_MS } from "../share/retention";
 import type { ShareServices } from "../share/server";
 import { ARCHIVE_GRACE_MS, TRASH_GRACE_MS } from "./limits";
+import { ENDED_INVITE_KEEP_MS } from "./members/prune-invites";
 import { createProject, listProjects, listTrash, setArchived, trashProject } from "./projects";
 import { storeInline } from "./uploads";
 
@@ -146,6 +147,59 @@ describe("expiry cron: workspace steps", () => {
       "SELECT count(*)::int AS count FROM squint_share_invite_sends",
     );
     expect(rows[0]?.count).toBe(1);
+  });
+
+  it("deletes workspace invites that ended 30 days ago, and their sends a day old", async () => {
+    const { db, a } = await twoWorkspaces();
+    holder.db = db;
+    shares.squintShares = Promise.resolve({ store: createPostgresStore(db), blobs: inlineBackend });
+    const day = 24 * 60 * 60 * 1000;
+    const old = new Date(Date.now() - ENDED_INVITE_KEEP_MS - day);
+    const recent = new Date(Date.now() - day);
+    const later = new Date(Date.now() + day);
+    let token = 0;
+    const invite = (
+      email: string,
+      { accepted = null, revoked = null, expires = later }: Record<string, Date | null> = {},
+    ) => {
+      token += 1;
+      return db.query(
+        `INSERT INTO workspace_invites (workspace_id, email, token_hash, token_sealed, expires_at,
+           accepted_at, revoked_at)
+         VALUES ($1, $2, $3, 'x', $4, $5, $6)`,
+        [a.workspaceId, email, String(token).padStart(64, "0"), expires, accepted, revoked],
+      );
+    };
+    await invite("used-long-ago@x.test", { accepted: old });
+    await invite("cancelled-long-ago@x.test", { revoked: old });
+    await invite("expired-long-ago@x.test", { expires: old });
+    await invite("used-lately@x.test", { accepted: recent });
+    await invite("expired-lately@x.test", { expires: recent });
+    await invite("open@x.test");
+    await db.query(
+      "INSERT INTO workspace_invite_sends (workspace_id, at) VALUES ($1, $2), ($1, $2), ($1, now())",
+      [a.workspaceId, new Date(Date.now() - day - 1000)],
+    );
+
+    const response = await cronRoute.GET(
+      new Request("http://localhost/api/cron/expire", {
+        headers: { authorization: `Bearer ${SECRET}` },
+      }),
+    );
+
+    expect(await response.json()).toMatchObject({
+      memberInvites: 3,
+      memberInviteSends: 2,
+      failed: { memberInvites: false, memberInviteSends: false },
+    });
+    const { rows } = await db.query("SELECT email FROM workspace_invites ORDER BY email");
+    expect(rows).toEqual([
+      { email: "expired-lately@x.test" },
+      { email: "open@x.test" },
+      { email: "used-lately@x.test" },
+    ]);
+    const { rows: left } = await db.query("SELECT 1 FROM workspace_invite_sends");
+    expect(left).toHaveLength(1);
   });
 
   it("deletes accounts and workspaces whose 30 days are up, and keeps the rest", async () => {

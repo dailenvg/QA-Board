@@ -1,5 +1,6 @@
 import type { Database } from "../db/database";
 import type { Queryable } from "../share/migrate";
+import type { BlobLocation } from "../share/types";
 import { toLocation } from "../workspace/blobs";
 import type { PurgeResult, PurgeServices } from "../workspace/purge";
 import { toDate } from "../workspace/times";
@@ -36,11 +37,49 @@ const OWNS_OPEN_WORKSPACE = `EXISTS (
 )`;
 
 /**
- * Deletes an account due by `now` for good, in one transaction: its
- * memberships (and ClickUp connections) and avatar row go, and the row itself is scrubbed (email,
- * name, password) and loses its date, so it's never picked again or restored.
- * Its avatar's file goes once that commits. False when it was restored first,
- * or still owns an open workspace (`OWNS_OPEN_WORKSPACE`).
+ * The account's row scrubbed for good, inside the caller's transaction, which
+ * holds the row's lock: its memberships (and ClickUp connections) and avatar
+ * row go, and the row keeps no email, name or password and loses its date,
+ * so it's never picked again or restored. Answers the avatar files, to
+ * discard once the transaction commits. The daily purge runs it, and so does
+ * accepting an invite for an address whose old account must give way (4.2).
+ */
+export async function scrubAccount(
+  tx: Queryable,
+  userId: string,
+  now: number,
+): Promise<BlobLocation[]> {
+  // Their ClickUp connections go with their memberships (040's key); a workspace connection
+  // from before 040 that they made holds their token too.
+  await tx.query("DELETE FROM memberships WHERE user_id = $1", [userId]);
+  await tx.query("DELETE FROM workspace_clickup_connections WHERE connected_by = $1", [userId]);
+  const { rows: files } = await tx.query<{ bytes: Uint8Array | null; blob_url: string | null }>(
+    "DELETE FROM user_blobs WHERE user_id = $1 RETURNING bytes, blob_url",
+    [userId],
+  );
+  await tx.query(
+    `UPDATE users SET email = $2, name = NULL, avatar_blob_key = NULL, password_hash = $3,
+       delete_after = NULL
+     WHERE id = $1`,
+    [userId, tombstoneEmail(userId), NO_PASSWORD],
+  );
+  await audit(
+    tx,
+    {
+      actorUserId: null,
+      action: "user.deleted",
+      target: { type: "user", id: userId },
+      fields: ["email", "name", "avatar", "password", "memberships", "clickup"],
+    },
+    now,
+  );
+  return files.map(toLocation);
+}
+
+/**
+ * Deletes an account due by `now` for good, in one transaction
+ * (`scrubAccount`), then its avatar's file once that commits. False when it
+ * was restored first, or still owns an open workspace (`OWNS_OPEN_WORKSPACE`).
  */
 export async function purgeAccount(
   db: Database,
@@ -55,32 +94,7 @@ export async function purgeAccount(
        FOR UPDATE`,
       [userId, toDate(now)],
     );
-    if (rows.length === 0) return null;
-    // Their ClickUp connections go with their memberships (040's key); a workspace connection
-    // from before 040 that they made holds their token too.
-    await tx.query("DELETE FROM memberships WHERE user_id = $1", [userId]);
-    await tx.query("DELETE FROM workspace_clickup_connections WHERE connected_by = $1", [userId]);
-    const { rows: files } = await tx.query<{ bytes: Uint8Array | null; blob_url: string | null }>(
-      "DELETE FROM user_blobs WHERE user_id = $1 RETURNING bytes, blob_url",
-      [userId],
-    );
-    await tx.query(
-      `UPDATE users SET email = $2, name = NULL, avatar_blob_key = NULL, password_hash = $3,
-         delete_after = NULL
-       WHERE id = $1`,
-      [userId, tombstoneEmail(userId), NO_PASSWORD],
-    );
-    await audit(
-      tx,
-      {
-        actorUserId: null,
-        action: "user.deleted",
-        target: { type: "user", id: userId },
-        fields: ["email", "name", "avatar", "password", "memberships", "clickup"],
-      },
-      now,
-    );
-    return files.map(toLocation);
+    return rows.length === 0 ? null : scrubAccount(tx, userId, now);
   });
   if (!removed) return false;
   await discardQuietly("avatar", services.blobs, removed);

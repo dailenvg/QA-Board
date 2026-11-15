@@ -6,6 +6,7 @@ import type { SessionUser } from "../auth/users";
 import { database, type Database } from "../db/database";
 import { loadClickUpSection, type ClickUpSection } from "../integrations/clickup/section";
 import { avatarSrc, workspaceLogoSrc } from "../routes";
+import { loadMembersData, type MembersData } from "../workspace/members/members-data";
 import { sessionDeletionConfirm } from "./account-deletion";
 import { avatarVersion } from "./avatar";
 import type { DeletionConfirm } from "./field-rules";
@@ -121,7 +122,7 @@ type PageRead<T> = ({ kind: "ready" } & T) | { kind: "none" } | { kind: "unavail
  */
 async function readOwnWorkspacePage<T>(
   what: string,
-  read: (db: Database, membership: Membership) => Promise<T | null>,
+  read: (db: Database, membership: Membership, user: SessionUser) => Promise<T | null>,
 ): Promise<PageRead<T>> {
   const user = await requireSession();
   const pending = database();
@@ -136,7 +137,7 @@ async function readOwnWorkspacePage<T>(
   if (!membership) return { kind: "none" };
   await requireMember(membership.workspaceId);
   try {
-    const value = await read(await pending, membership);
+    const value = await read(await pending, membership, user);
     return value ? { kind: "ready", ...value } : { kind: "none" };
   } catch (error) {
     console.error(`squint account: ${what} read failed (${describeError(error)})`);
@@ -160,5 +161,18 @@ export type StoragePage = PageRead<{ report: StorageReport }>;
 export function loadStoragePage(): Promise<StoragePage> {
   return readOwnWorkspacePage("storage", async (db, membership) => ({
     report: await loadStorageReport(db, membership.workspaceId),
+  }));
+}
+
+/**
+ * The Members page (from PR 3): the signed-in user's workspace's people, as
+ * `loadMembersData` shows them to this user. Read fresh on every render, with
+ * invite links only for those who may manage invites.
+ */
+export type MembersPage = PageRead<{ members: MembersData }>;
+
+export function loadMembersPage(): Promise<MembersPage> {
+  return readOwnWorkspacePage("members", async (db, membership, user) => ({
+    members: await loadMembersData(db, user.id, membership, Date.now()),
   }));
 }
