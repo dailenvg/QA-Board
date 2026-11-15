@@ -14,6 +14,8 @@ import * as comments from "@/app/api/w/[workspaceId]/projects/[projectId]/commen
 import * as label from "@/app/api/w/[workspaceId]/projects/[projectId]/label/route";
 import * as pages from "@/app/api/w/[workspaceId]/projects/[projectId]/pages/route";
 import * as restore from "@/app/api/w/[workspaceId]/projects/[projectId]/restore/route";
+import * as abandon from "@/app/api/w/[workspaceId]/projects/[projectId]/abandon/route";
+import * as personAvatar from "@/app/api/w/[workspaceId]/people/[personKey]/avatar/route";
 import * as project from "@/app/api/w/[workspaceId]/projects/[projectId]/route";
 import * as shareInvites from "@/app/api/w/[workspaceId]/projects/[projectId]/share-link/invites/route";
 import * as shareLink from "@/app/api/w/[workspaceId]/projects/[projectId]/share-link/route";
@@ -39,6 +41,7 @@ const ROUTES: Array<[string, Partial<Record<string, unknown>>]> = [
   ["/projects", projects],
   ["/projects/:projectId", project],
   ["/projects/:projectId/restore", restore],
+  ["/projects/:projectId/abandon", abandon],
   ["/projects/:projectId/archive", archive],
   ["/projects/:projectId/label", label],
   ["/projects/:projectId/pages", pages],
@@ -56,6 +59,7 @@ const ROUTES: Array<[string, Partial<Record<string, unknown>>]> = [
   ["/blobs/commit", blobCommit],
   ["/clickup/channels", clickUpChannels],
   ["/clickup/people", clickUpPeople],
+  ["/people/:personKey/avatar", personAvatar],
 ];
 
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;

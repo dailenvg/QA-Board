@@ -29,6 +29,11 @@ interface ConfirmDialogProps {
   pendingLabel?: string;
   /** Why the last try didn't work (a plain confirm's), shown in the dialog; confirming tries again. */
   error?: string | null;
+  /**
+   * Trying again can't work (a plain confirm's, refused for good, as `error`
+   * says): the confirm stays focusable but does nothing; Cancel still closes.
+   */
+  confirmDisabled?: boolean;
 }
 
 /**
@@ -47,6 +52,7 @@ export function ConfirmDialog({
   pending = false,
   pendingLabel,
   error = null,
+  confirmDisabled = false,
 }: ConfirmDialogProps) {
   return (
     <Dialog
@@ -81,8 +87,8 @@ export function ConfirmDialog({
             </Button>
             <Button
               variant="danger"
-              onClick={pending ? undefined : onConfirm}
-              aria-disabled={pending || undefined}
+              onClick={pending || confirmDisabled ? undefined : onConfirm}
+              aria-disabled={pending || confirmDisabled || undefined}
             >
               {pending && pendingLabel ? pendingLabel : confirmLabel}
             </Button>

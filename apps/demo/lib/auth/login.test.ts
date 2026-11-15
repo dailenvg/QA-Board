@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { insertUser, NOW, PASSWORD } from "@/test/accounts-fixture";
+import { addMember, membersWorld, removeMember } from "@/test/members-fixture";
 import { migratedPglite } from "@/test/pglite";
+import { REMOVAL_GRACE_MS } from "../account/account-deletion";
+import type { Database } from "../db/database";
 import { logIn } from "./login";
 import { LOGIN_WINDOW_MS, MAX_FAILURES_PER_EMAIL, MAX_FAILURES_PER_IP } from "./rate-limit";
 import { readSession } from "./sessions";
@@ -115,5 +118,57 @@ describe("logIn", () => {
     await logIn(db, { email: "ana@acme.test", password: PASSWORD, ip: IP }, NOW);
     const { rows } = await db.query("SELECT 1 FROM login_attempts");
     expect(rows).toEqual([]);
+  });
+});
+
+describe("logIn for an account removed from its workspace (decision 20)", () => {
+  async function removedWorld() {
+    const world = await membersWorld();
+    const ben = await addMember(world.db, world.workspaceId, undefined, "ben@acme.test");
+    await removeMember(world.db, ben.user.id, world.workspaceId, NOW);
+    return { db: world.db, ben };
+  }
+
+  const attempt = (db: Database, password: string, at: number) =>
+    logIn(db, { email: "ben@acme.test", password, ip: IP }, at);
+
+  it("says so for the right password, with no session, and counts it against the limit", async () => {
+    const { db, ben } = await removedWorld();
+    for (let index = 0; index < MAX_FAILURES_PER_EMAIL; index += 1) {
+      expect(await attempt(db, PASSWORD, NOW + index * 1000)).toEqual({
+        ok: false,
+        reason: "removed",
+      });
+    }
+    const { rows } = await db.query("SELECT 1 FROM sessions WHERE user_id = $1", [ben.user.id]);
+    expect(rows).toEqual([]);
+    expect(await attempt(db, PASSWORD, NOW + 10_000)).toMatchObject({ reason: "rate-limited" });
+  });
+
+  it("answers invalid for a wrong password, as for anyone", async () => {
+    const { db } = await removedWorld();
+    expect(await attempt(db, "wrong password", NOW)).toEqual({ ok: false, reason: "invalid" });
+  });
+
+  it("stops at 24 hours, before the daily purge has run", async () => {
+    const { db } = await removedWorld();
+    expect(await attempt(db, PASSWORD, NOW + REMOVAL_GRACE_MS - 1000)).toMatchObject({
+      reason: "removed",
+    });
+    expect(await attempt(db, PASSWORD, NOW + REMOVAL_GRACE_MS)).toEqual({
+      ok: false,
+      reason: "invalid",
+    });
+  });
+
+  it("answers invalid for an account its own user deleted, the right password and all", async () => {
+    const world = await membersWorld();
+    await addMember(world.db, world.workspaceId, undefined, "ben@acme.test");
+    await world.db.query(`UPDATE users SET deleted_at = $2, delete_after = $3 WHERE email = $1`, [
+      "ben@acme.test",
+      new Date(NOW),
+      new Date(NOW + 30 * 24 * 3600 * 1000),
+    ]);
+    expect(await attempt(world.db, PASSWORD, NOW)).toEqual({ ok: false, reason: "invalid" });
   });
 });

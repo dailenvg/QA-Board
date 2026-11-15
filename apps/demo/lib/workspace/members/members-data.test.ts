@@ -3,6 +3,7 @@ import { NOW } from "@/test/accounts-fixture";
 import {
   addMember,
   deps,
+  giveAvatar,
   EMAIL_OFF,
   EMAIL_ON,
   membersWorld,
@@ -18,6 +19,7 @@ import { toDate } from "../times";
 import { createInvites } from "./create-invites";
 import { INVITE_TTL_MS } from "./invites";
 import { loadMembersData } from "./members-data";
+import { personKey } from "./person-key";
 
 let world: MembersWorld;
 let ben: Person;
@@ -49,6 +51,8 @@ beforeEach(async () => {
   );
 });
 
+const keyOf = (who: Person) => personKey(world.workspaceId, who.user.id, EMAIL_OFF.AUTH_SECRET);
+
 async function dataFor(who: Person, env: Record<string, string> = EMAIL_OFF) {
   const membership = await findMembership(world.db, who.user.id, world.workspaceId);
   if (!membership) throw new Error("not a member");
@@ -65,20 +69,26 @@ describe("loadMembersData", () => {
       members: [
         {
           id: world.owner.user.id,
+          key: keyOf(world.owner),
           name: OWNER_NAME,
+          avatarSrc: null,
           email: world.owner.user.email,
           role: "owner",
           joinedAt: expect.any(Number) as unknown,
           you: true,
+          removable: false,
         },
         {
           id: ben.user.id,
+          key: keyOf(ben),
           name: "Ben Ito",
+          avatarSrc: null,
           email: "ben@acme.test",
           role: "member",
           joinedAt: expect.any(Number) as unknown,
           you: false,
           permissions: ["trash"],
+          removable: true,
         },
       ],
       seats: { used: 3, limit: 10 },
@@ -137,11 +147,59 @@ describe("loadMembersData", () => {
       workspaceName: WORKSPACE,
       ownerName: OWNER_NAME,
       members: [
-        { name: OWNER_NAME, role: "owner", joinedAt: expect.any(Number) as unknown, you: false },
-        { name: "Ben Ito", role: "member", joinedAt: expect.any(Number) as unknown, you: true },
+        {
+          key: keyOf(world.owner),
+          name: OWNER_NAME,
+          avatarSrc: null,
+          role: "owner",
+          joinedAt: expect.any(Number) as unknown,
+          you: false,
+        },
+        {
+          key: keyOf(ben),
+          name: "Ben Ito",
+          avatarSrc: null,
+          role: "member",
+          joinedAt: expect.any(Number) as unknown,
+          you: true,
+        },
       ],
       ownPermissions: ["trash"],
     });
+  });
+
+  it("lets a member with people remove only members without it: never the owner, themself or a peer (D1)", async () => {
+    await world.db.query(
+      "UPDATE memberships SET permissions = ARRAY['people'] WHERE user_id = $1",
+      [ben.user.id],
+    );
+    const peer = await addMember(world.db, world.workspaceId, ["people"], "pia@acme.test");
+    const plain = await addMember(world.db, world.workspaceId, ["trash"], "zed@acme.test");
+    const data = await dataFor(ben);
+    if (data.view === "member") throw new Error("member view");
+    const removable = Object.fromEntries(
+      data.members.map((member) => [member.email, member.removable]),
+    );
+    expect(removable).toEqual({
+      [world.owner.user.email]: false,
+      "ben@acme.test": false,
+      [peer.user.email]: false,
+      [plain.user.email]: true,
+    });
+    const asOwner = await dataFor(world.owner);
+    if (asOwner.view === "member") throw new Error("member view");
+    expect(asOwner.members.filter((member) => member.removable)).toHaveLength(3);
+  });
+
+  it("gives each person an avatar URL by their key in this workspace, never their id", async () => {
+    await giveAvatar(world.db, ben.user.id);
+    const data = await dataFor(ben);
+    const row = data.members.find((member) => member.you);
+    expect(row?.avatarSrc).toMatch(
+      new RegExp(`^/api/w/${world.workspaceId}/people/${keyOf(ben)}/avatar\\?v=[\\w-]+$`),
+    );
+    expect(JSON.stringify(data.members)).not.toContain(ben.user.id);
+    expect(data.members.find((member) => !member.you)?.avatarSrc).toBeNull();
   });
 
   it("says whether email is on: off without Resend and on a preview", async () => {

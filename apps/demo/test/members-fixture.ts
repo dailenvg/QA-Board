@@ -1,4 +1,3 @@
-import { REMOVAL_GRACE_MS } from "@/lib/account/account-deletion";
 import type { MemberSwitch } from "@/lib/auth/permissions";
 import { createSession } from "@/lib/auth/sessions";
 import type { SessionUser } from "@/lib/auth/users";
@@ -8,15 +7,15 @@ import type { Queryable } from "@/lib/share/migrate";
 import { createInvites, type InviteResult } from "@/lib/workspace/members/create-invites";
 import type { MemberInviteBatch } from "@/lib/workspace/members/invite-email";
 import type { InviteDeps } from "@/lib/workspace/members/invites";
-import { toDate } from "@/lib/workspace/times";
+import { removeMember as removeFromWorkspace } from "@/lib/workspace/members/remove-member";
 import { insertUser } from "./accounts-fixture";
 import { migratedPglite } from "./pglite";
 import { TEST_AUTH_SECRET } from "./workspace-fixture";
 
 /**
- * Workspaces with people for the invite and join tests: an owner who can sign
- * in, a second workspace that must never change, and helpers to invite,
- * accept and remove as PR 3's removal will.
+ * Workspaces with people for the invite, join and removal tests: an owner
+ * who can sign in, a second workspace that must never change, and helpers to
+ * invite, accept and remove.
  */
 
 export const SITE = "https://squint.test";
@@ -154,27 +153,23 @@ export async function inviteOne(
 }
 
 /**
- * Takes `userId` out of `workspaceId` as PR 3's removal will (4.5): the
- * membership goes, and the account is deleted with 24 hours of grace,
+ * Takes `userId` out of `workspaceId` as its owner does (4.5, `removeMember`):
+ * the membership goes, and the account is deleted with 24 hours of grace,
  * remembering where from and with which switches.
  */
 export async function removeMember(
-  db: Queryable,
+  db: Database,
   userId: string,
   workspaceId: string,
   now: number,
 ): Promise<void> {
-  const { rows } = await db.query<{ permissions: string[] }>(
-    "DELETE FROM memberships WHERE user_id = $1 AND workspace_id = $2 RETURNING permissions",
-    [userId, workspaceId],
+  const { rows } = await db.query<{ user_id: string }>(
+    "SELECT user_id FROM memberships WHERE workspace_id = $1 AND role = 'owner'",
+    [workspaceId],
   );
-  await db.query(
-    `UPDATE users SET deleted_at = $2, delete_after = $3, removed_from = $4,
-       removed_permissions = $5::text[]
-     WHERE id = $1`,
-    [userId, toDate(now), toDate(now + REMOVAL_GRACE_MS), workspaceId, rows[0]?.permissions],
-  );
-  await db.query("DELETE FROM sessions WHERE user_id = $1", [userId]);
+  const owner = { userId: rows[0]?.user_id ?? "", workspaceId };
+  const outcome = await removeFromWorkspace(db, owner, userId, now);
+  if (!outcome.ok) throw new Error(`not removed: ${outcome.reason}`);
 }
 
 /** A member's switches in a workspace, or null without a membership. */

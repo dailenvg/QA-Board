@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { insertUser, NOW, PASSWORD } from "@/test/accounts-fixture";
+import { addMember, membersWorld, removeMember } from "@/test/members-fixture";
 import { migratedPglite } from "@/test/pglite";
 import type { Queryable } from "../share/migrate";
 import { logIn } from "./login";
@@ -58,6 +59,13 @@ describe("password reset", () => {
     await db.query("UPDATE users SET deleted_at = now()");
     expect(await request(db, "nobody@acme.test")).toEqual([]);
     expect(await request(db, "gone@acme.test")).toEqual([]);
+  });
+
+  it("sends nothing to an account removed from its workspace, as for any deleted one", async () => {
+    const world = await membersWorld();
+    const ben = await addMember(world.db, world.workspaceId, undefined, "ben@acme.test");
+    await removeMember(world.db, ben.user.id, world.workspaceId, NOW);
+    expect(await request(world.db, "ben@acme.test", NOW + 1000)).toEqual([]);
   });
 
   it("sends at most 3 links an hour per account", async () => {

@@ -12,6 +12,7 @@ import {
   isWorkspaceSlug,
   workspaceNameError,
   type DeletionConfirm,
+  type SessionDeletion,
 } from "./field-rules";
 
 /**
@@ -66,21 +67,43 @@ export interface DeletionRequest {
   ip: string;
 }
 
-/** What `membership`'s user types to confirm: the workspace's name if they own it, else their email. */
+/**
+ * What `membership`'s user types to confirm: the workspace's name if they own
+ * it, else their email; with the workspace's name either way, which the copy names.
+ */
 export function deletionConfirmFor(user: SessionUser, membership: Membership): DeletionConfirm {
+  const workspaceName = membership.name;
   return membership.role === "owner"
-    ? { kind: "workspace", text: membership.name }
-    : { kind: "email", text: user.email };
+    ? { kind: "workspace", text: workspaceName, workspaceName }
+    : { kind: "email", text: user.email, workspaceName };
 }
 
-/** What the profile page asks the signed-in user to type; null when they can't delete it here. */
+/** Open invites that haven't expired: what an owner's deletion cancels and says it will. */
+async function openInviteCount(db: Queryable, workspaceId: string, now: number): Promise<number> {
+  const { rows } = await db.query<{ count: number }>(
+    `SELECT count(*)::int AS count FROM workspace_invites
+     WHERE workspace_id = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > $2`,
+    [workspaceId, toDate(now)],
+  );
+  return rows[0]?.count ?? 0;
+}
+
+/** What the profile page shows about deleting the account; null when it can't be deleted here. */
 export async function sessionDeletionConfirm(
   db: Queryable,
   user: SessionUser,
-): Promise<DeletionConfirm | null> {
+  now: number,
+): Promise<SessionDeletion | null> {
   if (user.role === "admin") return null;
   const membership = await findOwnWorkspace(db, user.id);
-  return membership && deletionConfirmFor(user, membership);
+  if (!membership) return null;
+  const confirm = deletionConfirmFor(user, membership);
+  if (membership.role !== "owner") return { confirm, otherMembers: false, pendingInvites: 0 };
+  return {
+    confirm,
+    otherMembers: await hasOtherMembers(db, membership.workspaceId, user.id),
+    pendingInvites: await openInviteCount(db, membership.workspaceId, now),
+  };
 }
 
 /** Whether anyone but `userId` still belongs to the workspace: deleted accounts don't count. */
@@ -132,7 +155,15 @@ async function lockMembership(
   return rows[0] ?? null;
 }
 
-const SIGN_IN_TABLES = ["sessions", "password_resets", "email_changes"] as const;
+/** Where an account's ways back in live: its sessions, reset links and email changes. */
+export const SIGN_IN_TABLES = ["sessions", "password_resets", "email_changes"] as const;
+
+/** Ends every way back into `userId`'s account: shared by deleting it and removing it (4.5). */
+export async function endSignIns(tx: Queryable, userId: string): Promise<void> {
+  for (const table of SIGN_IN_TABLES) {
+    await tx.query(`DELETE FROM ${table} WHERE user_id = $1`, [userId]);
+  }
+}
 
 /**
  * Cancels the workspace's open invites as its owner's deletion closes it
@@ -202,9 +233,7 @@ async function schedule(
      WHERE id = $1`,
     [user.id, toDate(now), toDate(deleteAfter)],
   );
-  for (const table of SIGN_IN_TABLES) {
-    await tx.query(`DELETE FROM ${table} WHERE user_id = $1`, [user.id]);
-  }
+  await endSignIns(tx, user.id);
   const target = { type: "user", id: user.id } as const;
   const fields = ["deleted_at", "delete_after", ...SIGN_IN_TABLES];
   await audit(tx, { actorUserId: user.id, action: "user.deletion_scheduled", target, fields }, now);

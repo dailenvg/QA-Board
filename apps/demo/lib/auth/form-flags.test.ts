@@ -12,6 +12,9 @@ describe("form flags", () => {
     expect(loginFlagMessage("invalid-credentials")).toBe(
       "Invalid email or password. Check both and try again, or reset your password.",
     );
+    expect(loginFlagMessage("removed")).toBe(
+      "You're no longer in a Squint workspace, so you can't sign in. Ask the person who invited you for a new invite.",
+    );
     expect(loginFlagMessage("rate-limited", "840")).toBe(
       "Too many attempts. Try again in 14 minutes.",
     );

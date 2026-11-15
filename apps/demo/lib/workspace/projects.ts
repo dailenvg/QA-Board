@@ -319,6 +319,39 @@ export async function trashProject(
   return rows.length === 1;
 }
 
+/** How new a page project must be for `abandonProject`: the time an upload takes, and then some. */
+export const ABANDON_WINDOW_MS = 10 * 60 * 1000;
+
+/**
+ * Deletes for good a page project whose pictures never arrived: the browser
+ * creates the project, then uploads its pages, and undoes the project when an
+ * upload fails. Any member may (no trash switch), because it only ever takes
+ * a project that holds nothing anyone made: a page project created in the
+ * last `ABANDON_WINDOW_MS`, with no stored file, comment or snapshot and no
+ * review link. Anything else stays, and false is answered.
+ */
+export async function abandonProject(
+  db: Queryable,
+  workspaceId: string,
+  id: string,
+  now: number,
+): Promise<boolean> {
+  const { rows } = await db.query(
+    `DELETE FROM projects AS project
+     WHERE project.workspace_id = $1 AND project.id = $2 AND ${LIVE}
+       AND project.source->>'kind' = 'pages' AND project.created_at > $3
+       AND NOT EXISTS (SELECT 1 FROM workspace_blobs AS blob
+         WHERE blob.workspace_id = $1 AND blob.project_id = project.id)
+       AND NOT EXISTS (SELECT 1 FROM comments WHERE comments.project_id = project.id)
+       AND NOT EXISTS (SELECT 1 FROM snapshots WHERE snapshots.project_id = project.id)
+       AND NOT EXISTS (SELECT 1 FROM project_share_links AS link
+         WHERE link.workspace_id = $1 AND link.project_id = project.id)
+     RETURNING project.id`,
+    [workspaceId, id, toDate(now - ABANDON_WINDOW_MS)],
+  );
+  return rows.length === 1;
+}
+
 /** Brings a trashed project back, as it was. */
 export async function restoreProject(
   db: Queryable,

@@ -45,6 +45,8 @@ export const ROUTE_PERMISSIONS: Record<string, Record<string, RouteAccess>> = {
     DELETE: may("projects.trash"),
   },
   "/api/w/:workspaceId/projects/:projectId/restore": { POST: may("projects.trash") },
+  // Undoing a page project whose upload failed: only a new one with nothing in it, so no switch.
+  "/api/w/:workspaceId/projects/:projectId/abandon": { POST: WRITE },
   "/api/w/:workspaceId/projects/:projectId/archive": { PUT: WRITE },
   "/api/w/:workspaceId/projects/:projectId/label": { PUT: WRITE },
   "/api/w/:workspaceId/projects/:projectId/pages": { GET: READ, PUT: WRITE },
@@ -74,6 +76,8 @@ export const ROUTE_PERMISSIONS: Record<string, Record<string, RouteAccess>> = {
   // The Blob store's callback has no session; a member's token request goes through `withMember`.
   "/api/w/:workspaceId/blobs/token": { POST: WRITE },
   "/api/w/:workspaceId/blobs/commit": { POST: WRITE },
+  // A member's avatar, by their key in this workspace (Members, from PR 5 comments too).
+  "/api/w/:workspaceId/people/:personKey/avatar": { GET: READ },
 
   // The session's workspace (`withOwnWorkspace`).
   "/api/account/workspace": { PATCH: may("workspace.manage") },
@@ -87,6 +91,10 @@ export const ROUTE_PERMISSIONS: Record<string, Record<string, RouteAccess>> = {
   "/api/account/members/invites": { POST: may("members.manage") },
   "/api/account/members/invites/:inviteId": { DELETE: may("members.manage") },
   "/api/account/members/invites/:inviteId/resend": { POST: may("members.manage") },
+  // Removing a member (people switch; never the owner, themself or another manager, D1).
+  "/api/account/members/:userId": { DELETE: may("members.manage") },
+  // A member's switches: the owner's alone.
+  "/api/account/members/:userId/permissions": { PATCH: may("members.permissions") },
 
   // The session's own account.
   "/api/account": { DELETE: SELF },

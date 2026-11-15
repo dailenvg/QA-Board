@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { loginErrorMessage, requestLogin, setNewPassword } from "./auth-client";
+import { loginErrorMessage, requestLogin, RESET_LINK, setNewPassword } from "./auth-client";
 
 function answer(status: number, headers: Record<string, string> = {}, body: string | null = null) {
   vi.stubGlobal(
@@ -32,6 +32,11 @@ describe("requestLogin", () => {
       error: "rate-limited",
       retryAfterSeconds: 61,
     });
+    answer(403, {}, JSON.stringify({ error: "removed" }));
+    expect(await requestLogin("a@b.co", "pw")).toEqual({ ok: false, error: "removed" });
+    // Any other refusal (another site's Origin) is no answer about the account.
+    answer(403, {}, JSON.stringify({ error: "cross-site" }));
+    expect(await requestLogin("a@b.co", "pw")).toEqual({ ok: false, error: "failed" });
     answer(503);
     expect(await requestLogin("a@b.co", "pw")).toMatchObject({ error: "not-configured" });
     answer(500);
@@ -56,6 +61,16 @@ describe("loginErrorMessage", () => {
     expect(loginErrorMessage("rate-limited", 61)).toBe(
       "Too many attempts. Try again in 2 minutes.",
     );
+  });
+});
+
+describe("loginErrorMessage for a removed account", () => {
+  it("names no workspace or date, and never offers a reset, which would send nothing", () => {
+    const message = loginErrorMessage("removed");
+    expect(message).toBe(
+      "You're no longer in a Squint workspace, so you can't sign in. Ask the person who invited you for a new invite.",
+    );
+    expect(message).not.toContain(RESET_LINK.text);
   });
 });
 

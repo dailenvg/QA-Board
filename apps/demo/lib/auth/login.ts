@@ -4,7 +4,7 @@ import { normalizeEmail } from "./field-rules";
 import { verifyPassword } from "./password";
 import { claimLoginAttempt, releaseLoginClaim } from "./rate-limit";
 import { createSession } from "./sessions";
-import { findActiveUser, toSessionUser, type SessionUser } from "./users";
+import { findSignInCandidate, toSessionUser, type SessionUser } from "./users";
 
 export interface LoginAttempt {
   email: string;
@@ -17,6 +17,8 @@ export interface LoginAttempt {
 export type LoginResult =
   | { ok: true; token: string; user: SessionUser; first: boolean }
   | { ok: false; reason: "invalid" }
+  /** The right password, on an account removed from its workspace in the last 24 hours. */
+  | { ok: false; reason: "removed" }
   | { ok: false; reason: "rate-limited"; retryAfterSeconds: number };
 
 /**
@@ -39,8 +41,11 @@ export async function recordLogin(db: Queryable, userId: string, now: number): P
  * limit first, atomically, so parallel requests can't slip past it (even a
  * right password waits out the limit). An unknown email and a wrong password
  * take the same work (the dummy hash) and give the same answer, `invalid`; the
- * claim then stays as a failure. A success releases it, and says whether it
- * was the user's first sign-in.
+ * claim then stays as a failure. The right password on an account removed
+ * from its workspace less than 24 hours ago answers `removed`, with no
+ * session, and keeps the claim too, so the limit also caps how often a
+ * password can be confirmed that way (decision 20). A success releases it,
+ * and says whether it was the user's first sign-in.
  */
 export async function logIn(
   db: Database,
@@ -53,9 +58,11 @@ export async function logIn(
     return { ok: false, reason: "rate-limited", retryAfterSeconds: claim.retryAfterSeconds };
   }
 
-  const user = await findActiveUser(db, key.email);
-  const matches = await verifyPassword(attempt.password, user?.password_hash ?? null);
-  if (!user || !matches) return { ok: false, reason: "invalid" };
+  const candidate = await findSignInCandidate(db, key.email, now);
+  const matches = await verifyPassword(attempt.password, candidate?.user.password_hash ?? null);
+  if (!candidate || !matches) return { ok: false, reason: "invalid" };
+  if (candidate.removed) return { ok: false, reason: "removed" };
+  const { user } = candidate;
 
   await releaseLoginClaim(db, key.email, claim.attemptId, now);
   const first = await recordLogin(db, user.id, now);

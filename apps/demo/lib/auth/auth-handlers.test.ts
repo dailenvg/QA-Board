@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { describe, expect, it, vi } from "vitest";
 import { insertUser, NOW, PASSWORD } from "@/test/accounts-fixture";
+import { addMember, membersWorld, removeMember } from "@/test/members-fixture";
 import { migratedPglite } from "@/test/pglite";
 import type { Database } from "../db/database";
 import { handleLogin } from "./login-handler";
@@ -128,6 +129,37 @@ describe("login form posts (before hydration)", () => {
     );
     expect(refused.status).toBe(401);
     expect(await refused.json()).toEqual({ error: "invalid-credentials" });
+  });
+});
+
+describe("login for an account removed from its workspace", () => {
+  async function removed(): Promise<Database> {
+    const world = await membersWorld();
+    const ben = await addMember(world.db, world.workspaceId, undefined, EMAIL);
+    await removeMember(world.db, ben.user.id, world.workspaceId, NOW);
+    return world.db;
+  }
+
+  it("answers 403 removed to the hydrated form, with no session", async () => {
+    const deps = { db: Promise.resolve(await removed()), now: NOW + 1 };
+    const response = await handleLogin(
+      jsonPost("/api/auth/login", { email: EMAIL, password: PASSWORD }),
+      deps,
+    );
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "removed" });
+    expect(response.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("sends a form post back to /login with the removed code", async () => {
+    const deps = { db: Promise.resolve(await removed()), now: NOW + 1 };
+    const response = await handleLogin(
+      formPost("/api/auth/login", { email: EMAIL, password: PASSWORD }),
+      deps,
+    );
+    expect(location(response)).toBe("/login?error=removed");
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expectNoCredentials(response, PASSWORD, EMAIL);
   });
 });
 

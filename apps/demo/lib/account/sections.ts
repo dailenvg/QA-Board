@@ -1,5 +1,10 @@
 import type { IconName } from "@/components/ui/Icon";
-import { ACCOUNT_PROFILE_HREF, ACCOUNT_STORAGE_HREF, ACCOUNT_WORKSPACE_HREF } from "../routes";
+import {
+  ACCOUNT_MEMBERS_HREF,
+  ACCOUNT_PROFILE_HREF,
+  ACCOUNT_STORAGE_HREF,
+  ACCOUNT_WORKSPACE_HREF,
+} from "../routes";
 
 /**
  * The account settings' sections, in nav order. The workspace's need one, so
@@ -16,6 +21,7 @@ export interface AccountSection {
 export const ACCOUNT_SECTIONS: readonly AccountSection[] = [
   { href: ACCOUNT_PROFILE_HREF, label: "Profile", icon: "user", needsWorkspace: false },
   { href: ACCOUNT_WORKSPACE_HREF, label: "Workspace", icon: "layers", needsWorkspace: true },
+  { href: ACCOUNT_MEMBERS_HREF, label: "Members", icon: "users", needsWorkspace: true },
   { href: ACCOUNT_STORAGE_HREF, label: "Storage", icon: "database", needsWorkspace: true },
 ];
 

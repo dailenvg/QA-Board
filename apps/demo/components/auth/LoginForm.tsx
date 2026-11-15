@@ -31,10 +31,20 @@ interface FieldErrors {
 
 const NO_ERRORS: FieldErrors = { email: null, password: null };
 
-function moodFor(status: Status, failed: boolean): Mood {
+/** What the last refusal was: nothing, a mistake to fix, or a removed account (nothing to fix). */
+type Failure = "none" | "mistake" | "removed";
+
+const REMOVED_MESSAGE = loginErrorMessage("removed");
+
+function failureOf(message: string | null): Failure {
+  if (message === null) return "none";
+  return message === REMOVED_MESSAGE ? "removed" : "mistake";
+}
+
+function moodFor(status: Status, failure: Failure): Mood {
   if (status === "signed-in") return "happy";
-  if (status === "submitting") return "thinking";
-  return failed ? "surprised" : "idle";
+  if (status === "submitting" || failure === "removed") return "thinking";
+  return failure === "mistake" ? "surprised" : "idle";
 }
 
 /** Email and password, checked on blur and on submit; the server's answer shows above the button. */
@@ -47,6 +57,7 @@ export function LoginForm({ next, notice, initialError }: LoginFormProps) {
   const [status, setStatus] = useState<Status>("idle");
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
+  const submitRef = useRef<HTMLButtonElement>(null);
   const busy = status !== "idle";
 
   const submit = async (event: FormEvent) => {
@@ -73,6 +84,10 @@ export function LoginForm({ next, notice, initialError }: LoginFormProps) {
     if (outcome.error === "invalid-credentials") {
       setPassword("");
       passwordRef.current?.focus();
+    } else if (outcome.error === "removed") {
+      // The password was right, but typing it again can't help: it's cleared, focus stays put.
+      setPassword("");
+      submitRef.current?.focus();
     }
   };
 
@@ -80,7 +95,7 @@ export function LoginForm({ next, notice, initialError }: LoginFormProps) {
     <AuthPanel
       title="Sign in to Squint"
       description="Use the email and password your workspace was set up with."
-      mood={moodFor(status, formError !== null)}
+      mood={moodFor(status, failureOf(formError))}
       footer={<TextLink href="/reset">Forgot your password?</TextLink>}
     >
       {/*
@@ -142,7 +157,12 @@ export function LoginForm({ next, notice, initialError }: LoginFormProps) {
           testId="login-password"
         />
         <FormAlert message={formError} link={RESET_LINK} testId="login-error" />
-        <Button type="submit" aria-disabled={busy || undefined} data-testid="login-submit">
+        <Button
+          ref={submitRef}
+          type="submit"
+          aria-disabled={busy || undefined}
+          data-testid="login-submit"
+        >
           {status === "submitting"
             ? "Signing in…"
             : status === "signed-in"

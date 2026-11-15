@@ -7,8 +7,10 @@ import {
   deletionConfirmMatches,
   type DeletionConfirm,
 } from "@/lib/account/field-rules";
+import { ACCOUNT_MEMBERS_HREF } from "@/lib/routes";
 import { AuthField } from "../auth/AuthField";
 import { FormAlert } from "../auth/FormAlert";
+import { TextLink } from "../auth/TextLink";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
 import { DELETE_ACCOUNT_COPY } from "./delete-account-copy";
@@ -22,9 +24,17 @@ const COPY = DELETE_ACCOUNT_COPY.dialog;
 interface DeleteAccountDialogProps {
   open: boolean;
   confirm: DeletionConfirm;
+  /** The workspace's open invites, which an owner's deletion cancels (said in the description). */
+  pendingInvites: number;
   /** The sign-in email, for password managers: which account the password belongs to. */
   email: string;
   onClose: () => void;
+}
+
+function descriptionOf(confirm: DeletionConfirm, pendingInvites: number): string {
+  if (confirm.kind === "email") return COPY.description.email(confirm.workspaceName);
+  const base = COPY.description.workspace(confirm.workspaceName);
+  return pendingInvites > 0 ? `${base} ${COPY.pendingInvites(pendingInvites)}` : base;
 }
 
 /**
@@ -33,15 +43,18 @@ interface DeleteAccountDialogProps {
  * starts in the field to type the confirmation in (as in ConfirmDialog's
  * typed confirm): the delete button can't act until it matches.
  */
-export function DeleteAccountDialog({ open, confirm, email, onClose }: DeleteAccountDialogProps) {
+export function DeleteAccountDialog({
+  open,
+  confirm,
+  pendingInvites,
+  email,
+  onClose,
+}: DeleteAccountDialogProps) {
   const [pending, setPending] = useState(false);
   const close = () => {
     if (!pending) onClose();
   };
-  const description =
-    confirm.kind === "workspace"
-      ? COPY.description.workspace(confirm.text)
-      : COPY.description.email;
+  const description = descriptionOf(confirm, pendingInvites);
   return (
     <Dialog
       open={open}
@@ -194,6 +207,14 @@ function DeleteAccountForm({
           testId="delete-account-notice"
           className="has-[p]:mb-4"
         />
+        {formNotice ? (
+          // Someone joined since the page loaded (A9): the way on is in Members.
+          <p className="-mt-2 mb-2">
+            <TextLink href={ACCOUNT_MEMBERS_HREF} testId="delete-account-notice-members">
+              {DELETE_ACCOUNT_COPY.goToMembers}
+            </TextLink>
+          </p>
+        ) : null}
         {ready ? null : (
           // Why Delete waits, for screen readers (the button's description): it shows to no one.
           <p id={hintId} className="sr-only">

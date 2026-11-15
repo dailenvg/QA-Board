@@ -12,6 +12,7 @@ import {
   WORKSPACE_NAME,
   type DeletionWorld,
 } from "@/test/deletion-fixture";
+import { removeMember as removeFromWorkspace } from "@/test/members-fixture";
 import { findOwnWorkspace } from "../auth/memberships";
 import type { SessionUser } from "../auth/users";
 import type { BlobLocation } from "../share/types";
@@ -274,6 +275,23 @@ describe("purgeDeletedAccounts", () => {
     expect((await userRow(owner.id))?.email).toBe(tombstoneEmail(owner.id));
     expect(await countRows(db, "workspaces", "id", workspaceId)).toBe(0);
     expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("forgets which workspace removed someone once it's deleted, and still deletes them later", async () => {
+    const memberId = await addMember(world.db, world.workspaceId, MEMBER_EMAIL);
+    await removeFromWorkspace(world.db, memberId, world.workspaceId, NOW);
+    // The owner, alone now, deletes the account and its workspace.
+    expect(await remove(world.owner, WORKSPACE_NAME)).toMatchObject({ ok: true });
+    const { services } = recordingServices();
+    expect(await purgeDeletedAccounts(world.db, services, DUE, DEADLINE)).toMatchObject({
+      done: true,
+    });
+    expect(await countRows(world.db, "workspaces", "id", world.workspaceId)).toBe(0);
+    const { rows } = await world.db.query("SELECT removed_from, email FROM users WHERE id = $1", [
+      memberId,
+    ]);
+    // Removed with 24 hours of grace, so scrubbed in the same run, its removal forgotten.
+    expect(rows).toEqual([{ removed_from: null, email: tombstoneEmail(memberId) }]);
   });
 
   it("keeps an account restored before the cron reached it", async () => {

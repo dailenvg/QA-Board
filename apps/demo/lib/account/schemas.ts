@@ -60,10 +60,37 @@ export const memberInvitesSchema = z.object({
   emails: z.array(z.string().max(1000)).min(1).max(100),
 });
 
+const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+
 /** An invite's id in a route's path. */
-export const inviteIdSchema = z
-  .string()
-  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+export const inviteIdSchema = uuid;
+
+/** A member's user id in a route's path (the owner's and managers' view has it). */
+export const memberIdSchema = uuid;
+
+/**
+ * `PATCH /api/account/members/:userId/permissions`: all four of a member's
+ * switches at once (4.10), as the switch names 041 stores.
+ */
+export const memberSwitchesSchema = z
+  .object({
+    reviewLinks: z.boolean(),
+    trash: z.boolean(),
+    import: z.boolean(),
+    people: z.boolean(),
+  })
+  .transform((value) =>
+    (
+      [
+        [value.reviewLinks, "review_links"],
+        [value.trash, "trash"],
+        [value.import, "import"],
+        [value.people, "people"],
+      ] as const
+    )
+      .filter(([on]) => on)
+      .map(([, name]) => name),
+  );
 
 /** `POST /api/auth/email-change/confirm`: the emailed link's token. */
 export const emailConfirmSchema = z.object({

@@ -14,12 +14,16 @@ import {
 import { freshSchema, TEST_DATABASE_URL } from "@/test/postgres";
 import { scheduleAccountDeletion } from "../../account/account-deletion";
 import type { Database } from "../../db/database";
+import type { PurgeServices } from "../purge";
+import { purgeWorkspace } from "../workspace-purge";
 import { migrate } from "../../share/migrate";
 import { acceptInvite, type Joiner } from "./accept";
 import { cancelInvite } from "./cancel-invite";
 import { createInvites } from "./create-invites";
+import { removeMember } from "./remove-member";
 import { resendInvite } from "./resend-invite";
 import { seatsUsed } from "./seats";
+import { setMemberSwitches } from "./set-switches";
 
 /**
  * The members lock order (L1 to L5) under real concurrency. PGlite runs one
@@ -247,5 +251,112 @@ describe.skipIf(!TEST_DATABASE_URL)("members on Postgres, in parallel", () => {
       ok: false,
       reason: "not-allowed",
     });
+  });
+
+  it("serialises removing a member with their own deletion: no deadlock, one wins (4.5)", async () => {
+    const wins = { removal: 0, deletion: 0 };
+    for (let round = 0; round < 6; round += 1) {
+      const world = await membersWorld(db);
+      const ben = await addMember(db, world.workspaceId);
+      const request = {
+        confirmText: ben.user.email,
+        currentPassword: PASSWORD,
+        ip: `203.0.113.${40 + round}`,
+      };
+      const [removed, deleted] = await Promise.all([
+        removeMember(db, asActor(world), ben.user.id, now()),
+        scheduleAccountDeletion(db, ben.user, request, now()),
+      ]);
+      const { rows } = await db.query<{ removed_from: string | null; member: boolean }>(
+        `SELECT removed_from, EXISTS (SELECT 1 FROM memberships WHERE user_id = users.id) AS member
+         FROM users WHERE id = $1`,
+        [ben.user.id],
+      );
+      if (removed.ok) {
+        wins.removal += 1;
+        // Under lock, the deletion finds the account already gone. A removal that committed
+        // before its checks even began refuses it there (no membership, or no account to check
+        // the password of); in the app the route answers 401 first, the session being gone.
+        expect([
+          { ok: true, scheduled: null },
+          { ok: false, reason: "not-found" },
+          { ok: false, reason: "wrong-password" },
+        ]).toContainEqual(deleted);
+        expect(rows).toEqual([{ removed_from: world.workspaceId, member: false }]);
+      } else {
+        wins.deletion += 1;
+        expect(removed).toEqual({ ok: false, reason: "leaving" });
+        expect(deleted).toMatchObject({ ok: true, scheduled: { email: ben.user.email } });
+        expect(rows).toEqual([{ removed_from: null, member: true }]);
+      }
+    }
+    expect(wins.removal + wins.deletion).toBe(6);
+  });
+
+  it("binds a removal waiting on the lock to the people switch the owner just turned off", async () => {
+    const world = await membersWorld(db);
+    const manager = await addMember(db, world.workspaceId, ["people"]);
+    const ben = await addMember(db, world.workspaceId, ["trash"]);
+    const change = await holdMembersLock(world.workspaceId);
+    await change.query("UPDATE memberships SET permissions = '{}' WHERE user_id = $1", [
+      manager.user.id,
+    ]);
+    const waiting = removeMember(db, asActor(world, manager.user.id), ben.user.id, now());
+    await settle();
+    await change.release();
+    expect(await waiting).toEqual({ ok: false, reason: "not-allowed" });
+    const { rows } = await db.query("SELECT 1 FROM memberships WHERE user_id = $1", [ben.user.id]);
+    expect(rows).toHaveLength(1);
+  });
+
+  it("serialises a switch change with a removal of the same member: both answer, no deadlock", async () => {
+    const world = await membersWorld(db);
+    const ben = await addMember(db, world.workspaceId);
+    const actor = asActor(world);
+    const [switched, removed] = await Promise.all([
+      setMemberSwitches(db, actor, ben.user.id, ["trash"], now()),
+      removeMember(db, actor, ben.user.id, now()),
+    ]);
+    expect(removed).toEqual({ ok: true });
+    expect([
+      { ok: true, permissions: ["trash"] },
+      { ok: false, reason: "not-found" },
+    ]).toContainEqual(switched);
+  });
+
+  it("purges a workspace in the members lock order: it waits on L1 before locking anything", async () => {
+    const services = {
+      shareBlobs: { discard: () => Promise.resolve() },
+      blobs: {
+        kind: "inline",
+        read: () => Promise.resolve(null),
+        discard: () => Promise.resolve(),
+      },
+    } as unknown as PurgeServices;
+    const world = await membersWorld(db);
+    const ben = await addMember(db, world.workspaceId);
+    await removeMember(db, asActor(world), ben.user.id, now());
+    await db.query("UPDATE workspaces SET delete_after = $2 WHERE id = $1", [
+      world.workspaceId,
+      new Date(now() - 1000),
+    ]);
+    // A members transaction of this workspace holding L1, then a removed person's row (L2).
+    const members = await holdMembersLock(world.workspaceId);
+    await members.query("SELECT 1 FROM users WHERE id = $1 FOR UPDATE", [ben.user.id]);
+    const purging = purgeWorkspace(db, services, world.workspaceId, now());
+    await settle();
+    // The purge waits on L1, holding nothing: the workspace's row and usage are free meanwhile.
+    await db.transaction(async (tx) => {
+      await tx.query("SELECT 1 FROM storage_usage WHERE workspace_id = $1 FOR UPDATE NOWAIT", [
+        world.workspaceId,
+      ]);
+      await tx.query("SELECT 1 FROM workspaces WHERE id = $1 FOR UPDATE NOWAIT", [
+        world.workspaceId,
+      ]);
+    });
+    await members.release();
+    expect(await purging).toBe(true);
+    const { rows } = await db.query("SELECT removed_from FROM users WHERE id = $1", [ben.user.id]);
+    expect(rows).toEqual([{ removed_from: null }]);
   });
 });

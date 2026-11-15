@@ -153,6 +153,8 @@ async function hit(method: string, path: string, who: Seat): Promise<Response> {
     shareId: share.shareId,
     token: share.token,
     inviteId: "00000000-0000-4000-8000-000000000000",
+    userId: "00000000-0000-4000-8000-000000000001",
+    personKey: "AAAAAAAAAAAAAAAAAAAAAA",
   };
   const url = path.replace(/:(\w+)/g, (_match, name: string) => params[name] ?? name);
   const bytes = BYTES.has(`${method} ${path}`);

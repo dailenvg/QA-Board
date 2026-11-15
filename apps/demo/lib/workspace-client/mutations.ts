@@ -154,6 +154,8 @@ export function writesFor(action: Action, before: SquintData, after: SquintData)
       return [write("PATCH", projectPath(action.id), { source: action.source })];
     case "project/delete":
       return [write("DELETE", projectPath(action.id), {}, [404])];
+    case "project/abandon":
+      return [write("POST", `${projectPath(action.id)}/abandon`)];
     case "project/archive":
       return [write("PUT", `${projectPath(action.id)}/archive`, { archived: action.archived })];
     case "project/label":

@@ -5,6 +5,7 @@ import type { Queryable } from "../share/migrate";
 import { createPostgresStore } from "../share/postgres-store";
 import type { BlobLocation } from "../share/types";
 import { toLocation } from "./blobs";
+import { lockMembers } from "./members/locks";
 import type { PurgeServices } from "./purge";
 import { toDate } from "./times";
 
@@ -28,18 +29,33 @@ export async function discardQuietly(
 }
 
 /**
- * Locks the workspace for its purge if it's still due by `now`: its usage row
- * first, then the workspace, in the order uploads take them. False once
- * restored (or already gone).
+ * Locks the workspace for its purge if it's still due by `now`, in the
+ * members lock order (`members/locks.ts`): its members lock (L1); the
+ * accounts removed from it (L2), whose `removed_from` deleting the workspace
+ * clears (044's ON DELETE SET NULL), which would otherwise lock their rows
+ * only after the workspace's, out of order; its usage row (L3), then the
+ * workspace (L4), in the order uploads take them. No members operation can
+ * wait on a due workspace's row today (they all read it `WHERE delete_after
+ * IS NULL`), so this keeps the one order rather than mending a deadlock seen.
+ * Answers those accounts' ids, or null once restored (or already gone).
  */
-async function lockDueWorkspace(tx: Queryable, workspaceId: string, now: number) {
+async function lockDueWorkspace(
+  tx: Queryable,
+  workspaceId: string,
+  now: number,
+): Promise<string[] | null> {
+  await lockMembers(tx, workspaceId);
+  const { rows: removed } = await tx.query<{ id: string }>(
+    "SELECT id FROM users WHERE removed_from = $1 ORDER BY id FOR UPDATE",
+    [workspaceId],
+  );
   await tx.query("SELECT 1 FROM storage_usage WHERE workspace_id = $1 FOR UPDATE", [workspaceId]);
   const { rows } = await tx.query(
     `SELECT 1 FROM workspaces WHERE id = $1 AND delete_after IS NOT NULL AND delete_after <= $2
      FOR UPDATE`,
     [workspaceId, toDate(now)],
   );
-  return rows.length === 1;
+  return rows.length === 1 ? removed.map((row) => row.id) : null;
 }
 
 /**
@@ -56,7 +72,10 @@ export async function purgeWorkspace(
   now: number,
 ): Promise<boolean> {
   const removed = await db.transaction(async (tx) => {
-    if (!(await lockDueWorkspace(tx, workspaceId, now))) return null;
+    const removed = await lockDueWorkspace(tx, workspaceId, now);
+    if (!removed) return null;
+    // What the foreign key would do, on rows already locked in order: nothing is left for it.
+    await tx.query("UPDATE users SET removed_from = NULL WHERE id = ANY($1)", [removed]);
     const shares = createPostgresStore(tx);
     const { rows: shareIds } = await tx.query<{ id: string }>(
       "SELECT id FROM squint_shares WHERE workspace_id = $1",

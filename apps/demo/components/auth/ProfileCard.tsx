@@ -1,16 +1,12 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { personMonogramName } from "@/lib/monogram";
-import { fadeOnly } from "@/lib/motion";
 import { ACCOUNT_HREF, isAccountPath } from "@/lib/routes";
 import { applyTheme } from "@/lib/theme";
 import { useTheme } from "@/lib/use-theme";
-import { MonogramTile } from "../brand/MonogramTile";
 import { Menu, type MenuItem } from "../ui/Menu";
+import { PersonAvatar } from "../ui/PersonAvatar";
 
 interface ProfileCardProps {
   /** Who is signed in. */
@@ -80,7 +76,13 @@ export function ProfileCard({ email, name, avatarSrc = null, bare = false }: Pro
     <div
       className={`flex min-w-0 items-center gap-3 text-left ${bare ? "py-1 pl-2" : "rounded-card bg-card py-2 pr-2 pl-4"}`}
     >
-      <ProfileAvatar email={email} name={name} avatarSrc={avatarSrc} />
+      <PersonAvatar
+        name={name}
+        fallback={email}
+        src={avatarSrc}
+        photoTestId="account-avatar"
+        initialsTestId="account-initials"
+      />
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="sr-only">Signed in as </span>
         {name ? (
@@ -107,54 +109,5 @@ export function ProfileCard({ email, name, avatarSrc = null, bare = false }: Pro
       />
       <form ref={form} action="/api/auth/logout" method="post" onSubmit={submit} hidden />
     </div>
-  );
-}
-
-/** One fixed slot: photo and initials cross-fade in place, so the text never shifts. */
-function ProfileAvatar({ email, name, avatarSrc }: Required<Omit<ProfileCardProps, "bare">>) {
-  // A photo that won't load (removed in another tab) gives way to the initials, not a broken image.
-  const [brokenSrc, setBrokenSrc] = useState<string | null>(null);
-  return (
-    <span className="relative size-9 shrink-0">
-      <AnimatePresence initial={false}>
-        {avatarSrc && avatarSrc !== brokenSrc ? (
-          <motion.span
-            key={avatarSrc}
-            variants={fadeOnly}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            className="absolute inset-0"
-          >
-            <Image
-              src={avatarSrc}
-              alt=""
-              width={36}
-              height={36}
-              unoptimized
-              onError={() => setBrokenSrc(avatarSrc)}
-              data-testid="account-avatar"
-              className="size-full rounded-pill object-cover"
-            />
-          </motion.span>
-        ) : (
-          <motion.span
-            key="initials"
-            variants={fadeOnly}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            className="absolute inset-0"
-          >
-            <MonogramTile
-              name={personMonogramName(name, email)}
-              color={null}
-              className="size-full rounded-pill text-label"
-              testId="account-initials"
-            />
-          </motion.span>
-        )}
-      </AnimatePresence>
-    </span>
   );
 }

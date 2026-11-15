@@ -27,6 +27,11 @@ export type Action =
   | { type: "project/move"; id: string; folderId: string; at: number }
   | { type: "project/replace-source"; id: string; source: ProjectSource; at: number }
   | { type: "project/delete"; id: string; at: number }
+  /**
+   * Undoes a page project whose pictures didn't upload: gone for good, not to
+   * the trash, so any member may (the server keeps it if it holds anything).
+   */
+  | { type: "project/abandon"; id: string }
   /** Archives a project (an archived one keeps its dates) or unarchives it. */
   | { type: "project/archive"; id: string; archived: boolean; at: number }
   /** Gives a project a label, or takes it away (null). */
@@ -249,6 +254,7 @@ export function reduce(data: SquintData, action: Action): SquintData {
     case "project/replace-source":
       return replaceSource(data, action);
     case "project/delete":
+    case "project/abandon":
       return {
         ...data,
         projects: data.projects.filter((project) => project.id !== action.id),
