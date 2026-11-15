@@ -1,6 +1,13 @@
 import { windowChoice } from "../share/review-window";
 import type { Action } from "../store/reducer";
 import type { Comment, Snapshot, SquintData } from "../store/types";
+import {
+  CLIENT_COMMENT_GONE,
+  notAllowedMessage,
+  notAllowedPermission,
+  restoreRefusedMessage,
+  type AskContext,
+} from "./permission-copy";
 
 /**
  * What each store action asks of the workspace API (`/api/w/<id>/…`). The
@@ -40,9 +47,12 @@ const write = (
   tolerate?: readonly number[],
 ): ServerWrite => ({ method, path, body, ...(tolerate ? { tolerate } : {}) });
 
-/** The comment as the API takes it: whose it is comes from the request (`fromShare`), not the body. */
+/**
+ * The comment as the API takes it: whose it is comes from the request (the
+ * session, or `fromShare`), not the body.
+ */
 function commentBody(comment: Comment) {
-  const { projectId: _project, fromClient: _client, ...body } = comment;
+  const { projectId: _project, fromClient: _client, mine: _mine, ...body } = comment;
   return body;
 }
 
@@ -75,18 +85,19 @@ function commentWrite(
 }
 
 /**
- * Undoing a delete. A client's comment goes back as a client's while the guest's original is
- * still on the review link (the server checks); once the link is gone it can't be shown to be
- * one (404), so the second write saves it as the member's. Either way only one lands: after
- * the first, the second's id is taken (409).
+ * Undoing a delete. The server makes whoever posts a comment its author, so
+ * only the member's own goes back as a plain post (with `editedAt`, so it
+ * still says it was edited). A client's goes back only as a client's, while
+ * the guest's original is still on the review link (the server checks):
+ * once it isn't, the 404 refuses the Undo rather than re-post the client's
+ * words as the member's.
  */
 function restoreWrites(comment: Comment): ServerWrite[] {
   const path = commentsPath(comment.projectId);
   const body = commentBody(comment);
-  const plain = write("POST", path, body, [409]);
   return comment.fromClient
-    ? [write("POST", path, { ...body, fromShare: true }, [404, 409]), plain]
-    : [plain];
+    ? [write("POST", path, { ...body, fromShare: true }, [409])]
+    : [write("POST", path, body, [409])];
 }
 
 /** Client additions a pull merged: their snapshots first, which comments may sit on. */
@@ -169,6 +180,8 @@ export function writesFor(action: Action, before: SquintData, after: SquintData)
       return commentWrite(before, action.id, (projectId) =>
         write("DELETE", commentPath(projectId, action.id), {}, [404]),
       );
+    case "comment/removed":
+      return [];
     case "snapshot/add":
       return [
         write("POST", snapshotsPath(action.snapshot.projectId), snapshotBody(action.snapshot)),
@@ -210,7 +223,14 @@ export function writesFor(action: Action, before: SquintData, after: SquintData)
 }
 
 /** What to tell the person when a link's password didn't change (`status` 0: no answer). */
-export function passwordRefusal(status: number, removing: boolean): string {
+export function passwordRefusal(
+  status: number,
+  removing: boolean,
+  body: unknown,
+  context: AskContext,
+): string {
+  const permission = notAllowedPermission(status, body);
+  if (permission) return notAllowedMessage(permission, context);
   if (status === 404) return LINK_GONE;
   if (status === 400) return "Use 8 to 128 characters.";
   return removing
@@ -218,8 +238,25 @@ export function passwordRefusal(status: number, removing: boolean): string {
     : "The password didn't save. Check your connection and try again.";
 }
 
-/** What to tell the person when the server refused `action` with `status` (0: no answer). */
-export function refusalMessage(action: Action, status: number): string {
+/**
+ * What to tell the person when the server refused `action` with `status` (0:
+ * no answer) and `body`: for a switch the owner turned off since the page
+ * loaded, which one, and who to ask.
+ */
+export function refusalMessage(
+  action: Action,
+  status: number,
+  body: unknown,
+  context: AskContext,
+): string {
+  const permission = notAllowedPermission(status, body);
+  if (permission === "projects.trash" && action.type === "project/restore") {
+    return restoreRefusedMessage(action.project.name);
+  }
+  if (permission) return notAllowedMessage(permission, context);
+  if (action.type === "comment/restore" && action.comment.fromClient && status === 404) {
+    return CLIENT_COMMENT_GONE;
+  }
   const gone = status === 404 || status === 422;
   if (!gone) return SAVE_FAILED;
   if (action.type.startsWith("folder/")) return FOLDER_GONE;

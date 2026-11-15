@@ -2,8 +2,10 @@ import {
   dispatchSaved,
   dispatchToWorkspace,
   getWorkspaceState,
+  refreshWorkspace,
   requestWorkspace,
   subscribeWorkspace,
+  workspaceAskContext,
   type Result,
   type WorkspaceState,
 } from "../workspace-client/workspace-store";
@@ -49,3 +51,9 @@ export function dispatchConfirmed(action: Action): Promise<Result> {
  * save queued so far; the caller applies the answer with a local action.
  */
 export const requestDirect = requestWorkspace;
+
+/** Who a refusal the caller words itself names (the owner, the workspace). */
+export const askContext = workspaceAskContext;
+
+/** Reads the workspace from the server again, as after another tab's change. */
+export const refresh = refreshWorkspace;

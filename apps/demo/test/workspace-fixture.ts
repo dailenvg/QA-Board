@@ -1,3 +1,4 @@
+import { DEFAULT_SWITCHES, type MemberSwitch } from "@/lib/auth/permissions";
 import { createSession } from "@/lib/auth/sessions";
 import type { Database } from "@/lib/db/database";
 import type { Queryable } from "@/lib/share/migrate";
@@ -39,6 +40,39 @@ export async function seat(db: Queryable, slug: string): Promise<Seat> {
   const token = await createSession(db, userId, Date.now());
   return { workspaceId, userId, cookie: `squint_session=${token}` };
 }
+
+let members = 0;
+
+/**
+ * A member (not the owner) of `workspaceId`, signed in, with `permissions` as
+ * their switches (041's defaults when left out).
+ */
+export async function memberSeat(
+  db: Queryable,
+  workspaceId: string,
+  permissions: readonly MemberSwitch[] = DEFAULT_SWITCHES,
+  name: string | null = null,
+): Promise<Seat> {
+  members += 1;
+  const { rows } = await db.query<{ id: string }>(
+    "INSERT INTO users (email, password_hash, role, name) VALUES ($1, 'x', 'company', $2) RETURNING id",
+    [`member-${members}@members.test`, name],
+  );
+  const userId = rows[0]?.id ?? "";
+  await db.query(
+    `INSERT INTO memberships (user_id, workspace_id, role, permissions)
+     VALUES ($1, $2, 'member', $3::text[])`,
+    [userId, workspaceId, [...permissions]],
+  );
+  const token = await createSession(db, userId, Date.now());
+  return { workspaceId, userId, cookie: `squint_session=${token}` };
+}
+
+/** `seat` as an importer who may also attach review links (the owner). */
+export const importer = (seat: Pick<Seat, "userId">) => ({
+  userId: seat.userId,
+  canAttachShares: true,
+});
 
 /** A fresh database with two workspaces, A and B, each with its owner signed in. */
 export async function twoWorkspaces(): Promise<{ db: Database; a: Seat; b: Seat }> {

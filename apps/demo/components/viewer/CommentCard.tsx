@@ -10,6 +10,7 @@ import { Icon } from "../ui/Icon";
 import { ClientMark } from "./ClientMark";
 import { CommentBadge } from "./CommentBadge";
 import { CommentCropThumb } from "./CommentCropThumb";
+import { CommentEdited } from "./CommentEdited";
 import { CommentEditor } from "./CommentEditor";
 import { PlacementChip } from "./PlacementChip";
 import type { Placement } from "./surface";
@@ -30,17 +31,22 @@ interface CommentCardProps extends CommentCardActions {
   /** The page it's on, on projects with several pages. */
   pageNumber: number | null;
   /**
-   * The workspace's viewer: shows Resolve/Reopen, Edit and Delete, and marks
-   * client comments. Off on a shared link.
+   * The workspace's viewer: shows Resolve/Reopen (anyone in the workspace),
+   * and marks client comments. Off on a shared link, which shows no actions.
    */
   canModerate: boolean;
+  /** Shows Edit: the signed-in member's own comment (`commentRights`). */
+  canEdit: boolean;
+  /** Shows Delete: their own, or anyone's for the owner (`commentRights`). */
+  canDelete: boolean;
   selected: boolean;
   now: number;
 }
 
 /**
  * One comment: select it to find its pin (switching to its snapshot if
- * needed); see what the commenter saw; edit, resolve or reopen, and delete it.
+ * needed); see what the commenter saw; resolve or reopen it, and edit or
+ * delete it where that's the member's to do.
  */
 export function CommentCard({
   comment,
@@ -48,6 +54,8 @@ export function CommentCard({
   placement,
   pageNumber,
   canModerate,
+  canEdit,
+  canDelete,
   selected,
   now,
   onSelect,
@@ -61,13 +69,18 @@ export function CommentCard({
   const variants = useRevealVariants();
   const itemRef = useRef<HTMLLIElement>(null);
   const bodyId = useId();
+  const editedId = useId();
   const placementId = useId();
   const pageId = useId();
-  const described = [bodyId, pageNumber ? pageId : null, placement ? placementId : null]
+  const described = [
+    bodyId,
+    comment.editedAt ? editedId : null,
+    pageNumber ? pageId : null,
+    placement ? placementId : null,
+  ]
     .filter(Boolean)
     .join(" ");
   const resolved = comment.status === "resolved";
-  const edited = comment.updatedAt > comment.createdAt;
   // Without the action row (shared link), this keeps the card's bottom inset at 16px.
   const bottomInset = canModerate ? "" : "pb-2";
 
@@ -143,7 +156,7 @@ export function CommentCard({
           <p id={bodyId} className="mt-2 text-body break-words whitespace-pre-wrap text-ink-2">
             {comment.body}
           </p>
-          {edited ? <p className="mt-1 text-label text-muted">Edited</p> : null}
+          <CommentEdited id={editedId} editedAt={comment.editedAt} now={now} className="mt-1" />
           {pageNumber ? (
             <p
               id={pageId}
@@ -175,26 +188,30 @@ export function CommentCard({
               Resolve
             </Button>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setEditing(true)}
-            aria-label={`Edit comment ${number}`}
-            data-edit-trigger
-          >
-            <Icon name="pencil" className="size-4" />
-            Edit
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="ml-auto text-muted hover:text-danger"
-            onClick={() => onDelete(comment)}
-            aria-label={`Delete comment ${number}`}
-            title="Delete"
-          >
-            <Icon name="trash" className="size-4" />
-          </Button>
+          {canEdit ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setEditing(true)}
+              aria-label={`Edit comment ${number}`}
+              data-edit-trigger
+            >
+              <Icon name="pencil" className="size-4" />
+              Edit
+            </Button>
+          ) : null}
+          {canDelete ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ml-auto text-muted hover:text-danger"
+              onClick={() => onDelete(comment)}
+              aria-label={`Delete comment ${number}`}
+              title="Delete"
+            >
+              <Icon name="trash" className="size-4" />
+            </Button>
+          ) : null}
         </div>
       )}
     </motion.li>

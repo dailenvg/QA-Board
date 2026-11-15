@@ -113,6 +113,12 @@ export interface ShareRecord {
    * {Client} to review". Null without a name. Only a workspace's link has one.
    */
   clientName: string | null;
+  /**
+   * The workspace whose project's review link it is (022), set once attached;
+   * missing on an anonymous share. Then its owner routes also need the
+   * session's membership of it (`asOwner`). Server-side only.
+   */
+  workspaceId?: string;
 }
 
 /** A review link's password as stored: its Argon2id hash, and when it was set (epoch ms). */

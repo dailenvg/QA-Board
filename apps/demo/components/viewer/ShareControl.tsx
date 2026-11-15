@@ -30,11 +30,13 @@ import { snapshotsFor } from "@/lib/store/snapshots";
 import type { Project, ProjectShare, SquintData } from "@/lib/store/types";
 import { useIsClient } from "@/lib/use-is-client";
 import { useNow } from "@/lib/use-now";
-import { useWorkspaceIdentity } from "@/lib/workspace-client/workspace-identity";
+import { can } from "@/lib/auth/permissions";
+import { useWorkspaceAccess } from "@/lib/workspace-client/use-workspace-access";
 import { Button } from "../ui/Button";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { Icon } from "../ui/Icon";
 import { useToast, type ToastInput } from "../ui/ToastProvider";
+import { createsOnOpen, makeShareLink } from "./make-share-link";
 import { shareButtonState } from "./share-button-state";
 import { ShareDialog } from "./ShareDialog";
 
@@ -59,6 +61,11 @@ async function revokeLink(job: RevokeJob): Promise<void> {
   setRevoking(true);
   const result = await unshareProject(projectId);
   setRevoking(false);
+  // The review-links switch went off meanwhile: trying again can't work, so no Retry.
+  if (!result.ok && result.notAllowed) {
+    toast({ tone: "error", message: result.error });
+    return;
+  }
   if (!result.ok) {
     toast({
       tone: "error",
@@ -93,15 +100,18 @@ function closesNow(share: ProjectShare, choice: ReviewWindowChoice, now: number)
 /** Stands in outside a workspace (never on a signed-in page), so the invitation never names a blank. */
 const UNNAMED = "Your company";
 
-/** The company the invitation comes from, as the workspace's settings have it. */
-function useShareCompany(): string {
-  return useWorkspaceIdentity()?.name.trim() || UNNAMED;
-}
-
-/** The owner's Share button and dialog, and the sync that runs while the project is shared. */
+/**
+ * The owner's Share button and dialog, and the sync that runs while the
+ * project is shared. A member without the review-links switch never makes a
+ * link: the window opens on the one there is, to send and sync, or says
+ * there's none.
+ */
 export function ShareControl({ data, project }: ShareControlProps) {
   const toast = useToast();
-  const company = useShareCompany();
+  const access = useWorkspaceAccess();
+  // The company the invitation comes from, as the workspace's settings have it.
+  const company = access?.name.trim() || UNNAMED;
+  const canManage = access !== null && can(access, "links.manage");
   const isClient = useIsClient();
   const now = useNow();
   const [open, setOpen] = useState(false);
@@ -112,6 +122,8 @@ export function ShareControl({ data, project }: ShareControlProps) {
   const [error, setError] = useState<string | null>(null);
   /** Why the project is too big to share: no link is made, and there's nothing to try again. */
   const [tooBig, setTooBig] = useState<string | null>(null);
+  /** The review-links switch went off while making the link (a tab loaded before the change). */
+  const [refused, setRefused] = useState(false);
   /**
    * A shorter window waiting on the owner's confirmation, since it closes the
    * review now. Kept after the question closes, so its words don't change as it fades.
@@ -157,32 +169,39 @@ export function ShareControl({ data, project }: ShareControlProps) {
       return;
     }
     const replacing = status.phase === "gone";
-    if (replacing) {
-      await unshareProject(project.id);
-      resetSync(project.id);
-    }
-    // Just the project: the sync that follows sends everything else in batches.
-    const created = await ownerApi.create({ project: state.project, snapshots: [], comments: [] });
-    if (!created.ok) {
-      setCreating(false);
-      setError(created.error === "storage-unavailable" ? STORAGE_UNAVAILABLE : CREATE_FAILED);
-      return;
-    }
-    // The server's creation time: the review window counts from it, whatever this clock says.
-    const { shareId, token, ownerKey, createdAt } = created.value;
     const hours = windowHours(NEW_WINDOW);
-    const saved = await shareProject(project.id, {
-      id: shareId,
-      token,
-      ownerKey,
-      createdAt,
-      cursor: 0,
-      reviewWindowHours: hours,
-      reviewEndsAt: reviewDeadline(createdAt, hours),
+    const made = await makeShareLink(replacing, {
+      // The gone link counts as revoked even if the server didn't answer; only a refusal stops.
+      unshare: async () => {
+        const unshared = await unshareProject(project.id);
+        if (unshared.ok || !unshared.notAllowed) resetSync(project.id);
+        return unshared;
+      },
+      // Just the project: the sync that follows sends everything else in batches.
+      create: () => ownerApi.create({ project: state.project, snapshots: [], comments: [] }),
+      // The server's creation time: the review window counts from it, whatever this clock says.
+      attach: ({ shareId, token, ownerKey, createdAt }) =>
+        shareProject(project.id, {
+          id: shareId,
+          token,
+          ownerKey,
+          createdAt,
+          cursor: 0,
+          reviewWindowHours: hours,
+          reviewEndsAt: reviewDeadline(createdAt, hours),
+        }),
+      discard: ({ shareId, ownerKey }) => ownerApi.revoke({ id: shareId, ownerKey }),
     });
     setCreating(false);
-    if (!saved.ok) {
-      setError(saved.error);
+    if (!made.ok && made.refused) {
+      setRefused(true);
+      return;
+    }
+    if (!made.ok) {
+      setError(
+        made.message ??
+          (made.error === "storage-unavailable" ? STORAGE_UNAVAILABLE : CREATE_FAILED),
+      );
       return;
     }
     void pushNow(project.id);
@@ -190,16 +209,18 @@ export function ShareControl({ data, project }: ShareControlProps) {
   };
 
   // Opening Share makes the link when there's none (or it stopped working), so the window opens
-  // on its steps. A link gone while the window is open waits for the owner's button.
+  // on its steps. A link gone while the window is open waits for the owner's button. Only for
+  // a member who may make one.
   const openShare = () => {
     setOpen(true);
-    if ((!share || status.phase === "gone") && !creating) void create();
+    if (createsOnOpen(canManage, Boolean(share), status.phase === "gone", creating)) void create();
   };
 
   const close = () => {
     setOpen(false);
     setError(null);
     setTooBig(null);
+    setRefused(false);
     setReturnFocus(null);
   };
 
@@ -302,7 +323,13 @@ export function ShareControl({ data, project }: ShareControlProps) {
         onSendInvites={(addresses) => sendShareInvites(project.id, addresses)}
         onInvitesSent={(message) => toast({ message })}
         returnFocus={returnFocus}
-        onCreate={() => void create()}
+        // Refused: read-only at once, before the read that hides the switch lands.
+        canManage={canManage && !refused}
+        ownerName={access?.ownerName ?? null}
+        refused={refused}
+        onCreate={() => {
+          if (canManage) void create();
+        }}
         onRetry={() => syncNow(project.id)}
         onRevoke={() => {
           setReturnFocus("revoke");

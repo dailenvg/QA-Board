@@ -16,15 +16,18 @@ type Params = { workspaceId: string; projectId: string };
  * never the password or its hash. 404 for a project without a link, or not in
  * this workspace; 400 for a password too short or too long.
  */
-export const PUT = withMember<Params>(async (request, { db, user, workspaceId, now }, params) => {
-  const projectId = param(idSchema, params.projectId);
-  if (!projectId) return notFound();
-  const body = await readBody(request, sharePasswordSchema);
-  if (!body.ok) return body.response;
-  const actor = { userId: user.id, workspaceId };
-  const changed = await changeSharePassword(db, actor, projectId, body.value.password, now);
-  return changed ? json(changed) : notFound();
-});
+export const PUT = withMember<Params>(
+  async (request, { db, user, workspaceId, now }, params) => {
+    const projectId = param(idSchema, params.projectId);
+    if (!projectId) return notFound();
+    const body = await readBody(request, sharePasswordSchema);
+    if (!body.ok) return body.response;
+    const actor = { userId: user.id, workspaceId };
+    const changed = await changeSharePassword(db, actor, projectId, body.value.password, now);
+    return changed ? json(changed) : notFound();
+  },
+  { permission: "links.manage" },
+);
 
 /**
  * `DELETE`: removes the link's password; guests open it without one again.
@@ -38,4 +41,5 @@ export const DELETE = withMember<Params>(
     const changed = await changeSharePassword(db, actor, projectId, null, now);
     return changed ? json(changed) : notFound();
   },
+  { permission: "links.manage" },
 );

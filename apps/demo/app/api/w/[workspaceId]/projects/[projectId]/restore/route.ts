@@ -10,8 +10,11 @@ export const dynamic = "force-dynamic";
 type Params = { workspaceId: string; projectId: string };
 
 /** `POST {}`: brings a trashed project back, with its share. */
-export const POST = withMember<Params>(async (_request, { db, workspaceId }, params) => {
-  const projectId = param(idSchema, params.projectId);
-  const project = projectId && (await restoreProject(db, workspaceId, projectId));
-  return project ? json(project) : notFound();
-});
+export const POST = withMember<Params>(
+  async (_request, { db, workspaceId }, params) => {
+    const projectId = param(idSchema, params.projectId);
+    const project = projectId && (await restoreProject(db, workspaceId, projectId));
+    return project ? json(project) : notFound();
+  },
+  { permission: "projects.trash" },
+);

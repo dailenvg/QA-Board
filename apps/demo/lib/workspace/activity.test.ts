@@ -76,7 +76,7 @@ describe("client activity", () => {
     await addComment(db, a.workspaceId, "p1", comment("mine", NOW + 5 * HOUR), a.userId, NOW);
     await addComment(db, a.workspaceId, "p1", comment("g1", NOW + HOUR), null, NOW);
     await addComment(db, a.workspaceId, "p1", comment("g2", NOW + 2 * HOUR), null, NOW);
-    await updateComment(db, a.workspaceId, "p1", "g2", { status: "resolved" }, NOW);
+    await updateComment(db, a.workspaceId, "p1", "g2", { status: "resolved" }, NOW, a);
 
     // Resolved still counts as the newest client comment, but isn't open.
     const expected = [
@@ -130,7 +130,7 @@ describe("client activity", () => {
 
     // Both pulled, and the second resolved since.
     await link.pull(seq + 10, second);
-    await updateComment(db, a.workspaceId, "p1", "w2", { status: "resolved" }, NOW);
+    await updateComment(db, a.workspaceId, "p1", "w2", { status: "resolved" }, NOW, a);
     expect(await clientActivity(db, a.workspaceId)).toEqual([
       { projectId: "p1", open: 1, latestAt: NOW + 3 * HOUR, waiting: [], cursor: 0 },
     ]);

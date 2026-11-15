@@ -1,3 +1,4 @@
+import type { SwitchPermission } from "../auth/permissions";
 import { emitSquiggy } from "../squiggy/events";
 import { call, jsonInit, type ApiResult } from "../share-client/api";
 import { reduce, type Action } from "../store/reducer";
@@ -5,12 +6,14 @@ import type { SquintData } from "../store/types";
 import type {
   ClientCommentActivity,
   ShareLink,
+  SignedInWorkspace,
   StorageSummary,
   WorkspaceData,
   WorkspaceStart,
 } from "../workspace/types";
 import { createWorkspaceBlobs, type WorkspaceBlobs } from "./blob-source";
 import { refusalMessage, writesFor, type ServerWrite } from "./mutations";
+import { notAllowedPermission, type AskContext } from "./permission-copy";
 import { openTabSync, type TabSync } from "./tab-sync";
 import { fileOrphans, projectsMissingLinks, toSquintData } from "./workspace-data";
 
@@ -23,7 +26,10 @@ import { fileOrphans, projectsMissingLinks, toSquintData } from "./workspace-dat
  * dashboard and viewer; it's never touched on the server.
  */
 
-export type Result<T = undefined> = { ok: true; value: T } | { ok: false; error: string };
+export type Result<T = undefined> =
+  | { ok: true; value: T }
+  /** `notAllowed`: the switch the server refused it for (turned off since the page loaded). */
+  | { ok: false; error: string; notAllowed?: SwitchPermission };
 
 /** Why the workspace can't be shown: the session ended, or the workspace is gone for this user. */
 export type WorkspaceFailure = "signed-out" | "gone";
@@ -67,6 +73,8 @@ let state: WorkspaceState = LOADING;
 let clientActivity: readonly ClientCommentActivity[] | null = null;
 /** The workspace's storage use as of the last server read; null until this tab connects. */
 let storage: StorageSummary | null = null;
+/** The workspace, with what the member may do there, as of the last server read; null until this tab connects. */
+let access: SignedInWorkspace | null = null;
 const listeners = new Set<() => void>();
 const noticeListeners = new Set<(message: string) => void>();
 let lastNotice = { message: "", at: 0 };
@@ -129,6 +137,11 @@ function locate(key: string): string | null {
   );
 }
 
+/** Who refusals name: the owner and the workspace, as of the last read. */
+function askContext(): AskContext {
+  return { ownerName: access?.ownerName ?? null, workspaceName: access?.name ?? "" };
+}
+
 async function send(workspaceId: string, write: ServerWrite) {
   return call(`${base(workspaceId)}${write.path}`, jsonInit(write.method, write.body));
 }
@@ -148,11 +161,13 @@ async function run(target: Connection, job: Job): Promise<Result> {
       fail("signed-out");
       return { ok: false, error: UNAVAILABLE };
     }
-    const error = refusalMessage(job.action, result.status);
+    const error = refusalMessage(job.action, result.status, result.body, askContext());
+    const notAllowed = notAllowedPermission(result.status, result.body);
+    // The read after the rollback brings this tab the switches as they are now.
     rollBack(job);
     emitSquiggy({ type: "save-failed" });
     if (!job.quiet) notice(error);
-    return { ok: false, error };
+    return notAllowed ? { ok: false, error, notAllowed } : { ok: false, error };
   }
   if (job.writes.length > 0) {
     lastSavedAt = Date.now();
@@ -211,7 +226,8 @@ const DISCONNECTED = { ok: false, status: 0, error: "unavailable" } as const;
  * A request no action carries, for a write holding a secret the store must
  * never keep (a review link's password). Sent once every request queued so
  * far has been answered, so it lands after the link it changes; other tabs
- * hear of it as of any save. The caller applies the answer.
+ * hear of it as of any save. The caller applies the answer. A switch that
+ * refused it reads the workspace again, so the refused control goes.
  */
 export async function requestWorkspace<T>(
   method: ServerWrite["method"],
@@ -227,7 +243,13 @@ export async function requestWorkspace<T>(
     lastSavedAt = Date.now();
     target.tabs.announce();
   } else if (result.status === 401) fail("signed-out");
+  else if (notAllowedPermission(result.status, result.body)) void refreshWorkspace();
   return result;
+}
+
+/** Who to name in a refusal the caller words itself (`permission-copy`). */
+export function workspaceAskContext(): AskContext {
+  return askContext();
 }
 
 function fileProjects(): void {
@@ -269,6 +291,7 @@ async function read(target: Connection): Promise<void> {
   // A server without the summary yet (mid-deploy) has none to give.
   clientActivity = result.value.clientActivity ?? [];
   storage = result.value.storage ?? null;
+  access = result.value.workspace;
   setData(toSquintData(result.value, target.links));
   target.blobs.retryMissing();
   fileProjects();
@@ -317,6 +340,7 @@ function adopt(target: Connection, start: WorkspaceStart): void {
   changes += 1;
   clientActivity = start.data.clientActivity;
   storage = start.data.storage;
+  access = start.data.workspace;
   state = startState(start);
   emit();
   target.blobs.retryMissing();
@@ -371,6 +395,15 @@ export function getClientActivity(): readonly ClientCommentActivity[] | null {
  */
 export function getWorkspaceStorage(): StorageSummary | null {
   return storage;
+}
+
+/**
+ * The workspace and what the member may do there (`role`, `permissions`), as
+ * of the server's last read; null before this tab connects. Changes notify
+ * `subscribeWorkspace`.
+ */
+export function getWorkspaceAccess(): SignedInWorkspace | null {
+  return access;
 }
 
 export function subscribeWorkspace(listener: () => void): () => void {

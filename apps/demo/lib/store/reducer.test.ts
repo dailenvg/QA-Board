@@ -124,6 +124,30 @@ describe("snapshots in the reducer", () => {
     expect(reduce(data, { type: "comment/set-crop", id: "gone", crop })).toBe(data);
   });
 
+  it("marks a comment edited only when its words change", () => {
+    const same = reduce(legacy(), { type: "comment/edit", id: "c1", body: "same", at: 50 });
+    const body = same.comments.find((entry) => entry.id === "c1")?.body ?? "";
+    const unchanged = reduce(same, { type: "comment/edit", id: "c1", body, at: 60 });
+    expect(unchanged.comments.find((entry) => entry.id === "c1")).toMatchObject({
+      editedAt: 50,
+      updatedAt: 60,
+    });
+    const resolved = reduce(unchanged, {
+      type: "comment/set-status",
+      id: "c1",
+      status: "resolved",
+      at: 70,
+    });
+    expect(resolved.comments.find((entry) => entry.id === "c1")?.editedAt).toBe(50);
+    const first = reduce(legacy(), {
+      type: "comment/set-status",
+      id: "c1",
+      status: "resolved",
+      at: 9,
+    });
+    expect(first.comments.find((entry) => entry.id === "c1")).not.toHaveProperty("editedAt");
+  });
+
   it("keeps a deleted project's image referenced again after undo", () => {
     const data = legacy();
     expect(referencedBlobKeys(data).has("image:mock")).toBe(true);

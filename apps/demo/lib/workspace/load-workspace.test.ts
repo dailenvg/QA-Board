@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addFolder,
+  memberSeat,
   NOW,
   PAGES_PROJECT,
   PNG,
@@ -59,11 +60,14 @@ describe("loadWorkspace", () => {
       name: "acme",
       fromEmailName: null,
       brandColor: null,
+      role: "owner",
+      permissions: ["review_links", "trash", "import"],
+      ownerName: "Ana",
     });
     expect(data.folders.map((folder) => folder.id)).toEqual(["f1"]);
     expect(data.projects.map((project) => project.id).sort()).toEqual(["deck", "web"]);
     expect(data.snapshots.map((snapshot) => snapshot.id)).toEqual(["s1"]);
-    expect(data.comments.map((comment) => comment.id)).toEqual(["c1"]);
+    expect(data.comments.map((comment) => [comment.id, comment.mine])).toEqual([["c1", true]]);
     expect(data.clientActivity).toEqual([]);
     expect(data.storage).toEqual({ bytes: PNG.length, blobCount: 1, quotaBytes: 5 * 1024 ** 3 });
     expect(data.authorName).toBe("Ana");
@@ -72,5 +76,30 @@ describe("loadWorkspace", () => {
     expect(wire).not.toContain("ws/");
     expect(wire).not.toContain(a.userId);
     expect(await authorName(db, b.userId)).toBeNull();
+  });
+
+  it("tells a member what they may do, and the owner's name, but not whose comments are whose", async () => {
+    const { db, a } = await twoWorkspaces();
+    await setAuthorName(db, a.userId, "Dailen");
+    await addFolder(db, a.workspaceId);
+    await createProject(db, a.workspaceId, URL_PROJECT("web"), NOW);
+    await addComment(
+      db,
+      a.workspaceId,
+      "web",
+      { id: "c1", x: 1, y: 1, body: "Hi", author: "Dailen", status: "active" },
+      a.userId,
+      NOW,
+    );
+    const ben = await memberSeat(db, a.workspaceId, ["import"], "Ben");
+    const membership = await findMembership(db, ben.userId, a.workspaceId);
+    if (!membership) throw new Error("no membership");
+    const data = await loadWorkspace(db, membership, ben.userId);
+    expect(data.workspace).toMatchObject({
+      role: "member",
+      permissions: ["import"],
+      ownerName: "Dailen",
+    });
+    expect(data.comments[0]).not.toHaveProperty("mine");
   });
 });

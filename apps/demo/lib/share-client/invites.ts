@@ -26,7 +26,9 @@ export type InviteResult =
   /** The link doesn't open: revoked or gone (`gone`), or its project archived (`closed`). */
   | { ok: false; reason: "gone" | "closed" }
   /** No answer, or Resend refused: nothing went, and trying again may work. */
-  | { ok: false; reason: "failed" };
+  | { ok: false; reason: "failed" }
+  /** The member's review-links switch went off since the page loaded: `message` says so. */
+  | { ok: false; reason: "not-allowed"; message: string };
 
 function addressesOf(body: unknown): string[] {
   const addresses = (body as { addresses?: unknown } | null)?.addresses;
@@ -115,5 +117,7 @@ export function inviteError(
       return "Email isn't set up on this site, so nothing was sent. Use Copy link or Messages instead.";
     case "failed":
       return "The invites didn't go out. Check your connection and try again.";
+    case "not-allowed":
+      return result.message;
   }
 }

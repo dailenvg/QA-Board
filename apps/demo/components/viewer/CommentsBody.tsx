@@ -6,6 +6,7 @@ import { staggerGroup, useRevealVariants } from "@/lib/motion";
 import type { Comment } from "@/lib/store/types";
 import { StateArt } from "../ui/line-art/StateArt";
 import { CommentCard, type CommentCardActions } from "./CommentCard";
+import { commentRights } from "./comment-rights";
 import type { Placement } from "./surface";
 import type { CommentTab } from "./types";
 
@@ -15,6 +16,8 @@ interface CommentsBodyProps extends CommentCardActions {
   placements: ReadonlyMap<string, Placement | null>;
   /** False on a shared link: comments can be read and selected, not changed. */
   canModerate: boolean;
+  /** The workspace's owner (`comment.moderate`): may delete anyone's comment. */
+  moderator: boolean;
   /** Picked in the panel's header (`PanelHeading`). */
   tab: CommentTab;
   selectedId: string | null;
@@ -59,6 +62,7 @@ export function CommentsBody({
   numbers,
   placements,
   canModerate,
+  moderator,
   tab,
   selectedId,
   now,
@@ -84,19 +88,24 @@ export function CommentsBody({
         className="relative flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 pb-3"
       >
         <AnimatePresence mode="popLayout">
-          {shown.map((comment) => (
-            <CommentCard
-              key={comment.id}
-              comment={comment}
-              number={numbers.get(comment.id) ?? 0}
-              placement={placements.get(comment.id) ?? null}
-              pageNumber={(comment.pageId && pageNumbers?.get(comment.pageId)) || null}
-              canModerate={canModerate}
-              selected={comment.id === selectedId}
-              now={now}
-              {...actions}
-            />
-          ))}
+          {shown.map((comment) => {
+            const rights = commentRights(comment, { team: canModerate, moderator });
+            return (
+              <CommentCard
+                key={comment.id}
+                comment={comment}
+                number={numbers.get(comment.id) ?? 0}
+                placement={placements.get(comment.id) ?? null}
+                pageNumber={(comment.pageId && pageNumbers?.get(comment.pageId)) || null}
+                canModerate={canModerate}
+                canEdit={rights.edit}
+                canDelete={rights.delete !== null}
+                selected={comment.id === selectedId}
+                now={now}
+                {...actions}
+              />
+            );
+          })}
           {shown.length === 0 ? (
             <motion.li
               key={`empty-${tab}`}

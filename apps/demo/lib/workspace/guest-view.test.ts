@@ -4,6 +4,7 @@ import { seedLogo } from "@/test/brand-fixture";
 import { routeFetch } from "@/test/route-fetch";
 import { COMMENT, PNG, SNAPSHOT, STATE } from "@/test/share-fixture";
 import {
+  importer,
   NOW,
   TEST_AUTH_SECRET,
   twoWorkspaces,
@@ -56,7 +57,7 @@ describe("a workspace's share, seen by its guest", () => {
     const imported = await importData(
       db,
       a.workspaceId,
-      a.userId,
+      importer(a),
       importSchema.parse({
         folders: [{ id: "f1", name: "F", createdAt: NOW }],
         projects: [

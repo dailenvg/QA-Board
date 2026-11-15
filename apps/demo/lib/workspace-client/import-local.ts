@@ -92,10 +92,16 @@ export type ImportFailure =
   /** The browser won't open its image store at all (a private window): retrying here can't help. */
   | "images-blocked"
   /** The server can't accept the folders: retrying can't help. */
-  | "folders";
+  | "folders"
+  /** The member's import switch went off since the page loaded: retrying can't help. */
+  | "not-allowed";
 
 /** Failures a Retry in this same window can't get past. */
-export const RETRY_WONT_HELP: ReadonlySet<ImportFailure> = new Set(["images-blocked", "folders"]);
+export const RETRY_WONT_HELP: ReadonlySet<ImportFailure> = new Set([
+  "images-blocked",
+  "folders",
+  "not-allowed",
+]);
 
 export interface ImportProgress {
   stage: "projects" | "files";
@@ -226,6 +232,7 @@ function requestOf(
 function failureOf(result: { status: number; error: string }): ImportFailure {
   if (result.status === 0) return "offline";
   if (result.status === 401) return "signed-out";
+  if (result.status === 403 && result.error === "not-allowed") return "not-allowed";
   if (result.status === 413 && result.error === "quota") return "storage-full";
   return "server";
 }

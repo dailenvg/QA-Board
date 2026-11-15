@@ -52,20 +52,23 @@ function refused(outcome: Exclude<InviteOutcome, { ok: true }>): Response {
  * without Resend settings (nothing sent or counted); 502 `send-failed`. Keeps no list of
  * who was invited: the audit log holds HMACs of the addresses only.
  */
-export const POST = withMember<Params>(async (request, { db, user, workspaceId, now }, params) => {
-  const projectId = param(idSchema, params.projectId);
-  if (!projectId) return notFound();
-  const body = await readBody(request, shareInvitesSchema);
-  if (!body.ok) return body.response;
-  const { addresses, invalid } = prepareInvitees(body.value.addresses);
-  if (invalid.length || addresses.length === 0) {
-    return json({ error: "invalid-addresses", addresses: invalid }, 400);
-  }
-  const actor = { userId: user.id, workspaceId };
-  const outcome = await sendInvites(db, actor, projectId, addresses, now, {
-    send: inviteEmailSender(),
-  });
-  return outcome.ok
-    ? json({ sent: outcome.sent, invitedCount: outcome.invitedCount })
-    : refused(outcome);
-});
+export const POST = withMember<Params>(
+  async (request, { db, user, workspaceId, now }, params) => {
+    const projectId = param(idSchema, params.projectId);
+    if (!projectId) return notFound();
+    const body = await readBody(request, shareInvitesSchema);
+    if (!body.ok) return body.response;
+    const { addresses, invalid } = prepareInvitees(body.value.addresses);
+    if (invalid.length || addresses.length === 0) {
+      return json({ error: "invalid-addresses", addresses: invalid }, 400);
+    }
+    const actor = { userId: user.id, workspaceId };
+    const outcome = await sendInvites(db, actor, projectId, addresses, now, {
+      send: inviteEmailSender(),
+    });
+    return outcome.ok
+      ? json({ sent: outcome.sent, invitedCount: outcome.invitedCount })
+      : refused(outcome);
+  },
+  { permission: "links.manage" },
+);

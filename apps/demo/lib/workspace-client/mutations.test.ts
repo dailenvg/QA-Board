@@ -54,6 +54,8 @@ const DATA: SquintData = {
 
 const writes = (action: Action) => writesFor(action, DATA, reduce(DATA, action));
 
+const CONTEXT = { ownerName: "Dailen", workspaceName: "Acme" };
+
 describe("writesFor", () => {
   it("trashes every project in a folder's subtree before deleting the folder", () => {
     expect(writes({ type: "folder/delete", id: "f1", at: 9 })).toEqual([
@@ -81,21 +83,40 @@ describe("writesFor", () => {
     expect(write?.body).not.toHaveProperty("projectId");
   });
 
-  it("restores a client's comment as a client's while its review link has it, else as the member's", () => {
+  it("restores a client's comment only as a client's: never re-posted as the member's", () => {
     const restored = writes({ type: "comment/restore", comment: { ...comment, fromClient: true } });
     const body = { ...comment, projectId: undefined };
+    // A 404 (the review link no longer has it) refuses the Undo.
     expect(restored).toEqual([
-      // 404 once the guest's original is gone from the link: then the next write saves it.
       {
         method: "POST",
         path: "/projects/p1/comments",
         body: { ...body, fromShare: true },
-        tolerate: [404, 409],
+        tolerate: [409],
       },
-      // 409 when the first one saved it.
-      { method: "POST", path: "/projects/p1/comments", body, tolerate: [409] },
     ]);
     expect(restored[0]?.body).not.toHaveProperty("fromClient");
+    const action: Action = { type: "comment/restore", comment: { ...comment, fromClient: true } };
+    expect(refusalMessage(action, 404, null, CONTEXT)).toBe(
+      "Couldn't bring the comment back, because it's no longer on the review link.",
+    );
+  });
+
+  it("restores the member's own edited comment with when it was edited, and never says whose", () => {
+    const own: Comment = { ...comment, id: "c2", editedAt: 7, mine: true };
+    const [write] = writes({ type: "comment/restore", comment: own });
+    expect(write?.body).toMatchObject({ id: "c2", editedAt: 7 });
+    expect(write?.body).not.toHaveProperty("mine");
+  });
+
+  it("never sends whose a new comment is", () => {
+    const [write] = writes({ type: "comment/add", comment: { ...comment, id: "c3", mine: true } });
+    expect(write?.body).not.toHaveProperty("mine");
+  });
+
+  it("sends nothing to take out a comment the server already deleted", () => {
+    expect(writes({ type: "comment/removed", id: "c1" })).toEqual([]);
+    expect(reduce(DATA, { type: "comment/removed", id: "c1" }).comments).toEqual([]);
   });
 
   it("saves a pull's snapshots before its comments, then the new pull position", () => {
@@ -163,9 +184,9 @@ describe("review window writes", () => {
   });
 
   it("says the link is gone when the server no longer has it", () => {
-    expect(refusalMessage({ type: "share/window", id: "p3", hours: 24 }, 404)).toMatch(
-      /share link is no longer here/,
-    );
+    expect(
+      refusalMessage({ type: "share/window", id: "p3", hours: 24 }, 404, null, CONTEXT),
+    ).toMatch(/share link is no longer here/);
   });
 });
 
@@ -176,10 +197,10 @@ describe("link password", () => {
   });
 
   it("says why a change didn't happen", () => {
-    expect(passwordRefusal(404, false)).toMatch(/share link is no longer here/);
-    expect(passwordRefusal(400, false)).toBe("Use 8 to 128 characters.");
-    expect(passwordRefusal(0, false)).toMatch(/didn't save/);
-    expect(passwordRefusal(500, true)).toMatch(/wasn't removed/);
+    expect(passwordRefusal(404, false, null, CONTEXT)).toMatch(/share link is no longer here/);
+    expect(passwordRefusal(400, false, null, CONTEXT)).toBe("Use 8 to 128 characters.");
+    expect(passwordRefusal(0, false, null, CONTEXT)).toMatch(/didn't save/);
+    expect(passwordRefusal(500, true, null, CONTEXT)).toMatch(/wasn't removed/);
   });
 });
 
@@ -206,11 +227,48 @@ describe("archive and label writes", () => {
 describe("refusalMessage", () => {
   it("says a thing was deleted elsewhere for a 404, and asks to retry otherwise", () => {
     const rename: Action = { type: "project/rename", id: "p1", name: "X", at: 2 };
-    expect(refusalMessage(rename, 404)).toMatch(/deleted in another tab/);
-    expect(refusalMessage({ type: "folder/rename", id: "f1", name: "X" }, 404)).toMatch(
-      /This folder is no longer here/,
+    expect(refusalMessage(rename, 404, null, CONTEXT)).toMatch(/deleted in another tab/);
+    expect(
+      refusalMessage({ type: "folder/rename", id: "f1", name: "X" }, 404, null, CONTEXT),
+    ).toMatch(/This folder is no longer here/);
+    expect(refusalMessage(rename, 0, null, CONTEXT)).toBe(SAVE_FAILED);
+    expect(refusalMessage(rename, 500, null, CONTEXT)).toBe(SAVE_FAILED);
+  });
+});
+
+describe("refusals from a switch turned off since the page loaded", () => {
+  const off = (permission: string) => ({ error: "not-allowed", permission });
+
+  it("names the switch and who to ask, wherever the action was", () => {
+    const trash: Action = { type: "project/delete", id: "p1", at: 2 };
+    expect(refusalMessage(trash, 403, off("projects.trash"), CONTEXT)).toBe(
+      "You can no longer move projects to trash or restore them. Ask Dailen if you need to.",
     );
-    expect(refusalMessage(rename, 0)).toBe(SAVE_FAILED);
-    expect(refusalMessage(rename, 500)).toBe(SAVE_FAILED);
+    const window: Action = { type: "share/window", id: "p3", hours: 24 };
+    expect(refusalMessage(window, 403, off("links.manage"), CONTEXT)).toBe(
+      "You can no longer change this link. Ask Dailen if you need to.",
+    );
+    expect(passwordRefusal(403, false, off("links.manage"), CONTEXT)).toBe(
+      "You can no longer change this link. Ask Dailen if you need to.",
+    );
+  });
+
+  it("says why Undo can't bring a trashed project back, without asking anyone", () => {
+    const restore: Action = {
+      type: "project/restore",
+      project: project("p9", "f1"),
+      comments: [],
+      snapshots: [],
+    };
+    expect(refusalMessage(restore, 403, off("projects.trash"), CONTEXT)).toBe(
+      "Couldn't bring back p9, because you can no longer restore projects.",
+    );
+  });
+
+  it("asks the workspace's owner when they have no name", () => {
+    const trash: Action = { type: "project/delete", id: "p1", at: 2 };
+    expect(
+      refusalMessage(trash, 403, off("projects.trash"), { ownerName: null, workspaceName: "Acme" }),
+    ).toMatch(/Ask the workspace's owner if you need to\.$/);
   });
 });

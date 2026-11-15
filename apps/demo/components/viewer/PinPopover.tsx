@@ -10,6 +10,7 @@ import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { ClientMark } from "./ClientMark";
 import { CommentBadge } from "./CommentBadge";
+import { CommentEdited } from "./CommentEdited";
 import { PlacementChip } from "./PlacementChip";
 import type { Placement } from "./surface";
 
@@ -114,6 +115,7 @@ export function PinPopover({
   const [side, setSide] = useState<Side>(() => guess(comment));
   const titleId = useId();
   const bodyId = useId();
+  const editedId = useId();
   const placementId = useId();
   const resolved = comment.status === "resolved";
   const onCloseRef = useRef(onClose);
@@ -186,7 +188,7 @@ export function PinPopover({
       id={id}
       role="dialog"
       aria-labelledby={titleId}
-      aria-describedby={bodyId}
+      aria-describedby={comment.editedAt ? `${bodyId} ${editedId}` : bodyId}
       tabIndex={-1}
       data-testid="pin-popover"
       variants={variants}
@@ -249,6 +251,7 @@ export function PinPopover({
       >
         {comment.body}
       </p>
+      <CommentEdited id={editedId} editedAt={comment.editedAt} now={now} />
       {placement ? <PlacementChip id={placementId} placement={placement} now={now} /> : null}
       {canModerate ? (
         <div className="flex justify-end pt-1">

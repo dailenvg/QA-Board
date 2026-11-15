@@ -23,11 +23,22 @@ export async function PATCH(request: Request, { params }: Params) {
   });
 }
 
-/** `DELETE`: revokes the link and deletes everything the server holds for it. */
+/**
+ * `DELETE`: revokes the link and deletes everything the server holds for it.
+ * A workspace's link also needs the review-links switch (`links.manage`), as
+ * revoking it from the workspace does; an anonymous one (just made, not yet
+ * attached) only its key.
+ */
 export async function DELETE(request: Request, { params }: Params) {
   const { shareId } = await params;
-  return asOwner(request, shareId, "ownerWrite", async ({ services, share }) => {
-    await revokeShare(services, share);
-    return new Response(null, { status: 204 });
-  });
+  return asOwner(
+    request,
+    shareId,
+    "ownerWrite",
+    async ({ services, share }) => {
+      await revokeShare(services, share);
+      return new Response(null, { status: 204 });
+    },
+    { permission: "links.manage" },
+  );
 }

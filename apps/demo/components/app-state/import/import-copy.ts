@@ -6,6 +6,7 @@ import {
   type SkippedItem,
   type SkipReason,
 } from "@/lib/workspace-client/import-local";
+import { notAllowedMessage } from "@/lib/workspace-client/permission-copy";
 import type { LocalCounts, LocalImportState } from "@/lib/workspace-client/use-local-import";
 
 /** Every line the import dialog shows, in one place for review. */
@@ -44,7 +45,7 @@ export function offerDetail(counts: LocalCounts): string {
   return `This browser has ${listed(parts.length > 0 ? parts : [count(0, "project")])}.`;
 }
 
-export const FAILURE_COPY: Record<ImportFailure, string> = {
+export const FAILURE_COPY: Record<Exclude<ImportFailure, "not-allowed">, string> = {
   offline: "We couldn't reach Squint. Check your connection, then try again.",
   "signed-out": "You've been signed out. Sign in again and we'll offer to import again.",
   "storage-full": "Your workspace is out of storage. Free up some space, then try again.",
@@ -141,10 +142,18 @@ export function discardDetail(counts: LocalCounts | null): string {
   return `This deletes ${what} from this browser. Nothing will be imported, and this can't be undone.`;
 }
 
+/** Why the import stopped, naming who to ask when the import switch went off meanwhile. */
+function failureCopy(failure: ImportFailure, workspace: string, ownerName: string | null): string {
+  return failure === "not-allowed"
+    ? notAllowedMessage("workspace.import", { ownerName, workspaceName: workspace })
+    : FAILURE_COPY[failure];
+}
+
 /** The dialog's title and description for each view. */
 export function dialogText(
   state: Exclude<LocalImportState, { view: "hidden" }>,
   workspace: string,
+  ownerName: string | null = null,
 ): { title: string; description: string } {
   switch (state.view) {
     case "offer":
@@ -163,7 +172,10 @@ export function dialogText(
         description: "Keep this page open until it's done.",
       };
     case "failed":
-      return { title: "The import didn't finish", description: FAILURE_COPY[state.failure] };
+      return {
+        title: "The import didn't finish",
+        description: failureCopy(state.failure, workspace, ownerName),
+      };
     case "done":
       return {
         title: state.report.cleared ? `Imported into ${workspace}` : "Some items weren't imported",

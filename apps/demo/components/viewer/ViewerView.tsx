@@ -28,10 +28,14 @@ import { DELETION_EXPLANATION, deletionWhen } from "../ui/deletion-when";
 import type { MenuHandle } from "../ui/Menu";
 import { useToast } from "../ui/ToastProvider";
 import { useViewerBackend, type PendingCrop } from "@/lib/viewer-backend/backend";
+import { can } from "@/lib/auth/permissions";
+import { useWorkspaceAccess } from "@/lib/workspace-client/use-workspace-access";
 import { BREAKPOINT_LABEL, BreakpointSwitch } from "./BreakpointSwitch";
 import { CanvasLayer } from "./CanvasLayer";
 import { CommentsBody } from "./CommentsBody";
 import { CommentsPanel } from "./CommentsPanel";
+import { commentRights } from "./comment-rights";
+import { DeleteOthersCommentDialog } from "./DeleteOthersCommentDialog";
 import { ExportMenu } from "./ExportMenu";
 import { PageFilter, type PageScope } from "./PageFilter";
 import { PageStrip } from "./PageStrip";
@@ -100,6 +104,9 @@ export function ViewerView({
   const toast = useToast();
   const backend = useViewerBackend();
   const owner = backend.role === "owner";
+  const access = useWorkspaceAccess();
+  // The workspace's owner, not just its viewer (`owner` above): deletes anyone's comment.
+  const moderator = owner && access !== null && can(access, "comment.moderate");
   const now = useNow();
   const reduce = useReducedMotion();
   const docked = !useMediaQuery("(min-width: 1024px)");
@@ -128,6 +135,7 @@ export function ViewerView({
   const [stageVersion, setStageVersion] = useState(0);
   const [celebrating, celebrate] = useTimedFlag(CELEBRATION_MS);
   const deleting = useDialogState<Comment>();
+  const moderating = useDialogState<Comment>();
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const exportMenuRef = useRef<MenuHandle>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -365,6 +373,41 @@ export function ViewerView({
     },
   });
 
+  /** Someone else's comment asks first and has no Undo (`commentRights`); the rest have Undo. */
+  const askToDelete = (comment: Comment) => {
+    if (commentRights(comment, { team: owner, moderator }).delete === "confirm") {
+      moderating.show(comment);
+    } else deleting.show(comment);
+  };
+
+  /**
+   * After someone else's comment is deleted, focus goes to the card after it
+   * on this tab, else the one before, else the panel's heading: never the page.
+   */
+  const focusAfterRemoval = (removed: Comment) => {
+    const shown = listed.filter((comment) => comment.status === tab);
+    const at = shown.findIndex((comment) => comment.id === removed.id);
+    const neighbour = shown[at + 1] ?? shown[at - 1];
+    forget(removed.id);
+    setOpenId((current) => (current === removed.id ? null : current));
+    // Two frames: after the dialog has handed focus back to the card that's leaving.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const card = neighbour
+          ? document.querySelector<HTMLElement>(
+              `[data-comment-id="${CSS.escape(neighbour.id)}"] [data-card-select]`,
+            )
+          : null;
+        const heading = document.querySelector<HTMLElement>('[data-testid="comments-panel"] h2');
+        if (card) card.focus();
+        else if (heading) {
+          heading.tabIndex = -1;
+          heading.focus();
+        }
+      }),
+    );
+  };
+
   /** Escape and the close button hand focus back to the pin; a click elsewhere keeps it there. */
   const closePopover = (returnFocus: boolean) => {
     const id = openId;
@@ -467,11 +510,12 @@ export function ViewerView({
       }
       pageNumbers={pageNumbers}
       canModerate={owner}
+      moderator={moderator}
       onSelect={(id) => select(id, "card")}
       onEdit={commentActions.edit}
       onResolve={commentActions.resolve}
       onReopen={commentActions.reopen}
-      onDelete={deleting.show}
+      onDelete={askToDelete}
     />
   );
 
@@ -601,6 +645,14 @@ export function ViewerView({
           deleting.close();
           if (target) commentActions.remove(target);
         }}
+      />
+      <DeleteOthersCommentDialog
+        open={moderating.open}
+        comment={moderating.payload}
+        ownerName={access?.ownerName ?? null}
+        onClose={moderating.close}
+        onDeleted={focusAfterRemoval}
+        toast={toast}
       />
     </div>
   );

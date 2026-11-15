@@ -1,4 +1,5 @@
 import type { Queryable } from "../share/migrate";
+import { knownSwitches, type MemberSwitch } from "./permissions";
 
 export type MembershipRole = "owner" | "member";
 
@@ -7,6 +8,20 @@ export interface Membership {
   slug: string;
   name: string;
   role: MembershipRole;
+  /**
+   * The owner's switches for this member (041), read with the membership on
+   * every request, so a change binds the member's next one. The owner's row
+   * has them too, but `can` never reads an owner's.
+   */
+  permissions: MemberSwitch[];
+}
+
+type MembershipRow = Omit<Membership, "permissions"> & { permissions: string[] | null };
+
+const COLUMNS = `w.id AS "workspaceId", w.slug, w.name, m.role, m.permissions`;
+
+function toMembership({ permissions, ...row }: MembershipRow): Membership {
+  return { ...row, permissions: knownSwitches(permissions) };
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -25,27 +40,29 @@ export async function findMembership(
   workspaceId: string,
 ): Promise<Membership | null> {
   if (!UUID.test(workspaceId)) return null;
-  const { rows } = await db.query<Membership>(
-    `SELECT w.id AS "workspaceId", w.slug, w.name, m.role
+  const { rows } = await db.query<MembershipRow>(
+    `SELECT ${COLUMNS}
      FROM memberships AS m JOIN workspaces AS w ON w.id = m.workspace_id
      WHERE m.user_id = $1 AND m.workspace_id = $2 AND ${OPEN_WORKSPACE}`,
     [userId, workspaceId],
   );
-  return rows[0] ?? null;
+  return rows[0] ? toMembership(rows[0]) : null;
 }
 
 /**
  * The workspace the user works in: their oldest membership of an open
- * workspace (Phase 1 has one per company user), or null, as for the
- * admin, who belongs to none. Check it with `requireMember` before use.
+ * workspace, or null, as for the admin, who belongs to none. One workspace
+ * per person is an invariant, not a schema rule: inviting and accepting
+ * refuse an address that has a membership anywhere (a unique index would
+ * break restoring an account). Check it with `requireMember` before use.
  */
 export async function findOwnWorkspace(db: Queryable, userId: string): Promise<Membership | null> {
-  const { rows } = await db.query<Membership>(
-    `SELECT w.id AS "workspaceId", w.slug, w.name, m.role
+  const { rows } = await db.query<MembershipRow>(
+    `SELECT ${COLUMNS}
      FROM memberships AS m JOIN workspaces AS w ON w.id = m.workspace_id
      WHERE m.user_id = $1 AND ${OPEN_WORKSPACE}
      ORDER BY m.created_at, w.id LIMIT 1`,
     [userId],
   );
-  return rows[0] ?? null;
+  return rows[0] ? toMembership(rows[0]) : null;
 }

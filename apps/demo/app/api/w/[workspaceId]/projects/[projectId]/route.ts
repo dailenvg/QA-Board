@@ -27,8 +27,11 @@ export const PATCH = withMember<Params>(async (request, { db, workspaceId, now }
 });
 
 /** `DELETE`: moves the project to the trash (restorable until the cron deletes it for good). */
-export const DELETE = withMember<Params>(async (_request, { db, workspaceId, now }, params) => {
-  const projectId = param(idSchema, params.projectId);
-  const trashed = projectId !== null && (await trashProject(db, workspaceId, projectId, now));
-  return trashed ? noContent() : notFound();
-});
+export const DELETE = withMember<Params>(
+  async (_request, { db, workspaceId, now }, params) => {
+    const projectId = param(idSchema, params.projectId);
+    const trashed = projectId !== null && (await trashProject(db, workspaceId, projectId, now));
+    return trashed ? noContent() : notFound();
+  },
+  { permission: "projects.trash" },
+);

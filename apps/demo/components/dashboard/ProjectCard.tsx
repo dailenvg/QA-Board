@@ -8,6 +8,7 @@ import { projectHref } from "@/lib/routes";
 import { isArchived } from "@/lib/store/archive";
 import type { ProjectSummary } from "@/lib/store/selectors";
 import type { Project } from "@/lib/store/types";
+import { useCan } from "@/lib/workspace-client/use-workspace-access";
 import { shortDate } from "../ui/deletion-when";
 import { Icon } from "../ui/Icon";
 import { Menu, type MenuItem } from "../ui/Menu";
@@ -33,13 +34,14 @@ interface ProjectCardProps extends ProjectCardActions {
   now: number;
 }
 
+/** The card's menu; Delete only for whoever may move projects to the trash. */
 function menuItems(
   project: Project,
-  canMove: boolean,
+  { canMove, canTrash }: { canMove: boolean; canTrash: boolean },
   { onRename, onMove, onLabel, onArchive, onDelete }: ProjectCardActions,
 ): MenuItem[] {
   const archived = isArchived(project);
-  return [
+  const items: MenuItem[] = [
     { label: "Rename", icon: "pencil", onSelect: () => onRename(project) },
     {
       label: "Move to folder",
@@ -57,8 +59,13 @@ function menuItems(
       icon: archived ? "archiveRestore" : "archive",
       onSelect: () => onArchive(project),
     },
-    { label: "Delete", icon: "trash", onSelect: () => onDelete(project), danger: true },
   ];
+  return canTrash
+    ? [
+        ...items,
+        { label: "Delete", icon: "trash", onSelect: () => onDelete(project), danger: true },
+      ]
+    : items;
 }
 
 /**
@@ -70,6 +77,7 @@ export function ProjectCard({ summary, canMove, now, ...actions }: ProjectCardPr
   const { project, counts, status, previewKey } = summary;
   const reduce = useReducedMotion();
   const variants = useRevealVariants();
+  const canTrash = useCan("projects.trash");
   // Dates wait for the browser's clock and locale (`now` is 0 on the server).
   const deletesOn = project.deleteAfter !== undefined && now ? project.deleteAfter : null;
 
@@ -107,7 +115,7 @@ export function ProjectCard({ summary, canMove, now, ...actions }: ProjectCardPr
           className="relative z-10 -mr-1"
           label={`Actions for ${project.name}`}
           testId="project-menu"
-          items={menuItems(project, canMove, actions)}
+          items={menuItems(project, { canMove, canTrash }, actions)}
         />
       </div>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-2">

@@ -28,6 +28,8 @@ interface ShareRow {
   password_set_at: Date | string | null;
   /** Null without a name (038). */
   client_name: string | null;
+  /** Null on an anonymous share (022). */
+  workspace_id: string | null;
 }
 
 interface ItemRow<T> {
@@ -48,8 +50,11 @@ interface BlobRow {
 const SHARE_COLUMNS =
   "id, token_hash, owner_key_hash, project, created_at, updated_at, expires_at, review_window_hours";
 
-/** What a read selects: a new share has no password or client name, so `create` writes neither. */
-const READ_COLUMNS = `${SHARE_COLUMNS}, password_hash, password_set_at, client_name`;
+/**
+ * What a read selects: a new share has no password, client name or workspace,
+ * so `create` writes none of them.
+ */
+const READ_COLUMNS = `${SHARE_COLUMNS}, password_hash, password_set_at, client_name, workspace_id`;
 
 /**
  * A share answers like a revoked one while its workspace project is in the
@@ -101,6 +106,7 @@ function toRecord(row: ShareRow): ShareRecord {
         ? { hash: row.password_hash, setAt: new Date(row.password_set_at).getTime() }
         : null,
     clientName: row.client_name ?? null,
+    ...(row.workspace_id ? { workspaceId: row.workspace_id } : {}),
   };
 }
 

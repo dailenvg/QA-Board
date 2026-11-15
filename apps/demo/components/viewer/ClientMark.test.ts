@@ -29,6 +29,8 @@ function card(comment: Comment, owner: boolean): string {
       placement: null,
       pageNumber: null,
       canModerate: owner,
+      canEdit: owner,
+      canDelete: owner,
       selected: false,
       now: 2_000,
       onSelect: noop,

@@ -1,3 +1,5 @@
+import type { MembershipRole } from "../auth/memberships";
+import type { MemberSwitch } from "../auth/permissions";
 import type { Comment, Folder, ProjectSource, Snapshot } from "../store/types";
 
 /**
@@ -113,9 +115,24 @@ export interface WorkspaceIdentity {
   brandColor: string | null;
 }
 
+/**
+ * The signed-in member's place in the workspace (`can` reads it), so the
+ * browser hides what the server would refuse, and names who to ask.
+ */
+export interface WorkspaceAccess {
+  role: MembershipRole;
+  /** The owner's switches for this member (041); the owner's own are never read. */
+  permissions: MemberSwitch[];
+  /** The owner's name, for "Ask {Owner}"; null until they give one. */
+  ownerName: string | null;
+}
+
+/** The workspace as its guests meet it, and as the signed-in member may work in it. */
+export interface SignedInWorkspace extends WorkspaceIdentity, WorkspaceAccess {}
+
 /** Everything a signed-in browser needs to show a workspace. */
 export interface WorkspaceData {
-  workspace: WorkspaceIdentity;
+  workspace: SignedInWorkspace;
   folders: Folder[];
   projects: WorkspaceProject[];
   snapshots: Snapshot[];
