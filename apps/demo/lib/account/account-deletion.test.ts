@@ -352,6 +352,7 @@ describe("restoreAccount", () => {
       slug: "bo-studio",
       name: "Bo Studio",
       role: "owner",
+      permissions: ["review_links", "trash", "import"],
     });
     expect(await workspaceRow(newWorkspaceId ?? "")).toEqual({
       slug: "bo-studio",

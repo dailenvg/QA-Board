@@ -301,11 +301,22 @@ async function missingFiles(tx: Queryable, workspaceId: string, ids: string[]) {
   return uploads;
 }
 
+/** Who imports: their comments become theirs, and whether they may make a project's review link. */
+export interface Importer {
+  userId: string;
+  /**
+   * `can(membership, "links.manage")`. Without it no review link is attached:
+   * each project with one is imported without it (`unlinked`), as when a
+   * link can't be proven, so local data can't make a client link.
+   */
+  canAttachShares: boolean;
+}
+
 /** Everything the import writes, in the caller's transaction. */
 async function importInto(
   tx: Queryable,
   workspaceId: string,
-  userId: string,
+  { userId, canAttachShares }: Importer,
   data: ImportData,
   now: number,
   secret: string | undefined,
@@ -357,15 +368,17 @@ async function importInto(
   for (const project of made) {
     if (!project.share) continue;
     const { id: shareId, ...share } = project.share;
-    const attached = await attachShare(
-      tx,
-      workspaceId,
-      project.id,
-      { shareId, ...share, invitedBy: userId },
-      now,
-      secret,
-    );
-    if (attached.ok) imported.shares += 1;
+    const attached =
+      canAttachShares &&
+      (await attachShare(
+        tx,
+        workspaceId,
+        project.id,
+        { shareId, ...share, invitedBy: userId },
+        now,
+        secret,
+      ));
+    if (attached && attached.ok) imported.shares += 1;
     else {
       skipped.shares += 1;
       unlinked.push(project.id);
@@ -395,13 +408,13 @@ async function importInto(
 export async function importData(
   db: Database,
   workspaceId: string,
-  userId: string,
+  importer: Importer,
   data: ImportData,
   now: number,
   secret?: string,
 ): Promise<QueryResult<ImportResult>> {
   try {
-    return await db.transaction((tx) => importInto(tx, workspaceId, userId, data, now, secret));
+    return await db.transaction((tx) => importInto(tx, workspaceId, importer, data, now, secret));
   } catch (error) {
     // Another import took one of these ids between the checks and the inserts.
     const code = (error as { code?: unknown } | null)?.code;

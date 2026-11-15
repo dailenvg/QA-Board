@@ -1,3 +1,4 @@
+import { can } from "@/lib/auth/permissions";
 import { json } from "@/lib/share/http";
 import { deleteComment, updateComment } from "@/lib/workspace/comments";
 import { noContent, notFound, param, readBody } from "@/lib/workspace/http";
@@ -15,8 +16,13 @@ function ids(params: Params) {
   return projectId && commentId ? { projectId, commentId } : null;
 }
 
-/** `PATCH { body?, status?, crop? }`: edits, resolves or reopens the comment, or adds its crop. */
-export const PATCH = withMember<Params>(async (request, { db, workspaceId, now }, params) => {
+/**
+ * `PATCH { body?, status?, crop? }`: edits, resolves or reopens the comment,
+ * or adds its crop. Any member resolves and reopens; the text and crop are
+ * the author's alone. 404 for a comment the patch may not change, as for one
+ * that isn't there.
+ */
+export const PATCH = withMember<Params>(async (request, { db, user, workspaceId, now }, params) => {
   const target = ids(params);
   if (!target) return notFound();
   const body = await readBody(request, commentPatchSchema);
@@ -28,13 +34,23 @@ export const PATCH = withMember<Params>(async (request, { db, workspaceId, now }
     target.commentId,
     body.value,
     now,
+    { userId: user.id },
   );
   return comment ? json(comment) : notFound();
 });
 
-export const DELETE = withMember<Params>(async (_request, { db, workspaceId }, params) => {
-  const target = ids(params);
-  const deleted =
-    target !== null && (await deleteComment(db, workspaceId, target.projectId, target.commentId));
-  return deleted ? noContent() : notFound();
-});
+/**
+ * `DELETE`: the author deletes their own comment; the owner, anyone's
+ * (`comment.moderate`), a client's included. 404 for one the caller may not
+ * delete, as for one that isn't there.
+ */
+export const DELETE = withMember<Params>(
+  async (_request, { db, user, membership, workspaceId }, params) => {
+    const target = ids(params);
+    const actor = { userId: user.id, canModerate: can(membership, "comment.moderate") };
+    const deleted =
+      target !== null &&
+      (await deleteComment(db, workspaceId, target.projectId, target.commentId, actor));
+    return deleted ? noContent() : notFound();
+  },
+);

@@ -19,6 +19,11 @@ interface ShareOtherWaysProps {
    * above says why (with Go to settings), so it isn't said again here.
    */
   unavailable: string | null;
+  /**
+   * "Or send it another way" above the buttons; left out where they're the
+   * only way (a member who can't email the link), so "Or…" would read wrong.
+   */
+  heading?: boolean;
 }
 
 type Notice = { way: OtherWay; ok: boolean } | null;
@@ -40,7 +45,7 @@ async function copy(text: string): Promise<boolean> {
  * link (lime, as the old Copy was). Each says what it did, in words and to
  * screen readers. Squint sends nothing itself.
  */
-export function ShareOtherWays({ message, url, unavailable }: ShareOtherWaysProps) {
+export function ShareOtherWays({ message, url, unavailable, heading = true }: ShareOtherWaysProps) {
   const variants = usePopVariants();
   const reduce = useReducedMotion();
   const [notice, setNotice] = useState<Notice>(null);
@@ -62,7 +67,7 @@ export function ShareOtherWays({ message, url, unavailable }: ShareOtherWaysProp
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-body font-semibold">Or send it another way</p>
+      {heading ? <p className="text-body font-semibold">Or send it another way</p> : null}
       <div className="grid grid-cols-2 gap-2" data-testid="share-other-ways">
         {blocked ? null : (
           <motion.a

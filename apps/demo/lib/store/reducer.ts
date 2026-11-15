@@ -39,6 +39,8 @@ export type Action =
   | { type: "comment/edit"; id: string; body: string; at: number }
   | { type: "comment/set-status"; id: string; status: CommentStatus; at: number }
   | { type: "comment/delete"; id: string }
+  /** Takes out a comment the server has already deleted (someone else's, after a confirm); sends nothing. */
+  | { type: "comment/removed"; id: string }
   /** Attaches the picture saved after posting. Not an edit: timestamps stay as they are. */
   | { type: "comment/set-crop"; id: string; crop: CommentCrop }
   | { type: "snapshot/add"; snapshot: Snapshot }
@@ -284,11 +286,11 @@ export function reduce(data: SquintData, action: Action): SquintData {
       };
     }
     case "comment/edit":
-      return updateComment(data, action.id, action.at, (comment) => ({
-        ...comment,
-        body: action.body,
-        updatedAt: action.at,
-      }));
+      return updateComment(data, action.id, action.at, (comment) =>
+        comment.body === action.body
+          ? { ...comment, updatedAt: action.at }
+          : { ...comment, body: action.body, updatedAt: action.at, editedAt: action.at },
+      );
     case "comment/set-status":
       return updateComment(data, action.id, action.at, (comment) => {
         const { resolvedAt: _previous, ...rest } = comment;
@@ -297,6 +299,7 @@ export function reduce(data: SquintData, action: Action): SquintData {
           : { ...rest, status: "active" };
       });
     case "comment/delete":
+    case "comment/removed":
       return { ...data, comments: data.comments.filter((comment) => comment.id !== action.id) };
     case "comment/set-crop":
       if (!data.comments.some((comment) => comment.id === action.id)) return data;

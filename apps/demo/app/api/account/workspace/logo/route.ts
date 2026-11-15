@@ -34,7 +34,7 @@ export const PUT = withOwnWorkspace(
     const stored = await replaceWorkspaceLogo(db, blobDriverFromEnv(), actor, upload.image, now);
     return stored.ok ? json(stored.value) : refusal(stored.reason);
   },
-  { body: "bytes", owner: true },
+  { body: "bytes", permission: "workspace.manage" },
 );
 
 /** `DELETE` (with a JSON body, `{}`): takes the logo away, file and all. `{ ok: true }` either way. */
@@ -44,5 +44,5 @@ export const DELETE = withOwnWorkspace(
     await removeWorkspaceLogo(db, blobDriverFromEnv(), actor, now);
     return json({ ok: true });
   },
-  { owner: true },
+  { permission: "workspace.manage" },
 );

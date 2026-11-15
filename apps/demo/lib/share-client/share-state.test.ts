@@ -73,6 +73,9 @@ describe("toShareState", () => {
 
   it("sends no secrets or local keys, and fits the server's schema", () => {
     expect(JSON.stringify(state)).not.toMatch(/blobKey|ownerKey|token|projectId/);
+    // Whose a comment is stays in the workspace: guests never see it.
+    const own = toShareState(project, [{ ...comment, mine: true }], [snapshot]);
+    expect(own.comments[0]).not.toHaveProperty("mine");
     expect(stateSchema.safeParse(state).success).toBe(true);
     expect(state.project.source).toEqual({
       kind: "pages",

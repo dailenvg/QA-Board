@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { FormAlert } from "../auth/FormAlert";
 import { Button } from "./Button";
 import { Dialog } from "./Dialog";
 import { FieldError } from "./FieldError";
@@ -19,6 +20,15 @@ interface ConfirmDialogProps {
    * a plain confirm.
    */
   confirmText?: string | null;
+  /**
+   * The confirmed change is on its way, for a confirm that waits for the
+   * server: `pendingLabel` replaces the confirm's words, both buttons are
+   * read-only, and the dialog stays up until it's answered.
+   */
+  pending?: boolean;
+  pendingLabel?: string;
+  /** Why the last try didn't work (a plain confirm's), shown in the dialog; confirming tries again. */
+  error?: string | null;
 }
 
 /**
@@ -34,9 +44,19 @@ export function ConfirmDialog({
   onConfirm,
   onClose,
   confirmText = null,
+  pending = false,
+  pendingLabel,
+  error = null,
 }: ConfirmDialogProps) {
   return (
-    <Dialog open={open} onClose={onClose} title={title} description={description} size="sm">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title={title}
+      description={description}
+      size="sm"
+      dismissible={!pending}
+    >
       {confirmText ? (
         <TypedConfirm
           key={confirmText}
@@ -46,13 +66,27 @@ export function ConfirmDialog({
           onClose={onClose}
         />
       ) : (
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button variant="secondary" onClick={onClose} data-autofocus>
-            Cancel
-          </Button>
-          <Button variant="danger" onClick={onConfirm}>
-            {confirmLabel}
-          </Button>
+        // aria-busy while it's sent, as the project's other waiting forms do (DeleteAccountDialog).
+        <div aria-busy={pending || undefined}>
+          <FormAlert message={error} className="has-[p]:mb-4" testId="confirm-error" />
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            {/* aria-disabled while it's sent: still focusable, so focus never drops to the page. */}
+            <Button
+              variant="secondary"
+              onClick={pending ? undefined : onClose}
+              aria-disabled={pending || undefined}
+              data-autofocus
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={pending ? undefined : onConfirm}
+              aria-disabled={pending || undefined}
+            >
+              {pending && pendingLabel ? pendingLabel : confirmLabel}
+            </Button>
+          </div>
         </div>
       )}
     </Dialog>

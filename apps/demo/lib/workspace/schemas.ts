@@ -132,6 +132,11 @@ export const commentCreateSchema = z.object({
   createdAt: time.optional(),
   updatedAt: time.optional(),
   resolvedAt: time.optional(),
+  /**
+   * When its words last changed: only an Undo of the member's own comment
+   * sends it, and it's kept between `createdAt` and now. Ignored on a guest's.
+   */
+  editedAt: time.optional(),
   snapshotId: idSchema.optional(),
   pageId: idSchema.optional(),
   crop: cropSchema.optional(),

@@ -12,12 +12,14 @@ import type { Result } from "@/lib/store/store";
 import type { ProjectShare } from "@/lib/store/types";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { useNow } from "@/lib/use-now";
+import { ownerLabel } from "@/lib/workspace-client/permission-copy";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
 import { Icon } from "../ui/Icon";
 import { StateArt } from "../ui/line-art/StateArt";
 import { ShareInviteStep } from "./ShareInviteStep";
 import { ShareLinkSkeleton } from "./ShareLinkSkeleton";
+import { ShareReadOnlyStep } from "./ShareReadOnlyStep";
 import { ShareSettingsStep } from "./ShareSettingsStep";
 import { panelId, SHARE_TABS, ShareTabs, tabId, type ShareTab } from "./ShareTabs";
 import { useShareInvites } from "./use-share-invites";
@@ -62,6 +64,16 @@ interface ShareDialogProps {
   onCreate: () => void;
   onRetry: () => void;
   onRevoke: () => void;
+  /**
+   * The member may make, change and revoke the link (`links.manage`). Without
+   * it the window only sends and syncs a link someone else made, and says who
+   * to ask for the rest.
+   */
+  canManage: boolean;
+  /** The workspace owner's name, for "Ask {Owner}"; null until they give one. */
+  ownerName: string | null;
+  /** The switch went off while this window tried to make the link: it says so above the rest. */
+  refused: boolean;
 }
 
 const TITLE = "Share with clients";
@@ -71,6 +83,13 @@ const CLOSED =
   "The review window has closed, so clients can't comment and invites can't go out. Choose a longer window or No limit in Settings to reopen it.";
 const GONE =
   "This project's share link no longer works. It was revoked, or the server no longer has it. Create a new link to share again.";
+/** Without the review-links switch: there's nothing to create, so each line says who can. */
+const readOnly = (owner: string) => ({
+  noLink: `This project has no share link yet. Ask ${owner} to create one.`,
+  gone: `This project's share link no longer works. It was revoked, or the server no longer has it. Ask ${owner} to create a new one.`,
+  closed: `The review window has closed, so clients can't comment. Ask ${owner} to reopen it.`,
+});
+const REFUSED = "You can no longer create or change share links.";
 const NAME_SAVE_FAILED = "The client name didn't save. Check your connection and try again.";
 /** How long "Saved" stands in for "Optional" beside the client's name. */
 const NAME_SAVED_MS = 3000;
@@ -86,7 +105,9 @@ const RADIO = '[role="radiogroup"] [role="radio"][tabindex="0"]';
  * a way to try again. With the link: 1, who's reviewing and how it reaches
  * them (client name, email invites, other ways, the link itself), and 2,
  * its settings (review window, password). On phones, a bottom sheet with
- * Invite and Settings tabs. Revoke link and Done stay at the bottom.
+ * Invite and Settings tabs. Revoke link and Done stay at the bottom. Without
+ * `canManage`, nothing is made: the link, if there's one that works, can be
+ * sent and synced, and the rest says who to ask.
  */
 export function ShareDialog({
   open,
@@ -112,6 +133,9 @@ export function ShareDialog({
   onCreate,
   onRetry,
   onRevoke,
+  canManage,
+  ownerName,
+  refused,
 }: ShareDialogProps) {
   const now = useNow();
   const phone = useMediaQuery(PHONE);
@@ -125,7 +149,9 @@ export function ShareDialog({
   const linkedView = useRef<HTMLDivElement>(null);
   const createView = useRef<HTMLDivElement>(null);
   const revokeButton = useRef<HTMLButtonElement>(null);
+  const doneButton = useRef<HTMLButtonElement>(null);
   const wasLinked = useRef(linked);
+  const ask = readOnly(ownerLabel(ownerName));
 
   // Phones' tab, and which way the last switch went (for the slide).
   const [tab, setTab] = useState<{ value: ShareTab; direction: number }>({
@@ -227,6 +253,11 @@ export function ShareDialog({
     target?.focus();
   }, [open, returnFocus]);
 
+  // A refused create swaps the placeholder for why there's no link: Done is the way on.
+  useEffect(() => {
+    if (open && refused) doneButton.current?.focus();
+  }, [open, refused]);
+
   const openSettings = () => {
     if (phone) chooseTab("settings");
     setWindowFocus((count) => count + 1);
@@ -291,7 +322,22 @@ export function ShareDialog({
       />
     ) : null;
 
-  const linkedBody = phone ? (
+  const readOnlyBody =
+    share && url && details ? (
+      <ShareReadOnlyStep
+        message={inviteMessage(details)}
+        url={url}
+        closed={closed ? ask.closed : null}
+        owner={ownerLabel(ownerName)}
+        share={share}
+        status={status}
+        onRetry={onRetry}
+      />
+    ) : null;
+
+  const linkedBody = !canManage ? (
+    readOnlyBody
+  ) : phone ? (
     <div className="flex flex-col gap-4">
       <ShareTabs value={tab.value} onChange={chooseTab} panelIdPrefix={tabsId} />
       <AnimatePresence mode="wait" initial={false} custom={tab.direction}>
@@ -318,7 +364,22 @@ export function ShareDialog({
     </div>
   );
 
-  const footer = linked ? (
+  const done = (
+    <Button
+      ref={doneButton}
+      size="sm"
+      onClick={onClose}
+      data-testid="share-done"
+      // Without a link or a way to make one, Done is where focus starts.
+      data-autofocus={!canManage && !linked ? true : undefined}
+    >
+      Done
+    </Button>
+  );
+
+  const footer = !canManage ? (
+    <div className="flex items-center justify-end gap-3">{done}</div>
+  ) : linked ? (
     <div className="flex items-center justify-between gap-3">
       <Button
         ref={revokeButton}
@@ -331,9 +392,7 @@ export function ShareDialog({
         <Icon name="trash" className="size-4" />
         {revoking ? "Revoking…" : "Revoke link"}
       </Button>
-      <Button size="sm" onClick={onClose} data-testid="share-done">
-        Done
-      </Button>
+      {done}
     </div>
   ) : undefined;
 
@@ -347,7 +406,9 @@ export function ShareDialog({
       fitKeyboard
       sheet
       // One size from the placeholder to the link, and for Invite and Settings on a phone's tabs.
-      tall
+      // Read-only has no tabs and no placeholder (except a refused create's), so its one short
+      // panel sizes the sheet instead of floating at the top of an empty one.
+      tall={canManage || refused}
       size="wide"
       art={<StateArt scene="invite" size="sm" still />}
       footer={footer}
@@ -376,45 +437,94 @@ export function ShareDialog({
             initial="hidden"
             animate="visible"
             exit="exit"
-            className="flex flex-col gap-4"
+            // `relative`: popLayout positions the placeholder leaving against this view.
+            className="relative"
           >
-            {creating ? (
-              <ShareLinkSkeleton />
-            ) : (
-              // Why there's no link: a failure in the danger tone, a project too big or a link
-              // gone in the tile's. Each but too big has its way forward.
-              <div
-                className={`flex flex-col items-start gap-4 rounded-card p-4 sm:p-5 ${
-                  error && !tooBig ? "bg-danger-soft text-danger" : "bg-tile text-ink-2"
-                }`}
-                data-testid="share-link-problem"
-              >
-                <p
-                  role="alert"
-                  id={errorId}
-                  className="flex items-start gap-2 text-body text-pretty"
+            {/* The placeholder fades into why there's no link (a failed or refused create). */}
+            <AnimatePresence mode="popLayout" initial={false}>
+              {creating ? (
+                <motion.div
+                  key="making"
+                  variants={swap}
+                  initial="hidden"
+                  animate="visible"
+                  exit="exit"
                 >
-                  <Icon name="alert" className="mt-1 size-4 shrink-0" />
-                  <span>{tooBig ?? error ?? GONE}</span>
-                </p>
-                {/* A project too big to share gets no button: there's nothing to try again. */}
-                {tooBig ? null : (
-                  <Button
-                    onClick={onCreate}
-                    aria-describedby={errorId}
-                    className="max-sm:w-full"
-                    data-view-focus
-                    data-testid="create-share-link"
-                  >
-                    <Icon name="link" className="size-4" />
-                    {error ? "Try again" : "Create a new link"}
-                  </Button>
-                )}
-              </div>
-            )}
+                  <ShareLinkSkeleton />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="no-link"
+                  variants={swap}
+                  initial="hidden"
+                  animate="visible"
+                  exit="exit"
+                  className="flex flex-col gap-4"
+                >
+                  {refused ? (
+                    <p role="alert" className="flex items-start gap-2 text-body text-danger">
+                      <Icon name="alert" className="mt-1 size-4 shrink-0" />
+                      <span>{REFUSED}</span>
+                    </p>
+                  ) : null}
+                  {!canManage ? (
+                    <NoLinkTile gone={gone} text={gone ? ask.gone : ask.noLink} />
+                  ) : (
+                    // Why there's no link: a failure in the danger tone, a project too big or a
+                    // link gone in the tile's. Each but too big has its way forward.
+                    <div
+                      className={`flex flex-col items-start gap-4 rounded-card p-4 sm:p-5 ${
+                        error && !tooBig ? "bg-danger-soft text-danger" : "bg-tile text-ink-2"
+                      }`}
+                      data-testid="share-link-problem"
+                    >
+                      <p
+                        role="alert"
+                        id={errorId}
+                        className="flex items-start gap-2 text-body text-pretty"
+                      >
+                        <Icon name="alert" className="mt-1 size-4 shrink-0" />
+                        <span>{tooBig ?? error ?? GONE}</span>
+                      </p>
+                      {/* Too big to share: no button, as there's nothing to try again. */}
+                      {tooBig ? null : (
+                        <Button
+                          onClick={onCreate}
+                          aria-describedby={errorId}
+                          className="max-sm:w-full"
+                          data-view-focus
+                          data-testid="create-share-link"
+                        >
+                          <Icon name="link" className="size-4" />
+                          {error ? "Try again" : "Create a new link"}
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
       </AnimatePresence>
     </Dialog>
+  );
+}
+
+/**
+ * Why there's no link, for a member who can't make one: a link that stopped
+ * working is news (an alert); none yet isn't. Neither has a button.
+ */
+function NoLinkTile({ gone, text }: { gone: boolean; text: string }) {
+  return (
+    <div
+      className="flex flex-col items-start gap-4 rounded-card bg-tile p-4 text-ink-2 sm:p-5"
+      data-testid="share-link-problem"
+    >
+      <p role={gone ? "alert" : undefined} className="flex items-start gap-2 text-body text-pretty">
+        <Icon name={gone ? "alert" : "link"} className="mt-1 size-4 shrink-0" />
+        <span>{text}</span>
+      </p>
+    </div>
   );
 }

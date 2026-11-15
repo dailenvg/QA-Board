@@ -32,11 +32,23 @@ async function senderOf(db: Queryable, workspaceId: string) {
   };
 }
 
+/** The workspace owner's name, for "Ask {Owner}"; null until they give one. */
+async function ownerNameOf(db: Queryable, workspaceId: string): Promise<string | null> {
+  const { rows } = await db.query<{ name: string | null }>(
+    `SELECT owner.name FROM memberships AS membership
+     JOIN users AS owner ON owner.id = membership.user_id
+     WHERE membership.workspace_id = $1 AND membership.role = 'owner'`,
+    [workspaceId],
+  );
+  return rows[0]?.name ?? null;
+}
+
 /**
  * Everything a signed-in browser shows for the workspace, in one read: its
  * folders, live projects (archived included, trash not), and their pages,
  * snapshots and comments, and what clients have said on them (pulled or
- * still on their review links). Review link secrets aren't in it.
+ * still on their review links), and what the member may do there (their
+ * role and switches, as of this read). Review link secrets aren't in it.
  */
 export async function loadWorkspace(
   db: Queryable,
@@ -44,19 +56,28 @@ export async function loadWorkspace(
   userId: string,
 ): Promise<WorkspaceData> {
   const { workspaceId } = membership;
-  const [folders, projects, snapshots, comments, clients, storage, author, brand] =
+  const [folders, projects, snapshots, comments, clients, storage, author, brand, ownerName] =
     await Promise.all([
       listFolders(db, workspaceId),
       listProjects(db, workspaceId),
       listSnapshots(db, workspaceId),
-      listComments(db, workspaceId),
+      listComments(db, workspaceId, undefined, userId),
       clientActivity(db, workspaceId),
       storageSummary(db, workspaceId),
       authorName(db, userId),
       senderOf(db, workspaceId),
+      ownerNameOf(db, workspaceId),
     ]);
   return {
-    workspace: { id: workspaceId, slug: membership.slug, name: membership.name, ...brand },
+    workspace: {
+      id: workspaceId,
+      slug: membership.slug,
+      name: membership.name,
+      ...brand,
+      role: membership.role,
+      permissions: membership.permissions,
+      ownerName,
+    },
     folders,
     projects,
     snapshots,

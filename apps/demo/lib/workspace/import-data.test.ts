@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { STATE } from "@/test/share-fixture";
 import {
   addFolder,
+  importer,
+  memberSeat,
   NOW,
   PNG,
   TEST_AUTH_SECRET,
@@ -120,7 +122,7 @@ describe("import", () => {
     const result = await importData(
       db,
       a.workspaceId,
-      a.userId,
+      importer(a),
       browserData(),
       NOW,
       TEST_AUTH_SECRET,
@@ -182,7 +184,7 @@ describe("import", () => {
     await importData(
       db,
       a.workspaceId,
-      a.userId,
+      importer(a),
       { ...data, comments: pulled },
       NOW,
       TEST_AUTH_SECRET,
@@ -202,12 +204,12 @@ describe("import", () => {
 
   it("is idempotent: a second import skips everything and changes nothing", async () => {
     const { db, a } = await twoWorkspaces();
-    await importData(db, a.workspaceId, a.userId, browserData(), NOW, TEST_AUTH_SECRET);
+    await importData(db, a.workspaceId, importer(a), browserData(), NOW, TEST_AUTH_SECRET);
     await db.query("UPDATE comments SET body = 'Edited on the server' WHERE id = 'c1'");
     const again = await importData(
       db,
       a.workspaceId,
-      a.userId,
+      importer(a),
       browserData(),
       NOW,
       TEST_AUTH_SECRET,
@@ -223,13 +225,13 @@ describe("import", () => {
 
   it("lists again the files an earlier import's uploads never delivered, and only those", async () => {
     const { db, a } = await twoWorkspaces();
-    await importData(db, a.workspaceId, a.userId, browserData(), NOW, TEST_AUTH_SECRET);
+    await importData(db, a.workspaceId, importer(a), browserData(), NOW, TEST_AUTH_SECRET);
     await storeInline(db, a.workspaceId, { projectId: "deck", key: "image:deck" }, PNG);
     await storeInline(db, a.workspaceId, { projectId: "web", key: "crop:c1" }, PNG);
     const again = await importData(
       db,
       a.workspaceId,
-      a.userId,
+      importer(a),
       browserData(),
       NOW,
       TEST_AUTH_SECRET,
@@ -242,12 +244,12 @@ describe("import", () => {
 
   it("says which projects are in the trash, and lists no files for them", async () => {
     const { db, a } = await twoWorkspaces();
-    await importData(db, a.workspaceId, a.userId, browserData(), NOW, TEST_AUTH_SECRET);
+    await importData(db, a.workspaceId, importer(a), browserData(), NOW, TEST_AUTH_SECRET);
     await trashProject(db, a.workspaceId, "deck", NOW);
     const again = await importData(
       db,
       a.workspaceId,
-      a.userId,
+      importer(a),
       browserData(),
       NOW,
       TEST_AUTH_SECRET,
@@ -269,7 +271,7 @@ describe("import", () => {
     const result = await importData(
       db,
       a.workspaceId,
-      a.userId,
+      importer(a),
       browserData(),
       NOW,
       TEST_AUTH_SECRET,
@@ -285,7 +287,7 @@ describe("import", () => {
   it("skips a project whose folder isn't there, with its children", async () => {
     const { db, a } = await twoWorkspaces();
     const data = browserData({ folders: [] });
-    const result = await importData(db, a.workspaceId, a.userId, data, NOW, TEST_AUTH_SECRET);
+    const result = await importData(db, a.workspaceId, importer(a), data, NOW, TEST_AUTH_SECRET);
     expect(result.ok && result.value.imported).toEqual({
       folders: 0,
       projects: 0,
@@ -324,7 +326,7 @@ describe("import", () => {
         { ...deck, share: share(forged, "f".repeat(43)) },
       ],
     };
-    const result = await importData(db, a.workspaceId, a.userId, data, NOW, TEST_AUTH_SECRET);
+    const result = await importData(db, a.workspaceId, importer(a), data, NOW, TEST_AUTH_SECRET);
     expect(result.ok && [result.value.imported.shares, result.value.skipped.shares]).toEqual([
       1, 1,
     ]);
@@ -345,5 +347,38 @@ describe("import", () => {
     // The proven share stops its 30-day countdown; the forged one keeps it.
     expect((await store.byId(good.shareId))?.expiresAt).toBeNull();
     expect((await store.byId(forged.shareId))?.expiresAt).toBe(forged.expiresAt);
+  });
+
+  it("makes no review link for a member without the review-links switch (B5)", async () => {
+    const { db, a } = await twoWorkspaces();
+    const store = createPostgresStore(db);
+    const created = await createShare({ store, blobs: inlineBackend }, STATE, NOW);
+    const base = browserData();
+    const [web, deck] = base.projects;
+    if (!web || !deck) throw new Error("fixture");
+    const share = {
+      id: created.shareId,
+      token: created.token,
+      ownerKey: created.ownerKey,
+      createdAt: NOW,
+      cursor: 0,
+    };
+    const data = { ...base, projects: [{ ...web, share }, deck] };
+    const member = await memberSeat(db, a.workspaceId, ["import", "trash"]);
+    const result = await importData(
+      db,
+      a.workspaceId,
+      { userId: member.userId, canAttachShares: false },
+      data,
+      NOW,
+      TEST_AUTH_SECRET,
+    );
+    expect(result.ok && result.value.imported).toMatchObject({ projects: 2, shares: 0 });
+    expect(result.ok && result.value.skipped.shares).toBe(1);
+    expect(result.ok && result.value.projects.unlinked).toEqual(["web"]);
+    const { rows } = await db.query("SELECT 1 FROM project_share_links");
+    expect(rows).toEqual([]);
+    // Still anonymous: its own countdown runs on.
+    expect((await store.byId(created.shareId))?.expiresAt).toBe(created.expiresAt);
   });
 });

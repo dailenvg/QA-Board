@@ -26,6 +26,8 @@ import { DISCARDED_TOAST, dialogText, progressLine } from "./import/import-copy"
 interface ImportLocalDataProps {
   workspaceId: string;
   workspaceName: string;
+  /** The owner's name, for a refusal after the import switch went off; null without one. */
+  ownerName: string | null;
 }
 
 type Shown = Exclude<LocalImportState, { view: "hidden" }>;
@@ -73,7 +75,7 @@ function spoken({ title, description }: { title: string; description: string }):
  * ever sees it. Views: the offer, progress, a failure with Retry, the
  * summary, an unreadable store, and the Discard confirmation.
  */
-export function ImportLocalData({ workspaceId, workspaceName }: ImportLocalDataProps) {
+export function ImportLocalData({ workspaceId, workspaceName, ownerName }: ImportLocalDataProps) {
   const state = useLocalImport();
   const toast = useToast();
   // The last view shown, so the dialog keeps its content while it animates out.
@@ -94,7 +96,7 @@ export function ImportLocalData({ workspaceId, workspaceName }: ImportLocalDataP
         ? ""
         : sameView && state.view === "importing"
           ? progressLine(state.progress)
-          : spoken(dialogText(state, workspaceName)),
+          : spoken(dialogText(state, workspaceName, ownerName)),
     );
   }
 
@@ -108,7 +110,7 @@ export function ImportLocalData({ workspaceId, workspaceName }: ImportLocalDataP
     await discardLocalData();
     toast({ message: DISCARDED_TOAST });
   };
-  const { title, description } = dialogText(shown, workspaceName);
+  const { title, description } = dialogText(shown, workspaceName, ownerName);
 
   return (
     <Dialog

@@ -3,6 +3,7 @@ import { clientAddress } from "../capture/rate-limit";
 import { apiAccount } from "../auth/guards";
 import { crossSiteRefusal, describeError, isCrossSite } from "../auth/http";
 import { findOwnWorkspace, type Membership } from "../auth/memberships";
+import { defaultPermission, refusalFor, type Permission } from "../auth/permissions";
 import { SESSION_COOKIE, sessionCookieOptions } from "../auth/session-cookie";
 import type { SessionUser } from "../auth/users";
 import type { Database } from "../db/database";
@@ -69,18 +70,20 @@ type WorkspaceHandler = (request: Request, account: WorkspaceAccount) => Promise
 /**
  * Wraps the `/api/account/workspace…` handlers: `withAccount`, then the
  * workspace the session's user belongs to (`findOwnWorkspace`; a JSON 404
- * without one, as for the admin). With `owner` (every write), a member who
- * doesn't own it gets a 403 `owner-only`. The workspace comes from the
- * membership alone: no route takes a workspace id.
+ * without one, as for the admin), then the permission, as `withMember` checks
+ * it (403 `owner-only` for the owner's own, such as `workspace.manage`). The
+ * workspace comes from the membership alone: no route takes a workspace id.
  */
 export function withOwnWorkspace(
   run: WorkspaceHandler,
-  options: { body?: Body; owner?: boolean } = {},
+  options: { body?: Body; permission?: Permission } = {},
 ): (request: Request) => Promise<Response> {
   return withAccount(async (request, account) => {
     const membership = await findOwnWorkspace(account.db, account.user.id);
     if (!membership) return json({ error: "not-found" }, 404);
-    if (options.owner && membership.role !== "owner") return json({ error: "owner-only" }, 403);
+    const permission = options.permission ?? defaultPermission(request.method);
+    const refused = refusalFor(membership, permission);
+    if (refused) return refused;
     return run(request, { ...account, membership });
   }, options);
 }

@@ -1,6 +1,7 @@
 import { apiMember } from "../auth/guards";
 import { crossSiteRefusal, describeError, isCrossSite } from "../auth/http";
 import type { Membership } from "../auth/memberships";
+import { defaultPermission, refusalFor, type Permission } from "../auth/permissions";
 import type { SessionUser } from "../auth/users";
 import type { Database } from "../db/database";
 import { json } from "../share/http";
@@ -30,23 +31,33 @@ function refuseWrite(request: Request, body: Body): Response | null {
   return typed ? null : json({ error: "unsupported-media-type" }, 415);
 }
 
+export interface MemberOptions {
+  body?: Body;
+  /** What the membership must allow (`can`); `defaultPermission` when left out. */
+  permission?: Permission;
+}
+
 /**
  * Wraps every `/api/w/[workspaceId]/…` handler. In order: the session's
  * membership of the workspace (`apiMember`: 401, or 404 for any workspace it
  * isn't a member of); then, on writes, a same-site `Origin` and a JSON (or
- * image) body; then the handler, with the session's workspace id. A storage
- * failure answers a JSON 500 and logs only the error's kind and code.
+ * image) body; then the permission (`refusalFor`: 403 `owner-only`, or 403
+ * `not-allowed` for a switch that's off); then the handler, with the
+ * session's workspace id. A storage failure answers a JSON 500 and logs only
+ * the error's kind and code.
  */
 export function withMember<P extends { workspaceId: string }>(
   run: Handler<P>,
-  options: { body?: Body } = {},
+  options: MemberOptions = {},
 ): (request: Request, context: { params: Promise<P> }) => Promise<Response> {
   return async (request, context) => {
     try {
       const params = await context.params;
       const member = await apiMember(request, params.workspaceId);
       if (!member.ok) return member.response;
-      const refused = refuseWrite(request, options.body ?? "json");
+      const refused =
+        refuseWrite(request, options.body ?? "json") ??
+        refusalFor(member.membership, options.permission ?? defaultPermission(request.method));
       if (refused) return refused;
       const { db, user, membership } = member;
       return await run(

@@ -37,18 +37,21 @@ export const GET = withMember<Params>(async (_request, { db, workspaceId }, para
  * mismatch answers 404 like an unknown share. 409 `linked` when the project
  * already has another link (delete that first).
  */
-export const PUT = withMember<Params>(async (request, { db, user, workspaceId, now }, params) => {
-  const projectId = param(idSchema, params.projectId);
-  if (!projectId) return notFound();
-  const body = await readBody(request, shareAttachSchema);
-  if (!body.ok) return body.response;
-  const attached = await db.transaction((tx) =>
-    attachShare(tx, workspaceId, projectId, { ...body.value, invitedBy: user.id }, now),
-  );
-  if (!attached.ok) return refusal(attached.reason);
-  const link = await getShareLink(db, workspaceId, projectId);
-  return link ? json(link) : notFound();
-});
+export const PUT = withMember<Params>(
+  async (request, { db, user, workspaceId, now }, params) => {
+    const projectId = param(idSchema, params.projectId);
+    if (!projectId) return notFound();
+    const body = await readBody(request, shareAttachSchema);
+    if (!body.ok) return body.response;
+    const attached = await db.transaction((tx) =>
+      attachShare(tx, workspaceId, projectId, { ...body.value, invitedBy: user.id }, now),
+    );
+    if (!attached.ok) return refusal(attached.reason);
+    const link = await getShareLink(db, workspaceId, projectId);
+    return link ? json(link) : notFound();
+  },
+  { permission: "links.manage" },
+);
 
 /** `PATCH { cursor, lastSyncedAt }`: records the owner's pull position. */
 export const PATCH = withMember<Params>(async (request, { db, workspaceId }, params) => {
@@ -60,12 +63,15 @@ export const PATCH = withMember<Params>(async (request, { db, workspaceId }, par
 });
 
 /** `DELETE`: revokes the project's review link; the link stops working at once. */
-export const DELETE = withMember<Params>(async (_request, { db, workspaceId }, params) => {
-  const projectId = param(idSchema, params.projectId);
-  if (!projectId || !(await isLiveProject(db, workspaceId, projectId))) return notFound();
-  const shareIds = await projectShareIds(db, workspaceId, projectId);
-  if (shareIds.length === 0) return notFound();
-  const services = await shareServices();
-  for (const id of shareIds) await revokeShare(services, { id });
-  return noContent();
-});
+export const DELETE = withMember<Params>(
+  async (_request, { db, workspaceId }, params) => {
+    const projectId = param(idSchema, params.projectId);
+    if (!projectId || !(await isLiveProject(db, workspaceId, projectId))) return notFound();
+    const shareIds = await projectShareIds(db, workspaceId, projectId);
+    if (shareIds.length === 0) return notFound();
+    const services = await shareServices();
+    for (const id of shareIds) await revokeShare(services, { id });
+    return noContent();
+  },
+  { permission: "links.manage" },
+);

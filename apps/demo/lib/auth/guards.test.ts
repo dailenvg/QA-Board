@@ -47,6 +47,7 @@ describe("apiMember", () => {
       slug: "acme",
       name: "acme",
       role: "owner",
+      permissions: ["review_links", "trash", "import"],
     });
     expect(result.ok && result.user.id).toBe(a.userId);
   });

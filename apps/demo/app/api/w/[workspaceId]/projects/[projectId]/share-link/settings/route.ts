@@ -18,17 +18,20 @@ type Params = { workspaceId: string; projectId: string };
  * (`ShareSettingsState`). 404 for a project without a link, or not in this
  * workspace; 400 for any other window, a name too long, or neither.
  */
-export const PATCH = withMember<Params>(async (request, { db, user, workspaceId, now }, params) => {
-  const projectId = param(idSchema, params.projectId);
-  if (!projectId) return notFound();
-  const body = await readBody(request, shareSettingsSchema);
-  if (!body.ok) return body.response;
-  const changed = await changeShareSettings(
-    db,
-    { userId: user.id, workspaceId },
-    projectId,
-    body.value,
-    now,
-  );
-  return changed ? json(changed) : notFound();
-});
+export const PATCH = withMember<Params>(
+  async (request, { db, user, workspaceId, now }, params) => {
+    const projectId = param(idSchema, params.projectId);
+    if (!projectId) return notFound();
+    const body = await readBody(request, shareSettingsSchema);
+    if (!body.ok) return body.response;
+    const changed = await changeShareSettings(
+      db,
+      { userId: user.id, workspaceId },
+      projectId,
+      body.value,
+      now,
+    );
+    return changed ? json(changed) : notFound();
+  },
+  { permission: "links.manage" },
+);

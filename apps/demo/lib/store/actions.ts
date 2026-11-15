@@ -9,8 +9,17 @@ import { findPage, MAX_PAGES } from "./pages";
 import { storedClientName } from "../share/client-name";
 import { inviteResult, type InviteResult, type InvitesSent } from "../share-client/invites";
 import { passwordRefusal } from "../workspace-client/mutations";
+import { notAllowedMessage, notAllowedPermission } from "../workspace-client/permission-copy";
 import type { SharePasswordState } from "../workspace/types";
-import { dispatch, dispatchConfirmed, getSnapshot, requestDirect, type Result } from "./store";
+import {
+  askContext,
+  dispatch,
+  dispatchConfirmed,
+  getSnapshot,
+  refresh,
+  requestDirect,
+  type Result,
+} from "./store";
 import type { Action } from "./reducer";
 import type {
   Comment,
@@ -343,6 +352,7 @@ export function addComment(input: {
     updatedAt: now,
     ...(input.snapshotId ? { snapshotId: input.snapshotId } : {}),
     ...(input.pageId ? { pageId: input.pageId } : {}),
+    mine: true,
   };
   return dispatchConfirmed({ type: "comment/add", comment }).then((result) =>
     withValue(result, comment),
@@ -380,6 +390,39 @@ export function addSnapshot(snapshot: Omit<Snapshot, "createdAt">): Result<Snaps
 
 /** Undo for `deleteComment`. */
 export const restoreComment = (comment: Comment) => dispatch({ type: "comment/restore", comment });
+
+/**
+ * How deleting someone else's comment ended: deleted, already gone, refused
+ * (only the owner may), or not answered or failed (try again).
+ */
+export type ModeratedDelete = "deleted" | "gone" | "owner-only" | "offline" | "failed";
+
+/**
+ * Deletes someone else's comment (the owner moderating). There's no Undo, so
+ * it waits for the server: the comment leaves the list only once it's gone
+ * there. One already gone elsewhere leaves too, and the list is read again.
+ */
+export async function deleteOthersComment(comment: Comment): Promise<ModeratedDelete> {
+  const result = await requestDirect(
+    "DELETE",
+    `/projects/${encodeURIComponent(comment.projectId)}/comments/${encodeURIComponent(comment.id)}`,
+    {},
+  );
+  if (result.ok || result.status === 404) {
+    dispatch({ type: "comment/removed", id: comment.id });
+    if (!result.ok) {
+      void refresh();
+      return "gone";
+    }
+    emitSquiggy({ type: "item-deleted", item: "comment" });
+    return "deleted";
+  }
+  if (result.status === 403) {
+    void refresh();
+    return "owner-only";
+  }
+  return result.status === 0 ? "offline" : "failed";
+}
 
 export const setAuthorName = (name: string) =>
   commit({ type: "author/set", name: cleanName(name) });
@@ -421,7 +464,10 @@ export async function setSharePassword(id: string, password: string | null): Pro
     `/projects/${encodeURIComponent(id)}/share-link/password`,
     removing ? {} : { password },
   );
-  if (!result.ok) return { ok: false, error: passwordRefusal(result.status, removing) };
+  if (!result.ok) {
+    const error = passwordRefusal(result.status, removing, result.body, askContext());
+    return { ok: false, error };
+  }
   dispatch({ type: "share/password", id, passwordSetAt: result.value.passwordSetAt });
   return { ok: true, value: undefined };
 }
@@ -439,6 +485,9 @@ export async function sendShareInvites(
     `/projects/${encodeURIComponent(id)}/share-link/invites`,
     { addresses },
   );
+  const refused = answer.ok ? null : notAllowedPermission(answer.status, answer.body);
+  if (refused)
+    return { ok: false, reason: "not-allowed", message: notAllowedMessage(refused, askContext()) };
   const result = inviteResult(answer, Date.now());
   if (result.ok) dispatch({ type: "share/invited", id, invitedCount: result.invitedCount });
   return result;

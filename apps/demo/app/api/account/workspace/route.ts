@@ -25,5 +25,5 @@ export const PATCH = withOwnWorkspace(
     );
     return json(body.value);
   },
-  { owner: true },
+  { permission: "workspace.manage" },
 );

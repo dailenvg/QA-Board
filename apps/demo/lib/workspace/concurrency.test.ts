@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { freshSchema, TEST_DATABASE_URL } from "@/test/postgres";
-import { addFolder, NOW, PNG, seat, URL_PROJECT } from "@/test/workspace-fixture";
+import { addFolder, importer, NOW, PNG, seat, URL_PROJECT } from "@/test/workspace-fixture";
 import type { Database } from "../db/database";
 import { migrate } from "../share/migrate";
 import { storageSummary } from "./blobs";
@@ -36,7 +36,7 @@ describe.skipIf(!TEST_DATABASE_URL)("workspace writes on Postgres, in parallel",
       comments: [],
     });
     const results = await Promise.all(
-      [a, b].map((target) => importData(db, target.workspaceId, target.userId, data, NOW)),
+      [a, b].map((target) => importData(db, target.workspaceId, importer(target), data, NOW)),
     );
     expect(results.map((result) => result.ok).sort()).toEqual([false, true]);
     expect(results.find((result) => !result.ok)).toEqual({ ok: false, reason: "exists" });

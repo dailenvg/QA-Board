@@ -11,18 +11,20 @@ export const dynamic = "force-dynamic";
 
 type Params = { workspaceId: string; projectId: string };
 
-/** `GET`: the project's comments, oldest first. */
-export const GET = withMember<Params>(async (_request, { db, workspaceId }, params) => {
+/** `GET`: the project's comments, oldest first; the signed-in member's are `mine`. */
+export const GET = withMember<Params>(async (_request, { db, user, workspaceId }, params) => {
   const projectId = param(idSchema, params.projectId);
   if (!projectId || !(await isLiveProject(db, workspaceId, projectId))) return notFound();
-  return json(await listComments(db, workspaceId, projectId));
+  return json(await listComments(db, workspaceId, projectId, user.id));
 });
 
 /**
- * `POST`: a new comment by the signed-in member (201). With `fromShare`, a
- * guest's comment pulled from the project's review link, saved without an
- * author account; 404 unless a guest posted that comment there. Its snapshot
- * or page must be the project's (422 `unknown-surface`); 409 when the id is taken.
+ * `POST`: a new comment by the signed-in member (201), under their own name
+ * whatever `author` says (it's only used while they have none). With
+ * `fromShare`, a guest's comment pulled from the project's review link, saved
+ * without an author account; 404 unless a guest posted that comment there.
+ * Its snapshot or page must be the project's (422 `unknown-surface`); 409
+ * when the id is taken.
  */
 export const POST = withMember<Params>(async (request, { db, user, workspaceId, now }, params) => {
   const projectId = param(idSchema, params.projectId);

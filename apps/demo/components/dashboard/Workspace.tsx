@@ -27,6 +27,7 @@ import { useSquint } from "@/lib/store/use-squint";
 import { useDialogState } from "@/lib/use-dialog-state";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { useShortcut } from "@/lib/use-shortcut";
+import { useCan } from "@/lib/workspace-client/use-workspace-access";
 import { WorkspaceError } from "../app-state/WorkspaceError";
 import { NEW_FOLDER } from "../new-project/FolderPicker";
 import { NewProjectDialog } from "../new-project/NewProjectDialog";
@@ -135,11 +136,17 @@ function WorkspaceShell({ data, account, children }: WorkspaceShellProps) {
     [toast],
   );
 
+  // Deleting a folder trashes its projects first: without the trash switch, only an empty one goes.
+  const canTrash = useCan("projects.trash");
+
   const workspace = useMemo<WorkspaceValue | null>(() => {
     if (!data || !active) return null;
     const deleteFolder = (folder: Folder) =>
       showDelete({ folder, contents: folderContents(data, folder.id) });
-    const deletable = (folder: Folder) => canDeleteFolder(folders, folder.id);
+    const holdsProjects = (folder: Folder) =>
+      !canTrash && folderContents(data, folder.id).projects > 0;
+    const deletable = (folder: Folder) =>
+      canDeleteFolder(folders, folder.id) && !holdsProjects(folder);
     // Somewhere to go: the top level, or any folder outside this one.
     const movable = (folder: Folder) =>
       [null, ...folders.map((entry) => entry.id)].some(
@@ -173,7 +180,9 @@ function WorkspaceShell({ data, account, children }: WorkspaceShellProps) {
             ? "Delete folder"
             : folders.length === 1
               ? "Can't delete your only folder"
-              : "Can't delete: every other folder is inside it",
+              : holdsProjects(folder)
+                ? "Can't delete: move its projects out first"
+                : "Can't delete: every other folder is inside it",
           icon: "trash",
           onSelect: () => deleteFolder(folder),
           danger: true,
@@ -187,6 +196,7 @@ function WorkspaceShell({ data, account, children }: WorkspaceShellProps) {
     data,
     active,
     folders,
+    canTrash,
     showNewProject,
     showNewFolder,
     showRename,

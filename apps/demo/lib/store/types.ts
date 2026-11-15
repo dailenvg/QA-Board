@@ -159,6 +159,11 @@ export interface Comment {
   updatedAt: number;
   resolvedAt?: number;
   /**
+   * When its words last changed (epoch ms); missing while they never have.
+   * Resolving, reopening or adding the crop doesn't count (`updatedAt` does).
+   */
+  editedAt?: number;
+  /**
    * The snapshot the pin was placed on. A comment sits on one surface: a
    * snapshot (`snapshotId`), a page (`pageId`), or, with neither, the live
    * frame of a website project (older comments only).
@@ -173,6 +178,11 @@ export interface Comment {
    * into the workspace. Missing on the team's own comments.
    */
   fromClient?: true;
+  /**
+   * Written by the signed-in member (the server says so on every read; a new
+   * comment is theirs). Only they edit it. Never pushed to a review link.
+   */
+  mine?: true;
 }
 
 export interface SquintData {
