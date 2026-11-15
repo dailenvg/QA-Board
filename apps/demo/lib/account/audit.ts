@@ -30,6 +30,13 @@ export type WorkspaceAction =
 export type MembershipAction = "membership.added" | "membership.removed";
 
 /**
+ * An invitation to join a workspace was made (or made again once expired),
+ * sent again or cancelled: targets the invite, never its address.
+ */
+export type MemberInviteAction =
+  "member.invited" | "member.invite_resent" | "member.invite_cancelled";
+
+/**
  * What happens to a workspace's projects: the daily cron deleting an archived
  * one once its date came, or a member sending one to ClickUp.
  */
@@ -54,8 +61,14 @@ export interface AuditEntry {
   actorUserId: string | null;
   /** Set for a workspace's entries, so they outlive it (021: no foreign key). */
   workspaceId?: string | null;
-  action: AccountAction | WorkspaceAction | MembershipAction | ProjectAction | ShareAction;
-  target: { type: "user" | "workspace" | "project"; id: string };
+  action:
+    | AccountAction
+    | WorkspaceAction
+    | MembershipAction
+    | MemberInviteAction
+    | ProjectAction
+    | ShareAction;
+  target: { type: "user" | "workspace" | "project" | "invite"; id: string };
   /** The fields that changed: never a value, an email, a hash or a token. */
   fields: readonly string[];
   /**
@@ -64,10 +77,12 @@ export interface AuditEntry {
    * whom, as keyed HMACs of the addresses only (`share-invites.ts`), so the
    * Share window can count people without the log holding an address; or
    * which ClickUp channel a project went to, and whether it was assigned to
-   * someone (never the message, a ClickUp user or the token).
+   * someone (never the message, a ClickUp user or the token); or that a
+   * membership came from accepting an invite.
    */
   meta?:
     | { reviewWindow: ReviewWindowChoice }
+    | { source: "invite" }
     | { shareId: string; recipients: readonly string[] }
     | ClickUpSentMeta;
 }

@@ -2,6 +2,7 @@ import { findOwnWorkspace, type Membership } from "../auth/memberships";
 import type { SessionUser } from "../auth/users";
 import type { Database } from "../db/database";
 import type { Queryable } from "../share/migrate";
+import { lockMembers } from "../workspace/members/locks";
 import { toDate } from "../workspace/times";
 import { audit } from "./audit";
 import { checkCurrentPassword, type CurrentPasswordCheck } from "./current-password";
@@ -26,6 +27,12 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** How long a deleted account (and the workspace it owned alone) can still be restored. */
 export const ACCOUNT_DELETION_GRACE_MS = ACCOUNT_DELETION_GRACE_DAYS * DAY_MS;
+
+/**
+ * How long an account removed from its workspace can still come back (decision 7): an invite
+ * from that workspace revives it until then, and the daily cron deletes it at its next run after.
+ */
+export const REMOVAL_GRACE_MS = DAY_MS;
 
 /** Why an account can't be deleted from its own settings. */
 export type DeletionRefusal =
@@ -128,9 +135,41 @@ async function lockMembership(
 const SIGN_IN_TABLES = ["sessions", "password_resets", "email_changes"] as const;
 
 /**
- * The deletion itself, in one transaction, with every check made again under
- * lock (a rename, a new member, another tab): the user, then their workspace.
- * Signs them out everywhere and voids their links; keeps everything else.
+ * Cancels the workspace's open invites as its owner's deletion closes it
+ * (A10): last, as L5, so an accept waiting on the members lock then finds the
+ * workspace closed. Restoring the account leaves them cancelled.
+ */
+async function cancelOpenInvites(tx: Queryable, userId: string, workspaceId: string, now: number) {
+  const { rows } = await tx.query<{ id: string }>(
+    `UPDATE workspace_invites SET revoked_at = $2
+     WHERE workspace_id = $1 AND accepted_at IS NULL AND revoked_at IS NULL
+     RETURNING id`,
+    [workspaceId, toDate(now)],
+  );
+  for (const { id } of rows) {
+    await audit(
+      tx,
+      {
+        actorUserId: userId,
+        workspaceId,
+        action: "member.invite_cancelled",
+        target: { type: "invite", id },
+        fields: ["revoked_at"],
+      },
+      now,
+    );
+  }
+}
+
+/**
+ * The deletion itself, in one transaction, in the members lock order
+ * (`members/locks.ts`): the workspace's members lock, so an invite accepted
+ * or a member removed at the same time waits for it or it for them; then,
+ * with every check made again under lock (a rename, a new member, another
+ * tab), the user, then their workspace. Signs them out everywhere and voids
+ * their links; keeps everything else. An owner's deletion cancels the
+ * workspace's open invites. Their own deletion is never a removal, so it
+ * clears any earlier one (`removed_from`).
  */
 async function schedule(
   tx: Queryable,
@@ -139,6 +178,7 @@ async function schedule(
   confirmText: string,
   now: number,
 ): Promise<DeletionResult> {
+  await lockMembers(tx, membership.workspaceId);
   const { rows: users } = await tx.query<{ email: string }>(
     "SELECT email FROM users WHERE id = $1 AND deleted_at IS NULL FOR UPDATE",
     [user.id],
@@ -156,11 +196,12 @@ async function schedule(
     return { ok: false, reason: "owner-has-members" };
   }
   const deleteAfter = now + ACCOUNT_DELETION_GRACE_MS;
-  await tx.query("UPDATE users SET deleted_at = $2, delete_after = $3 WHERE id = $1", [
-    user.id,
-    toDate(now),
-    toDate(deleteAfter),
-  ]);
+  await tx.query(
+    `UPDATE users SET deleted_at = $2, delete_after = $3, removed_from = NULL,
+       removed_permissions = NULL
+     WHERE id = $1`,
+    [user.id, toDate(now), toDate(deleteAfter)],
+  );
   for (const table of SIGN_IN_TABLES) {
     await tx.query(`DELETE FROM ${table} WHERE user_id = $1`, [user.id]);
   }
@@ -183,6 +224,7 @@ async function schedule(
       },
       now,
     );
+    await cancelOpenInvites(tx, user.id, current.workspaceId, now);
   }
   return {
     ok: true,
@@ -346,7 +388,8 @@ async function moveToNewWorkspace(
 
 /**
  * Undoes a deletion while it can still be undone (its date hasn't come): the
- * user can sign in again with the password they had, and the workspace they
+ * user can sign in again with the password they had (any record of a removal,
+ * `removed_from`, is cleared with the date), and the workspace they
  * owned opens again with its share links. A member whose workspace is being
  * deleted too doesn't reopen it: they leave it for `newWorkspace`, empty and
  * theirs, required then and ignored otherwise. `actorUserId` is whoever
@@ -369,9 +412,12 @@ export async function restoreAccount(
     const closing = await lockClosingMemberships(tx, userId);
     const created = closing.length > 0 ? await createWorkspace(tx, newWorkspace) : null;
     if (created && !created.ok) return created;
-    await tx.query("UPDATE users SET deleted_at = NULL, delete_after = NULL WHERE id = $1", [
-      userId,
-    ]);
+    await tx.query(
+      `UPDATE users SET deleted_at = NULL, delete_after = NULL, removed_from = NULL,
+         removed_permissions = NULL
+       WHERE id = $1`,
+      [userId],
+    );
     const target = { type: "user", id: userId } as const;
     const fields = ["deleted_at", "delete_after"];
     await audit(tx, { actorUserId, action: "user.restored", target, fields }, now);

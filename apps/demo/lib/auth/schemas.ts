@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { displayNameError } from "../account/field-rules";
 import { isSecretShape } from "../share/tokens";
 import {
   EMAIL_MAX_LENGTH,
@@ -28,3 +29,22 @@ export const loginSchema = z.object({
 export const resetRequestSchema = z.object({ email });
 
 export const resetCompleteSchema = z.object({ token: secret, password: newPassword });
+
+/**
+ * `POST /api/auth/join`: an invite's token, with a name and password when no
+ * session is signed in (ignored when one is).
+ */
+export const joinSchema = z.object({
+  token: secret,
+  name: z.string().max(1000).optional(),
+  password: z.string().max(1000).optional(),
+});
+
+/** The name and password a person without a session joins with. */
+export const joinAccountSchema = z.object({
+  name: z
+    .string()
+    .refine((value) => displayNameError(value) === null, "invalid name")
+    .transform((value) => value.trim()),
+  password: newPassword,
+});

@@ -11,7 +11,8 @@ import {
   WORKSPACE_NAME,
   type DeletionWorld,
 } from "@/test/deletion-fixture";
-import { PNG } from "@/test/workspace-fixture";
+import { deps, discardLog } from "@/test/members-fixture";
+import { PNG, TEST_AUTH_SECRET } from "@/test/workspace-fixture";
 import { logIn } from "../auth/login";
 import { findMembership, findOwnWorkspace } from "../auth/memberships";
 import { isResetTokenUsable, requestPasswordReset } from "../auth/password-reset";
@@ -20,6 +21,8 @@ import type { SessionUser } from "../auth/users";
 import { createPostgresStore } from "../share/postgres-store";
 import { createSecret, hashSecret } from "../share/tokens";
 import { clientShare } from "../share/service";
+import { acceptInvite } from "../workspace/members/accept";
+import { createInvites } from "../workspace/members/create-invites";
 import { storeInline } from "../workspace/uploads";
 import {
   ACCOUNT_DELETION_GRACE_MS,
@@ -540,5 +543,108 @@ describe("restore-account.sql", () => {
     expect(await run(MEMBER_EMAIL)).toEqual(["user.restored"]);
     expect(await findOwnWorkspace(db, memberId)).toMatchObject({ workspaceId, role: "member" });
     expect(await countRows(db, "workspaces", "slug", "bo-studio")).toBe(0);
+  });
+});
+
+describe("deleting and restoring, with invites and removals (044)", () => {
+  /** Invites `emails` into the world's workspace as its owner; answers the links' tokens. */
+  async function invite(emails: string[], now = NOW) {
+    const made = await createInvites(
+      world.db,
+      { userId: world.owner.id, workspaceId: world.workspaceId },
+      emails,
+      now,
+      deps({ AUTH_SECRET: TEST_AUTH_SECRET }),
+    );
+    if (!made.ok) throw new Error("not invited");
+    return made.results.map((result) =>
+      result.ok ? (result.invite.link.split("/").at(-1) ?? "") : "",
+    );
+  }
+
+  async function removal(userId: string) {
+    const { rows } = await world.db.query(
+      "SELECT removed_from, removed_permissions FROM users WHERE id = $1",
+      [userId],
+    );
+    return rows[0];
+  }
+
+  /** Marks `userId` as once removed from the world's workspace, as a revival would have cleared. */
+  async function markRemoved(userId: string) {
+    await world.db.query(
+      "UPDATE users SET removed_from = $2, removed_permissions = ARRAY['trash'] WHERE id = $1",
+      [userId, world.workspaceId],
+    );
+  }
+
+  const CLEARED = { removed_from: null, removed_permissions: null };
+
+  it("cancels the workspace's open invites with its owner's account, and leaves used ones", async () => {
+    const [used = "", open = ""] = await invite(["used@x.test", "open@x.test"]);
+    const joiner = { account: { name: "Used", password: "a long enough password" } };
+    expect(await acceptInvite(world.db, used, joiner, NOW, discardLog())).toMatchObject({
+      ok: true,
+    });
+    await world.db.query("UPDATE users SET deleted_at = now() WHERE email = 'used@x.test'");
+    expect(await remove(world.owner, WORKSPACE_NAME)).toMatchObject({ ok: true });
+    const { rows } = await world.db.query(
+      "SELECT email, revoked_at, accepted_at IS NOT NULL AS accepted FROM workspace_invites ORDER BY email",
+    );
+    expect(rows).toEqual([
+      { email: "open@x.test", revoked_at: new Date(NOW), accepted: false },
+      { email: "used@x.test", revoked_at: null, accepted: true },
+    ]);
+    const { rows: logged } = await world.db.query(
+      "SELECT actor_user_id, workspace_id FROM audit_log WHERE action = 'member.invite_cancelled'",
+    );
+    expect(logged).toEqual([{ actor_user_id: world.owner.id, workspace_id: world.workspaceId }]);
+    expect(await acceptInvite(world.db, open, joiner, NOW, discardLog())).toEqual({
+      ok: false,
+      reason: "not-found",
+    });
+    // Restoring the owner reopens the workspace, but its invites stay cancelled.
+    expect(await restoreAccount(world.db, world.owner.id, NOW + DAY_MS)).toEqual(RESTORED);
+    expect(await acceptInvite(world.db, open, joiner, NOW, discardLog())).toEqual({
+      ok: false,
+      reason: "cancelled",
+    });
+  });
+
+  it("leaves a member's deletion alone with the workspace's invites", async () => {
+    await invite(["open@x.test"]);
+    const memberId = await addMember(world.db, world.workspaceId, MEMBER_EMAIL);
+    const member: SessionUser = { id: memberId, email: MEMBER_EMAIL, name: null, role: "company" };
+    expect(await remove(member, MEMBER_EMAIL)).toMatchObject({ ok: true });
+    const { rows } = await world.db.query("SELECT revoked_at FROM workspace_invites");
+    expect(rows).toEqual([{ revoked_at: null }]);
+  });
+
+  it("clears an earlier removal when the user deletes their own account", async () => {
+    const memberId = await addMember(world.db, world.workspaceId, MEMBER_EMAIL);
+    await markRemoved(memberId);
+    const member: SessionUser = { id: memberId, email: MEMBER_EMAIL, name: null, role: "company" };
+    expect(await remove(member, MEMBER_EMAIL)).toMatchObject({ ok: true });
+    expect(await removal(memberId)).toEqual(CLEARED);
+  });
+
+  it("clears a removal when restoreAccount brings the account back", async () => {
+    expect(await remove(world.owner, WORKSPACE_NAME)).toMatchObject({ ok: true });
+    await markRemoved(world.owner.id);
+    expect(await restoreAccount(world.db, world.owner.id, NOW + DAY_MS)).toEqual(RESTORED);
+    expect(await removal(world.owner.id)).toEqual(CLEARED);
+  });
+
+  it("clears a removal when restore-account.sql brings the account back", async () => {
+    const sql = readFileSync(new URL("./restore-account.sql", import.meta.url), "utf8");
+    const memberId = await addMember(world.db, world.workspaceId, MEMBER_EMAIL);
+    const member: SessionUser = { id: memberId, email: MEMBER_EMAIL, name: null, role: "company" };
+    await remove(member, MEMBER_EMAIL, PASSWORD, Date.now());
+    await markRemoved(memberId);
+    const filled = sql.replace(/'[^']*'(?=,? *-- 1\. )/, `'${MEMBER_EMAIL}'`);
+    expect(
+      (await world.db.query<{ action: string }>(filled)).rows.map((row) => row.action),
+    ).toEqual(["user.restored"]);
+    expect(await removal(memberId)).toEqual(CLEARED);
   });
 });

@@ -1,7 +1,8 @@
 -- Restores an account deleted from /account/profile, before its permanent deletion date, until the
 -- admin panel (M4) does this. The same as `restoreAccount` in account-deletion.ts, by email.
 -- Paste into the Neon SQL editor, fill in the three values below between their quotes, and run it.
--- The person signs in with the password they had.
+-- The person signs in with the password they had. Any record of a removal from a workspace
+-- (`removed_from`, `removed_permissions`) is cleared with the deletion date.
 --
 -- An owner gets back the workspace they owned alone, with its share links. A member gets back the
 -- workspace they were in. But if that workspace is waiting to be deleted too (its owner deleted
@@ -22,7 +23,8 @@ WITH input (email, workspace_name, workspace_slug) AS (
     ''                    -- 3. Its slug: lowercase letters, digits and single hyphens, up to 48.
   )
 ), account AS (
-  UPDATE users SET deleted_at = NULL, delete_after = NULL
+  UPDATE users SET deleted_at = NULL, delete_after = NULL, removed_from = NULL,
+    removed_permissions = NULL
   FROM input
   WHERE users.email = lower(btrim(input.email)) AND users.delete_after > now()
   RETURNING users.id

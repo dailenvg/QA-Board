@@ -51,6 +51,20 @@ export const accountDeletionSchema = z.object({
   currentPassword,
 });
 
+/**
+ * `POST /api/account/members/invites`: the addresses to invite, as typed. Each
+ * is checked on its own (a bad one is answered `invalid`, the rest still go);
+ * the seats left cap how many, and never more than the highest seat limit.
+ */
+export const memberInvitesSchema = z.object({
+  emails: z.array(z.string().max(1000)).min(1).max(100),
+});
+
+/** An invite's id in a route's path. */
+export const inviteIdSchema = z
+  .string()
+  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+
 /** `POST /api/auth/email-change/confirm`: the emailed link's token. */
 export const emailConfirmSchema = z.object({
   token: z.string().refine(isSecretShape, "invalid token"),

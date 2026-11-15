@@ -134,8 +134,9 @@ function clampEditedAt(editedAt: number | undefined, createdAt: number, now: num
  * one, 'client' without. A team comment is posted under the member's own
  * name (`users.name`; the body's `author` only while they have none) and,
  * when it's one of theirs brought back by Undo, keeps `editedAt`
- * (`clampEditedAt`). A guest's never takes it from the browser. Run the
- * project check first for a 404.
+ * (`clampEditedAt`). A guest's never takes it from the browser: only
+ * `guestEditedAt`, read from the review link's own row (`findGuestComment`),
+ * clamped the same way. Run the project check first for a 404.
  */
 export async function addComment(
   db: Queryable,
@@ -144,11 +145,16 @@ export async function addComment(
   input: CommentCreate,
   authorUserId: string | null,
   now: number,
+  guestEditedAt: number | null = null,
 ): Promise<QueryResult<Comment>> {
   if (!(await surfaceExists(db, projectId, input))) return refuse("unknown-surface");
   const createdAt = input.createdAt ?? now;
   const resolvedAt = input.status === "resolved" ? (input.resolvedAt ?? now) : null;
-  const editedAt = authorUserId ? clampEditedAt(input.editedAt, createdAt, now) : null;
+  const editedAt = clampEditedAt(
+    authorUserId ? input.editedAt : (guestEditedAt ?? undefined),
+    createdAt,
+    now,
+  );
   const { rows } = await db.query<CommentRow>(
     `INSERT INTO comments (project_id, id, x, y, body, author_name, author_user_id, status,
        snapshot_id, page_id, crop, created_at, updated_at, resolved_at, edited_at, origin)
