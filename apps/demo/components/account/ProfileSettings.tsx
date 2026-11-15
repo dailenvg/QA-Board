@@ -1,4 +1,4 @@
-import type { DeletionConfirm } from "@/lib/account/field-rules";
+import type { SessionDeletion } from "@/lib/account/field-rules";
 import type { ClickUpSection } from "@/lib/integrations/clickup/section";
 import { AvatarForm } from "./AvatarForm";
 import { ClickUpSettings } from "./ClickUpSettings";
@@ -13,8 +13,8 @@ interface ProfileSettingsProps {
   email: string;
   /** The avatar's `?v=`, or null without one. */
   avatarVersion: string | null;
-  /** What deleting the account asks to be typed; null hides it (the admin's account). */
-  deletion: DeletionConfirm | null;
+  /** What deleting the account asks to be typed, and what's in its way; null hides it (the admin's). */
+  deletion: SessionDeletion | null;
   /** Their own ClickUp connection; null hides it (outside a workspace, or unreadable). */
   clickUp: ClickUpSection | null;
 }
@@ -39,7 +39,7 @@ export function ProfileSettings({
       <PasswordForm email={email} />
       {clickUp ? <ClickUpSettings section={clickUp} /> : null}
       <LogOutEverywhere />
-      {deletion ? <DeleteAccount confirm={deletion} email={email} /> : null}
+      {deletion ? <DeleteAccount deletion={deletion} email={email} /> : null}
     </div>
   );
 }

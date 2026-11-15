@@ -11,7 +11,7 @@ import {
   WORKSPACE_NAME,
   type DeletionWorld,
 } from "@/test/deletion-fixture";
-import { deps, discardLog } from "@/test/members-fixture";
+import { deps, discardLog, removeMember as removeFromWorkspace } from "@/test/members-fixture";
 import { PNG, TEST_AUTH_SECRET } from "@/test/workspace-fixture";
 import { logIn } from "../auth/login";
 import { findMembership, findOwnWorkspace } from "../auth/memberships";
@@ -182,9 +182,10 @@ describe("scheduleAccountDeletion", () => {
       name: null,
       role: "company",
     };
-    expect(await sessionDeletionConfirm(db, member)).toEqual({
-      kind: "email",
-      text: "bo@acme.test",
+    expect(await sessionDeletionConfirm(db, member, NOW)).toEqual({
+      confirm: { kind: "email", text: "bo@acme.test", workspaceName: WORKSPACE_NAME },
+      otherMembers: false,
+      pendingInvites: 0,
     });
     expect(await remove(member, WORKSPACE_NAME)).toEqual({
       ok: false,
@@ -213,7 +214,7 @@ describe("scheduleAccountDeletion", () => {
 
   it("refuses the admin before the password is checked", async () => {
     const admin: SessionUser = { ...world.owner, role: "admin" };
-    expect(await sessionDeletionConfirm(world.db, admin)).toBeNull();
+    expect(await sessionDeletionConfirm(world.db, admin, NOW)).toBeNull();
     expect(await remove(admin, WORKSPACE_NAME)).toEqual({ ok: false, reason: "admin-account" });
     expect(await loginAttempts()).toBe(0);
     expect((await userRow(admin.id))?.deleted_at).toBeNull();
@@ -238,7 +239,7 @@ describe("scheduleAccountDeletion", () => {
   it("refuses without an open workspace", async () => {
     const { db, owner, workspaceId } = world;
     await db.query("UPDATE workspaces SET archived_at = now() WHERE id = $1", [workspaceId]);
-    expect(await sessionDeletionConfirm(db, owner)).toBeNull();
+    expect(await sessionDeletionConfirm(db, owner, NOW)).toBeNull();
     expect(await remove(owner, WORKSPACE_NAME)).toEqual({ ok: false, reason: "not-found" });
   });
 });
@@ -646,5 +647,74 @@ describe("deleting and restoring, with invites and removals (044)", () => {
       (await world.db.query<{ action: string }>(filled)).rows.map((row) => row.action),
     ).toEqual(["user.restored"]);
     expect(await removal(memberId)).toEqual(CLEARED);
+  });
+
+  it("restore-account.sql brings back a removed member within 24 hours, with no workspace", async () => {
+    const sql = readFileSync(new URL("./restore-account.sql", import.meta.url), "utf8");
+    const memberId = await addMember(world.db, world.workspaceId, MEMBER_EMAIL);
+    await removeFromWorkspace(world.db, memberId, world.workspaceId, Date.now());
+    const filled = sql.replace(/'[^']*'(?=,? *-- 1\. )/, `'${MEMBER_EMAIL}'`);
+    expect(
+      (await world.db.query<{ action: string }>(filled)).rows.map((row) => row.action),
+    ).toEqual(["user.restored"]);
+    expect(await removal(memberId)).toEqual(CLEARED);
+    expect(await countRows(world.db, "memberships", "user_id", memberId)).toBe(0);
+  });
+
+  it("says so in its header: 24 hours for a removed account, and an invite is usually better", () => {
+    const sql = readFileSync(new URL("./restore-account.sql", import.meta.url), "utf8");
+    expect(sql).toMatch(/removed from its workspace[^]*24 hours only/);
+    expect(sql).toMatch(/Inviting them\n?-- again is usually better/);
+  });
+});
+
+describe("sessionDeletionConfirm: what the Delete account card knows up front (A9b)", () => {
+  async function invite(emails: string[], now = NOW) {
+    await createInvites(
+      world.db,
+      { userId: world.owner.id, workspaceId: world.workspaceId },
+      emails,
+      now,
+      deps({ AUTH_SECRET: TEST_AUTH_SECRET }),
+    );
+  }
+
+  it("tells an owner alone that nothing is in the way", async () => {
+    expect(await sessionDeletionConfirm(world.db, world.owner, NOW)).toEqual({
+      confirm: { kind: "workspace", text: WORKSPACE_NAME, workspaceName: WORKSPACE_NAME },
+      otherMembers: false,
+      pendingInvites: 0,
+    });
+  });
+
+  it("tells an owner others still work there, as the route's 409 does: deleted members don't count", async () => {
+    const memberId = await addMember(world.db, world.workspaceId, MEMBER_EMAIL);
+    expect(await sessionDeletionConfirm(world.db, world.owner, NOW)).toMatchObject({
+      otherMembers: true,
+    });
+    await world.db.query("UPDATE users SET deleted_at = now() WHERE id = $1", [memberId]);
+    expect(await sessionDeletionConfirm(world.db, world.owner, NOW)).toMatchObject({
+      otherMembers: false,
+    });
+  });
+
+  it("counts an owner's open invites, not expired ones", async () => {
+    await invite(["a@x.test", "b@x.test"]);
+    await invite(["old@x.test"], NOW - 8 * DAY_MS);
+    expect(await sessionDeletionConfirm(world.db, world.owner, NOW)).toMatchObject({
+      otherMembers: false,
+      pendingInvites: 2,
+    });
+  });
+
+  it("gives a member nothing in the way, whatever the workspace has", async () => {
+    await invite(["a@x.test"]);
+    const memberId = await addMember(world.db, world.workspaceId, MEMBER_EMAIL);
+    const member: SessionUser = { id: memberId, email: MEMBER_EMAIL, name: null, role: "company" };
+    expect(await sessionDeletionConfirm(world.db, member, NOW)).toEqual({
+      confirm: { kind: "email", text: MEMBER_EMAIL, workspaceName: WORKSPACE_NAME },
+      otherMembers: false,
+      pendingInvites: 0,
+    });
   });
 });

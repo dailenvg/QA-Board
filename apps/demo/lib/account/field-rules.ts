@@ -47,6 +47,20 @@ export const ACCOUNT_DELETION_GRACE_DAYS = 30;
 export interface DeletionConfirm {
   kind: "workspace" | "email";
   text: string;
+  /** The workspace the account is in: the one an owner deletes, or a member leaves (4.6). */
+  workspaceName: string;
+}
+
+/**
+ * What the Delete account card needs up front (A9b, 4.7): what to type, and
+ * for an owner whether others still work in the workspace (the card then
+ * points to Members instead of opening the dialog) and how many open invites
+ * the deletion would cancel. Both are false and 0 for a member.
+ */
+export interface SessionDeletion {
+  confirm: DeletionConfirm;
+  otherMembers: boolean;
+  pendingInvites: number;
 }
 
 /** Whether `typed` confirms the deletion: the name exactly once trimmed, the email in any case. */

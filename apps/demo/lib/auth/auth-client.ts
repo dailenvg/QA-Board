@@ -5,7 +5,13 @@
 
 import type { Welcome } from "./next-path";
 
-export type LoginError = "invalid-credentials" | "rate-limited" | "not-configured" | "failed";
+export type LoginError =
+  | "invalid-credentials"
+  /** The right password, on an account removed from its workspace (decision 20). */
+  | "removed"
+  | "rate-limited"
+  | "not-configured"
+  | "failed";
 
 export type LoginOutcome =
   { ok: true; welcome: Welcome } | { ok: false; error: LoginError; retryAfterSeconds?: number };
@@ -30,6 +36,14 @@ async function post(path: string, body: unknown): Promise<Response | null> {
   }
 }
 
+/** The `error` code of a JSON answer, or null. */
+async function errorCode(response: Response): Promise<string | null> {
+  const body: unknown = await response.json().catch(() => null);
+  return body && typeof body === "object" && "error" in body && typeof body.error === "string"
+    ? body.error
+    : null;
+}
+
 /** The greeting a sign-in earned; a return when the answer doesn't say. */
 async function readWelcome(response: Response): Promise<Welcome> {
   const body: unknown = await response.json().catch(() => null);
@@ -45,6 +59,10 @@ export async function requestLogin(email: string, password: string): Promise<Log
     case 400:
     case 401:
       return { ok: false, error: "invalid-credentials" };
+    case 403:
+      return (await errorCode(response)) === "removed"
+        ? { ok: false, error: "removed" }
+        : { ok: false, error: "failed" };
     case 429:
       return {
         ok: false,
@@ -64,6 +82,9 @@ export function loginErrorMessage(error: LoginError, retryAfterSeconds = 0): str
     case "invalid-credentials":
       // Generic on purpose: never says which of the two was wrong.
       return `Invalid email or password. Check both and try again, or ${RESET_LINK.text}.`;
+    case "removed":
+      // No workspace name, no date, and never RESET_LINK's words: reset sends a removed account nothing.
+      return "You're no longer in a Squint workspace, so you can't sign in. Ask the person who invited you for a new invite.";
     case "rate-limited": {
       const minutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
       return `Too many attempts. Try again in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`;

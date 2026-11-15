@@ -234,7 +234,12 @@ describe("acceptInvite: an account removed from here, invited back", () => {
       "SELECT action FROM audit_log WHERE target_id = $1 ORDER BY id",
       [cleo.user.id],
     );
-    expect(rows.map((row) => row.action)).toEqual(["user.restored", "membership.added"]);
+    expect(rows.map((row) => row.action)).toEqual([
+      "membership.removed",
+      "user.deletion_scheduled",
+      "user.restored",
+      "membership.added",
+    ]);
   });
 
   it("keeps no more than the switches they had here: a removal can't widen them (B2)", async () => {

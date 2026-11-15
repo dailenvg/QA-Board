@@ -156,12 +156,12 @@ function newPages(images: readonly ImageUpload[]): Page[] {
   });
 }
 
-/** Uploads each page's picture to the project; true once all of them are in. */
+/** Uploads each page's picture to the project; the keys of those that are in. */
 async function uploadPages(
   projectId: string,
   pages: readonly Page[],
   images: readonly ImageUpload[],
-): Promise<boolean> {
+): Promise<string[]> {
   const uploaded = await Promise.all(
     pages.map((page, index) => {
       const image = images[index];
@@ -170,7 +170,18 @@ async function uploadPages(
         : Promise.resolve({ ok: false });
     }),
   );
-  return uploaded.every((result) => result.ok);
+  return pages.filter((_page, index) => uploaded[index]?.ok).map((page) => page.blobKey);
+}
+
+/**
+ * Takes back a page project whose pictures didn't all upload: the ones that
+ * did go first, so it holds nothing, then the project itself, for good. That
+ * needs no trash switch (`project/abandon`), so a member without one isn't
+ * left with an empty project.
+ */
+async function abandonPagesProject(projectId: string, stored: readonly string[]): Promise<void> {
+  await Promise.all(stored.map((key) => discardWorkspaceBlob(projectId, key)));
+  await dispatchConfirmed({ type: "project/abandon", id: projectId });
 }
 
 /**
@@ -178,7 +189,7 @@ async function uploadPages(
  * Each is first fitted to its share of the page budget (`fitPages`), so the
  * project can always be shared; a single image keeps today's quality, and
  * PDF pages arrive already fitted. All or nothing: if the server refuses the
- * project or any picture, the project goes again (to the trash).
+ * project or any picture, the project goes again (`abandonPagesProject`).
  */
 export async function createPagesProject(input: {
   folderId: string;
@@ -203,8 +214,9 @@ export async function createPagesProject(input: {
   });
   const created = await dispatchConfirmed({ type: "project/create", project });
   if (!created.ok) return created;
-  if (!(await uploadPages(project.id, pages, fitted.pictures))) {
-    await dispatchConfirmed({ type: "project/delete", id: project.id, at: Date.now() });
+  const stored = await uploadPages(project.id, pages, fitted.pictures);
+  if (stored.length < pages.length) {
+    await abandonPagesProject(project.id, stored);
     const error =
       origin === "pdf" ? SAVE_ERROR.pdf : SAVE_ERROR[images.length > 1 ? "images" : "image"];
     return storageFailed(error);

@@ -4,11 +4,19 @@
  */
 
 import { loginErrorMessage } from "../auth/auth-client";
+import type { SwitchPermission } from "../auth/permissions";
+import {
+  notAllowedMessage,
+  notAllowedPermission,
+  type AskContext,
+} from "../workspace-client/permission-copy";
 
 export type AccountError =
   | "wrong-password"
   /** A workspace setting, from a member who doesn't own the workspace. */
   | "owner-only"
+  /** One of the member's switches was turned off after the page loaded (`permission` says which). */
+  | "not-allowed"
   /** Deleting the admin's account, which isn't done from the settings. */
   | "admin-account"
   /** Deleting an owner's account while others still work in the workspace. */
@@ -26,7 +34,14 @@ export type AccountError =
   | "failed";
 
 export type AccountOutcome =
-  { ok: true } | { ok: false; error: AccountError; retryAfterSeconds?: number };
+  | { ok: true }
+  | {
+      ok: false;
+      error: AccountError;
+      retryAfterSeconds?: number;
+      /** For `not-allowed`: the permission the switch backs. */
+      permission?: SwitchPermission;
+    };
 
 export type ConfirmOutcome =
   { ok: true } | { ok: false; error: "expired" | "taken" | "offline" | "failed" };
@@ -46,11 +61,25 @@ async function send(method: "POST" | "PATCH" | "DELETE", path: string, body: unk
   }
 }
 
-async function errorCode(response: Response): Promise<string | null> {
-  const body: unknown = await response.json().catch(() => null);
+function codeOf(body: unknown): string | null {
   return body && typeof body === "object" && "error" in body && typeof body.error === "string"
     ? body.error
     : null;
+}
+
+async function errorCode(response: Response): Promise<string | null> {
+  return codeOf(await response.json().catch(() => null));
+}
+
+/** A 403's meaning: owner only, a switch that's off (and which), the admin's account, or failed. */
+async function refusalOf(response: Response): Promise<AccountOutcome> {
+  const body: unknown = await response.json().catch(() => null);
+  const permission = notAllowedPermission(response.status, body);
+  if (permission) return { ok: false, error: "not-allowed", permission };
+  const code = codeOf(body);
+  return code === "owner-only" || code === "admin-account"
+    ? { ok: false, error: code }
+    : { ok: false, error: "failed" };
 }
 
 async function outcomeOf(response: Response | null): Promise<AccountOutcome> {
@@ -61,12 +90,8 @@ async function outcomeOf(response: Response | null): Promise<AccountOutcome> {
       return { ok: false, error: "invalid" };
     case 401:
       return { ok: false, error: "signed-out" };
-    case 403: {
-      const code = await errorCode(response);
-      return code === "owner-only" || code === "admin-account"
-        ? { ok: false, error: code }
-        : { ok: false, error: "failed" };
-    }
+    case 403:
+      return refusalOf(response);
     case 409:
       return (await errorCode(response)) === "owner-has-members"
         ? { ok: false, error: "owner-has-members" }
@@ -151,19 +176,32 @@ export async function confirmEmailChange(token: string): Promise<ConfirmOutcome>
   return { ok: false, error: "failed" };
 }
 
-/** What a settings form says for a failed request. */
-export function accountErrorMessage(error: AccountError, retryAfterSeconds = 0): string {
+/** Who to name in a `not-allowed` line when the page doesn't say. */
+const SOME_WORKSPACE: AskContext = { ownerName: null, workspaceName: "this workspace" };
+
+/**
+ * What a settings form says for a failed request. A `not-allowed` one names
+ * the switch's permission (`permission`) and, given `context`, the owner to ask.
+ */
+export function accountErrorMessage(
+  error: AccountError,
+  retryAfterSeconds = 0,
+  permission?: SwitchPermission,
+  context: AskContext = SOME_WORKSPACE,
+): string {
   switch (error) {
     case "wrong-password":
       return "That isn't your current password. Check it and try again.";
     case "owner-only":
       return "Only the workspace's owner can change its settings. Ask them to make the change.";
+    case "not-allowed":
+      return permission ? notAllowedMessage(permission, context) : accountErrorMessage("failed");
     case "same-email":
       return "That's already your email address.";
     case "admin-account":
       return "The admin account can't be deleted from here.";
     case "owner-has-members":
-      return "Other people still work in this workspace, so you can't delete your account yet. To go ahead, ask your Squint admin.";
+      return "Other people still work in this workspace, so you can't delete your account yet. Remove them in Members first.";
     case "confirm-mismatch":
       return "That doesn't match. Check what you typed and try again.";
     case "rate-limited":

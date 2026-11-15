@@ -9,7 +9,7 @@ import { avatarSrc, workspaceLogoSrc } from "../routes";
 import { loadMembersData, type MembersData } from "../workspace/members/members-data";
 import { sessionDeletionConfirm } from "./account-deletion";
 import { avatarVersion } from "./avatar";
-import type { DeletionConfirm } from "./field-rules";
+import type { SessionDeletion } from "./field-rules";
 import type { StorageReport } from "./schemas";
 import { loadStorageReport } from "./storage";
 import { loadWorkspaceSettings, type WorkspaceSettings } from "./workspace-settings";
@@ -36,16 +36,17 @@ export const sessionAvatarVersion = cache(async (userId: string): Promise<string
 });
 
 /**
- * What deleting the signed-in account asks to be typed, or null when it
- * can't be deleted from its settings (the admin's, or one without an open
- * workspace), without a database, or when reading it fails (logged by kind
- * only): the page leaves the card out then.
+ * What deleting the signed-in account asks to be typed, and for an owner
+ * whether others still work in the workspace and how many invites it would
+ * cancel (4.7); null when it can't be deleted from its settings (the admin's,
+ * or one without an open workspace), without a database, or when reading it
+ * fails (logged by kind only): the page leaves the card out then.
  */
-export async function sessionDeletion(user: SessionUser): Promise<DeletionConfirm | null> {
+export async function sessionDeletion(user: SessionUser): Promise<SessionDeletion | null> {
   const pending = database();
   if (!pending || user.role === "admin") return null;
   try {
-    return await sessionDeletionConfirm(await pending, user);
+    return await sessionDeletionConfirm(await pending, user, Date.now());
   } catch (error) {
     console.error(`squint account: deletion read failed (${describeError(error)})`);
     return null;
@@ -165,7 +166,7 @@ export function loadStoragePage(): Promise<StoragePage> {
 }
 
 /**
- * The Members page (from PR 3): the signed-in user's workspace's people, as
+ * The Members page: the signed-in user's workspace's people, as
  * `loadMembersData` shows them to this user. Read fresh on every render, with
  * invite links only for those who may manage invites.
  */

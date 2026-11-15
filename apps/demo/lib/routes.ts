@@ -26,6 +26,7 @@ export function projectCardHref(projectId: string): string {
 export const ACCOUNT_HREF = "/account";
 export const ACCOUNT_PROFILE_HREF = "/account/profile";
 export const ACCOUNT_WORKSPACE_HREF = "/account/workspace";
+export const ACCOUNT_MEMBERS_HREF = "/account/members";
 export const ACCOUNT_STORAGE_HREF = "/account/storage";
 /** The profile's ClickUp card, where a member connects their own ClickUp. */
 export const ACCOUNT_CLICKUP_HREF = `${ACCOUNT_PROFILE_HREF}#clickup`;
@@ -33,6 +34,14 @@ export const ACCOUNT_CLICKUP_HREF = `${ACCOUNT_PROFILE_HREF}#clickup`;
 /** The signed-in user's avatar, at a version (`?v=`) that changes with each new one. */
 export function avatarSrc(version: string): string {
   return `/api/account/avatar?v=${encodeURIComponent(version)}`;
+}
+
+/**
+ * A member's avatar in their workspace, by their opaque person key, at a
+ * version that changes with each new one.
+ */
+export function personAvatarSrc(workspaceId: string, personKey: string, version: string): string {
+  return `/api/w/${encodeURIComponent(workspaceId)}/people/${encodeURIComponent(personKey)}/avatar?v=${encodeURIComponent(version)}`;
 }
 
 /** The logo of the signed-in user's workspace, at a version that changes with each new one. */

@@ -133,24 +133,39 @@ export async function createDisposableOwner(label: string): Promise<DisposableAc
   });
 }
 
-/** A new member of `owner`'s workspace, who can sign in. */
+/** Who a disposable member is: their name, and the owner's switches for them (041's default without). */
+export interface MemberOptions {
+  name?: string;
+  permissions?: readonly string[];
+}
+
+/** A new member of `owner`'s workspace, who can sign in with the owner's password. */
 export async function addDisposableMember(
   owner: DisposableAccount,
   label: string,
+  { name, permissions }: MemberOptions = {},
 ): Promise<DisposableAccount> {
   const email = `member-${disposableTag(label)}@e2e.test`;
   const passwordHash = await hashPassword(owner.password);
   await withClient(async (client) => {
     const { rows } = await client.query<{ id: string }>(
-      "INSERT INTO users (email, password_hash, role) VALUES ($1, $2, 'company') RETURNING id",
-      [email, passwordHash],
+      "INSERT INTO users (email, password_hash, role, name) VALUES ($1, $2, 'company', $3) RETURNING id",
+      [email, passwordHash, name ?? null],
     );
     await client.query(
-      "INSERT INTO memberships (user_id, workspace_id, role) VALUES ($1, $2, 'member')",
-      [rows[0]?.id, owner.workspaceId],
+      `INSERT INTO memberships (user_id, workspace_id, role, permissions)
+       VALUES ($1, $2, 'member', COALESCE($3::text[], ARRAY['review_links', 'trash', 'import']))`,
+      [rows[0]?.id, owner.workspaceId, permissions ? [...permissions] : null],
     );
   });
   return { ...owner, email };
+}
+
+/** Gives the account with `email` a name, as its Profile would. */
+export async function nameAccount(email: string, name: string): Promise<void> {
+  await withClient((client) =>
+    client.query("UPDATE users SET name = $2 WHERE email = $1", [email, name]),
+  );
 }
 
 /** When the account with `email` and its workspace are due to be deleted for good (null: they aren't). */

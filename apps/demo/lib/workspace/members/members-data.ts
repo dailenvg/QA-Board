@@ -2,9 +2,12 @@ import { describeError } from "../../auth/http";
 import type { Membership, MembershipRole } from "../../auth/memberships";
 import { can, knownSwitches, MEMBER_SWITCHES, type MemberSwitch } from "../../auth/permissions";
 import type { EmailEnv } from "../../email/resend";
+import { personAvatarSrc } from "../../routes";
+import { logoVersion } from "../../share/brand";
 import type { Queryable } from "../../share/migrate";
 import { toMs } from "../times";
 import { inviteEmailEnabled, joinLink, openInviteToken } from "./invites";
+import { personKey } from "./person-key";
 import { seatsUsed, type Seats } from "./seats";
 
 /**
@@ -18,7 +21,11 @@ import { seatsUsed, type Seats } from "./seats";
 
 /** A member as everyone sees them. */
 export interface MemberEntry {
+  /** Their opaque key in this workspace (`person-key.ts`): never a user id. */
+  key: string;
   name: string | null;
+  /** Their avatar's versioned URL (`/api/w/:ws/people/:key/avatar`); null without one: initials. */
+  avatarSrc: string | null;
   role: MembershipRole;
   /** When they joined (epoch ms). */
   joinedAt: number;
@@ -32,6 +39,12 @@ export interface ManagedMember extends MemberEntry {
   email: string;
   /** Their switches, in the owner's view only. */
   permissions?: MemberSwitch[];
+  /**
+   * Whether the session's user may remove them: any member but themself for
+   * the owner; for a member with the people switch, only members without it
+   * (D1), which is all the row says about anyone's switches.
+   */
+  removable: boolean;
 }
 
 /** A member who deleted their own account and is in their 30 days: no seat, no Remove (I7). */
@@ -87,6 +100,8 @@ interface MemberRow {
   created_at: Date;
   deleted: boolean;
   delete_after: Date | null;
+  /** The avatar's stored key, when its file's row is there. */
+  avatar_key: string | null;
 }
 
 interface InviteRow {
@@ -103,8 +118,11 @@ interface InviteRow {
 async function memberRows(db: Queryable, workspaceId: string): Promise<MemberRow[]> {
   const { rows } = await db.query<MemberRow>(
     `SELECT u.id, u.name, u.email, m.role, m.permissions, m.created_at,
-       u.deleted_at IS NOT NULL AS deleted, u.delete_after
+       u.deleted_at IS NOT NULL AS deleted, u.delete_after, avatar.key AS avatar_key
      FROM memberships AS m JOIN users AS u ON u.id = m.user_id
+     LEFT JOIN user_blobs AS avatar
+       ON avatar.user_id = u.id AND avatar.key = u.avatar_blob_key
+       AND starts_with(avatar.key, 'user/' || u.id::text || '/avatar/')
      WHERE m.workspace_id = $1
      ORDER BY m.role = 'owner' DESC, lower(u.name) NULLS LAST, u.email`,
     [workspaceId],
@@ -151,8 +169,24 @@ function toInvite(row: InviteRow, workspaceId: string, now: number, env: EmailEn
   } satisfies PendingInvite;
 }
 
-function toEntry(row: MemberRow, userId: string): MemberEntry {
-  return { name: row.name, role: row.role, joinedAt: toMs(row.created_at), you: row.id === userId };
+function toEntry(row: MemberRow, membership: Membership, userId: string, secret?: string) {
+  const key = personKey(membership.workspaceId, row.id, secret);
+  return {
+    key,
+    name: row.name,
+    avatarSrc: row.avatar_key
+      ? personAvatarSrc(membership.workspaceId, key, logoVersion(row.avatar_key))
+      : null,
+    role: row.role,
+    joinedAt: toMs(row.created_at),
+    you: row.id === userId,
+  } satisfies MemberEntry;
+}
+
+/** Whether `actor` may remove `row` (4.5, D1): the server checks it again under lock. */
+function removable(row: MemberRow, actor: Membership, userId: string): boolean {
+  if (row.role === "owner" || row.id === userId) return false;
+  return actor.role === "owner" || !knownSwitches(row.permissions).includes("people");
 }
 
 /**
@@ -176,8 +210,9 @@ export async function loadMembersData(
   };
   const isOwner = membership.role === "owner";
   const ownPermissions = isOwner ? [...MEMBER_SWITCHES] : membership.permissions;
+  const entry = (row: MemberRow) => toEntry(row, membership, userId, env.AUTH_SECRET);
   if (!can(membership, "members.manage")) {
-    const members = active.map((row) => toEntry(row, userId));
+    const members = active.map(entry);
     return { ...common, view: "member", members, ownPermissions };
   }
   const { rows: limit } = await db.query<{ seat_limit: number }>(
@@ -188,10 +223,11 @@ export async function loadMembersData(
     ...common,
     view: isOwner ? "owner" : "manager",
     members: active.map((row) => ({
-      ...toEntry(row, userId),
+      ...entry(row),
       id: row.id,
       email: row.email,
       ...(isOwner && row.role === "member" ? { permissions: knownSwitches(row.permissions) } : {}),
+      removable: removable(row, membership, userId),
     })),
     seats: { used: await seatsUsed(db, workspaceId, now), limit: limit[0]?.seat_limit ?? 0 },
     emailEnabled: inviteEmailEnabled(env),

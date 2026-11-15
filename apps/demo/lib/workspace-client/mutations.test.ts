@@ -65,6 +65,13 @@ describe("writesFor", () => {
     ]);
   });
 
+  it("takes back a page project whose upload failed with abandon, never the trash", () => {
+    const action: Action = { type: "project/abandon", id: "p1" };
+    expect(writes(action)).toEqual([{ method: "POST", path: "/projects/p1/abandon", body: {} }]);
+    expect(reduce(DATA, action).projects.map((entry) => entry.id)).not.toContain("p1");
+    expect(reduce(DATA, action).comments.filter((entry) => entry.projectId === "p1")).toEqual([]);
+  });
+
   it("finds a comment's project for its edits, and sends nothing for one it doesn't know", () => {
     expect(writes({ type: "comment/edit", id: "c1", body: "Done", at: 9 })).toEqual([
       { method: "PATCH", path: "/projects/p1/comments/c1", body: { body: "Done" } },

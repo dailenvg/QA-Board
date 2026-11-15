@@ -1,3 +1,4 @@
+import type { MemberSwitch } from "../auth/permissions";
 import type { Queryable } from "../share/migrate";
 import type { ReviewWindowChoice } from "../share/review-window";
 
@@ -26,8 +27,12 @@ export type WorkspaceAction =
   | "workspace.created"
   | "workspace.deleted";
 
-/** Who joined or left a workspace: targets the user, with the workspace's id. */
-export type MembershipAction = "membership.added" | "membership.removed";
+/**
+ * Who joined or left a workspace, or had their switches changed by the owner:
+ * targets the user, with the workspace's id.
+ */
+export type MembershipAction =
+  "membership.added" | "membership.removed" | "membership.permissions_changed";
 
 /**
  * An invitation to join a workspace was made (or made again once expired),
@@ -77,12 +82,14 @@ export interface AuditEntry {
    * whom, as keyed HMACs of the addresses only (`share-invites.ts`), so the
    * Share window can count people without the log holding an address; or
    * which ClickUp channel a project went to, and whether it was assigned to
-   * someone (never the message, a ClickUp user or the token); or that a
-   * membership came from accepting an invite.
+   * someone (never the message, a ClickUp user or the token); that a
+   * membership came from accepting an invite; or a member's switches before
+   * and after the owner changed them (their names only).
    */
   meta?:
     | { reviewWindow: ReviewWindowChoice }
     | { source: "invite" }
+    | { before: readonly MemberSwitch[]; after: readonly MemberSwitch[] }
     | { shareId: string; recipients: readonly string[] }
     | ClickUpSentMeta;
 }

@@ -4,6 +4,12 @@
 -- The person signs in with the password they had. Any record of a removal from a workspace
 -- (`removed_from`, `removed_permissions`) is cleared with the deletion date.
 --
+-- An account removed from its workspace by the owner (or a member allowed to remove people) can
+-- be restored for 24 hours only, not 30 days: after that, this restores nothing. Restoring it
+-- gives an account with no workspace, so the person can sign in but sees nothing. Inviting them
+-- again is usually better: within those 24 hours, accepting the invite brings back this same
+-- account in its workspace, comments included.
+--
 -- An owner gets back the workspace they owned alone, with its share links. A member gets back the
 -- workspace they were in. But if that workspace is waiting to be deleted too (its owner deleted
 -- their account since), the member gets a new, empty workspace instead, named by values 2 and 3,

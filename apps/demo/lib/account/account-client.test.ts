@@ -74,6 +74,29 @@ describe("account client", () => {
     );
   });
 
+  it("names the switch a member no longer has, and who to ask", async () => {
+    answer(403, { error: "not-allowed", permission: "members.manage" });
+    const outcome = await saveDisplayName("Ana");
+    expect(outcome).toEqual({ ok: false, error: "not-allowed", permission: "members.manage" });
+    expect(
+      accountErrorMessage("not-allowed", 0, "members.manage", {
+        ownerName: "Ana Ruiz",
+        workspaceName: "Acme",
+      }),
+    ).toBe("You can no longer invite or remove people in Acme. Ask Ana Ruiz if you need to.");
+    expect(accountErrorMessage("not-allowed", 0, "workspace.import")).toBe(
+      "You can no longer import local data into this workspace. Ask the workspace's owner if you need to.",
+    );
+    answer(403, { error: "owner-only" });
+    expect(await saveDisplayName("Ana")).toEqual({ ok: false, error: "owner-only" });
+  });
+
+  it("tells an owner with members to remove them in Members first", () => {
+    expect(accountErrorMessage("owner-has-members")).toBe(
+      "Other people still work in this workspace, so you can't delete your account yet. Remove them in Members first.",
+    );
+  });
+
   it("reads the confirm's answers", async () => {
     answer(410);
     expect(await confirmEmailChange("t")).toEqual({ ok: false, error: "expired" });
