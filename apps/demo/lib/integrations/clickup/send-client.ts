@@ -29,7 +29,13 @@ export type ClickUpSendError =
   | "offline"
   | "failed";
 
-export type ClickUpRefused = { ok: false; error: ClickUpSendError; retryAfterSeconds?: number };
+export type ClickUpRefused = {
+  ok: false;
+  error: ClickUpSendError;
+  retryAfterSeconds?: number;
+  /** ClickUp's own words for a refusal the route doesn't tell apart (`unreachable`). */
+  said?: string;
+};
 
 export type ClickUpListResult<T> = { ok: true; items: T[] } | ClickUpRefused;
 
@@ -60,7 +66,10 @@ export function clickUpRefusal(answer: Extract<ApiResult<unknown>, { ok: false }
     };
   }
   const known = KNOWN.find((error) => error === answer.error);
-  if (known) return { ok: false, error: known };
+  const said = (answer.body as { said?: unknown } | null)?.said;
+  if (known) {
+    return { ok: false, error: known, ...(typeof said === "string" && said ? { said } : {}) };
+  }
   return { ok: false, error: answer.status === 404 ? "not-found" : "failed" };
 }
 

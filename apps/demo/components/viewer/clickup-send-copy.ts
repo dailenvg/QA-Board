@@ -7,7 +7,7 @@ export const CLICKUP_SEND_COPY = {
   buttonLabel: "Send to ClickUp",
   title: "Send to ClickUp",
   description:
-    "Post this project in a ClickUp Chat channel for your team. It goes out under your ClickUp name.",
+    "Squint posts your note and assigns the reviewer. Then you paste the link in the channel, so ClickUp shows the branded card.",
   /** Each step's title, numbered as the Share window's are. */
   steps: {
     channel: "Where should it go?",
@@ -51,56 +51,76 @@ export const CLICKUP_SEND_COPY = {
   people: {
     empty: "Your ClickUp workspace has nobody else in it yet.",
     /** Under Assign to. */
-    notified: "They're notified in ClickUp.",
+    notified:
+      "Squint assigns the message to them, so they get a ClickUp notification without an @mention.",
   },
   optional: "Optional",
   /** "12 more. Keep typing to narrow the list." */
   more: (count: number) => `${count} more. Keep typing to narrow the list.`,
   note: {
     label: "Note",
-    hint: "Plain text. Links and @mentions are sent as typed, so they won't link or notify anyone.",
+    hint: "Plain text. To notify someone, use Assign to.",
     left: (count: number) => `${count} left`,
   },
   preview: {
-    label: "Preview",
+    label: "What happens when you send",
+    /** Squint's message in the channel, as ClickUp will show it. */
+    posts: "Squint posts this for you",
     /** The sender, as the preview shows them: ClickUp shows their own name. */
     sender: "You",
     /** When it's sent, as the preview shows it. */
     when: "now",
     assigned: (name: string) => `Assigned to ${name}`,
-  },
-  /** Posting the link by hand: ClickUp shows its card only for links pasted in ClickUp. */
-  paste: {
-    title: "Post it with its card",
-    /** "…then paste it in #design, which opens in a new tab." */
-    body: (channel: string | null) =>
-      `ClickUp shows this card only for links pasted in ClickUp itself. Copy the link, then paste it in ${
-        channel ? `#${channel}` : "the channel you pick"
-      }, which opens in a new tab.`,
-    /** The card, as pasting the link shows it. */
+    /** The link the member pastes under it, and the card ClickUp shows for it. */
+    paste: "Then you paste the link",
     card: (project: string) => `Link card: ${project}, ready for your team's review.`,
-    action: "Copy link & open ClickUp",
-    /** "Link copied. Paste it in #design to show its card." */
-    copied: (channel: string) => `Link copied. Paste it in #${channel} to show its card.`,
-    /** The toast's way into ClickUp when the browser held the new tab back. */
-    open: "Open ClickUp",
-    copyFailed: "Copying was blocked. Allow this site to use the clipboard, then try again.",
   },
   cancel: "Cancel",
-  send: "Send",
+  send: "Copy link & open ClickUp",
   sending: "Sending…",
-  /** "Sent to #design." */
-  sent: (channel: string) => `Sent to #${channel}.`,
-  open: "Open in ClickUp",
+  /** The window after a send: what's done, and the paste that's left. */
+  done: {
+    title: "One step left: paste the link",
+    /** "ClickUp opened in a new tab on #design." */
+    opened: (channel: string) => `ClickUp opened in a new tab on #${channel}.`,
+    posted: (channel: string) => `Message posted in #${channel}`,
+    /** Under it when someone was assigned. */
+    assigned: (name: string) => `${name} is assigned and gets a ClickUp notification.`,
+    posting: (channel: string) => `Posting the message in #${channel}…`,
+    notPosted: "The message wasn't posted",
+    postAgain: "Try again",
+    pickAnother: "Pick another channel",
+    copied: "Link copied to your clipboard",
+    notCopied: "Copy the link to paste it",
+    notCopiedHint:
+      "Your browser didn't let Squint copy it. Use Copy, or select the link and copy it.",
+    linkLabel: "Project link",
+    paste: "Paste it in the channel and press Enter",
+    /** Touch screens: no keys to press. */
+    pasteTouch: "Press and hold in the message box, tap Paste, then send.",
+    then: "then",
+    enter: "Enter",
+    card: "ClickUp builds the branded card as soon as the link is pasted.",
+    copyAgain: "Copy link again",
+    /** Copy link again, for a moment after it worked. */
+    copiedAgain: "Link copied",
+    openAgain: "Open ClickUp again",
+    close: "Done",
+  },
 } as const;
 
 /**
- * What the window says when a send fails, and the form stays for another try:
- * `retryAfterSeconds` for a 429, `channel` (its name) for one that can't be posted in.
+ * What the window says when a send fails: `retryAfterSeconds` for a 429,
+ * `channel` (its name) for one that can't be posted in, `said` for what
+ * ClickUp said of a refusal Squint doesn't tell apart.
  */
 export function clickUpSendErrorMessage(
   error: ClickUpSendError,
-  { retryAfterSeconds = 0, channel = "" }: { retryAfterSeconds?: number; channel?: string } = {},
+  {
+    retryAfterSeconds = 0,
+    channel = "",
+    said,
+  }: { retryAfterSeconds?: number; channel?: string; said?: string } = {},
 ): string {
   switch (error) {
     case "channel-gone":
@@ -117,7 +137,9 @@ export function clickUpSendErrorMessage(
       return `Too many requests in a short time. Try again in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`;
     }
     case "unreachable":
-      return "ClickUp didn't answer just now. Try again in a moment.";
+      return said
+        ? `ClickUp didn't take the message. It said: “${said}”`
+        : "ClickUp didn't answer just now. Try again in a moment.";
     case "unavailable":
       return CLICKUP_SEND_COPY.unavailable;
     case "not-connected":

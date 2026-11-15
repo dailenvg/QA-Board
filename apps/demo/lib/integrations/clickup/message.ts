@@ -1,13 +1,14 @@
 import { cleanClientName, HIDDEN } from "../../share/client-name";
 
 /**
- * What "Send to ClickUp" posts: the project's name in bold, its page in
- * Squint as a bare address on its own line (ClickUp shows it as a link: it
- * unfurls cards only for links pasted in its app, which Copy link & open
- * ClickUp is for), the sender's note, and a short "Sent
- * for review from Squint". Markdown (`text/md`), with every mark in the name
- * and the note made literal, so neither can add a link, a mention or
- * formatting. No Node imports: the dialog's limits and preview read this too.
+ * What "Send to ClickUp" posts: "Review ready:" and the project's name in
+ * bold, the sender's note, and a short "Sent for review from Squint". No
+ * link: ClickUp unfurls a link into its card only when it's pasted in
+ * ClickUp, so the sender pastes it under this message (one in the message
+ * too would show the link twice). Markdown (`text/md`), with every mark in
+ * the name and the note made literal, so neither can add a link, a mention
+ * or formatting. No Node imports: the dialog's limits and preview read this
+ * too.
  */
 
 /** Longest note, in characters. */
@@ -71,34 +72,25 @@ function noteMarkdown(note: string): string {
     .join("\n\n");
 }
 
-/**
- * The page's address as a bare link: the brackets and spaces that would cut
- * it short, and the marks that could turn part of it bold or italic, encoded
- * (the page reads them back the same).
- */
-export function linkAddress(url: string): string {
-  return url.replace(
-    /[()<>\s_*]/g,
-    (mark) => `%${mark.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`,
-  );
-}
-
 export interface MessageParts {
   /** As stored: cleaned here (`messageProjectName`). */
   projectName: string;
-  /** The project's page in Squint, absolute. */
-  projectUrl: string;
   /** As typed: cleaned here. Empty for none. */
   note: string;
 }
 
+/** The message's first line, as the preview shows it too: "Review ready: Home page". */
+export function reviewReady(projectName: string): string {
+  return `Review ready: ${messageProjectName(projectName)}`;
+}
+
 /**
- * The message's Markdown: the name, then the address on a line of its own
- * (unescaped, so it stays one link), the note, and where it came from.
+ * The message's Markdown, a paragraph each (a blank line apart, so ClickUp
+ * doesn't run them together): the title line in bold, the note when there is
+ * one, and where it came from.
  */
-export function clickUpMessage({ projectName, projectUrl, note }: MessageParts): string {
-  const name = escapeMarkdown(messageProjectName(projectName));
-  const blocks = [`**${name}**`, linkAddress(projectUrl)];
+export function clickUpMessage({ projectName, note }: MessageParts): string {
+  const blocks = [`**${escapeMarkdown(reviewReady(projectName))}**`];
   const body = noteMarkdown(note);
   if (body) blocks.push(body);
   blocks.push(`_${escapeMarkdown(SENT_FROM)}_`);

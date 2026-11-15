@@ -68,6 +68,11 @@ export async function forbidStubChannel(id: string): Promise<void> {
   await stub("forbid-channel", { id });
 }
 
+/** The stub refuses the next `count` posts with a 400 saying `err` (until a reset). */
+export async function failStubPosts(count: number, err: string): Promise<void> {
+  await stub("fail-posts", { count, err });
+}
+
 /** The stub fails the next `count` channel list reads with a 500 (until a reset). */
 export async function failStubChannelLists(count: number): Promise<void> {
   await stub("fail-lists", { count });

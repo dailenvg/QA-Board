@@ -8,7 +8,7 @@
 // and posting a message, which it records. Test-only routes under /__test/ let a spec read what
 // was posted, refuse a token from now on (as if it were regenerated), delete a channel (gone from
 // the list, a 404 on posting), close one to the member (a 403 on posting), fail the next channel
-// list reads (a 500), and start over.
+// list reads (a 500), refuse the next posts with ClickUp's own words (a 400), and start over.
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 
@@ -36,6 +36,8 @@ let removed = new Set();
 let forbidden = new Set();
 /** How many channel list reads still fail. */
 let failingLists = 0;
+/** How many posts are still refused, and what ClickUp says of them. */
+let failingPosts = { count: 0, err: "" };
 
 function send(response, status, body) {
   response.writeHead(status, { "content-type": "application/json" });
@@ -61,6 +63,7 @@ async function testRoute(request, response, path) {
     removed = new Set();
     forbidden = new Set();
     failingLists = 0;
+    failingPosts = { count: 0, err: "" };
     send(response, 200, { ok: true });
   } else if (path === "/__test/revoke") {
     const { token } = (await readBody(request)) ?? {};
@@ -73,6 +76,10 @@ async function testRoute(request, response, path) {
   } else if (path === "/__test/forbid-channel") {
     const { id } = (await readBody(request)) ?? {};
     forbidden.add(id);
+    send(response, 200, { ok: true });
+  } else if (path === "/__test/fail-posts") {
+    const { count, err } = (await readBody(request)) ?? {};
+    failingPosts = { count: Number(count) || 0, err: String(err ?? "") };
     send(response, 200, { ok: true });
   } else if (path === "/__test/fail-lists") {
     const { count } = (await readBody(request)) ?? {};
@@ -126,6 +133,10 @@ createServer(async (request, response) => {
     }
     if (forbidden.has(channelId)) {
       return send(response, 403, { err: "Not allowed to post", ECODE: "CHAT_403" });
+    }
+    if (failingPosts.count > 0) {
+      failingPosts.count -= 1;
+      return send(response, 400, { err: failingPosts.err, ECODE: "CHAT_400" });
     }
     const body = await readBody(request);
     messages.push({ channelId, body });

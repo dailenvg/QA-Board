@@ -15,10 +15,10 @@ interface ClickUpPreviewCardProps {
 type CardState = "loading" | "ready" | "broken";
 
 /**
- * The link's card as ClickUp shows it once the link is pasted there (Post
- * it with its card): the same image link previews get, at the card's own
- * shape, a skeleton until it's decoded. If it won't load, it leaves the
- * tile (the tile still reads whole without it).
+ * The link's card as ClickUp shows it once the link is pasted there (the
+ * preview's second part): the same image link previews get, at the card's
+ * own shape, a skeleton until it's decoded. If it won't load, it leaves the
+ * preview (the link still reads whole without it).
  */
 export function ClickUpPreviewCard({ src, alt }: ClickUpPreviewCardProps) {
   const pop = usePopVariants();

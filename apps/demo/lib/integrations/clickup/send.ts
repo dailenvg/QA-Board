@@ -1,9 +1,7 @@
 import { audit } from "../../account/audit";
-import { authOrigin } from "../../auth/auth-url";
 import { describeError } from "../../auth/http";
 import { createRateLimiter } from "../../capture/rate-limit";
 import type { Database } from "../../db/database";
-import { projectHref } from "../../routes";
 import type { Queryable } from "../../share/migrate";
 import { ClickUpError, type Fetch } from "./api";
 import { postClickUpMessage } from "./chat-api";
@@ -30,7 +28,13 @@ export type ClickUpRefusal =
   /** ClickUp didn't answer, or not as expected. */
   | "unreachable";
 
-export type ClickUpRefused = { ok: false; reason: ClickUpRefusal; retryAfterSeconds?: number };
+export type ClickUpRefused = {
+  ok: false;
+  reason: ClickUpRefusal;
+  retryAfterSeconds?: number;
+  /** ClickUp's own words when it answered with a refusal Squint doesn't tell apart. */
+  said?: string;
+};
 
 /** A ClickUp 429 says nothing Squint keeps: try again after a minute. */
 const CLICKUP_RETRY_SECONDS = 60;
@@ -55,7 +59,8 @@ function refusalOf(error: unknown, what: string): ClickUpRefused {
     return { ok: false, reason: "rate-limited", retryAfterSeconds: CLICKUP_RETRY_SECONDS };
   }
   console.error(`squint clickup: ${what} failed (${describeError(error)})`);
-  return { ok: false, reason: "unreachable" };
+  const said = error instanceof ClickUpError ? error.said : null;
+  return { ok: false, reason: "unreachable", ...(said ? { said } : {}) };
 }
 
 /** The actor's opened connection, or why there's none to use. */
@@ -134,14 +139,10 @@ function channelRefusal(error: unknown): "channel-gone" | "channel-forbidden" | 
   return null;
 }
 
-/** The project's page, absolute, on the site's own origin (never the request's host). */
-export function projectUrl(projectId: string): string {
-  return new URL(projectHref(projectId), authOrigin()).href;
-}
-
 /**
- * Posts project `projectId` to a ClickUp channel as the actor: its name and
- * its page's address, their note, and who it's assigned to.
+ * Posts project `projectId` to a ClickUp channel as the actor: "Review
+ * ready:" and its name, their note, and who it's assigned to (the member
+ * pastes its link under it, so ClickUp shows the card).
  * At most 20 sends per member in 10 minutes. Audits each send
  * (`project.clickup_sent`: the channel and counts only).
  */
@@ -161,11 +162,7 @@ export async function sendProjectToClickUp(
   const claim = sends(actor.userId, now);
   if (!claim.ok) return { ...claim, reason: "rate-limited" };
   const { channelId, note, assignee } = input;
-  const content = clickUpMessage({
-    projectName: project.name,
-    projectUrl: projectUrl(projectId),
-    note,
-  });
+  const content = clickUpMessage({ projectName: project.name, note });
   let posted;
   try {
     posted = await postClickUpMessage(
