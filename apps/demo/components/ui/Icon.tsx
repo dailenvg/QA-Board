@@ -35,6 +35,10 @@ const ICONS = {
     ["path", { d: "m3 8 4-4 4 4" }],
     ["path", { d: "M7 4v16" }],
   ],
+  arrow: [
+    ["path", { d: "M5 12h14" }],
+    ["path", { d: "m12 5 7 7-7 7" }],
+  ],
   camera: [
     [
       "path",

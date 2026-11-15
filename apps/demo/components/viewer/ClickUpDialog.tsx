@@ -2,7 +2,9 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useId, useRef, useState } from "react";
+import { messageProjectName } from "@/lib/integrations/clickup/message";
 import { useSwapVariants } from "@/lib/motion";
+import { projectCardHref } from "@/lib/routes";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
@@ -58,6 +60,8 @@ interface ClickUpDialogProps {
   open: boolean;
   onClose: () => void;
   project: { id: string; name: string };
+  /** How the message names the member: their name in Squint, else their email. */
+  sender: string;
   send: ReturnType<typeof useClickUpSend>;
 }
 
@@ -72,7 +76,7 @@ interface ClickUpDialogProps {
  * and one live line says the ones nothing else does. Cancel and Copy link &
  * open ClickUp stay at the bottom while the form shows.
  */
-export function ClickUpDialog({ open, onClose, project, send }: ClickUpDialogProps) {
+export function ClickUpDialog({ open, onClose, project, sender, send }: ClickUpDialogProps) {
   const swap = useSwapVariants();
   const phone = useMediaQuery(PHONE);
   const formId = useId();
@@ -100,6 +104,8 @@ export function ClickUpDialog({ open, onClose, project, send }: ClickUpDialogPro
       return (
         <ClickUpSendDone
           sent={sent}
+          cardSrc={projectCardHref(project.id)}
+          projectName={messageProjectName(project.name)}
           onPostAgain={() => void send.postAgain()}
           onPickAnother={send.pickAnother}
         />
@@ -121,6 +127,7 @@ export function ClickUpDialog({ open, onClose, project, send }: ClickUpDialogPro
             draft={send.draft}
             onChange={send.update}
             project={project}
+            sender={sender}
             sending={send.sending}
             channelError={send.channelError}
             refreshing={send.refreshing}

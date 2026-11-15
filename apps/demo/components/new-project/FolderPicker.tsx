@@ -38,7 +38,6 @@ export function FolderPicker({
   const selectId = useId();
   const nameId = useId();
   const errorId = useId();
-  const hintId = useId();
   const reduce = useReducedMotion();
   const first = folders.length === 0;
   return (
@@ -76,11 +75,6 @@ export function FolderPicker({
               <label htmlFor={nameId} className="mb-2 block text-body font-semibold">
                 {first ? "Name your first folder" : "New folder name"}
               </label>
-              {first ? (
-                <p id={hintId} className="-mt-1 mb-2 text-meta text-muted">
-                  Projects live in folders. You can add more later.
-                </p>
-              ) : null}
               <input
                 id={nameId}
                 autoFocus
@@ -90,7 +84,7 @@ export function FolderPicker({
                 maxLength={80}
                 autoComplete="off"
                 aria-invalid={newNameError ? true : undefined}
-                aria-describedby={first ? `${hintId} ${errorId}` : errorId}
+                aria-describedby={errorId}
                 onChange={(event) => onNewName(event.target.value)}
                 className={FIELD_CLASS}
               />

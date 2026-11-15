@@ -1,21 +1,21 @@
 import { cleanClientName, HIDDEN } from "../../share/client-name";
 
 /**
- * What "Send to ClickUp" posts: "Review ready:" and the project's name in
- * bold, the sender's note, and a short "Sent for review from Squint". No
- * link: ClickUp unfurls a link into its card only when it's pasted in
- * ClickUp, so the sender pastes it under this message (one in the message
- * too would show the link twice). Markdown (`text/md`), with every mark in
- * the name and the note made literal, so neither can add a link, a mention
- * or formatting. No Node imports: the dialog's limits and preview read this
- * too.
+ * What "Send to ClickUp" posts: who sent it, in bold ("Ana Ruiz sent you
+ * this project to review it through Squint"), then the sender's note. No
+ * project name or link: ClickUp turns a name like a site's address into a
+ * link, and it unfurls a link into its card only when it's pasted in
+ * ClickUp, so the sender pastes the project's link under this message.
+ * Markdown (`text/md`), with every mark in the sender's name and the note
+ * made literal, so neither can add a link, a mention or formatting. No Node
+ * imports: the dialog's limits and preview read this too.
  */
 
 /** Longest note, in characters. */
 export const NOTE_MAX = 1000;
 
-/** The closing line, as the preview shows it too. */
-export const SENT_FROM = "Sent for review from Squint";
+/** Who sent it, when their Squint account has neither a name nor an email to show. */
+export const UNNAMED_SENDER = "Someone on your team";
 
 /** The name of a project whose own is blank once cleaned. */
 export const UNTITLED_PROJECT = "Untitled project";
@@ -54,6 +54,16 @@ export function messageProjectName(name: string): string {
   return cleanClientName(name) || UNTITLED_PROJECT;
 }
 
+/**
+ * The message's first line, as the preview shows it too: "Ana Ruiz sent you
+ * this project to review it through Squint". `sender` is the member's name
+ * in Squint (else their email), on one line with nothing hidden or flipped.
+ */
+export function sentBy(sender: string): string {
+  const name = cleanClientName(sender) || UNNAMED_SENDER;
+  return `${name} sent you this project to review it through Squint`;
+}
+
 /** A note's length as `NOTE_MAX` counts it: characters (not UTF-16 units) once cleaned. */
 export function noteLength(note: string): number {
   return Array.from(cleanNote(note)).length;
@@ -73,26 +83,20 @@ function noteMarkdown(note: string): string {
 }
 
 export interface MessageParts {
-  /** As stored: cleaned here (`messageProjectName`). */
-  projectName: string;
+  /** The member sending it: their name in Squint, else their email. Cleaned here (`sentBy`). */
+  sender: string;
   /** As typed: cleaned here. Empty for none. */
   note: string;
 }
 
-/** The message's first line, as the preview shows it too: "Review ready: Home page". */
-export function reviewReady(projectName: string): string {
-  return `Review ready: ${messageProjectName(projectName)}`;
-}
-
 /**
  * The message's Markdown, a paragraph each (a blank line apart, so ClickUp
- * doesn't run them together): the title line in bold, the note when there is
- * one, and where it came from.
+ * doesn't run them together): who sent it in bold, then the note when there
+ * is one.
  */
-export function clickUpMessage({ projectName, note }: MessageParts): string {
-  const blocks = [`**${escapeMarkdown(reviewReady(projectName))}**`];
+export function clickUpMessage({ sender, note }: MessageParts): string {
+  const blocks = [`**${escapeMarkdown(sentBy(sender))}**`];
   const body = noteMarkdown(note);
   if (body) blocks.push(body);
-  blocks.push(`_${escapeMarkdown(SENT_FROM)}_`);
   return blocks.join("\n\n");
 }

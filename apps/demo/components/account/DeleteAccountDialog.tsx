@@ -173,7 +173,6 @@ function DeleteAccountForm({
         inputRef={typedRef}
         dialogAutofocus
         readOnly={pending}
-        hint={COPY.confirmHint[confirm.kind]}
         {...typed.field}
         testId="delete-account-confirm"
       />
@@ -196,7 +195,8 @@ function DeleteAccountForm({
           className="has-[p]:mb-4"
         />
         {ready ? null : (
-          <p id={hintId} className="mb-4 text-meta text-pretty text-muted wrap-anywhere">
+          // Why Delete waits, for screen readers (the button's description): it shows to no one.
+          <p id={hintId} className="sr-only">
             {COPY.submitHint(confirm.text)}
           </p>
         )}

@@ -14,9 +14,9 @@ type Params = { workspaceId: string; projectId: string };
 
 /**
  * `POST { channelId, note?, assignee? }`: posts the project to a ClickUp
- * channel as the signed-in member (`sendProjectToClickUp`): "Review ready:"
- * and its name, the note, and who it's assigned to; the member pastes its
- * link under it. Answers `{ url }`: the message's link when ClickUp
+ * channel as the signed-in member (`sendProjectToClickUp`): who sent it
+ * (their name, else their email), the note, and who it's assigned to; the
+ * member pastes its link under it. Answers `{ url }`: the message's link when ClickUp
  * gives one, else null. 400 `invalid` with the field; 404 for a project
  * that isn't in the workspace (or is in the trash); 409 `archived`,
  * `not-connected`, `channel-gone` (ClickUp's 404) or `channel-forbidden`
@@ -32,7 +32,8 @@ export const POST = withMember<Params>(async (request, { db, user, workspaceId, 
   if (!apiUrl) return clickUpUnavailable();
   const body = await readBody(request, clickUpSendSchema);
   if (!body.ok) return body.response;
-  const actor = { userId: user.id, workspaceId };
+  // Named in the message as Squint knows them: their name, else their email.
+  const actor = { userId: user.id, workspaceId, sender: user.name || user.email };
   const outcome = await sendProjectToClickUp(db, actor, projectId, body.value, now, { apiUrl });
   return outcome.ok ? json({ url: outcome.url }) : clickUpRefusal(outcome);
 });

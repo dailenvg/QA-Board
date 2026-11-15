@@ -57,7 +57,8 @@ export function PickedImageList({
   return (
     <div ref={root}>
       {orderable ? (
-        <p id={hintId} className="mb-2 text-meta text-muted">
+        // How to reorder, for keyboard and screen reader users: the handles show it to everyone else.
+        <p id={hintId} className="sr-only">
           Drag the handles, or focus one and press the up and down arrow keys, to set the page
           order.
         </p>

@@ -18,7 +18,6 @@ const COPY = {
   titleAdd: "Add a label",
   titleChange: "Change label",
   field: "Label",
-  hint: `One label per project, up to ${WORKSPACE_LIMITS.label} characters.`,
   suggestions: "Used in this workspace",
   empty: "Enter a label.",
   emptyWithRemove: "Enter a label, or remove the one it has.",
@@ -82,7 +81,6 @@ function LabelForm({ current, labels, onClose, onSave }: LabelFormProps) {
   const [value, setValue] = useState(current ?? "");
   const [error, setError] = useState<string | null>(null);
   const inputId = useId();
-  const hintId = useId();
   const errorId = useId();
   const listId = useId();
   const variants = usePopVariants();
@@ -115,7 +113,7 @@ function LabelForm({ current, labels, onClose, onSave }: LabelFormProps) {
           maxLength={WORKSPACE_LIMITS.label}
           autoComplete="off"
           aria-invalid={error ? true : undefined}
-          aria-describedby={`${hintId} ${errorId}`}
+          aria-describedby={errorId}
           onChange={(event) => {
             setValue(event.target.value);
             if (error) setError(null);
@@ -123,9 +121,6 @@ function LabelForm({ current, labels, onClose, onSave }: LabelFormProps) {
           onFocus={(event) => event.currentTarget.select()}
           className={FIELD_CLASS}
         />
-        <p id={hintId} className="mt-2 text-meta text-muted">
-          {COPY.hint}
-        </p>
         <FieldError id={errorId} message={error} />
       </div>
 

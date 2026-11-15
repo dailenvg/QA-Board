@@ -16,7 +16,7 @@ const COPY = CLICKUP_SEND_COPY;
  * phones, named for screen readers) and its Send to ClickUp window, which
  * stays open after a send to say what's left: pasting the link in ClickUp.
  */
-export function ClickUpControl({ project }: { project: Project }) {
+export function ClickUpControl({ project, sender }: { project: Project; sender: string }) {
   const workspaceId = useWorkspaceIdentity()?.id ?? null;
   const [open, setOpen] = useState(false);
   const send = useClickUpSend({ workspaceId, projectId: project.id });
@@ -43,6 +43,7 @@ export function ClickUpControl({ project }: { project: Project }) {
         open={open}
         onClose={() => setOpen(false)}
         project={{ id: project.id, name: project.name }}
+        sender={sender}
         send={send}
       />
     </>

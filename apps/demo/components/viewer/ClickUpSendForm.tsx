@@ -26,6 +26,8 @@ interface ClickUpSendFormProps {
   draft: ClickUpDraft;
   onChange: (change: Partial<ClickUpDraft>) => void;
   project: { id: string; name: string };
+  /** How the message names the member. */
+  sender: string;
   sending: boolean;
   /** Why the channel can't be sent to (none picked, gone from ClickUp, or closed to them), or null. */
   channelError: string | null;
@@ -76,6 +78,7 @@ export function ClickUpSendForm({
   draft,
   onChange,
   project,
+  sender,
   sending,
   channelError,
   refreshing,
@@ -179,7 +182,6 @@ export function ClickUpSendForm({
             onChange={(person) => onChange({ assignee: person })}
             noneLabel={COPY.assignee.nobody}
             aside={COPY.optional}
-            hint={COPY.people.notified}
             empty={COPY.people.empty}
             noMatch={COPY.assignee.noMatch}
             testId="clickup-assignee"
@@ -198,6 +200,7 @@ export function ClickUpSendForm({
             readOnly={sending}
           />
           <ClickUpMessagePreview
+            sender={sender}
             projectName={project.name}
             projectUrl={new URL(projectHref(project.id), window.location.origin).href}
             cardSrc={projectCardHref(project.id)}

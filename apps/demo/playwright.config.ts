@@ -61,6 +61,8 @@ export default defineConfig({
         PINPOINT_REVIEW_TOKEN: "e2e-token",
         PINPOINT_ENABLE_REVIEW_LINK: "1",
         PINPOINT_RATE_LIMIT: "1000",
+        // The ClickUp specs open Send to ClickUp more often in ten minutes than its limits allow.
+        CLICKUP_RATE_LIMIT_MULTIPLIER: "10",
         GITHUB_TOKEN: "",
         GITHUB_REPO: "",
         // Through the process env, which beats .env.local in Next.

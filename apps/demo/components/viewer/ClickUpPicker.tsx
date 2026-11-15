@@ -21,8 +21,6 @@ interface ClickUpPickerProps {
   noneLabel?: string;
   /** Beside the label, such as "Optional". */
   aside?: string;
-  /** A line under the label, such as who's told of the choice. */
-  hint?: string;
   /** The list is being read again: marked busy (not dimmed, so it keeps its contrast), still usable. */
   busy?: boolean;
   /** A choice that must be made: "Required" beside the label, and its radios say so. */
@@ -56,7 +54,6 @@ export function ClickUpPicker({
   onChange,
   noneLabel,
   aside,
-  hint,
   busy = false,
   required = false,
   emptyAction,
@@ -72,7 +69,6 @@ export function ClickUpPicker({
   const labelId = useId();
   const listId = useId();
   const errorId = useId();
-  const hintId = useId();
   const name = useId();
   const [query, setQuery] = useState("");
   /** What a pick from the search said, until the next change. */
@@ -154,31 +150,19 @@ export function ClickUpPicker({
     .filter(Boolean)
     .join(" ");
   const note = required ? CLICKUP_SEND_COPY.required : aside;
-  const described = hint ? `${hintId} ${errorId}` : errorId;
   return (
     <div
       role="group"
       aria-labelledby={labelId}
-      aria-describedby={described}
+      aria-describedby={errorId}
       className="flex min-w-0 flex-col gap-2"
       data-testid={testId}
     >
-      <div className="flex flex-col gap-1">
-        <div className="flex items-baseline justify-between gap-3">
-          <label id={labelId} htmlFor={searchId} className="text-body font-semibold">
-            {label}
-          </label>
-          {note ? <span className="shrink-0 text-meta text-muted">{note}</span> : null}
-        </div>
-        {hint ? (
-          <p
-            id={hintId}
-            className="text-meta text-pretty text-muted"
-            data-testid={`${testId}-hint`}
-          >
-            {hint}
-          </p>
-        ) : null}
+      <div className="flex items-baseline justify-between gap-3">
+        <label id={labelId} htmlFor={searchId} className="text-body font-semibold">
+          {label}
+        </label>
+        {note ? <span className="shrink-0 text-meta text-muted">{note}</span> : null}
       </div>
       <div className="relative">
         <Icon
@@ -206,7 +190,7 @@ export function ClickUpPicker({
           disabled={nothing}
           aria-controls={listId}
           aria-invalid={error ? true : undefined}
-          aria-describedby={described}
+          aria-describedby={errorId}
           className={`${FIELD_CLASS} pl-10`}
           data-testid={`${testId}-search`}
           {...(query ? { "data-popup-open": true } : {})}
