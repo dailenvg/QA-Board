@@ -23,7 +23,6 @@ interface UrlFieldProps {
  */
 export function UrlField({ value, error, onChange, onBlur }: UrlFieldProps) {
   const inputId = useId();
-  const hintId = useId();
   const errorId = useId();
   const checked = normalizeUrl(value);
   const host = checked.ok ? displayHost(checked.url) : null;
@@ -43,14 +42,11 @@ export function UrlField({ value, error, onChange, onBlur }: UrlFieldProps) {
         placeholder="example.com"
         value={value}
         aria-invalid={error ? true : undefined}
-        aria-describedby={`${hintId} ${errorId}`}
+        aria-describedby={errorId}
         onChange={(event) => onChange(event.target.value)}
         onBlur={onBlur}
         className={FIELD_CLASS}
       />
-      <p id={hintId} className="mt-2 text-meta text-muted">
-        Some sites block embedding. If so, you can upload a screenshot instead.
-      </p>
       <FieldError id={errorId} message={error} />
       <BrowserWindow host={host} />
     </div>

@@ -43,7 +43,9 @@ export async function generateMetadata(
  */
 export default async function ProjectPage({ params }: Props) {
   const { id } = await params;
-  if (await getSession()) return <Viewer projectId={id} />;
+  const user = await getSession();
+  // Send to ClickUp names the sender as the message will: their name, else their email.
+  if (user) return <Viewer projectId={id} sender={user.name || user.email} />;
   const preview = await openProjectPreview(id);
   const brand = preview && {
     company: preview.company,

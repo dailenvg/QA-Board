@@ -39,11 +39,18 @@ export type ClickUpRefused = {
 /** A ClickUp 429 says nothing Squint keeps: try again after a minute. */
 const CLICKUP_RETRY_SECONDS = 60;
 
+/**
+ * How many times over the limits below hold: 1, unless the e2e server sets
+ * `CLICKUP_RATE_LIMIT_MULTIPLIER` (its specs open the window more often in
+ * ten minutes than a member would). Never set on a deployment.
+ */
+const MULTIPLIER = Math.max(1, Number(process.env.CLICKUP_RATE_LIMIT_MULTIPLIER) || 1);
+
 /** Sends per member: each is a message in someone's ClickUp. Per server instance. */
-const sends = createRateLimiter({ limit: 20, windowMs: 10 * 60 * 1000 });
+const sends = createRateLimiter({ limit: 20 * MULTIPLIER, windowMs: 10 * 60 * 1000 });
 
 /** List reads per member (channels and people together): each one asks ClickUp. */
-const reads = createRateLimiter({ limit: 60, windowMs: 10 * 60 * 1000 });
+const reads = createRateLimiter({ limit: 60 * MULTIPLIER, windowMs: 10 * 60 * 1000 });
 
 export interface ClickUpServices {
   apiUrl: string;
@@ -119,8 +126,8 @@ export type ClickUpSendOutcome =
   | { ok: false; reason: "channel-forbidden" };
 
 async function projectOf(db: Queryable, workspaceId: string, projectId: string) {
-  const { rows } = await db.query<{ name: string; archived_at: Date | null }>(
-    `SELECT name, archived_at FROM projects
+  const { rows } = await db.query<{ archived_at: Date | null }>(
+    `SELECT archived_at FROM projects
      WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NULL`,
     [workspaceId, projectId],
   );
@@ -140,15 +147,15 @@ function channelRefusal(error: unknown): "channel-gone" | "channel-forbidden" | 
 }
 
 /**
- * Posts project `projectId` to a ClickUp channel as the actor: "Review
- * ready:" and its name, their note, and who it's assigned to (the member
- * pastes its link under it, so ClickUp shows the card).
+ * Posts project `projectId` to a ClickUp channel as the actor: who sent it
+ * (`actor.sender`), their note, and who it's assigned to (the member pastes
+ * its link under it, so ClickUp shows the card).
  * At most 20 sends per member in 10 minutes. Audits each send
  * (`project.clickup_sent`: the channel and counts only).
  */
 export async function sendProjectToClickUp(
   db: Database,
-  actor: ClickUpActor,
+  actor: ClickUpActor & { sender: string },
   projectId: string,
   input: ClickUpSendInput,
   now: number,
@@ -162,7 +169,7 @@ export async function sendProjectToClickUp(
   const claim = sends(actor.userId, now);
   if (!claim.ok) return { ...claim, reason: "rate-limited" };
   const { channelId, note, assignee } = input;
-  const content = clickUpMessage({ projectName: project.name, note });
+  const content = clickUpMessage({ sender: actor.sender, note });
   let posted;
   try {
     posted = await postClickUpMessage(

@@ -7,6 +7,7 @@ import { call } from "@/test/workspace-routes";
 import { createSession } from "../../auth/sessions";
 import type { Database } from "../../db/database";
 import { sealSecret } from "../../workspace/sealed-secrets";
+import { escapeMarkdown } from "./message";
 import { clickUpTokenContext, legacyClickUpTokenContext } from "./connections";
 
 const holder = vi.hoisted(() => ({ db: null as Database | null }));
@@ -240,6 +241,7 @@ describe("GET /api/w/<id>/clickup/channels and /people", () => {
 describe("POST /api/w/<id>/projects/<id>/clickup", () => {
   it("posts the project to the channel as the member, and audits it without the message", async () => {
     await connect(a);
+    await db.query("UPDATE users SET name = $1 WHERE id = $2", ["Dailen *V*", a.userId]);
     clickUp.messageUrl = "https://app.clickup.com/9012/chat/r/c-1";
     const response = await send(a, {
       channelId: "c-1",
@@ -255,9 +257,8 @@ describe("POST /api/w/<id>/projects/<id>/clickup", () => {
     expect(posted?.body).toEqual({
       type: "message",
       content: [
-        "**Review ready\\: Home \\[page\\] \\*v2\\***",
+        "**Dailen \\*V\\* sent you this project to review it through Squint**",
         "Please check the \\[hero\\]\\(https\\:\\/\\/evil\\.test\\)\\.\\\n\\@everyone",
-        "_Sent for review from Squint_",
       ].join("\n\n"),
       content_format: "text/md",
       assignee: "82",
@@ -279,13 +280,16 @@ describe("POST /api/w/<id>/projects/<id>/clickup", () => {
     expect(JSON.stringify(rows)).not.toContain("Please check");
   });
 
-  it("sends without a note or an assignee, and without a link when ClickUp gives none", async () => {
+  it("sends without a note or an assignee, naming a member without a name by their email", async () => {
     await connect(a);
     const response = await send(a, { channelId: "c-1" });
     expect(await response.json()).toEqual({ url: null });
+    const { rows } = await db.query<{ email: string }>("SELECT email FROM users WHERE id = $1", [
+      a.userId,
+    ]);
     expect(clickUpCalls.at(-1)?.body).toEqual({
       type: "message",
-      content: "**Review ready\\: Home \\[page\\] \\*v2\\***\n\n_Sent for review from Squint_",
+      content: `**${escapeMarkdown(rows[0]?.email ?? "")} sent you this project to review it through Squint**`,
       content_format: "text/md",
     });
   });

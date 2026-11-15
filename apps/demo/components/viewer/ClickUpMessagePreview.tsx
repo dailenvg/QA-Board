@@ -2,12 +2,7 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { useId, type ReactNode } from "react";
-import {
-  messageProjectName,
-  noteParagraphs,
-  reviewReady,
-  SENT_FROM,
-} from "@/lib/integrations/clickup/message";
+import { messageProjectName, noteParagraphs, sentBy } from "@/lib/integrations/clickup/message";
 import { usePopVariants } from "@/lib/motion";
 import { Icon } from "../ui/Icon";
 import { ClickUpPreviewCard } from "./ClickUpPreviewCard";
@@ -16,6 +11,9 @@ import { CLICKUP_SEND_COPY } from "./clickup-send-copy";
 const COPY = CLICKUP_SEND_COPY.preview;
 
 interface ClickUpMessagePreviewProps {
+  /** How the message names the member: their name in Squint, else their email. */
+  sender: string;
+  /** For the card's description. */
   projectName: string;
   /** The project's page: the link the member pastes. */
   projectUrl: string;
@@ -41,15 +39,15 @@ function Part({ label, testId, children }: { label: string; testId: string; chil
 
 /**
  * What a send puts in the channel, in the order ClickUp will show it: first
- * Squint's message, from you ("Review ready:" and the project's name in
- * bold, the note's paragraphs, "Sent for review from Squint", and who it's
- * assigned to), then the link the member pastes under it and the card
- * ClickUp shows for it (a message sent through ClickUp's API never gets
- * one). Drawn from the same parts the server's Markdown is
+ * Squint's message, from you (who sent it in bold, the note's paragraphs,
+ * and who it's assigned to), then the link the member pastes under it and
+ * the card ClickUp shows for it (a message sent through ClickUp's API never
+ * gets one). Drawn from the same parts the server's Markdown is
  * (`clickUpMessage`), never from the Markdown itself; the address is shown,
  * not followed, so the preview stays in the window.
  */
 export function ClickUpMessagePreview({
+  sender,
   projectName,
   projectUrl,
   cardSrc,
@@ -82,14 +80,13 @@ export function ClickUpMessagePreview({
               <span className="text-meta text-muted">{COPY.when}</span>
             </p>
             <p className="font-bold" data-testid="clickup-preview-project">
-              {reviewReady(projectName)}
+              {sentBy(sender)}
             </p>
             {paragraphs.map((lines, index) => (
               <p key={index} className="whitespace-pre-line" data-testid="clickup-preview-note">
                 {lines.join("\n")}
               </p>
             ))}
-            <p className="text-meta text-muted italic">{SENT_FROM}</p>
             <AnimatePresence initial={false}>
               {assignee ? (
                 <motion.p

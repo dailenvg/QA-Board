@@ -20,11 +20,10 @@ interface ClickUpNoteFieldProps {
  * The note sent with the project: optional plain text, up to `NOTE_MAX`
  * characters (`maxLength` counts UTF-16 units, so it never lets more
  * through than the server takes), with how many are left beside its label.
- * Its marks are sent as typed (`escapeMarkdown`), which the hint says.
+ * Its marks are sent as typed (`escapeMarkdown`).
  */
 export function ClickUpNoteField({ value, onChange, readOnly }: ClickUpNoteFieldProps) {
   const fieldId = useId();
-  const hintId = useId();
   const left = NOTE_MAX - noteLength(value);
   return (
     <div className="flex flex-col gap-2">
@@ -46,14 +45,10 @@ export function ClickUpNoteField({ value, onChange, readOnly }: ClickUpNoteField
         rows={3}
         maxLength={NOTE_MAX}
         readOnly={readOnly}
-        aria-describedby={hintId}
         onChange={(event) => onChange(event.target.value)}
         className={`${FIELD_CLASS} min-h-24 resize-y py-3`}
         data-testid="clickup-note"
       />
-      <p id={hintId} className="text-meta text-pretty text-muted">
-        {COPY.hint}
-      </p>
     </div>
   );
 }

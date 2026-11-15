@@ -19,9 +19,9 @@ import { ViewerView } from "./ViewerView";
  * `WorkspaceProvider`; changes go through the server backend. An archived
  * project opens as usual under a bar that offers Unarchive; its review link is
  * closed meanwhile, so Share (and the link's sync) and Send to ClickUp wait
- * until it's back.
+ * until it's back. `sender` is how a ClickUp message names the member.
  */
-export function Viewer({ projectId }: { projectId: string }) {
+export function Viewer({ projectId, sender }: { projectId: string; sender: string }) {
   const state = useSquint();
   if (state.status === "loading") return <ViewerSkeleton />;
   if (state.status === "error") return <WorkspaceError reason={state.reason} />;
@@ -39,7 +39,7 @@ export function Viewer({ projectId }: { projectId: string }) {
         actions={
           archived ? null : (
             <>
-              <ClickUpControl project={project} />
+              <ClickUpControl project={project} sender={sender} />
               <ShareControl data={state.data} project={project} />
             </>
           )

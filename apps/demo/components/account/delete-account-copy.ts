@@ -27,10 +27,6 @@ export const DELETE_ACCOUNT_COPY = {
     },
     /** The field's label: "Type Acme to confirm". */
     confirmLabel: (text: string) => `Type ${text} to confirm`,
-    confirmHint: {
-      workspace: "Your workspace's name, exactly as shown. Capital letters count.",
-      email: "The email you sign in with.",
-    },
     confirmEmpty: (text: string) => `Type ${text} to confirm.`,
     confirmMismatch: (text: string) => `That doesn't match. Type ${text} to confirm.`,
     password: "Current password",

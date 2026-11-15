@@ -18,8 +18,10 @@ const PROJECT = "Spring brief";
 const [, ANA] = CLICKUP_STUB.MEMBERS;
 /** The channels a message can go to: no DMs, archived or hidden ones. */
 const OPEN_CHANNELS = ["bugs", "design-review", "general", "marketing"];
-const NOTIFIED =
-  "Squint assigns the message to them, so they get a ClickUp notification without an @mention.";
+/** The message's title, after the sender's name (their name in Squint, else their email). */
+const SENT_YOU = "sent you this project to review it through Squint";
+/** The message's title in Markdown, whoever sent it. */
+const TITLE = new RegExp(`^\\*\\*\\S.* ${SENT_YOU}\\*\\*$`);
 const GONE = "That channel isn't in ClickUp anymore. Pick another from the refreshed list.";
 
 /**
@@ -149,7 +151,7 @@ test("one click copies the link, opens the channel, and posts the message, assig
   // The preview: first Squint's message, then the link you paste and the card it shows.
   const message = dialog.getByTestId("clickup-preview-message");
   await expect(message.getByTestId("clickup-preview-project")).toHaveText(
-    `Review ready: ${PROJECT}`,
+    new RegExp(`^\\S.* ${SENT_YOU}$`),
   );
   await expect(message.getByTestId("clickup-preview-note")).toHaveText(
     "Please check the [hero](https://evil.test)\n@everyone",
@@ -178,17 +180,20 @@ test("one click copies the link, opens the channel, and posts the message, assig
   await expect(dialog).toHaveAccessibleName("One step left: paste the link");
   await expect(dialog).toContainText("ClickUp opened in a new tab on #design-review.");
   const done = dialog.getByTestId("clickup-done");
+  // The track: message posted, link copied, the paste that's left; then the paste, shown.
   await expect(done.getByTestId("clickup-done-message")).toHaveAttribute("data-tone", "done");
-  await expect(done.getByTestId("clickup-done-message")).toContainText(
-    `Message posted in #design-review${ANA?.username} is assigned and gets a ClickUp notification.`,
+  await expect(done.getByTestId("clickup-done-message")).toHaveText("Message posted#design-review");
+  await expect(done.getByTestId("clickup-done-assignee")).toHaveText(
+    `${ANA?.username} is assigned and gets a ClickUp notification.`,
   );
-  await expect(done.getByTestId("clickup-done-link")).toContainText(
-    `Link copied to your clipboard${baseURL}/p/${projectId}`,
+  await expect(done.getByTestId("clickup-done-link")).toHaveAttribute("data-tone", "done");
+  await expect(done.getByTestId("clickup-done-link")).toHaveText(
+    "Link copied" + "To your clipboard",
   );
   await expect(done.getByTestId("clickup-done-paste")).toHaveAttribute("data-tone", "current");
-  await expect(done.getByTestId("clickup-done-paste")).toContainText(
-    "Paste it in the channel and press Enter",
-  );
+  const how = done.getByTestId("clickup-done-how");
+  await expect(how.getByRole("heading")).toHaveText("Paste it in #design-review and press Enter");
+  await expect(how.getByTestId("clickup-preview-card")).toHaveAttribute("data-state", "ready");
   await expect(dialog.getByTestId("clickup-done-close")).toBeFocused();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
     `${baseURL}/p/${projectId}`,
@@ -203,12 +208,12 @@ test("one click copies the link, opens the channel, and posts the message, assig
     assignee: String(ANA?.id),
   });
   expect(posted?.body).not.toHaveProperty("followers");
-  const [title, body, footer, ...rest] = posted?.body.content.split("\n\n") ?? [];
-  expect(title).toBe("**Review ready\\: Spring brief**");
+  const [title, body, ...rest] = posted?.body.content.split("\n\n") ?? [];
+  expect(title).toMatch(TITLE);
   expect(body).toBe("Please check the \\[hero\\]\\(https\\:\\/\\/evil\\.test\\)\\\n\\@everyone");
-  expect(footer).toBe("_Sent for review from Squint_");
-  // No link: the member pastes it under the message, so ClickUp shows its card.
+  // No project name, link or footer: the member pastes the link under it, so ClickUp shows its card.
   expect(rest).toEqual([]);
+  expect(posted?.body.content).not.toContain(PROJECT);
   expect(posted?.body.content).not.toContain(`/p/${projectId}`);
 
   // Copy link again says so; Open ClickUp again opens the channel once more.
@@ -260,17 +265,16 @@ test("with nobody assigned and no note, the message is the title alone, and a bl
   await page.bringToFront();
 
   const done = dialog.getByTestId("clickup-done");
-  await expect(done.getByTestId("clickup-done-message")).toHaveText("Message posted in #general");
-  const link = done.getByTestId("clickup-done-link");
-  await expect(link).toHaveAttribute("data-tone", "failed");
-  await expect(link).toContainText("Copy the link to paste it");
-  await expect(link.getByLabel("Project link")).toHaveValue(`${baseURL}/p/${projectId}`);
+  await expect(done.getByTestId("clickup-done-message")).toHaveText("Message posted#general");
+  await expect(done.getByTestId("clickup-done-assignee")).toHaveCount(0);
+  await expect(done.getByTestId("clickup-done-link")).toHaveAttribute("data-tone", "failed");
+  const problem = done.getByTestId("clickup-done-copy-problem");
+  await expect(problem).toContainText("Copy the link to paste it");
+  await expect(problem.getByLabel("Project link")).toHaveValue(`${baseURL}/p/${projectId}`);
 
   const [posted] = await stubMessages();
   expect(posted?.body).not.toHaveProperty("assignee");
-  expect(posted?.body.content).toBe(
-    "**Review ready\\: Spring brief**\n\n_Sent for review from Squint_",
-  );
+  expect(posted?.body.content).toMatch(TITLE);
 });
 
 test("a message ClickUp refuses says what ClickUp said, and Try again posts it once more", async ({
@@ -286,8 +290,9 @@ test("a message ClickUp refuses says what ClickUp said, and Try again posts it o
   await page.bringToFront();
 
   const message = dialog.getByTestId("clickup-done-message");
+  const problem = dialog.getByTestId("clickup-done-post-problem");
   await expect(message).toHaveAttribute("data-tone", "failed");
-  await expect(message.getByRole("alert")).toHaveText(
+  await expect(problem.getByRole("alert")).toHaveText(
     "ClickUp didn't take the message. It said: “Message content is too long”",
   );
   // The link was still copied, so it can still be pasted.
@@ -295,9 +300,10 @@ test("a message ClickUp refuses says what ClickUp said, and Try again posts it o
   expect(await stubMessages()).toEqual([]);
 
   const pages = context.pages().length;
-  await message.getByRole("button", { name: "Try again" }).click();
+  await problem.getByRole("button", { name: "Try again" }).click();
   await expect(message).toHaveAttribute("data-tone", "done");
-  await expect(message).toHaveText("Message posted in #bugs");
+  await expect(message).toHaveText("Message posted#bugs");
+  await expect(problem).toHaveCount(0);
   expect(await stubMessages()).toHaveLength(1);
   // Only the message again: no second tab.
   expect(context.pages()).toHaveLength(pages);
@@ -332,7 +338,8 @@ test("Enter in the lists picks without sending", async ({ page, isMobile }) => {
 
   // Who's notified, under the assignee's list; Enter picks the first person matching there too.
   const assignee = dialog.getByTestId("clickup-assignee");
-  await expect(dialog.getByTestId("clickup-assignee-hint")).toHaveText(NOTIFIED);
+  // No hint lines in the window.
+  await expect(dialog.getByTestId("clickup-assignee-hint")).toHaveCount(0);
   const assigneeSearch = assignee.getByTestId("clickup-assignee-search");
   await assigneeSearch.fill("ana");
   await assigneeSearch.press("Enter");
@@ -358,9 +365,9 @@ test("a channel deleted in ClickUp says so, and Pick another channel goes back t
   await sendAndOpen(context, dialog);
   await page.bringToFront();
 
-  const message = dialog.getByTestId("clickup-done-message");
-  await expect(message.getByRole("alert")).toHaveText(GONE);
-  await message.getByRole("button", { name: "Pick another channel" }).click();
+  const problem = dialog.getByTestId("clickup-done-post-problem");
+  await expect(problem.getByRole("alert")).toHaveText(GONE);
+  await problem.getByRole("button", { name: "Pick another channel" }).click();
 
   await expect(channel.getByRole("alert")).toHaveText(GONE);
   await expect(channelFocus(channel, isMobile)).toBeFocused();
@@ -387,11 +394,11 @@ test("a channel the member can't post in says so, and Pick another channel goes 
 
   const refused =
     "You can't post in #marketing in ClickUp. Pick another channel, or ask a ClickUp admin to add you.";
-  const message = dialog.getByTestId("clickup-done-message");
-  await expect(message.getByRole("alert")).toHaveText(refused);
+  const problem = dialog.getByTestId("clickup-done-post-problem");
+  await expect(problem.getByRole("alert")).toHaveText(refused);
   // Not a reason to reconnect: the token still works.
   await expect(dialog.getByTestId("clickup-send-blocked")).toHaveCount(0);
-  await message.getByRole("button", { name: "Pick another channel" }).click();
+  await problem.getByRole("button", { name: "Pick another channel" }).click();
   await expect(channel.getByRole("alert")).toHaveText(refused);
   await expect(channelFocus(channel, isMobile)).toBeFocused();
   await expect(channel.getByRole("radio", { name: "#marketing" })).not.toBeChecked();

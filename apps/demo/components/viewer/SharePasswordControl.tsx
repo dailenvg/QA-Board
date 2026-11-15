@@ -210,7 +210,6 @@ export function SharePasswordControl({
                 inputRef={input}
                 value={password}
                 error={fieldError ?? state.error}
-                hint="8 to 128 characters. Send it to your clients separately from the link."
                 readOnly={busy}
                 onChange={(value) => {
                   setPassword(value);

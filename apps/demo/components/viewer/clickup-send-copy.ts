@@ -50,16 +50,12 @@ export const CLICKUP_SEND_COPY = {
   matches: (count: number) => `${count} ${count === 1 ? "match" : "matches"}`,
   people: {
     empty: "Your ClickUp workspace has nobody else in it yet.",
-    /** Under Assign to. */
-    notified:
-      "Squint assigns the message to them, so they get a ClickUp notification without an @mention.",
   },
   optional: "Optional",
   /** "12 more. Keep typing to narrow the list." */
   more: (count: number) => `${count} more. Keep typing to narrow the list.`,
   note: {
     label: "Note",
-    hint: "Plain text. To notify someone, use Assign to.",
     left: (count: number) => `${count} left`,
   },
   preview: {
@@ -83,23 +79,37 @@ export const CLICKUP_SEND_COPY = {
     title: "One step left: paste the link",
     /** "ClickUp opened in a new tab on #design." */
     opened: (channel: string) => `ClickUp opened in a new tab on #${channel}.`,
-    posted: (channel: string) => `Message posted in #${channel}`,
-    /** Under it when someone was assigned. */
+    /** The track of steps, as read out. */
+    track: "What's done, and what's left",
+    /** Each step's name on the track, and the word under it. */
+    steps: {
+      posted: "Message posted",
+      posting: "Posting…",
+      notPosted: "Not posted",
+      copied: "Link copied",
+      notCopied: "Not copied",
+      clipboard: "To your clipboard",
+      copyBelow: "Copy it below",
+      paste: "Paste it",
+      inClickUp: "In ClickUp",
+    },
+    /** Under the track when someone was assigned. */
     assigned: (name: string) => `${name} is assigned and gets a ClickUp notification.`,
+    /** Read out while Try again posts the message once more. */
     posting: (channel: string) => `Posting the message in #${channel}…`,
     notPosted: "The message wasn't posted",
     postAgain: "Try again",
     pickAnother: "Pick another channel",
-    copied: "Link copied to your clipboard",
     notCopied: "Copy the link to paste it",
-    notCopiedHint:
-      "Your browser didn't let Squint copy it. Use Copy, or select the link and copy it.",
     linkLabel: "Project link",
-    paste: "Paste it in the channel and press Enter",
+    /** "Paste it in #design and press Enter" */
+    paste: (channel: string) => `Paste it in #${channel} and press Enter`,
     /** Touch screens: no keys to press. */
     pasteTouch: "Press and hold in the message box, tap Paste, then send.",
     then: "then",
     enter: "Enter",
+    /** The card the paste turns into. */
+    cardAlt: (project: string) => `Link card: ${project}, ready for your team's review.`,
     card: "ClickUp builds the branded card as soon as the link is pasted.",
     copyAgain: "Copy link again",
     /** Copy link again, for a moment after it worked. */
