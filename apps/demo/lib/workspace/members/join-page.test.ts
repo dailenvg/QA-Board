@@ -14,6 +14,7 @@ import {
 } from "@/test/members-fixture";
 import { PNG } from "@/test/workspace-fixture";
 import type { SessionUser } from "../../auth/users";
+import { PAGE_LOGO_MAX_BYTES } from "../../share/brand-logo";
 import { toDate } from "../times";
 import { acceptInvite } from "./accept";
 import { cancelInvite } from "./cancel-invite";
@@ -112,6 +113,22 @@ describe("loadJoinPage: the invite itself", () => {
       },
       email: "cleo@x.test",
       inviter: OWNER_NAME,
+    });
+  });
+
+  it("draws the monogram for a logo too large to inline, and inlines one at the cap", async () => {
+    const png = (size: number) => {
+      const bytes = new Uint8Array(size);
+      bytes.set(PNG);
+      return bytes;
+    };
+    await seedLogo(world.db, world.workspaceId, png(PAGE_LOGO_MAX_BYTES + 1));
+    const token = await invite("cleo@x.test");
+    expect(await open(token)).toMatchObject({ kind: "new-person", brand: BRAND });
+    const atCap = png(PAGE_LOGO_MAX_BYTES);
+    await seedLogo(world.db, world.workspaceId, atCap, { id: "logo-2" });
+    expect(await open(token)).toMatchObject({
+      brand: { logoSrc: `data:image/png;base64,${Buffer.from(atCap).toString("base64")}` },
     });
   });
 });

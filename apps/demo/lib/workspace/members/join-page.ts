@@ -2,7 +2,7 @@ import { describeError } from "../../auth/http";
 import type { SessionUser } from "../../auth/users";
 import { database } from "../../db/database";
 import { brandColor } from "../../share/brand";
-import { readStoredImage } from "../../share/brand-logo";
+import { pageLogoUri, readStoredImage } from "../../share/brand-logo";
 import type { Queryable } from "../../share/migrate";
 import { hashSecret, isSecretShape } from "../../share/tokens";
 import type { BlobDriver } from "../blob-driver";
@@ -24,7 +24,10 @@ export interface JoinBrand {
   workspace: string;
   /** `#rrggbb`, or null for Squint's own accent. */
   color: string | null;
-  /** The logo inline as a data URI (the visitor may have no session to fetch it with); null: the monogram. */
+  /**
+   * The logo inline as a data URI (the visitor may have no session to fetch
+   * it with); null: the monogram, also for a logo too large to inline.
+   */
   logoSrc: string | null;
   /** The owner's name, for "Ask {Owner}"; null when they have none. */
   owner: string | null;
@@ -106,7 +109,10 @@ async function accountOf(
   return rows[0] ?? null;
 }
 
-/** The workspace's logo as a data URI, or null without one (or when its file won't read). */
+/**
+ * The workspace's logo as a data URI, or null (the monogram) without one, when
+ * its file won't read, or when it's too large to inline (`pageLogoUri`).
+ */
 async function logoUri(
   db: Queryable,
   workspaceId: string,
@@ -128,7 +134,7 @@ async function logoUri(
   const row = rows[0];
   if (!row) return null;
   const logo = await readStoredImage({ key: row.key, location: toLocation(row) }, driver);
-  return logo && `data:${logo.contentType};base64,${Buffer.from(logo.bytes).toString("base64")}`;
+  return logo && pageLogoUri(logo);
 }
 
 /** Why the invite itself can't be used now, whoever opened it; null while it can. */
