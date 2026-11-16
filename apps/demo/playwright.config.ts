@@ -12,6 +12,8 @@ const DATABASE_URL = e2eDatabaseUrl();
  * dist folder, with the widget enabled as on a Vercel preview, storing shares
  * and accounts in the e2e Postgres. The global setup empties and seeds it;
  * the `setup` project signs in once and every other project reuses that session.
+ * Chromium runs every spec, on a desktop and a phone; WebKit, on a desktop and
+ * an iPhone, runs only the tests tagged `@webkit`.
  * ClickUp's API is a stub on this machine (`e2e/clickup-stub.mjs`), so no test
  * reaches ClickUp.
  */
@@ -40,6 +42,19 @@ export default defineConfig({
     {
       name: "mobile",
       use: { ...devices["Pixel 7"], storageState: SESSION_STATE },
+      dependencies: ["setup"],
+    },
+    // Safari's own rules (the clipboard, for one) only for the tests tagged `@webkit`.
+    {
+      name: "webkit",
+      grep: /@webkit/,
+      use: { ...devices["Desktop Safari"], storageState: SESSION_STATE },
+      dependencies: ["setup"],
+    },
+    {
+      name: "mobile-safari",
+      grep: /@webkit/,
+      use: { ...devices["iPhone 15"], storageState: SESSION_STATE },
       dependencies: ["setup"],
     },
   ],
