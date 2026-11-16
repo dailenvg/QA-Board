@@ -1,3 +1,4 @@
+import type { AcceptRefusal } from "../workspace/members/accept";
 import type { LoginError } from "./auth-client";
 import { loginErrorMessage } from "./auth-client";
 import { ACCOUNT_DELETION_GRACE_DAYS } from "../account/field-rules";
@@ -21,6 +22,8 @@ export const LOGIN_ERRORS: readonly LoginError[] = [
 export type ResetRequestFlag = "invalid-email" | "rate-limited" | "unavailable";
 export type ResetPasswordFlag = "weak" | "mismatch" | "unavailable";
 export type EmailChangeFlag = "taken" | "unavailable";
+/** Why a join form post went back to the invite's page: a refusal, a field, or no answer. */
+export type JoinFlag = AcceptRefusal | "invalid" | "mismatch" | "rate-limited" | "unavailable";
 
 const RESET_REQUEST_MESSAGES: Record<ResetRequestFlag, string> = {
   "invalid-email": "Enter an email address like name@company.com.",
@@ -37,6 +40,31 @@ const RESET_PASSWORD_MESSAGES: Record<ResetPasswordFlag, string> = {
 const EMAIL_CHANGE_MESSAGES: Record<EmailChangeFlag, string> = {
   taken: "Another account uses this email address now, so the change can't be made.",
   unavailable: "Couldn't confirm the change. Try again in a moment.",
+};
+
+/**
+ * The join page reads the invite's state again on its way back, so a refusal
+ * usually shows as its own panel; these say it where the form shows again.
+ * No names: a code is all the address carries.
+ */
+const JOIN_MESSAGES: Record<JoinFlag, string> = {
+  invalid: `Enter your name and a password of ${PASSWORD_MIN_LENGTH} to ${PASSWORD_MAX_LENGTH} characters.`,
+  mismatch: "The two passwords didn't match. Type them again.",
+  "rate-limited": "Too many attempts. Wait a minute and try again.",
+  unavailable: "Couldn't join just now. Try again in a moment.",
+  "not-found":
+    "This invite link doesn't work. Check that you copied all of it, or ask for a new one.",
+  expired: "This invite has expired. Ask the workspace's owner for a new one.",
+  cancelled: "This invite was cancelled. Ask the workspace's owner for a new one.",
+  used: "This invite has been used. If that wasn't you, ask the workspace's owner for a new one.",
+  "seats-full":
+    "This workspace is full right now. Ask the workspace's owner to free a seat, then try again.",
+  "wrong-account": "This invite is for someone else.",
+  "cannot-join": "This invite is for someone else.",
+  "in-another-workspace":
+    "You're already in another workspace. For now, each person can be in only one.",
+  "sign-in-first": "This email already has a Squint account. Sign in to join.",
+  "account-closing": "This email can't join right now.",
 };
 
 function known<T extends string>(messages: Record<T, string>, code: string | undefined) {
@@ -59,6 +87,11 @@ export function resetPasswordFlagMessage(error: string | undefined): string | nu
 
 export function emailChangeFlagMessage(error: string | undefined): string | null {
   return known(EMAIL_CHANGE_MESSAGES, error);
+}
+
+/** The join page's message for `?error=`, or null for none or unknown. */
+export function joinFlagMessage(error: string | undefined): string | null {
+  return known(JOIN_MESSAGES, error);
 }
 
 /**

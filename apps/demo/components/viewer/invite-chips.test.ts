@@ -3,6 +3,7 @@ import {
   addChips,
   chipLabel,
   chipsMessage,
+  invalidChipsLine,
   markChips,
   removeChip,
   sendableChips,
@@ -42,6 +43,15 @@ describe("invite chips", () => {
     );
   });
 
+  it("stop at a cap of their own (the seats left, in Members), still counting the rest", () => {
+    const { chips, overflow, added } = addChips([], "a@b.co c@d.co e@f.co", 2);
+    expect(chips.map((item) => item.address)).toEqual(["a@b.co", "c@d.co"]);
+    expect(added).toEqual(["a@b.co", "c@d.co"]);
+    expect(overflow).toBe(1);
+    expect(addChips(chips, "g@h.co", 2)).toEqual({ chips, added: [], overflow: 1 });
+    expect(addChips([], "a@b.co", 0)).toEqual({ chips: [], added: [], overflow: 1 });
+  });
+
   it("come off one at a time", () => {
     expect(removeChip([chip("a@b.co"), chip("c@d.co")], "a@b.co")).toEqual([chip("c@d.co")]);
   });
@@ -73,5 +83,18 @@ describe("invite chips", () => {
     expect(chipLabel(chip("ana@acme.studio", "outside"))).toBe(
       "ana@acme.studio, not in your workspace",
     );
+    expect(invalidChipsLine([chip("a@b.co"), chip("nope", "invalid")])).toBe(
+      `"nope" isn't an email address. Remove it and type it again.`,
+    );
+    expect(invalidChipsLine([chip("a@b.co", "already-member")])).toBeNull();
+  });
+
+  it("name each reason Members gives, for screen readers", () => {
+    expect(chipLabel(chip("a@b.co", "already-member"))).toBe("a@b.co, already in the workspace");
+    expect(chipLabel(chip("a@b.co", "already-invited"))).toBe("a@b.co, already invited");
+    expect(chipLabel(chip("a@b.co", "in-another-workspace"))).toBe(
+      "a@b.co, already in another workspace",
+    );
+    expect(chipLabel(chip("a@b.co", "cannot-invite"))).toBe("a@b.co, can't be invited");
   });
 });

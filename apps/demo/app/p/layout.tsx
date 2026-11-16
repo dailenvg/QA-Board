@@ -17,7 +17,9 @@ export default async function ViewerLayout({ children }: { children: ReactNode }
   return (
     <>
       <Suspense fallback={null}>
-        <WelcomeSignal />
+        <WelcomeSignal
+          workspaceName={session.kind === "ready" ? session.start.data.workspace.name : null}
+        />
       </Suspense>
       {session.kind === "ready" ? (
         <WorkspaceProvider start={session.start}>{children}</WorkspaceProvider>

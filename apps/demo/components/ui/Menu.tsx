@@ -19,10 +19,12 @@ import { closesOnSelect, itemRole, ITEM_SELECTOR, type MenuItem } from "./menu-i
 
 export type { MenuItem } from "./menu-item";
 
-/** Opens a menu from elsewhere, such as a context-menu key on a tree row. */
+/** Opens a menu from elsewhere, such as a context-menu key on a tree row, or closes it. */
 export interface MenuHandle {
   /** `from`: the control that asked, which gets focus back when the menu closes. */
   open: (from?: HTMLElement | null) => void;
+  /** Closes it, focus back as on Escape: once a `keepOpen` item's work is done. */
+  close: () => void;
 }
 
 const ENABLED_ITEM = `${ITEM_SELECTOR}:not([aria-disabled="true"])`;
@@ -192,7 +194,6 @@ export function Menu({
     setExplaining(false);
     setOpen(true);
   };
-  useImperativeHandle(handle, () => ({ open: openMenu }));
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -240,6 +241,13 @@ export function Menu({
     setOpen(false);
     focusBack();
   };
+
+  useImperativeHandle(handle, () => ({
+    open: openMenu,
+    close: () => {
+      if (open) close();
+    },
+  }));
 
   const choose = (item: MenuItem) => {
     // Back on the trigger (or `returnFocus`) first, so a dialog opened by this item returns

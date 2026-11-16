@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   emailChangeFlagMessage,
+  joinFlagMessage,
   loginFlagMessage,
+  type JoinFlag,
   loginNotice,
   resetPasswordFlagMessage,
   resetRequestFlagMessage,
@@ -21,6 +23,34 @@ describe("form flags", () => {
     expect(resetRequestFlagMessage("invalid-email")).toMatch(/name@company.com/);
     expect(resetPasswordFlagMessage("mismatch")).toMatch(/didn't match/);
     expect(emailChangeFlagMessage("taken")).toMatch(/Another account/);
+    expect(joinFlagMessage("mismatch")).toBe("The two passwords didn't match. Type them again.");
+    expect(joinFlagMessage("invalid")).toBe(
+      "Enter your name and a password of 12 to 256 characters.",
+    );
+  });
+
+  it("has a message for every way a join form post comes back, none naming anyone", () => {
+    const flags: JoinFlag[] = [
+      "invalid",
+      "mismatch",
+      "rate-limited",
+      "unavailable",
+      "not-found",
+      "expired",
+      "cancelled",
+      "used",
+      "seats-full",
+      "wrong-account",
+      "cannot-join",
+      "in-another-workspace",
+      "sign-in-first",
+      "account-closing",
+    ];
+    for (const flag of flags) {
+      const message = joinFlagMessage(flag);
+      expect(message, flag).toMatch(/\.$/);
+      expect(message, flag).not.toMatch(/—|\{/);
+    }
   });
 
   it("says why the sign-in page was opened, after a reset, an email change or a sign-out", () => {
@@ -37,5 +67,7 @@ describe("form flags", () => {
     expect(resetRequestFlagMessage("toString")).toBeNull();
     expect(resetPasswordFlagMessage("constructor")).toBeNull();
     expect(emailChangeFlagMessage("hasOwnProperty")).toBeNull();
+    expect(joinFlagMessage("__proto__")).toBeNull();
+    expect(joinFlagMessage(undefined)).toBeNull();
   });
 });

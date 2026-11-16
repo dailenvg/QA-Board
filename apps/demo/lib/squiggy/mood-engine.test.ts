@@ -206,6 +206,7 @@ describe("reactionMood", () => {
     expect(reactionMood({ type: "comment-resolved" })).toBe("resolved");
     expect(reactionMood({ type: "project-created", projectName: "Site" })).toBe("happy");
     expect(reactionMood({ type: "signed-in", first: false })).toBe("happy");
+    expect(reactionMood({ type: "joined", workspace: "Acme Studio" })).toBe("happy");
     expect(reactionMood({ type: "item-deleted", item: "comment" })).toBe("surprised");
     expect(reactionMood({ type: "save-failed" })).toBe("surprised");
     expect(reactionMood({ type: "project-archived" })).toBe("sleeping");

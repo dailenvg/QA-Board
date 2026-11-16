@@ -69,6 +69,8 @@ export interface PendingInvite {
   link: string | null;
   /** Its last email didn't go out (email off, or Resend refused it), or none has yet. */
   emailNotSent: boolean;
+  /** When its last email went out (epoch ms), for Resend's one-minute wait; null when none has. */
+  lastSentAt: number | null;
 }
 
 interface Common {
@@ -112,6 +114,7 @@ interface InviteRow {
   created_at: Date;
   expires_at: Date;
   email_not_sent: boolean;
+  last_sent_at: Date | null;
 }
 
 /** Everyone with a membership of the workspace: the owner first, then by name and email. */
@@ -134,7 +137,7 @@ async function memberRows(db: Queryable, workspaceId: string): Promise<MemberRow
 async function inviteRows(db: Queryable, workspaceId: string): Promise<InviteRow[]> {
   const { rows } = await db.query<InviteRow>(
     `SELECT i.id, i.email, i.token_sealed, COALESCE(u.name, u.email) AS invited_by,
-       i.created_at, i.expires_at,
+       i.created_at, i.expires_at, i.last_sent_at,
        (i.last_sent_at IS NULL OR i.last_send_error_at > i.last_sent_at) AS email_not_sent
      FROM workspace_invites AS i
      LEFT JOIN users AS u ON u.id = i.invited_by AND u.deleted_at IS NULL
@@ -166,6 +169,7 @@ function toInvite(row: InviteRow, workspaceId: string, now: number, env: EmailEn
     expired,
     link: expired ? null : linkOf(row, workspaceId, env),
     emailNotSent: row.email_not_sent,
+    lastSentAt: row.last_sent_at ? toMs(row.last_sent_at) : null,
   } satisfies PendingInvite;
 }
 

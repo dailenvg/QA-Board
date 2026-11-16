@@ -26,7 +26,9 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
   return (
     <>
       <Suspense fallback={null}>
-        <WelcomeSignal />
+        <WelcomeSignal
+          workspaceName={session.kind === "ready" ? session.start.data.workspace.name : null}
+        />
       </Suspense>
       {session.kind === "ready" ? (
         <WorkspaceProvider start={session.start}>

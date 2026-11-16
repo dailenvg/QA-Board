@@ -170,10 +170,15 @@ export function loadStoragePage(): Promise<StoragePage> {
  * `loadMembersData` shows them to this user. Read fresh on every render, with
  * invite links only for those who may manage invites.
  */
-export type MembersPage = PageRead<{ members: MembersData }>;
+export type MembersPage = PageRead<{
+  members: MembersData;
+  /** When it was read (epoch ms): "Expires in" counts from it until the browser's clock takes over. */
+  readAt: number;
+}>;
 
 export function loadMembersPage(): Promise<MembersPage> {
-  return readOwnWorkspacePage("members", async (db, membership, user) => ({
-    members: await loadMembersData(db, user.id, membership, Date.now()),
-  }));
+  return readOwnWorkspacePage("members", async (db, membership, user) => {
+    const readAt = Date.now();
+    return { members: await loadMembersData(db, user.id, membership, readAt), readAt };
+  });
 }

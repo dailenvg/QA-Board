@@ -1,7 +1,14 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useId, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
+import {
+  useId,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type KeyboardEvent,
+  type RefObject,
+} from "react";
 import { instant, spring, usePopVariants } from "@/lib/motion";
 import { MAX_INVITES_PER_SEND } from "@/lib/share/invite-addresses";
 import { FieldError } from "../ui/FieldError";
@@ -13,6 +20,21 @@ interface InviteChipsFieldProps {
   onChange: (chips: InviteChip[]) => void;
   /** Busy sending: the chips stay, and nothing can be added or removed. */
   readOnly: boolean;
+  /** The Share window's "Email them the link" by default. */
+  label?: string;
+  /** Beside the label; "Up to {max} at a time" by default. */
+  hint?: string;
+  /** How many chips it takes; `MAX_INVITES_PER_SEND` by default. */
+  max?: number;
+  /**
+   * What's wrong, under the field, from the chips and how many didn't fit
+   * past `max`; the Share window's `chipsMessage` by default.
+   */
+  describe?: (chips: readonly InviteChip[], overflow: number) => string | null;
+  /** More that describes the field (said with it), such as a line with its own buttons below. */
+  describedBy?: string;
+  /** The field itself, for whoever needs to focus it (after a send). */
+  inputRef?: RefObject<HTMLInputElement | null>;
 }
 
 /** Keys that end an address: it becomes a chip. Tab only with text typed, so focus can still move. */
@@ -24,24 +46,35 @@ const SPLIT_KEYS = new Set(["Enter", ",", " ", ";"]);
  * on its own; Backspace in an empty field takes the last chip back. Each
  * chip has its own Remove button. A chip that isn't an address (checked as
  * it's added, and as the field loses focus) is marked, and said under the
- * field. At most `MAX_INVITES_PER_SEND`.
+ * field. At most `max`. The Share window's words by default; Members gives its own.
  */
-export function InviteChipsField({ chips, onChange, readOnly }: InviteChipsFieldProps) {
+export function InviteChipsField({
+  chips,
+  onChange,
+  readOnly,
+  label = "Email them the link",
+  max = MAX_INVITES_PER_SEND,
+  hint = `Up to ${max} at a time`,
+  describe = chipsMessage,
+  describedBy,
+  inputRef,
+}: InviteChipsFieldProps) {
   const inputId = useId();
   const hintId = useId();
   const errorId = useId();
-  const input = useRef<HTMLInputElement>(null);
+  const ownInput = useRef<HTMLInputElement | null>(null);
+  const input = inputRef ?? ownInput;
   const [draft, setDraft] = useState("");
   const [overflow, setOverflow] = useState(0);
   const [announcement, setAnnouncement] = useState("");
   const variants = usePopVariants();
   const reduce = useReducedMotion();
-  const full = chips.length >= MAX_INVITES_PER_SEND;
-  const message = chipsMessage(chips, overflow);
+  const full = chips.length >= max;
+  const message = describe(chips, overflow);
 
   const commit = (text: string) => {
     if (!text.trim()) return;
-    const next = addChips(chips, text);
+    const next = addChips(chips, text, max);
     setDraft("");
     setOverflow(next.overflow);
     if (next.added.length) {
@@ -88,10 +121,10 @@ export function InviteChipsField({ chips, onChange, readOnly }: InviteChipsField
     <div className="flex flex-col">
       <div className="mb-2 flex items-baseline justify-between gap-3">
         <label htmlFor={inputId} className="text-body font-semibold">
-          Email them the link
+          {label}
         </label>
         <span id={hintId} className="shrink-0 text-meta text-muted">
-          Up to {MAX_INVITES_PER_SEND} at a time
+          {hint}
         </span>
       </div>
       {/* The box focuses its field on a click anywhere inside it, as a text field would. */}
@@ -155,7 +188,7 @@ export function InviteChipsField({ chips, onChange, readOnly }: InviteChipsField
           readOnly={readOnly}
           // Shorter once a chip shares its row, so it fits a phone's width beside one.
           placeholder={full ? "" : chips.length ? "Add another" : "Add an email and press Enter"}
-          aria-describedby={`${hintId} ${errorId}`}
+          aria-describedby={`${hintId} ${errorId}${describedBy ? ` ${describedBy}` : ""}`}
           aria-invalid={message ? true : undefined}
           onChange={(event) => {
             const value = event.target.value;
