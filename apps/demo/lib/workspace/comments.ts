@@ -1,5 +1,8 @@
+import { personAvatarSrc } from "../routes";
+import { logoVersion } from "../share/brand";
 import type { Queryable } from "../share/migrate";
 import type { Comment, CommentCrop } from "../store/types";
+import { personKey } from "./members/person-key";
 import type { CommentCreate, CommentPatch } from "./schemas";
 import { toDate, toMs } from "./times";
 import { done, refuse, type QueryResult } from "./query-result";
@@ -26,7 +29,27 @@ interface CommentRow {
   edited_at: Date | null;
   /** Its `origin` is 'client': a guest's comment, pulled from the review link. */
   from_client: boolean;
+  /**
+   * A team comment's author's avatar key, while they're an active member of
+   * the comment's workspace and have a photo; else null. Server-side only.
+   */
+  author_avatar_key: string | null;
 }
+
+/**
+ * The avatar of a team comment's author (4.11): only while they're an active
+ * member of the comment's workspace (not removed, account not deleted), and
+ * only where their avatar goes, as `lib/account/avatar.ts` reads it.
+ */
+const authorAvatarKey = (alias: string) => `CASE WHEN ${alias}.origin = 'team' THEN (
+    SELECT avatar.key FROM memberships AS member
+    JOIN projects AS home ON home.workspace_id = member.workspace_id
+    JOIN users AS u ON u.id = member.user_id AND u.deleted_at IS NULL
+    JOIN user_blobs AS avatar
+      ON avatar.user_id = u.id AND avatar.key = u.avatar_blob_key
+      AND starts_with(avatar.key, 'user/' || u.id::text || '/avatar/')
+    WHERE home.id = ${alias}.project_id AND member.user_id = ${alias}.author_user_id)
+  END AS author_avatar_key`;
 
 /**
  * A team comment shows its author's name as it is now, so a rename shows
@@ -41,7 +64,7 @@ const columns = (alias: string) => `${alias}.project_id, ${alias}.id, ${alias}.x
     ELSE ${alias}.author_name END AS author_name,
   ${alias}.author_user_id, ${alias}.status, ${alias}.snapshot_id, ${alias}.page_id, ${alias}.crop,
   ${alias}.created_at, ${alias}.updated_at, ${alias}.resolved_at, ${alias}.edited_at,
-  ${alias}.origin = 'client' AS from_client`;
+  ${alias}.origin = 'client' AS from_client, ${authorAvatarKey(alias)}`;
 const COLUMNS = columns("comment");
 const RETURNING = columns("comments");
 
@@ -58,13 +81,22 @@ export interface CommentActor {
   canModerate: boolean;
 }
 
+/** The author's avatar in `workspaceId`, by their person key there; null without one. */
+function authorAvatarOf(row: CommentRow, workspaceId: string): string | null {
+  if (!row.author_avatar_key || !row.author_user_id) return null;
+  const key = personKey(workspaceId, row.author_user_id);
+  return personAvatarSrc(workspaceId, key, logoVersion(row.author_avatar_key));
+}
+
 /**
  * Never the author's user id: the wire format is the browser store's. Only
  * where the comment came from shows, as `fromClient` (a client's comment),
- * and, for `viewerId`, whether it's theirs (`mine`).
+ * and, for `viewerId`, whether it's theirs (`mine`). A team member's photo
+ * is a URL by their person key in `workspaceId` (`authorAvatar`).
  */
-function toComment(row: CommentRow, viewerId?: string): Comment {
+function toComment(row: CommentRow, workspaceId: string, viewerId?: string): Comment {
   const mine = !row.from_client && viewerId !== undefined && row.author_user_id === viewerId;
+  const authorAvatar = authorAvatarOf(row, workspaceId);
   return {
     id: row.id,
     projectId: row.project_id,
@@ -82,12 +114,14 @@ function toComment(row: CommentRow, viewerId?: string): Comment {
     ...(row.crop ? { crop: row.crop } : {}),
     ...(row.from_client ? { fromClient: true as const } : {}),
     ...(mine ? { mine: true as const } : {}),
+    ...(authorAvatar ? { authorAvatar } : {}),
   };
 }
 
 /**
  * The comments of the workspace's live projects (or of one), oldest first;
- * those `viewerId` wrote are `mine`.
+ * those `viewerId` wrote are `mine`, and those of active members with a
+ * photo carry it (`authorAvatar`).
  */
 export async function listComments(
   db: Queryable,
@@ -103,7 +137,7 @@ export async function listComments(
      ORDER BY comment.created_at, comment.id`,
     [workspaceId, projectId ?? null],
   );
-  return rows.map((row) => toComment(row, viewerId));
+  return rows.map((row) => toComment(row, workspaceId, viewerId));
 }
 
 /** Whether the comment's snapshot or page (when it names one) belongs to the project. */
@@ -184,7 +218,9 @@ export async function addComment(
       editedAt === null ? null : toDate(editedAt),
     ],
   );
-  return rows[0] ? done(toComment(rows[0], authorUserId ?? undefined)) : refuse("exists");
+  return rows[0]
+    ? done(toComment(rows[0], workspaceId, authorUserId ?? undefined))
+    : refuse("exists");
 }
 
 /**
@@ -231,7 +267,7 @@ export async function updateComment(
       actor.userId,
     ],
   );
-  return rows[0] ? toComment(rows[0], actor.userId) : null;
+  return rows[0] ? toComment(rows[0], workspaceId, actor.userId) : null;
 }
 
 /**

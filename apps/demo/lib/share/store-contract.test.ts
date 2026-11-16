@@ -112,6 +112,16 @@ describe.each(stores)("%s share store", (_name, make) => {
     expect(snapshot?.seq).toBeLessThan(after?.seq ?? 0);
   });
 
+  it("has no team on a share without a workspace: no team authors, no avatars", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    await store.upsertComment(RECORD.id, COMMENT, "owner");
+    expect(await store.teamAuthors(RECORD.id)).toEqual(new Map());
+    expect(await store.teamAuthors("no-such-share")).toEqual(new Map());
+    expect(await store.teamAvatar(RECORD.id, "A".repeat(22))).toBeNull();
+    expect(await store.teamAvatar(RECORD.id, "not-a-key")).toBeNull();
+  });
+
   it("stores blobs, lists sizes, and deletes rows", async () => {
     const store = await make();
     await store.create(RECORD);

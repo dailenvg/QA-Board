@@ -9,6 +9,7 @@ import {
   URL_PROJECT,
 } from "@/test/workspace-fixture";
 import { findMembership } from "../auth/memberships";
+import { iconVersionOf } from "../share/brand";
 import { addComment } from "./comments";
 import { authorName, loadWorkspace, setAuthorName } from "./load-workspace";
 import { createProject, trashProject } from "./projects";
@@ -60,9 +61,11 @@ describe("loadWorkspace", () => {
       name: "acme",
       fromEmailName: null,
       brandColor: null,
+      iconVersion: iconVersionOf({ name: "acme", color: null, logoKey: null }),
       role: "owner",
       permissions: ["review_links", "trash", "import"],
       ownerName: "Ana",
+      avatarSrc: null,
     });
     expect(data.folders.map((folder) => folder.id)).toEqual(["f1"]);
     expect(data.projects.map((project) => project.id).sort()).toEqual(["deck", "web"]);

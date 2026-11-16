@@ -1,0 +1,31 @@
+import type { Comment } from "@/lib/store/types";
+import { PersonAvatar, type AvatarSurface } from "../ui/PersonAvatar";
+import { useCommentPeople } from "./comment-people";
+
+interface CommentAuthorAvatarProps {
+  comment: Comment;
+  /** What the comment sits on: a card in the list, the panel in the pin's popover. */
+  surface: AvatarSurface;
+}
+
+/**
+ * Who wrote a comment, between its pin number and their name: a team
+ * member's photo (or initials) with the company badge; a client's initials,
+ * the same size and without a badge, so names line up in the list.
+ */
+export function CommentAuthorAvatar({ comment, surface }: CommentAuthorAvatarProps) {
+  const { badgeSrc, isTeam } = useCommentPeople();
+  const team = isTeam(comment);
+  return (
+    <PersonAvatar
+      name={comment.author}
+      fallback={comment.author}
+      src={team ? (comment.authorAvatar ?? null) : null}
+      size="xs"
+      badgeSrc={team ? badgeSrc : null}
+      surface={surface}
+      photoTestId="comment-avatar"
+      initialsTestId="comment-initials"
+    />
+  );
+}

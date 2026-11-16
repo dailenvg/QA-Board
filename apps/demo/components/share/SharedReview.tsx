@@ -9,10 +9,13 @@ import { linkNameMemory } from "@/lib/share-client/reviewer-name";
 import { createServerBlobs } from "@/lib/share-client/server-blobs";
 import { useClientRefresh } from "@/lib/share-client/use-client-refresh";
 import { useReviewWindow } from "@/lib/share-client/use-review-window";
+import { shareIconSrc } from "@/lib/routes";
 import type { ClientBrand, ClientView, LockedShare } from "@/lib/share/types";
+import type { Comment } from "@/lib/store/types";
 import { ViewerBackendContext } from "@/lib/viewer-backend/backend";
 import { Icon } from "../ui/Icon";
 import { useIsClient } from "@/lib/use-is-client";
+import { CommentPeopleContext, type CommentPeople } from "../viewer/comment-people";
 import { ViewerSkeleton } from "../viewer/ViewerSkeleton";
 import { ViewerView } from "../viewer/ViewerView";
 import { accentStyle } from "./brand-accent";
@@ -51,6 +54,24 @@ function clientCopy(brand: ClientBrand, project: string, client: string | null) 
     note: `You can add comments. Only ${brand.name} can resolve or edit them.`,
     notice: `${invitationLine(brand.name, project, client)} Only ${brand.name} can resolve, edit or delete comments.`,
   };
+}
+
+/** On a review link, the server marks the team's comments. */
+const markedTeam = (comment: Comment) => comment.team === true;
+
+/**
+ * The link's people: the team's comments carry the company's badge (its icon
+ * at the brand's version), and say "on the {Company} team" to screen readers.
+ * An anonymous link has no company, so no badge.
+ */
+function sharedPeople(token: string, brand: ClientBrand): CommentPeople {
+  return brand.custom
+    ? {
+        badgeSrc: shareIconSrc(token, brand.iconVersion),
+        teamCompany: brand.name,
+        isTeam: markedTeam,
+      }
+    : { badgeSrc: null, teamCompany: null, isTeam: markedTeam };
 }
 
 /** The earlier of two moments (epoch ms), ignoring missing ones; null when neither is set. */
@@ -102,6 +123,7 @@ export function SharedReview({
     if (locked) onLocked({ brand: lockedBrand, projectName: lockedProjectName, clientName });
   }, [locked, lockedBrand, lockedProjectName, clientName, onLocked]);
   const { reviewEndsAt, reviewWindowHours, expiresAt, brand } = state.view;
+  const people = useMemo(() => sharedPeople(token, brand), [token, brand]);
   const openCopy = clientCopy(brand, state.view.project.name, clientName);
   // A project deleted before its review window ends can't take comments past deletion, so the
   // countdown ends then too: it never promises more time than the deletion notice allows.
@@ -112,49 +134,51 @@ export function SharedReview({
   return (
     <BlobSourceContext value={blobs}>
       <ViewerBackendContext value={backend}>
-        {/* Layout-free: only carries the company's accent color down to the top bar's rule. */}
-        <div className="contents" style={accentStyle(brand.color)}>
-          <ViewerView
-            data={data}
-            project={project}
-            leading={<BrandLockup token={token} brand={brand} />}
-            accentRule={brand.color !== null}
-            actions={
-              <>
-                {/* A link without a deadline has no countdown, unless the server closed it since. */}
-                {review.left || review.closed ? <ReviewCountdown left={review.left} /> : null}
-                <ReviewGuideTrigger
-                  reviewClosed={review.closed}
-                  token={token}
-                  brand={brand}
-                  project={state.view.project.name}
-                  client={clientName}
-                  reviewWindowHours={reviewWindowHours}
-                />
-              </>
-            }
-            panelNote={review.closed ? CLOSED.note : openCopy.note}
-            draftStorage={draftStorage}
-            commentLocked={review.closed ? CLOSED.reason : undefined}
-            expiresAt={expiresAt ?? undefined}
-            panelNotice={
-              <p
-                data-testid="client-notice"
-                data-review={review.closed ? "closed" : "open"}
-                className="mx-3 flex items-start gap-2 rounded-tile bg-card px-4 py-3 text-meta text-muted"
-              >
-                <Icon
-                  name={review.closed ? "clock" : "message"}
-                  className="mt-0.5 size-4 shrink-0 text-ink-2"
-                />
-                {/* A real flex item, so it can shrink and break a very long company or project name. */}
-                <span className="min-w-0 wrap-break-word">
-                  {review.closed ? CLOSED.notice : openCopy.notice}
-                </span>
-              </p>
-            }
-          />
-        </div>
+        <CommentPeopleContext value={people}>
+          {/* Layout-free: only carries the company's accent color down to the top bar's rule. */}
+          <div className="contents" style={accentStyle(brand.color)}>
+            <ViewerView
+              data={data}
+              project={project}
+              leading={<BrandLockup token={token} brand={brand} />}
+              accentRule={brand.color !== null}
+              actions={
+                <>
+                  {/* A link without a deadline has no countdown, unless the server closed it since. */}
+                  {review.left || review.closed ? <ReviewCountdown left={review.left} /> : null}
+                  <ReviewGuideTrigger
+                    reviewClosed={review.closed}
+                    token={token}
+                    brand={brand}
+                    project={state.view.project.name}
+                    client={clientName}
+                    reviewWindowHours={reviewWindowHours}
+                  />
+                </>
+              }
+              panelNote={review.closed ? CLOSED.note : openCopy.note}
+              draftStorage={draftStorage}
+              commentLocked={review.closed ? CLOSED.reason : undefined}
+              expiresAt={expiresAt ?? undefined}
+              panelNotice={
+                <p
+                  data-testid="client-notice"
+                  data-review={review.closed ? "closed" : "open"}
+                  className="mx-3 flex items-start gap-2 rounded-tile bg-card px-4 py-3 text-meta text-muted"
+                >
+                  <Icon
+                    name={review.closed ? "clock" : "message"}
+                    className="mt-0.5 size-4 shrink-0 text-ink-2"
+                  />
+                  {/* A real flex item, so it can shrink and break a very long company or project name. */}
+                  <span className="min-w-0 wrap-break-word">
+                    {review.closed ? CLOSED.notice : openCopy.notice}
+                  </span>
+                </p>
+              }
+            />
+          </div>
+        </CommentPeopleContext>
       </ViewerBackendContext>
     </BlobSourceContext>
   );

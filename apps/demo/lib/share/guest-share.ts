@@ -35,7 +35,7 @@ export const openGuestShare = cache(
         clientName: share.clientName,
       };
     }
-    return { locked: false, view: await clientView(store, share) };
+    return { locked: false, view: await clientView(store, share, token) };
   },
 );
 

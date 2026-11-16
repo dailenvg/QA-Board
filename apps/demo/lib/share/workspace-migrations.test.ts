@@ -97,7 +97,7 @@ describe.each(databases)("migrations 023 to 026 (%s)", (_name, make) => {
     const share = await clientShare(store, anonymous.token, Date.now());
     expect(share?.expiresAt).toBe(anonymous.expiresAt);
     if (!share) throw new Error("share closed");
-    const view = await clientView(store, share);
+    const view = await clientView(store, share, anonymous.token);
     expect(view.comments).toEqual([COMMENT]);
     expect(await store.blobSizes(anonymous.shareId)).toEqual([
       { key: "snapshot:snap-1", size: PNG.length },

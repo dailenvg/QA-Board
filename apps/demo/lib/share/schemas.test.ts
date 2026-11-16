@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { COMMENT, STATE } from "@/test/share-fixture";
-import { blobKeySchema, clientCommentSchema, SHARE_LIMITS, stateSchema } from "./schemas";
+import {
+  blobKeySchema,
+  changeSchema,
+  clientCommentSchema,
+  SHARE_LIMITS,
+  stateSchema,
+} from "./schemas";
 
 const valid = (value: unknown) => stateSchema.safeParse(value).success;
 
@@ -32,6 +38,25 @@ describe("share schemas", () => {
     expect(valid({ ...STATE, project: { ...STATE.project, source } })).toBe(false);
     expect(valid({ ...STATE, comments: [{ ...COMMENT, id: "../x" }] })).toBe(false);
     expect(valid({ ...STATE, comments: [{ ...COMMENT, x: 101 }] })).toBe(false);
+  });
+
+  it("strip what only the server says of a comment from anything a browser pushes or posts", () => {
+    const planted = {
+      ...COMMENT,
+      mine: true,
+      team: true,
+      authorAvatar: "/api/s/t/people/AAAAAAAAAAAAAAAAAAAAAA/avatar?v=1",
+    };
+    const pushed = [
+      stateSchema.parse({ ...STATE, comments: [planted] }).comments[0],
+      changeSchema.parse({ comments: [planted], cursor: 0 }).comments[0],
+      clientCommentSchema.parse(planted),
+    ];
+    for (const comment of pushed) {
+      for (const field of ["mine", "team", "authorAvatar"]) {
+        expect(comment).not.toHaveProperty(field);
+      }
+    }
   });
 
   it("let clients set neither status nor timestamps", () => {

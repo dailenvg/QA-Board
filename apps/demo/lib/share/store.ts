@@ -8,6 +8,7 @@ import type {
   SharedSnapshot,
   ShareRecord,
   StoredBlob,
+  TeamAvatar,
 } from "./types";
 
 /**
@@ -53,6 +54,24 @@ export interface ShareStore {
   brandOf(id: string): Promise<ShareBrand>;
   /** The logo file of the share's workspace, under the same rules as `brandOf`; null without one. */
   brandLogo(id: string): Promise<StoredBlob | null>;
+  /**
+   * The team behind the share's comments (4.11), by comment id: each comment
+   * the owner pushed that a member wrote in the workspace (the workspace's
+   * comment with the same id is a team one), with the author's avatar on this
+   * link, or null without one: no photo, or an author who has left (removed,
+   * or their account deleted). Client comments, even pushed back from an older
+   * link, aren't in it. Empty under the same rules as `brandOf`, and always
+   * in the memory store, which has no workspaces.
+   */
+  teamAuthors(id: string): Promise<Map<string, TeamAvatar | null>>;
+  /**
+   * The avatar of the active member of the share's workspace whose key on
+   * this link is `key` (`sharePersonKey`), with its version on this link
+   * (`shareAvatarVersion`). Null for a key no active member has here (another
+   * link's, a removed member's), without a photo, under the same rules as
+   * `brandOf`, and always in the memory store.
+   */
+  teamAvatar(id: string, key: string): Promise<{ blob: StoredBlob; version: string } | null>;
 
   /**
    * Confirmed snapshots and comments only: pending ones are invisible to every

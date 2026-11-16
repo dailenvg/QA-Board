@@ -1,7 +1,8 @@
-import { createElement } from "react";
+import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { Comment } from "@/lib/store/types";
+import { CommentPeopleContext, type CommentPeople } from "./comment-people";
 import { commentRights, type CommentViewer } from "./comment-rights";
 import { CommentCard } from "./CommentCard";
 import { PinPopover } from "./PinPopover";
@@ -24,9 +25,27 @@ const noop = () => {};
 const owner: CommentViewer = { team: true, moderator: true };
 const member: CommentViewer = { team: true, moderator: false };
 
-function card(comment: Comment, viewer: CommentViewer = member): string {
-  const rights = commentRights(comment, viewer);
+/** A review link's people: Acme Studio's badge, on the comments the server marks `team`. */
+const LINK_PEOPLE: CommentPeople = {
+  badgeSrc: "/api/s/token/brand/icon?v=0123456789abcdef",
+  teamCompany: "Acme Studio",
+  isTeam: (comment) => comment.team === true,
+};
+
+/** `element` as a review link draws it (`people`), or as the workspace does without. */
+function render(element: ReactElement, people: CommentPeople | null): string {
   return renderToStaticMarkup(
+    people ? createElement(CommentPeopleContext, { value: people }, element) : element,
+  );
+}
+
+function card(
+  comment: Comment,
+  viewer: CommentViewer = member,
+  people: CommentPeople | null = null,
+): string {
+  const rights = commentRights(comment, viewer);
+  return render(
     createElement(CommentCard, {
       comment,
       number: 1,
@@ -43,11 +62,12 @@ function card(comment: Comment, viewer: CommentViewer = member): string {
       onReopen: noop,
       onDelete: noop,
     }),
+    people,
   );
 }
 
-function popover(comment: Comment): string {
-  return renderToStaticMarkup(
+function popover(comment: Comment, people: CommentPeople | null = null): string {
+  return render(
     createElement(PinPopover, {
       id: "popover",
       comment,
@@ -59,6 +79,7 @@ function popover(comment: Comment): string {
       onReopen: noop,
       onClose: noop,
     }),
+    people,
   );
 }
 
@@ -114,4 +135,50 @@ describe("the Edited line", () => {
       expect(html).toContain(`dateTime="${new Date(ahead).toISOString()}"`);
     },
   );
+});
+
+describe("the author's avatar (4b.15)", () => {
+  const PHOTO = "/api/s/token/people/AAAAAAAAAAAAAAAAAAAAAA/avatar?v=0123456789abcdef";
+  const TEAM = ", on the Acme Studio team";
+
+  it.each([
+    ["comment card", (comment: Comment) => card(comment, member, LINK_PEOPLE)],
+    ["pin popover", (comment: Comment) => popover(comment, LINK_PEOPLE)],
+  ])(
+    "on a review link's %s, shows a team member's photo with the badge, and says so in words",
+    (_name, draw) => {
+      const html = draw({ ...COMMENT, team: true, authorAvatar: PHOTO });
+      expect(html).toContain('data-testid="comment-avatar"');
+      expect(html).toContain(`src="${PHOTO}"`);
+      expect(html).toContain('data-testid="company-badge"');
+      expect(html).toContain(`src="${LINK_PEOPLE.badgeSrc}"`);
+      expect(html).toContain(`<span class="sr-only">${TEAM}</span>`);
+      // Without a photo: initials, still with the badge.
+      const initials = draw({ ...COMMENT, team: true });
+      expect(initials).toContain('data-testid="comment-initials"');
+      expect(initials).toContain('data-testid="company-badge"');
+    },
+  );
+
+  it.each([
+    ["comment card", (comment: Comment) => card(comment, member, LINK_PEOPLE)],
+    ["pin popover", (comment: Comment) => popover(comment, LINK_PEOPLE)],
+  ])("on a review link's %s, gives a client's comment initials and nothing else", (_name, draw) => {
+    // A photo a client's comment somehow carried is never shown.
+    const html = draw({ ...COMMENT, authorAvatar: PHOTO });
+    expect(html).toContain('data-testid="comment-initials"');
+    expect(html).not.toContain(PHOTO);
+    expect(html).not.toContain("company-badge");
+    expect(html).not.toContain(TEAM);
+  });
+
+  it("in the workspace, says nothing of a team and leaves a client's comment unbadged", () => {
+    const team = card({ ...COMMENT, authorAvatar: PHOTO });
+    expect(team).toContain(`src="${PHOTO}"`);
+    expect(team).not.toContain("on the");
+    const client = card({ ...COMMENT, fromClient: true, authorAvatar: PHOTO }, owner);
+    expect(client).not.toContain(PHOTO);
+    expect(client).toContain('data-testid="comment-initials"');
+    expect(client).not.toContain("company-badge");
+  });
 });

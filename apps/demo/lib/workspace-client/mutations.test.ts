@@ -116,9 +116,23 @@ describe("writesFor", () => {
     expect(write?.body).not.toHaveProperty("mine");
   });
 
-  it("never sends whose a new comment is", () => {
-    const [write] = writes({ type: "comment/add", comment: { ...comment, id: "c3", mine: true } });
-    expect(write?.body).not.toHaveProperty("mine");
+  it("never sends whose a new comment is, nor the photo and team only the server says", () => {
+    const stamped: Comment = {
+      ...comment,
+      id: "c3",
+      mine: true,
+      team: true,
+      authorAvatar: "/api/w/w1/people/AAAAAAAAAAAAAAAAAAAAAA/avatar?v=1",
+    };
+    for (const action of [
+      { type: "comment/add", comment: stamped },
+      { type: "comment/restore", comment: stamped },
+    ] satisfies Action[]) {
+      const [write] = writes(action);
+      for (const field of ["mine", "team", "authorAvatar"]) {
+        expect(write?.body).not.toHaveProperty(field);
+      }
+    }
   });
 
   it("sends nothing to take out a comment the server already deleted", () => {

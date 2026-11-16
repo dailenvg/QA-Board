@@ -16,6 +16,7 @@ import {
   dispatch,
   dispatchConfirmed,
   getSnapshot,
+  ownAvatarSrc,
   refresh,
   requestDirect,
   type Result,
@@ -352,6 +353,8 @@ export function addComment(input: {
   pageId?: string;
 }): Promise<Result<Comment>> {
   const now = Date.now();
+  // The server gives the member's photo on every read; stamped now, it shows from the start.
+  const avatar = ownAvatarSrc();
   const comment: Comment = {
     id: input.id ?? newId(),
     projectId: input.projectId,
@@ -365,6 +368,7 @@ export function addComment(input: {
     ...(input.snapshotId ? { snapshotId: input.snapshotId } : {}),
     ...(input.pageId ? { pageId: input.pageId } : {}),
     mine: true,
+    ...(avatar ? { authorAvatar: avatar } : {}),
   };
   return dispatchConfirmed({ type: "comment/add", comment }).then((result) =>
     withValue(result, comment),

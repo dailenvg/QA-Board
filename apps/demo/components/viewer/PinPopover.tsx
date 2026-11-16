@@ -9,8 +9,10 @@ import { useMediaQuery } from "@/lib/use-media-query";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { ClientMark } from "./ClientMark";
+import { CommentAuthorAvatar } from "./CommentAuthorAvatar";
 import { CommentBadge } from "./CommentBadge";
 import { CommentEdited } from "./CommentEdited";
+import { CommentTeamNote } from "./CommentTeamNote";
 import { PlacementChip } from "./PlacementChip";
 import type { Placement } from "./surface";
 
@@ -92,7 +94,8 @@ function measure(node: HTMLElement, { x, y }: Comment): Side | null {
 }
 
 /**
- * A pin's comment, opened from the pin: who said it and when, the full text,
+ * A pin's comment, opened from the pin: who said it (their avatar, with the
+ * company badge for the team) and when, the full text,
  * where it was placed, and (for the owner) Resolve or Reopen. A non-modal
  * dialog beside the pin, flipped (and if need be slid) to stay inside the stage; docked to the
  * bottom on phones, like the composer. Escape, the close button, a click
@@ -216,25 +219,34 @@ export function PinPopover({
         <span aria-hidden="true" className="flex">
           <CommentBadge comment={comment} number={number} />
         </span>
-        <h2 id={titleId} className="flex min-w-0 flex-1 items-center gap-2 text-body font-semibold">
-          {/*
-           * Two lines, not one: with the Client chip, a single line left room for about
-           * seven characters of the name in the 304px popover, where the comment is read in full.
-           */}
-          <span className="line-clamp-2 min-w-0 wrap-break-word">
-            <span className="sr-only">Comment {number} by </span>
-            {comment.author}
-          </span>
-          <ClientMark comment={comment} owner={canModerate} />
-          {resolved ? <span className="sr-only">, resolved</span> : null}
-        </h2>
-        <time
-          dateTime={new Date(comment.createdAt).toISOString()}
-          title={absoluteTime(comment.createdAt)}
-          className="shrink-0 text-label text-muted"
-        >
-          {relativeTime(comment.createdAt, now)}
-        </time>
+        <CommentAuthorAvatar comment={comment} surface="panel" />
+        {/*
+         * The time sits under the name, not beside it: in the 304px popover, the avatar, the
+         * close button and a time like "10 minutes ago" on one line left a client's name (with
+         * its Client chip) under 20px.
+         */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <h2 id={titleId} className="flex min-w-0 items-center gap-2 text-body font-semibold">
+            {/*
+             * Two lines, not one: with the Client chip, a single line left room for about
+             * seven characters of the name in the 304px popover, where the comment is read in full.
+             */}
+            <span className="line-clamp-2 min-w-0 wrap-break-word">
+              <span className="sr-only">Comment {number} by </span>
+              {comment.author}
+              <CommentTeamNote comment={comment} />
+            </span>
+            <ClientMark comment={comment} owner={canModerate} />
+            {resolved ? <span className="sr-only">, resolved</span> : null}
+          </h2>
+          <time
+            dateTime={new Date(comment.createdAt).toISOString()}
+            title={absoluteTime(comment.createdAt)}
+            className="text-label text-muted"
+          >
+            {relativeTime(comment.createdAt, now)}
+          </time>
+        </div>
         <Button
           variant="ghost"
           size="icon"

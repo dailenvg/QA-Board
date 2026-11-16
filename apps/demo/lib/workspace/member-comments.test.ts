@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type * as DatabaseModule from "@/lib/db/database";
+import { giveAvatar } from "@/test/members-fixture";
 import { STATE } from "@/test/share-fixture";
 import {
   addFolder,
   memberSeat,
   NOW,
+  PNG,
   TEST_AUTH_SECRET,
   twoWorkspaces,
   URL_PROJECT,
@@ -12,12 +14,16 @@ import {
 } from "@/test/workspace-fixture";
 import { call } from "@/test/workspace-routes";
 import type { Database } from "../db/database";
+import { personAvatarSrc } from "../routes";
+import { logoVersion } from "../share/brand";
 import type { Comment } from "../store/types";
 import { inlineBackend } from "../share/blob-backend";
 import { createPostgresStore } from "../share/postgres-store";
 import { createShare } from "../share/service";
+import { personKey } from "./members/person-key";
 import { createProject } from "./projects";
 import { attachShare } from "./share-links";
+import { toDate } from "./times";
 
 /**
  * Comments with several people in a workspace, through the routes (decision
@@ -108,6 +114,56 @@ describe("who a comment is by (A6)", () => {
     ]);
     expect((await list(ben)).map((comment) => comment.mine)).toEqual([true, undefined]);
     expect(JSON.stringify(forOwner)).not.toContain(ben.userId);
+  });
+});
+
+describe("a team member's photo on their comments (4.11)", () => {
+  const avatarOf = (comments: Comment[], id: string) =>
+    comments.find((comment) => comment.id === id)?.authorAvatar;
+
+  it("comes by their person key, for members with one, never on a client's comment", async () => {
+    await giveAvatar(db, ben.userId);
+    const posted = await post(ben, "bens");
+    await post(owner, "owners");
+    expect((await post(owner, "guest-1", { fromShare: true })).status).toBe(201);
+    const expected = personAvatarSrc(
+      owner.workspaceId,
+      personKey(owner.workspaceId, ben.userId),
+      logoVersion(`user/${ben.userId}/avatar/a1`),
+    );
+    expect(await posted.json()).toMatchObject({ authorAvatar: expected });
+    const comments = await list(owner);
+    expect(avatarOf(comments, "bens")).toBe(expected);
+    expect(avatarOf(comments, "owners")).toBeUndefined();
+    expect(avatarOf(comments, "guest-1")).toBeUndefined();
+    expect(JSON.stringify(comments)).not.toContain(ben.userId);
+    // The URL is the Members list's avatar route, which serves it to anyone in the workspace.
+    vi.stubEnv("BLOB_READ_WRITE_TOKEN", "");
+    await db.query("UPDATE user_blobs SET blob_url = NULL, bytes = $2 WHERE user_id = $1", [
+      ben.userId,
+      PNG,
+    ]);
+    expect((await call("GET", expected, { cookie: owner.cookie })).status).toBe(200);
+  });
+
+  it("goes once they're removed or have deleted their account: initials from the name", async () => {
+    const lea = await memberSeat(db, owner.workspaceId, undefined, "Lea Park");
+    await giveAvatar(db, ben.userId);
+    await giveAvatar(db, lea.userId);
+    await post(ben, "bens");
+    await post(lea, "leas");
+    expect(avatarOf(await list(owner), "bens")).toBeDefined();
+    await db.query("DELETE FROM memberships WHERE user_id = $1", [ben.userId]);
+    await db.query("UPDATE users SET deleted_at = $2, delete_after = $3 WHERE id = $1", [
+      lea.userId,
+      toDate(NOW),
+      toDate(NOW + 1000),
+    ]);
+    const comments = await list(owner);
+    expect(comments.map((comment) => [comment.author, comment.authorAvatar])).toEqual([
+      ["Ben Ito", undefined],
+      ["Lea Park", undefined],
+    ]);
   });
 });
 

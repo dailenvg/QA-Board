@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { CapturedImage } from "../capture/capture-page";
+import { sharePersonAvatarSrc } from "../routes";
 import { toClientBrand } from "./brand";
 import type { ShareServices } from "./server";
 import { blobKind, SHARE_LIMITS, type BlobKind } from "./schemas";
@@ -11,6 +12,7 @@ import { pageBlobKey } from "./keys";
 import { isExpired, rescheduledExpiry, shareExpiresAt } from "./retention";
 import { DEFAULT_REVIEW_WINDOW_HOURS, reviewClosed, reviewDeadline } from "./review-window";
 import type {
+  ClientComment,
   ClientView,
   CreatedShare,
   ShareChange,
@@ -22,6 +24,7 @@ import type {
   ShareChanges,
   ShareRecord,
   ShareState,
+  TeamAvatar,
 } from "./types";
 
 export type Failure = {
@@ -387,18 +390,42 @@ function shareReviewEndsAt(share: ShareRecord): number | null {
   return reviewDeadline(share.createdAt, share.reviewWindowHours);
 }
 
-export async function clientView(store: ShareStore, share: ShareRecord): Promise<ClientView> {
-  const [snapshots, comments, brand] = await Promise.all([
+/**
+ * A comment as the guest reads it: a team member's says so, with their avatar
+ * on this link (`token`'s) when there's one (4.11). Never their id or email.
+ */
+function guestComment(
+  comment: SharedComment,
+  team: ReadonlyMap<string, TeamAvatar | null>,
+  token: string,
+): ClientComment {
+  if (!team.has(comment.id)) return comment;
+  const avatar = team.get(comment.id);
+  return {
+    ...comment,
+    team: true,
+    ...(avatar ? { authorAvatar: sharePersonAvatarSrc(token, avatar.key, avatar.version) } : {}),
+  };
+}
+
+/** The share as a guest with its `token` sees it. */
+export async function clientView(
+  store: ShareStore,
+  share: ShareRecord,
+  token: string,
+): Promise<ClientView> {
+  const [snapshots, comments, brand, team] = await Promise.all([
     store.snapshots(share.id),
     store.comments(share.id),
     store.brandOf(share.id),
+    store.teamAuthors(share.id),
   ]);
   return {
     project: share.project,
     brand: toClientBrand(brand),
     clientName: share.clientName,
     snapshots: items(snapshots),
-    comments: items(comments),
+    comments: items(comments).map((comment) => guestComment(comment, team, token)),
     reviewEndsAt: shareReviewEndsAt(share),
     reviewWindowHours: share.reviewWindowHours,
     expiresAt: share.expiresAt,

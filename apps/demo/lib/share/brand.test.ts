@@ -11,7 +11,14 @@ import {
 import { createProject, trashProject } from "../workspace/projects";
 import { attachShare } from "../workspace/share-links";
 import { inlineBackend } from "./blob-backend";
-import { brandColor, logoVersion, SQUINT_BRAND, toClientBrand } from "./brand";
+import {
+  brandColor,
+  brandIconVersion,
+  iconVersionOf,
+  logoVersion,
+  SQUINT_BRAND,
+  toClientBrand,
+} from "./brand";
 import { createMemoryStore } from "./memory-store";
 import { createPostgresStore } from "./postgres-store";
 import { createShare } from "./service";
@@ -116,7 +123,7 @@ describe("a share's brand", () => {
 });
 
 describe("the brand a guest sees", () => {
-  it("carries no key, only whether there's a logo and a one-way version of it", () => {
+  it("carries no key, only whether there's a logo and one-way versions of it and the icon", () => {
     const key = "ws/7f3c0a52-0d8e-4f4b-9a51-2f4a8b7c9d10/brand/logo/logo-1";
     const brand = toClientBrand({ custom: true, name: "Acme", color: "#0c54cc", logoKey: key });
     expect(brand).toEqual({
@@ -125,6 +132,11 @@ describe("the brand a guest sees", () => {
       color: "#0c54cc",
       hasLogo: true,
       logoVersion: logoVersion(key),
+      iconVersion: brandIconVersion({
+        name: "Acme",
+        color: "#0c54cc",
+        logoVersion: logoVersion(key),
+      }),
     });
     expect(brand.logoVersion).toMatch(/^[0-9a-f]{16}$/);
     expect(JSON.stringify(brand)).not.toContain("ws/");
@@ -135,7 +147,23 @@ describe("the brand a guest sees", () => {
       color: null,
       hasLogo: false,
       logoVersion: null,
+      iconVersion: brandIconVersion({ name: "Squint", color: null, logoVersion: null }),
     });
+  });
+
+  it("names the icon by a version that changes with the name, the color and the logo", () => {
+    const key = "ws/7f3c0a52-0d8e-4f4b-9a51-2f4a8b7c9d10/brand/logo/logo-1";
+    const acme = { name: "Acme", color: "#0c54cc", logoKey: key };
+    const versions = [
+      acme,
+      { ...acme, name: "Acme Studio" },
+      { ...acme, color: "#e03b9d" },
+      { ...acme, logoKey: `${key}x` },
+      { ...acme, logoKey: null },
+    ].map(iconVersionOf);
+    expect(new Set(versions).size).toBe(versions.length);
+    // The same one a review link's icon is at (`brandIconPath`), for the same company.
+    expect(iconVersionOf(acme)).toBe(toClientBrand({ custom: true, ...acme }).iconVersion);
   });
 
   it("only ever gets a #rrggbb color", () => {

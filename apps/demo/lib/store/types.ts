@@ -183,6 +183,18 @@ export interface Comment {
    * comment is theirs). Only they edit it. Never pushed to a review link.
    */
   mine?: true;
+  /**
+   * The author's photo, a versioned URL by a key that's never their id: in the
+   * workspace for a team member's comment, on a review link for one the
+   * server marks `team`. Missing without a photo, on a client's comment, and
+   * once the author has left. Set by the server only; never pushed.
+   */
+  authorAvatar?: string;
+  /**
+   * On a review link: written by someone on the company's team (the server
+   * says so, 4.11). The workspace tells its own by `fromClient` instead. Never pushed.
+   */
+  team?: true;
 }
 
 export interface SquintData {
