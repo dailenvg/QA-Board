@@ -105,15 +105,16 @@ export function InviteRow({
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          {/* Phones show the whole address, wrapped; wider rows have room, so it truncates. */}
           <span
-            className="min-w-0 truncate text-nav font-semibold text-ink"
+            className="min-w-0 truncate text-nav font-semibold text-ink max-sm:whitespace-normal max-sm:wrap-anywhere"
             title={invite.email}
             data-testid="invite-email"
           >
             {invite.email}
           </span>
           <span
-            className={`${CHIP} ${invite.expired ? "bg-comments-soft text-comments-text" : "bg-brand-soft text-brand-text"}`}
+            className={`${CHIP} ${invite.expired ? "bg-warning-soft text-warning-text" : "bg-brand-soft text-brand-text"}`}
             data-testid="invite-chip"
           >
             {invite.expired ? COPY.expired : COPY.invited}
@@ -123,7 +124,7 @@ export function InviteRow({
         {invite.emailNotSent && invite.link ? (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1">
             <span
-              className="flex items-center gap-2 text-meta font-semibold text-comments-text"
+              className="flex items-center gap-2 text-meta font-semibold text-warning-text"
               data-testid="invite-not-sent"
             >
               <Icon name="alert" className="size-4 shrink-0" />

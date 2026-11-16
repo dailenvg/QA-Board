@@ -16,7 +16,13 @@ import { createProject, trashProject } from "../workspace/projects";
 import { attachShare } from "../workspace/share-links";
 import { inlineBackend } from "./blob-backend";
 import { logoVersion } from "./brand";
-import { cardLogoUri, LOGO_MAX_AGE_SECONDS, type BrandLogo } from "./brand-logo";
+import {
+  cardLogoUri,
+  LOGO_MAX_AGE_SECONDS,
+  PAGE_LOGO_MAX_BYTES,
+  pageLogoUri,
+  type BrandLogo,
+} from "./brand-logo";
 import { createPostgresStore } from "./postgres-store";
 import { createShare, revokeShare, type CreatedShare } from "./service";
 
@@ -115,22 +121,37 @@ describe("GET /api/s/<token>/brand/logo", () => {
   });
 });
 
-describe("a logo on a link preview card", () => {
-  const of = (bytes: Uint8Array, contentType: string): BrandLogo => ({
-    bytes,
-    contentType,
-    version: "v",
-  });
+const logoOf = (bytes: Uint8Array, contentType: string): BrandLogo => ({
+  bytes,
+  contentType,
+  version: "v",
+});
 
+describe("a logo on a link preview card", () => {
   it("is inlined as a data URI when the card can draw its type", () => {
-    expect(cardLogoUri(of(PNG, "image/png"))).toBe(
+    expect(cardLogoUri(logoOf(PNG, "image/png"))).toBe(
       `data:image/png;base64,${Buffer.from(PNG).toString("base64")}`,
     );
-    expect(cardLogoUri(of(JPEG, "image/jpeg"))).toMatch(/^data:image\/jpeg;base64,/);
+    expect(cardLogoUri(logoOf(JPEG, "image/jpeg"))).toMatch(/^data:image\/jpeg;base64,/);
   });
 
   it("is left off when the card can't draw it (WebP) or it's too large", () => {
-    expect(cardLogoUri(of(WEBP, "image/webp"))).toBeNull();
-    expect(cardLogoUri(of(new Uint8Array(2_000_000), "image/png"))).toBeNull();
+    expect(cardLogoUri(logoOf(WEBP, "image/webp"))).toBeNull();
+    expect(cardLogoUri(logoOf(new Uint8Array(2_000_000), "image/png"))).toBeNull();
+  });
+});
+
+describe("a logo a page inlines", () => {
+  it("is a data URI of any stored type up to the cap", () => {
+    expect(pageLogoUri(logoOf(WEBP, "image/webp"))).toBe(
+      `data:image/webp;base64,${Buffer.from(WEBP).toString("base64")}`,
+    );
+    expect(pageLogoUri(logoOf(new Uint8Array(PAGE_LOGO_MAX_BYTES), "image/png"))).toMatch(
+      /^data:image\/png;base64,/,
+    );
+  });
+
+  it("is left off past the cap, for the monogram", () => {
+    expect(pageLogoUri(logoOf(new Uint8Array(PAGE_LOGO_MAX_BYTES + 1), "image/png"))).toBeNull();
   });
 });

@@ -77,6 +77,18 @@
   --danger-soft: rgb(255 60 65 / 0.12);
 
   /*
+   * Warning is amber, for warm states where nothing is broken (every seat taken, an invite
+   * expired, an email that didn't go out), so they never read as the red of danger. Its hue
+   * (about 38) sits well apart from Coral Red's and the lime's. The fill is a dark ochre: 3.7:1
+   * on --card (WCAG 1.4.11). Tints lay a brighter amber over the surface. Text reads 6.9:1 on
+   * --card, and 4.5:1 or more on its -soft over every surface: 6.1:1 over --card, 5.1:1 at
+   * worst (over --bg). Checked by status-tokens.test.ts.
+   */
+  --warning: #b87700;
+  --warning-soft: rgb(245 165 36 / 0.16);
+  --warning-text: #805000;
+
+  /*
    * Pins and favicons sit on arbitrary site and image content, so these stay
    * the same in both themes: a white halo and a near-black band keep markers
    * and their focus/selection rings visible on any background.
@@ -161,6 +173,11 @@
 
   --danger: #ff6f68;
   --danger-soft: rgb(255 60 65 / 0.18);
+
+  /* Amber lifted for dark: the fill 7.3:1 on --card; text 8.9:1 on it, 6.2:1 on its -soft over it. */
+  --warning: #f5a524;
+  --warning-soft: rgb(245 165 36 / 0.18);
+  --warning-text: #fbbf24;
 
   --scene-line: #6b6b75;
   --story-stage: #1c2230;
@@ -322,6 +339,10 @@
 
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
+
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-text: var(--warning-text);
 
   --color-pin-halo: var(--pin-halo);
   --color-pin-band: var(--pin-band);

@@ -4,7 +4,7 @@ import { CORAL_RED, FOREST_GREEN, MINT_GREEN } from "./brand-palette";
 import { contrast, mix } from "./color";
 
 /**
- * The status colors in globals.css (open comments, resolved, danger), measured
+ * The status colors in globals.css (open comments, resolved, danger, warning), measured
  * the way they're drawn: text at 4.5:1 and marks at 3:1 (WCAG 1.4.3 and
  * 1.4.11) on every surface they sit on, and on their own -soft tints laid over
  * those surfaces.
@@ -105,6 +105,16 @@ describe.each([
     const text = color(tokens, "resolved-text");
     expect(worst(text, under)).toBeGreaterThanOrEqual(TEXT);
     expect(worst(text, softOver(tokens, "resolved-soft", under))).toBeGreaterThanOrEqual(TEXT);
+  });
+
+  it("reads amber warning text at 4.5:1 on every surface and on its -soft over each", () => {
+    const text = color(tokens, "warning-text");
+    expect(worst(text, under)).toBeGreaterThanOrEqual(TEXT);
+    expect(worst(text, softOver(tokens, "warning-soft", under))).toBeGreaterThanOrEqual(TEXT);
+  });
+
+  it("draws the amber warning fill (a full seat meter) at 3:1 on cards", () => {
+    expect(contrast(color(tokens, "warning"), color(tokens, "card"))).toBeGreaterThanOrEqual(MARK);
   });
 
   it("numbers resolved pins at 4.5:1", () => {

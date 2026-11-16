@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useId, useRef, useState } from "react";
+import { useId, useRef, useState, type Ref } from "react";
 import { cancelMemberInvite, membersErrorMessage } from "@/lib/account/members-client";
 import { staggerGroup, usePopVariants } from "@/lib/motion";
 import type { AskContext } from "@/lib/workspace-client/permission-copy";
@@ -28,6 +28,8 @@ interface PendingInvitesProps {
   onLeave: (key: string, message: string) => void;
   /** The row may be out of date (changed elsewhere, or not allowed now): focus on once it's refreshed. */
   onStale: (key: string) => void;
+  /** Card B's presence lifts the group out of the flow by it as it leaves (popLayout). */
+  ref?: Ref<HTMLElement>;
 }
 
 /**
@@ -43,6 +45,7 @@ export function PendingInvites({
   onCopy,
   onLeave,
   onStale,
+  ref,
 }: PendingInvitesProps) {
   const toast = useToast();
   const variants = usePopVariants();
@@ -87,6 +90,7 @@ export function PendingInvites({
   return (
     // Pops in with the first invite, and out (in card B's presence) once the last one goes.
     <motion.section
+      ref={ref}
       variants={variants}
       initial="hidden"
       animate="visible"

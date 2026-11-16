@@ -57,6 +57,25 @@ export function addChips(
   return { chips: next, added, overflow };
 }
 
+/** What the chips are called: the list's name, and the noun its count is said with. */
+export interface ChipsNoun {
+  list: string;
+  one: string;
+  many: string;
+}
+
+/** The Share window's: the chips are who gets the link. */
+export const RECIPIENTS_NOUN: ChipsNoun = {
+  list: "Recipients",
+  one: "recipient",
+  many: "recipients",
+};
+
+/** The screen reader's line once chips are added: what was added, and how many there are now. */
+export function addedLine(added: readonly string[], count: number, noun: ChipsNoun): string {
+  return `Added ${added.join(", ")}. ${count} ${count === 1 ? noun.one : noun.many}.`;
+}
+
 export function removeChip(chips: readonly InviteChip[], address: string): InviteChip[] {
   return chips.filter((chip) => chip.address !== address);
 }

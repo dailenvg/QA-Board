@@ -75,11 +75,11 @@ jobs:
       # run. apt now retries each download itself, and the install is tried up to three times with
       # a growing pause, so a passing mirror hiccup costs seconds instead of a red build. A real
       # failure still fails the step after the third try.
-      - name: Install Playwright Chromium
+      - name: Install Playwright Chromium and WebKit
         run: |
           echo 'Acquire::Retries "5";' | sudo tee /etc/apt/apt.conf.d/80-retries > /dev/null
           for attempt in 1 2 3; do
-            pnpm --filter @pinpoint/demo exec playwright install --with-deps chromium && exit 0
+            pnpm --filter @pinpoint/demo exec playwright install --with-deps chromium webkit && exit 0
             echo "::warning::Playwright install failed (attempt $attempt of 3)"
             [ "$attempt" -lt 3 ] && sleep $((attempt * 20))
           done

@@ -335,11 +335,41 @@ test("a member's Delete account card names the workspace they'd leave", async ({
 const toast = (page: Page, text: string | RegExp) =>
   page.getByTestId("toast").filter({ hasText: text });
 
-test("alone, the owner is told email is off before inviting, then invites, copies and cancels", async ({
+/**
+ * Lets the page read what Copy link wrote (WebKit knows no "clipboard-write":
+ * it lets a page write anyway), and records whether each write started inside
+ * a click. Playwright's WebKit doesn't hold the clipboard to the tap as Safari
+ * does, so that's checked here instead.
+ */
+async function watchClipboard(page: Page, browserName: string) {
+  await page
+    .context()
+    .grantPermissions(
+      browserName === "webkit" ? ["clipboard-read"] : ["clipboard-read", "clipboard-write"],
+    );
+  await page.evaluate(() => {
+    const watch = window as typeof window & { writesInClick?: boolean[] };
+    let clicking = false;
+    watch.writesInClick = [];
+    window.addEventListener("click", () => (clicking = true), { capture: true });
+    window.addEventListener("click", () => (clicking = false));
+    const write = navigator.clipboard.writeText.bind(navigator.clipboard);
+    navigator.clipboard.writeText = (text) => {
+      watch.writesInClick?.push(clicking);
+      return write(text);
+    };
+  });
+}
+
+const writesInClick = (page: Page) =>
+  page.evaluate(() => (window as typeof window & { writesInClick?: boolean[] }).writesInClick);
+
+// Tagged `@webkit`: Safari and iOS run it too, for Copy link.
+test("alone, the owner is told email is off before inviting, then invites, copies and cancels @webkit", async ({
   page,
   baseURL,
+  browserName,
 }, testInfo) => {
-  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await team(page, testInfo.project.name, baseURL);
   const cleo = newAddress(testInfo.project.name);
   await openMembers(page);
@@ -371,8 +401,10 @@ test("alone, the owner is told email is off before inviting, then invites, copie
   await expect(empty).toHaveCount(0);
 
   // Copy link, right on the row: written inside the tap, then said in a toast.
+  await watchClipboard(page, browserName);
   await pending.getByRole("button", { name: `Copy link for ${cleo}` }).click();
   await expect(toast(page, "Invite link copied.")).toBeVisible();
+  expect(await writesInClick(page)).toEqual([true]);
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   expect(copied).toBe(results[0]?.invite?.link);
 

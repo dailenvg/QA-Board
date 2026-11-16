@@ -13,7 +13,16 @@ import { instant, spring, usePopVariants } from "@/lib/motion";
 import { MAX_INVITES_PER_SEND } from "@/lib/share/invite-addresses";
 import { FieldError } from "../ui/FieldError";
 import { Icon } from "../ui/Icon";
-import { addChips, chipLabel, chipsMessage, removeChip, type InviteChip } from "./invite-chips";
+import {
+  addChips,
+  addedLine,
+  chipLabel,
+  chipsMessage,
+  RECIPIENTS_NOUN,
+  removeChip,
+  type ChipsNoun,
+  type InviteChip,
+} from "./invite-chips";
 
 interface InviteChipsFieldProps {
   chips: InviteChip[];
@@ -31,6 +40,11 @@ interface InviteChipsFieldProps {
    * past `max`; the Share window's `chipsMessage` by default.
    */
   describe?: (chips: readonly InviteChip[], overflow: number) => string | null;
+  /**
+   * What the chips are called, for the list's name and the screen reader's
+   * "Added …"; the Share window's "Recipients" by default.
+   */
+  noun?: ChipsNoun;
   /** More that describes the field (said with it), such as a line with its own buttons below. */
   describedBy?: string;
   /** The field itself, for whoever needs to focus it (after a send). */
@@ -56,6 +70,7 @@ export function InviteChipsField({
   max = MAX_INVITES_PER_SEND,
   hint = `Up to ${max} at a time`,
   describe = chipsMessage,
+  noun = RECIPIENTS_NOUN,
   describedBy,
   inputRef,
 }: InviteChipsFieldProps) {
@@ -79,10 +94,7 @@ export function InviteChipsField({
     setOverflow(next.overflow);
     if (next.added.length) {
       onChange(next.chips);
-      const count = next.chips.length;
-      setAnnouncement(
-        `Added ${next.added.join(", ")}. ${count} ${count === 1 ? "recipient" : "recipients"}.`,
-      );
+      setAnnouncement(addedLine(next.added, next.chips.length, noun));
     }
   };
 
@@ -134,7 +146,7 @@ export function InviteChipsField({
           message ? "ring-2 ring-danger" : ""
         }`}
       >
-        <ul aria-label="Recipients" className="contents">
+        <ul aria-label={noun.list} className="contents">
           <AnimatePresence initial={false}>
             {chips.map((chip) => (
               <motion.li

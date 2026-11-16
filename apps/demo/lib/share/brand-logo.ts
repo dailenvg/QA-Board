@@ -22,6 +22,13 @@ const CARD_TYPES = new Set(["image/png", "image/jpeg", "image/gif"]);
 const CARD_LOGO_MAX_BYTES = 1_000_000;
 
 /**
+ * Larger logos are left off a page that inlines them, for the monogram: the
+ * page ships the data URI twice (its HTML and its RSC payload), and the upload
+ * cap alone would let that reach megabytes.
+ */
+export const PAGE_LOGO_MAX_BYTES = 250_000;
+
+/**
  * The logo of the share's workspace, read through the workspace blob driver
  * (Vercel Blob's private store, or the row's bytes locally). Null without a
  * logo, when its file is gone, or when it isn't a bitmap image.
@@ -50,10 +57,19 @@ export async function readStoredImage(
   return { bytes, contentType, version: logoVersion(stored.key) };
 }
 
+function dataUri(logo: BrandLogo): string {
+  return `data:${logo.contentType};base64,${Buffer.from(logo.bytes).toString("base64")}`;
+}
+
 /** The logo as a data URI a link preview card can draw, or null when it can't. */
 export function cardLogoUri(logo: BrandLogo): string | null {
   if (!CARD_TYPES.has(logo.contentType) || logo.bytes.length > CARD_LOGO_MAX_BYTES) return null;
-  return `data:${logo.contentType};base64,${Buffer.from(logo.bytes).toString("base64")}`;
+  return dataUri(logo);
+}
+
+/** The logo as a data URI for a page to inline, or null (the monogram) when it's too large. */
+export function pageLogoUri(logo: BrandLogo): string | null {
+  return logo.bytes.length > PAGE_LOGO_MAX_BYTES ? null : dataUri(logo);
 }
 
 /**
