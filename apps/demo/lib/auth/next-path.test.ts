@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loginHref, safeNextPath, withWelcome } from "./next-path";
+import { JOINED_PATH, loginHref, safeNextPath, withWelcome } from "./next-path";
 
 describe("safeNextPath", () => {
   it("keeps paths on this site, with their query", () => {
@@ -34,5 +34,6 @@ describe("loginHref and withWelcome", () => {
   it("adds the welcome flag, keeping the query", () => {
     expect(withWelcome("/", "first")).toBe("/?welcome=first");
     expect(withWelcome("/p/1?page=2", "back")).toBe("/p/1?page=2&welcome=back");
+    expect(withWelcome("/", "joined")).toBe(JOINED_PATH);
   });
 });

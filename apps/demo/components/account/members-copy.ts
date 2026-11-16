@@ -62,8 +62,163 @@ function sentenceCase(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+/** "1 seat", "3 seats": a count with its noun, singular for one. */
+export function counted(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+/** The resend item's state (4b.2): what it's doing, or why it's off. */
+export type ResendState = "ready" | "busy" | "just-sent" | "no-seat" | "limited";
+
 export const MEMBERS_COPY = {
   loading: "Loading members",
+  invite: {
+    title: "Invite people",
+    description: (workspace: string, emailEnabled: boolean) =>
+      emailEnabled
+        ? `Invite teammates who aren't in another Squint workspace. Each gets an email with a link to join ${workspace} that works for 7 days.`
+        : `Invite teammates who aren't in another Squint workspace. Each invite has a link to join ${workspace} that works for 7 days.`,
+    seats: {
+      /** The meter's accessible name: its value text already says the numbers. */
+      name: "Seats",
+      /** After the bold count of seats used. */
+      used: (limit: number) => `of ${limit} seats used`,
+      valueText: (used: number, limit: number) => `${used} of ${limit} seats used`,
+      breakdown: (members: number, invited: number) =>
+        `${counted(members, "person", "people")} · ${invited} invited`,
+    },
+    label: "Email addresses",
+    hint: (left: number) => `${counted(left, "seat", "seats")} left`,
+    /** Typed past the seats left. */
+    overflow: (left: number, overflow: number) =>
+      `Only ${counted(left, "seat is", "seats are")} left, so ${counted(overflow, "address wasn't", "addresses weren't")} added.`,
+    send: (count: number, sending: boolean, emailEnabled: boolean) => {
+      if (emailEnabled) {
+        if (sending) return "Sending…";
+        if (count === 0) return "Send invites";
+        return count === 1 ? "Send 1 invite" : `Send ${count} invites`;
+      }
+      if (sending) return "Creating…";
+      if (count === 0) return "Create invites";
+      return count === 1 ? "Create invite" : `Create ${count} invites`;
+    },
+    blocker: {
+      empty: "Add at least one email address first.",
+      marked: (count: number) =>
+        count === 1 ? "Remove the marked address first." : "Remove the marked addresses first.",
+    },
+    emailOff:
+      "Email isn't set up on this site. After you invite someone, copy their link from the list and send it yourself.",
+    /** Per address, under the field (4b.2). */
+    refused: {
+      "already-member": (email: string, workspace: string) =>
+        `${email} is already in ${workspace}.`,
+      "already-invited": (email: string) => `${email} already has an invite.`,
+      "in-another-workspace": (email: string) =>
+        `${email} already uses Squint in another workspace. For now, each person can be in only one.`,
+      "cannot-invite": "This address can't be invited. Try a different one.",
+    },
+    /**
+     * The already-invited line's own recovery, for screen readers: which address
+     * it resends. The address goes after the action and before any reason or
+     * ellipsis: "Resend email for ana@x.com (sent just now)", "Resending for ana@x.com…".
+     */
+    resendFor: (label: string, email: string) => {
+      const reason = label.indexOf(" (");
+      if (reason !== -1) return `${label.slice(0, reason)} for ${email}${label.slice(reason)}`;
+      if (label.endsWith("…")) return `${label.slice(0, -1)} for ${email}…`;
+      return `${label} for ${email}`;
+    },
+    /** After a send: who it went to, and how many weren't invited. */
+    done: (sent: readonly string[], refused: number, emailEnabled: boolean) => {
+      const verb = emailEnabled ? "sent to" : "created for";
+      const lines: string[] = [];
+      if (sent.length === 1) lines.push(`Invite ${verb} ${sent[0]}.`);
+      else if (sent.length > 1) lines.push(`Invites ${verb} ${sent.length} people.`);
+      if (refused === 1) lines.push("1 address wasn't invited: the reason is on its chip.");
+      else if (refused > 1) {
+        lines.push(`${refused} addresses weren't invited: the reason is on each marked chip.`);
+      }
+      return lines.join(" ");
+    },
+    /** Email is on, but Resend refused this send: the invites stand. */
+    notEmailed: (count: number) =>
+      count === 1
+        ? "Invite created, but the email didn't go out. Copy the link from the list, or try Resend email in a minute."
+        : "Invites created, but the emails didn't go out. Copy the links from the list, or try Resend email in a minute.",
+    full: {
+      nothingSent: "Nothing was sent.",
+      title: (limit: number) =>
+        limit === 1 ? "The only seat is taken." : `All ${limit} seats are taken.`,
+      body: "To invite someone new, cancel an invite or remove someone. Need more seats? Ask your Squint admin.",
+      overTitle: (workspace: string, used: number, limit: number) =>
+        `${workspace} has more people than seats (${used} of ${limit}).`,
+      overBody: (limit: number) =>
+        `You can invite again once fewer than ${limit} seats are in use. Need more seats? Ask your Squint admin.`,
+    },
+  },
+  invites: {
+    title: "Pending invites",
+    invited: "Invited",
+    expired: "Expired",
+    invitedBy: (name: string) => `Invited by ${name}`,
+    expiresIn: (days: number) => `Expires in ${counted(days, "day", "days")}`,
+    expiredOn: (date: string) => `Expired on ${date}`,
+    emailNotSent: "Email not sent",
+    copyLink: "Copy link",
+    /** The inline Copy link's name for screen readers: whose link. */
+    copyLinkFor: (email: string) => `Copy link for ${email}`,
+    actions: (email: string) => `Actions for ${email}`,
+    copyInviteLink: "Copy invite link",
+    cancel: "Cancel invite",
+    cancelling: "Cancelling…",
+    resend: (state: ResendState, expired: boolean, emailEnabled: boolean): string => {
+      if (!emailEnabled) {
+        if (state === "busy") return "Renewing…";
+        return state === "no-seat" ? "Renew link (no seat free)" : "Renew link";
+      }
+      const base = expired ? "Resend and renew" : "Resend email";
+      switch (state) {
+        case "busy":
+          return "Resending…";
+        case "just-sent":
+          return "Resend email (sent just now)";
+        case "no-seat":
+          return "Resend and renew (no seat free)";
+        case "limited":
+          return `${base} (daily limit reached)`;
+        case "ready":
+          return base;
+      }
+    },
+    copied: "Invite link copied.",
+    copyFailed: "Couldn't copy the link.",
+    showLink: "Show link",
+    linkDialog: {
+      title: (email: string) => `Invite link for ${email}`,
+      label: "Invite link",
+      done: "Done",
+    },
+    resent: (email: string, date: string) =>
+      `Sent again to ${email}. The link works until ${date}.`,
+    resendNotEmailed: (email: string, date: string) =>
+      `The email to ${email} didn't go out, but the link now works until ${date}. Copy the link from the list and send it yourself.`,
+    renewed: (date: string) => `Link renewed. It works until ${date}.`,
+    cancelled: (email: string) => `Invite for ${email} cancelled.`,
+  },
+  leaving: {
+    title: "Leaving",
+    description: "These people deleted their own account. They don't use a seat.",
+    chip: "Leaving",
+    until: (date: string) => `Leaves for good on ${date}`,
+  },
+  empty: {
+    title: "Just you so far",
+    line: (left: number) =>
+      left === 1
+        ? "Invite 1 more person to review with you."
+        : `Invite up to ${left} people to review with you.`,
+  },
   people: {
     title: "People",
     description: {

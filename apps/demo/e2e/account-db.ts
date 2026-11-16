@@ -182,3 +182,66 @@ export async function deletionDates(
     return rows[0] ?? { user: null, workspace: null };
   });
 }
+
+/** Sets how many seats `workspaceId` has, as the Squint admin's SQL snippet does. */
+export async function setSeatLimit(workspaceId: string, limit: number): Promise<void> {
+  await withClient((client) =>
+    client.query("UPDATE workspaces SET seat_limit = $2 WHERE id = $1", [workspaceId, limit]),
+  );
+}
+
+/** Moves `email`'s open invite to `workspaceId` a day past its expiry. */
+export async function expireInvite(workspaceId: string, email: string): Promise<void> {
+  await withClient((client) =>
+    client.query(
+      `UPDATE workspace_invites SET expires_at = now() - interval '1 day'
+       WHERE workspace_id = $1 AND email = $2 AND accepted_at IS NULL AND revoked_at IS NULL`,
+      [workspaceId, email],
+    ),
+  );
+}
+
+/** Deletes `email`'s account as its owner would (033): 30 days to go, its membership kept. */
+export async function scheduleOwnDeletion(email: string): Promise<void> {
+  await withClient(async (client) => {
+    await client.query(
+      `UPDATE users SET deleted_at = now(), delete_after = now() + interval '30 days'
+       WHERE email = $1`,
+      [email],
+    );
+    await client.query(
+      "DELETE FROM sessions WHERE user_id = (SELECT id FROM users WHERE email = $1)",
+      [email],
+    );
+  });
+}
+
+/** Sets a member's switches straight in the database, as the owner's Members page would. */
+export async function setMemberSwitches(
+  email: string,
+  permissions: readonly string[],
+): Promise<void> {
+  await withClient((client) =>
+    client.query(
+      `UPDATE memberships SET permissions = $2::text[]
+       WHERE user_id = (SELECT id FROM users WHERE email = $1) AND role = 'member'`,
+      [email, [...permissions]],
+    ),
+  );
+}
+
+/** A new company account in no workspace, signing in with `password`. */
+export async function createLoneAccount(email: string, password: string): Promise<void> {
+  const passwordHash = await hashPassword(password);
+  await withClient((client) =>
+    client.query("INSERT INTO users (email, password_hash, role) VALUES ($1, $2, 'company')", [
+      email,
+      passwordHash,
+    ]),
+  );
+}
+
+/** A unique address for someone not yet in Squint, tagged with `label` (the Playwright project). */
+export function newAddress(label: string): string {
+  return `new-${disposableTag(label)}@e2e.test`;
+}

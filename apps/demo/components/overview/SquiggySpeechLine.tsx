@@ -42,6 +42,8 @@ function reactionLine(speech: ReactionSpeech): string {
   switch (speech.kind) {
     case "signed-in":
       return speech.first ? "Hi there. Glad you're here." : "Welcome back.";
+    case "joined":
+      return `Welcome to ${speech.workspace}.`;
     case "just-resolved":
       return "One down. Nice.";
     case "just-created":
@@ -69,6 +71,8 @@ function speechKey(speech: SquiggySpeech | null): string {
       return `storage:${speech.level}:${speech.percent}`;
     case "waiting":
       return `waiting:${speech.folder.id}:${speech.folder.active}:${speech.total}`;
+    case "joined":
+      return `joined:${speech.workspace}`;
     case "just-created":
       return `just-created:${speech.projectName}`;
     case "just-deleted":

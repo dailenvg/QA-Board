@@ -103,6 +103,7 @@ describe("loadMembersData", () => {
           expired: true,
           link: null,
           emailNotSent: true,
+          lastSentAt: null,
         },
         {
           id: expect.any(String) as unknown,
@@ -113,6 +114,7 @@ describe("loadMembersData", () => {
           expired: false,
           link: expect.stringMatching(new RegExp(`^${SITE}/join/[A-Za-z0-9_-]{43}$`)) as unknown,
           emailNotSent: true,
+          lastSentAt: null,
         },
       ],
       leaving: [
@@ -213,6 +215,10 @@ describe("loadMembersData", () => {
     expect(sent.view !== "member" && sent.invites.map((invite) => invite.emailNotSent)).toEqual([
       false,
       false,
+    ]);
+    expect(sent.view !== "member" && sent.invites.map((invite) => invite.lastSentAt)).toEqual([
+      NOW,
+      NOW,
     ]);
     await world.db.query("UPDATE workspace_invites SET last_send_error_at = $1", [toDate(NOW + 1)]);
     const failed = await dataFor(world.owner);

@@ -20,8 +20,7 @@ import type { OpenWorkspace } from "./locks";
 /** How long an invite's link works, from when it's made, renewed or sent again. */
 export const INVITE_TTL_MS = INVITE_DAYS * 24 * 60 * 60 * 1000;
 
-/** How soon after an email went out the same invite can be sent again. */
-export const RESEND_COOLDOWN_MS = 60 * 1000;
+export { RESEND_COOLDOWN_MS } from "./invite-timing";
 
 /** What an invite's token is sealed to: its workspace and its own id. */
 export const inviteSecretContext = (workspaceId: string, inviteId: string) =>

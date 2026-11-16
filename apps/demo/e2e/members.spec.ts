@@ -1,65 +1,46 @@
 import AxeBuilder from "@axe-core/playwright";
-import type { Browser, Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { expect, test } from "./test";
-import { sessionCookie, signIn, SIGNED_OUT } from "./auth-fixtures";
+import { signIn, SIGNED_OUT } from "./auth-fixtures";
 import {
   addDisposableMember,
-  createDisposableOwner,
-  nameAccount,
+  expireInvite,
+  newAddress,
+  scheduleOwnDeletion,
+  setMemberSwitches,
+  setSeatLimit,
   type DisposableAccount,
   type MemberOptions,
 } from "./account-db";
+import {
+  browserAs,
+  expectNoSideScroll,
+  inviteByApi,
+  inviteInUi,
+  inviteRow,
+  openMembers,
+  OWNER,
+  row,
+  team,
+} from "./members-fixtures";
 import { addDefaultFolder, DEFAULT_FOLDER } from "./squint-fixtures";
 
 /*
- * The Members section (PR 3): the People list as the owner, a member with the
- * people switch and any other member see it, removing someone, and the
- * owner's permission switches. Every workspace here is made for the test
- * (`createDisposableOwner`), so the e2e owner's never changes.
+ * The Members section: the People list as the owner, a member with the
+ * people switch and any other member see it, removing someone, the owner's
+ * permission switches (PR 3); inviting people, pending invites and the
+ * Leaving group (PR 4). Every workspace here is made for the test
+ * (`createDisposableOwner`), so the e2e owner's never changes. Email is off
+ * on the e2e server, so invites are created and their links copied by hand.
  */
 
 test.use({ storageState: SIGNED_OUT });
 
-const OWNER = "Olga Owner";
 const REMOVED =
   "You're no longer in a Squint workspace, so you can't sign in. Ask the person who invited you for a new invite.";
 
-/** A browser of its own, signed in as `account`. */
-async function browserAs(
-  browser: Browser,
-  account: { email: string },
-  baseURL: string | undefined,
-): Promise<Page> {
-  const context = await browser.newContext({ storageState: SIGNED_OUT });
-  await context.addCookies([await sessionCookie(account.email, baseURL ?? "")]);
-  return context.newPage();
-}
-
-interface Team {
-  owner: DisposableAccount;
-  ownerPage: Page;
-}
-
-/** A workspace owned by Olga, signed in on `page`. */
-async function team(page: Page, label: string, baseURL: string | undefined): Promise<Team> {
-  const owner = await createDisposableOwner(label);
-  await nameAccount(owner.email, OWNER);
-  await page.context().addCookies([await sessionCookie(owner.email, baseURL ?? "")]);
-  return { owner, ownerPage: page };
-}
-
 const member = (owner: DisposableAccount, label: string, options: MemberOptions) =>
   addDisposableMember(owner, label, options);
-
-async function openMembers(page: Page) {
-  await page.goto("/account/members");
-  const card = page.getByTestId("people-card");
-  await expect(card).toBeVisible();
-  return card;
-}
-
-const row = (page: Page, name: string) =>
-  page.getByTestId("member-row").filter({ has: page.getByTestId("member-name").getByText(name) });
 
 test("the owner removes a member: they're signed out, and signing in says why", async ({
   page,
@@ -349,4 +330,264 @@ test("a member's Delete account card names the workspace they'd leave", async ({
     `You'll leave ${owner.workspaceName}, be signed out everywhere`,
   );
   await benPage.context().close();
+});
+
+const toast = (page: Page, text: string | RegExp) =>
+  page.getByTestId("toast").filter({ hasText: text });
+
+test("alone, the owner is told email is off before inviting, then invites, copies and cancels", async ({
+  page,
+  baseURL,
+}, testInfo) => {
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await team(page, testInfo.project.name, baseURL);
+  const cleo = newAddress(testInfo.project.name);
+  await openMembers(page);
+  const invite = page.getByTestId("invite-card");
+  await expect(invite.getByRole("heading", { name: "Invite people" })).toBeVisible();
+  await expect(invite.getByTestId("invite-email-off")).toHaveText(
+    "Email isn't set up on this site. After you invite someone, copy their link from the list and send it yourself.",
+  );
+  await expect(invite.getByRole("meter")).toHaveAttribute("aria-valuetext", "1 of 10 seats used");
+  await expect(invite.getByTestId("seat-breakdown")).toHaveText("1 person · 0 invited");
+  await expect(invite.getByTestId("send-member-invites")).toHaveText("Create invites");
+  await expect(invite.getByTestId("send-member-invites")).toHaveAttribute("aria-disabled", "true");
+  const empty = page.getByTestId("people-empty");
+  await expect(empty).toContainText("Just you so far");
+  await expect(empty).toContainText("Invite up to 9 people to review with you.");
+  await expect(page.getByTestId("pending-invites")).toHaveCount(0);
+
+  const { results } = await inviteInUi(page, [cleo]);
+  await expect(invite.getByTestId("invite-status")).toHaveText(`Invite created for ${cleo}.`);
+  await expect(page.getByLabel("Email addresses")).toBeFocused();
+  const pending = inviteRow(page, cleo);
+  await expect(pending.getByTestId("invite-chip")).toHaveText("Invited");
+  await expect(pending.getByTestId("invite-meta")).toHaveText(
+    `Invited by ${OWNER} · Expires in 7 days`,
+  );
+  await expect(pending.getByTestId("invite-not-sent")).toHaveText("Email not sent");
+  await expect(invite.getByRole("meter")).toHaveAttribute("aria-valuetext", "2 of 10 seats used");
+  await expect(invite.getByTestId("seat-breakdown")).toHaveText("1 person · 1 invited");
+  await expect(empty).toHaveCount(0);
+
+  // Copy link, right on the row: written inside the tap, then said in a toast.
+  await pending.getByRole("button", { name: `Copy link for ${cleo}` }).click();
+  await expect(toast(page, "Invite link copied.")).toBeVisible();
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copied).toBe(results[0]?.invite?.link);
+
+  await page.getByRole("button", { name: `Actions for ${cleo}` }).click();
+  await expect(page.getByRole("menuitem")).toHaveText([
+    "Copy invite link",
+    "Renew link",
+    "Cancel invite",
+  ]);
+  await page.getByRole("menuitem", { name: "Cancel invite" }).click();
+  await expect(toast(page, `Invite for ${cleo} cancelled.`)).toBeVisible();
+  await expect(pending).toHaveCount(0);
+  await expect(page.getByTestId("people-count")).toBeFocused();
+  await expect(invite.getByRole("meter")).toHaveAttribute("aria-valuetext", "1 of 10 seats used");
+  // The link no longer works.
+  await page.goto(new URL(copied).pathname);
+  await expect(page.getByRole("heading", { name: "This invite was cancelled" })).toBeVisible();
+});
+
+test("an address that already has an invite offers to renew it, right under the field", async ({
+  page,
+  baseURL,
+}, testInfo) => {
+  await team(page, testInfo.project.name, baseURL);
+  const cleo = newAddress(testInfo.project.name);
+  const dan = newAddress(testInfo.project.name);
+  await inviteByApi(page, cleo);
+  await openMembers(page);
+  await inviteInUi(page, [cleo, dan]);
+  const invite = page.getByTestId("invite-card");
+  await expect(invite.getByTestId("invite-status")).toHaveText(
+    `Invite created for ${dan}. 1 address wasn't invited: the reason is on its chip.`,
+  );
+  await expect(invite.getByTestId("invite-chip")).toHaveCount(1);
+  await expect(invite.getByTestId("invite-chip")).toHaveAttribute(
+    "data-problem",
+    "already-invited",
+  );
+  const already = invite.getByTestId("already-invited");
+  await expect(already).toContainText(`${cleo} already has an invite.`);
+  await already.getByRole("button", { name: `Renew link for ${cleo}` }).click();
+  await expect(toast(page, /^Link renewed\. It works until /)).toBeVisible();
+  await expect(invite.getByTestId("invite-chip")).toHaveCount(0);
+  await expect(inviteRow(page, dan)).toBeVisible();
+});
+
+test("seats run out: a send that no longer fits says so, then the notice replaces the field", async ({
+  page,
+  baseURL,
+}, testInfo) => {
+  const { owner } = await team(page, testInfo.project.name, baseURL);
+  const a = newAddress(testInfo.project.name);
+  const b = newAddress(testInfo.project.name);
+  await setSeatLimit(owner.workspaceId, 3);
+  await openMembers(page);
+  const invite = page.getByTestId("invite-card");
+  await expect(invite.getByText("2 seats left")).toBeVisible();
+  const field = page.getByLabel("Email addresses");
+  for (const address of [a, b]) {
+    await field.fill(address);
+    await field.press("Enter");
+  }
+  // A seat goes elsewhere between loading the page and sending.
+  await setSeatLimit(owner.workspaceId, 2);
+  await page.getByTestId("send-member-invites").click();
+  await expect(invite.getByTestId("invite-error")).toHaveText(
+    "Nothing was sent. Only 1 seat is left now. Remove 1 address, then send again.",
+  );
+  await expect(invite.getByTestId("invite-chip")).toHaveCount(2);
+  await expect(page.getByTestId("send-member-invites")).toHaveAttribute("aria-disabled", "true");
+  await invite.getByRole("button", { name: `Remove ${b}` }).click();
+  await expect(invite.getByTestId("invite-error")).toHaveText("");
+  await page.getByTestId("send-member-invites").click();
+  await expect(invite.getByTestId("invite-status")).toHaveText(`Invite created for ${a}.`);
+
+  const full = invite.getByTestId("seats-full");
+  await expect(full).toContainText("All 2 seats are taken.");
+  await expect(full).toContainText("cancel an invite or remove someone");
+  await expect(invite.getByRole("meter")).toHaveAttribute("aria-valuetext", "2 of 2 seats used");
+  await expect(page.getByLabel("Email addresses")).toHaveCount(0);
+
+  // Cancelling the invite frees its seat: the field comes back.
+  await page.getByRole("button", { name: `Actions for ${a}` }).click();
+  await page.getByRole("menuitem", { name: "Cancel invite" }).click();
+  await expect(full).toHaveCount(0);
+  await expect(invite.getByText("1 seat left")).toBeVisible();
+});
+
+test("a member with the people switch renews and cancels an invite the owner sent", async ({
+  page,
+  browser,
+  baseURL,
+}, testInfo) => {
+  const { owner } = await team(page, testInfo.project.name, baseURL);
+  const manager = await member(owner, testInfo.project.name, {
+    name: "Mia Manager",
+    permissions: ["people"],
+  });
+  const cleo = newAddress(testInfo.project.name);
+  const dan = newAddress(testInfo.project.name);
+  await inviteByApi(page, cleo);
+  await expireInvite(owner.workspaceId, cleo);
+
+  const managerPage = await browserAs(browser, manager, baseURL);
+  await openMembers(managerPage);
+  await expect(managerPage.getByTestId("invite-card")).toBeVisible();
+  const pending = inviteRow(managerPage, cleo);
+  await expect(pending.getByTestId("invite-chip")).toHaveText("Expired");
+  await expect(pending.getByTestId("invite-meta")).toContainText(
+    `Invited by ${OWNER} · Expired on`,
+  );
+  await managerPage.getByRole("button", { name: `Actions for ${cleo}` }).click();
+  // An expired invite has no link to copy until it's renewed.
+  await expect(managerPage.getByRole("menuitem")).toHaveText(["Renew link", "Cancel invite"]);
+  await managerPage.getByRole("menuitem", { name: "Renew link" }).click();
+  await expect(toast(managerPage, /^Link renewed\. It works until /)).toBeVisible();
+  await expect(pending.getByTestId("invite-chip")).toHaveText("Invited");
+
+  await inviteInUi(managerPage, [dan]);
+  await expect(inviteRow(managerPage, dan).getByTestId("invite-meta")).toContainText(
+    "Invited by Mia Manager",
+  );
+  await managerPage.getByRole("button", { name: `Actions for ${cleo}` }).click();
+  await managerPage.getByRole("menuitem", { name: "Cancel invite" }).click();
+  await expect(toast(managerPage, `Invite for ${cleo} cancelled.`)).toBeVisible();
+  await expect(pending).toHaveCount(0);
+  // Focus goes to the next row's menu.
+  await expect(managerPage.getByRole("button", { name: `Actions for ${dan}` })).toBeFocused();
+  await managerPage.context().close();
+});
+
+test("a member whose people switch went off is told why, and the page becomes the member view", async ({
+  page,
+  browser,
+  baseURL,
+}, testInfo) => {
+  const { owner } = await team(page, testInfo.project.name, baseURL);
+  const manager = await member(owner, testInfo.project.name, {
+    name: "Mia Manager",
+    permissions: ["people"],
+  });
+  const managerPage = await browserAs(browser, manager, baseURL);
+  await openMembers(managerPage);
+  await expect(managerPage.getByTestId("invite-card")).toBeVisible();
+  await setMemberSwitches(manager.email, []);
+  await inviteInUi(managerPage, [newAddress(testInfo.project.name)]);
+  const line = `You can no longer invite or remove people in ${owner.workspaceName}. Ask ${OWNER} if you need to.`;
+  await expect(toast(managerPage, line)).toBeVisible();
+  await expect(managerPage.getByTestId("invite-card")).toHaveCount(0);
+  await expect(managerPage.getByTestId("people-card")).toContainText(
+    `Everyone in ${owner.workspaceName}. To invite someone, ask ${OWNER}.`,
+  );
+  await expect(row(managerPage, "Mia Manager").getByTestId("own-permission").last()).toHaveText(
+    "You can't invite or remove people.",
+  );
+  await managerPage.context().close();
+});
+
+test("someone who deleted their own account is listed as leaving, and holds no seat", async ({
+  page,
+  baseURL,
+}, testInfo) => {
+  const { owner } = await team(page, testInfo.project.name, baseURL);
+  const lea = await member(owner, testInfo.project.name, { name: "Lea Leaver" });
+  await scheduleOwnDeletion(lea.email);
+  await openMembers(page);
+  await expect(page.getByTestId("people-count")).toHaveText("1 person");
+  await expect(page.getByTestId("invite-card").getByRole("meter")).toHaveAttribute(
+    "aria-valuetext",
+    "1 of 10 seats used",
+  );
+  const leaving = page.getByTestId("leaving");
+  await expect(leaving.getByRole("heading", { name: "Leaving" })).toBeVisible();
+  await expect(leaving).toContainText(
+    "These people deleted their own account. They don't use a seat.",
+  );
+  const entry = leaving.getByTestId("leaving-row");
+  await expect(entry).toContainText("Lea Leaver");
+  await expect(entry).toContainText("Leaving");
+  await expect(entry).toContainText(`${lea.email} · Leaves for good on`);
+  await expect(entry.getByRole("button")).toHaveCount(0);
+});
+
+test("with reduced motion, inviting and cancelling still work, and the page passes axe", async ({
+  page,
+  baseURL,
+}, testInfo) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await team(page, testInfo.project.name, baseURL);
+  const cleo = newAddress(testInfo.project.name);
+  await openMembers(page);
+  await inviteInUi(page, [cleo]);
+  await expect(inviteRow(page, cleo)).toBeVisible();
+  // The cards fade in as they scroll into view: checked once both have.
+  for (const id of ["invite-card", "people-card"]) {
+    await page.getByTestId(id).scrollIntoViewIfNeeded();
+    await expect(page.getByTestId(id)).toHaveCSS("opacity", "1");
+  }
+  const results = await new AxeBuilder({ page })
+    .include("[data-testid=members-settings]")
+    .analyze();
+  expect(results.violations).toEqual([]);
+  await page.getByRole("button", { name: `Actions for ${cleo}` }).click();
+  await page.getByRole("menuitem", { name: "Cancel invite" }).click();
+  await expect(inviteRow(page, cleo)).toHaveCount(0);
+});
+
+test("at 375px the invite card and pending invites fit without scrolling sideways", async ({
+  page,
+  baseURL,
+}, testInfo) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await team(page, testInfo.project.name, baseURL);
+  await inviteByApi(page, `a-very-long-address-${newAddress(testInfo.project.name)}`);
+  await openMembers(page);
+  await expect(page.getByTestId("invite-row")).toHaveCount(1);
+  await expectNoSideScroll(page);
 });

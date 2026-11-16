@@ -34,6 +34,7 @@ export const BUSY_COMMENTS = 10;
 
 export const REACTION_MOOD: Record<SquiggyEventType, Mood> = {
   "signed-in": "happy",
+  joined: "happy",
   "comment-resolved": "resolved",
   "project-created": "happy",
   "item-deleted": "surprised",

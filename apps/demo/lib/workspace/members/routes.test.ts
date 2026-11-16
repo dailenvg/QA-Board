@@ -367,7 +367,7 @@ describe("POST /api/auth/join", () => {
       body: fields({ name: "Cleo", password: PASSWORD, confirm: PASSWORD }),
     });
     expect(joined.status).toBe(303);
-    expect(joined.headers.get("location")).toBe("/");
+    expect(joined.headers.get("location")).toBe("/?welcome=joined");
     expect(joined.headers.get("set-cookie")).toMatch(new RegExp(`^${SESSION_COOKIE}=`));
     const again = await join({
       body: fields({ name: "Cleo", password: PASSWORD, confirm: PASSWORD }),

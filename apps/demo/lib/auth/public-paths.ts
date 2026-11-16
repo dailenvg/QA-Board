@@ -24,6 +24,8 @@ const PUBLIC_TREES = [
   "/reset",
   // Email change links: opened from the new address's inbox, often in another browser.
   "/email-change",
+  // Workspace invite links: opened from the invitee's inbox, before they have an account.
+  "/join",
   "/s",
   "/px/s",
   "/embed",

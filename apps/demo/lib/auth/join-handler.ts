@@ -8,10 +8,12 @@ import {
   type Joiner,
 } from "../workspace/members/accept";
 import { confirmPasswordError } from "./field-rules";
+import type { JoinFlag } from "./form-flags";
 import { isFormPost, readForm, seeOther } from "./form-post";
 import { apiAccount } from "./guards";
 import { crossSiteRefusal, describeError, isCrossSite } from "./http";
 import type { AuthRouteDeps } from "./login-handler";
+import { JOINED_PATH } from "./next-path";
 import { joinAccountSchema, joinSchema } from "./schemas";
 import { SESSION_COOKIE, sessionCookieOptions } from "./session-cookie";
 
@@ -33,9 +35,6 @@ const STATUS: Record<AcceptRefusal, number> = {
   "wrong-account": 403,
   "cannot-join": 403,
 };
-
-/** Why a plain form post went back to the join page: a refusal, or a field. */
-type JoinFlag = AcceptRefusal | "invalid" | "mismatch" | "rate-limited" | "unavailable";
 
 type Attempt =
   Awaited<ReturnType<typeof acceptInvite>> | { ok: false; reason: "not-configured" | "storage" };
@@ -89,7 +88,7 @@ async function fromJson(request: Request, deps: JoinDeps): Promise<Response> {
 
 /**
  * A form posted before the page hydrated: always a 303. Joined, on to the
- * Overview; otherwise back to the invite's page with a code (never the name
+ * Overview with the welcome flag; otherwise back to the invite's page with a code (never the name
  * or password). An unusable token goes to /login.
  */
 async function fromForm(request: Request, deps: JoinDeps): Promise<Response> {
@@ -107,7 +106,7 @@ async function fromForm(request: Request, deps: JoinDeps): Promise<Response> {
     joiner = { account: account.data };
   }
   const result = await attempt(token, joiner, deps);
-  if (result.ok) return withSession(seeOther("/"), request, result.sessionToken);
+  if (result.ok) return withSession(seeOther(JOINED_PATH), request, result.sessionToken);
   if (result.reason === "not-configured" || result.reason === "storage") {
     return back("unavailable");
   }

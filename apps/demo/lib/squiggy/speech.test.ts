@@ -51,6 +51,10 @@ describe("reactionSpeech", () => {
       kind: "signed-in",
       first: true,
     });
+    expect(reactionSpeech({ type: "joined", workspace: "Acme Studio" })).toEqual({
+      kind: "joined",
+      workspace: "Acme Studio",
+    });
     expect(reactionSpeech({ type: "comment-resolved" })).toEqual({ kind: "just-resolved" });
     expect(reactionSpeech({ type: "project-created", projectName: "Homepage" })).toEqual({
       kind: "just-created",

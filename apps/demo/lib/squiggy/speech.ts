@@ -13,6 +13,7 @@ export type AmbientSpeech =
 /** A one-off line for the event Squiggy is reacting to. Never a link. */
 export type ReactionSpeech =
   | { kind: "signed-in"; first: boolean }
+  | { kind: "joined"; workspace: string }
   | { kind: "just-resolved" }
   | { kind: "just-created"; projectName: string }
   | { kind: "just-deleted"; undoable: boolean }
@@ -42,6 +43,8 @@ export function reactionSpeech(event: SquiggyEvent): ReactionSpeech {
   switch (event.type) {
     case "signed-in":
       return { kind: "signed-in", first: event.first };
+    case "joined":
+      return { kind: "joined", workspace: event.workspace };
     case "comment-resolved":
       return { kind: "just-resolved" };
     case "project-created":

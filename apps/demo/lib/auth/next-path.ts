@@ -9,8 +9,11 @@ export const PATH_HEADER = "x-squint-path";
 /** Added to the destination after signing in, once: Squiggy greets, then it's removed. */
 export const WELCOME_PARAM = "welcome";
 
-/** The welcome flag's value: the user's first sign-in, or a return. */
-export type Welcome = "first" | "back";
+/** The welcome flag's value: the user's first sign-in, a return, or joining a workspace by invite. */
+export type Welcome = "first" | "back" | "joined";
+
+/** Where a new member lands once they've joined with an invite: the Overview, greeted. */
+export const JOINED_PATH = "/?welcome=joined";
 
 const BASE = "http://squint.invalid";
 

@@ -15,7 +15,12 @@ interface AlertLink {
 interface FormAlertProps {
   /** Shown while set; the live region itself always stays so screen readers announce changes. */
   message: string | null;
-  tone?: "error" | "info";
+  /**
+   * `info` confirms something that worked (a check); `note` explains how
+   * things stand before anything was done (neutral, an "i"), such as a
+   * setting that's off.
+   */
+  tone?: "error" | "info" | "note";
   /** A link inside the message, for the messages that contain its words. */
   link?: AlertLink;
   testId?: string;
@@ -36,7 +41,10 @@ interface FormAlertProps {
 const TONES = {
   error: "bg-danger-soft text-danger",
   info: "bg-resolved-soft text-resolved-text",
+  note: "bg-tile text-ink-2",
 };
+
+const TONE_ICONS = { error: "alert", info: "check", note: "info" } as const;
 
 /** `message`, with `link.text` in it (if it's there) as a link in the message's own colour. */
 function linked(message: string, link: AlertLink | undefined): ReactNode {
@@ -84,7 +92,7 @@ export function FormAlert({
             exit="exit"
             className={`flex items-start gap-2 rounded-tile px-4 py-3 text-body font-medium ${TONES[tone]}`}
           >
-            <Icon name={tone === "error" ? "alert" : "check"} className="mt-0.5 size-4 shrink-0" />
+            <Icon name={TONE_ICONS[tone]} className="mt-0.5 size-4 shrink-0" />
             {/* min-w-0 wrap-anywhere: messages can hold email addresses too long for a phone's line. */}
             <span className="min-w-0 wrap-anywhere">{linked(message, link)}</span>
           </motion.p>

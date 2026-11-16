@@ -145,9 +145,26 @@ export function staggerGroup(staggerChildren = staggerStep, delayChildren = 0.08
   return { hidden: {}, visible: { transition: { staggerChildren, delayChildren } } };
 }
 
+/**
+ * `fadeOnly` that also puts `y` and `scale` back at once, for the hooks below whose content
+ * can be server-rendered hidden. The server can't know the visitor prefers reduced motion, so
+ * it renders `fadeUp`'s or `popIn`'s hidden state (lower, smaller), and hydration keeps that
+ * inline transform: a fade that never touches `y` or `scale` would leave the content there.
+ */
+const fadeReset: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { duration: duration.micro, y: instant, scale: instant },
+  },
+  exit: { opacity: 0, transition: { duration: duration.micro } },
+};
+
 /** `fadeUp`, collapsed to a plain fade when the user prefers reduced motion. */
 export function useRevealVariants(): Variants {
-  return useReducedMotion() ? fadeOnly : fadeUp;
+  return useReducedMotion() ? fadeReset : fadeUp;
 }
 
 /** `screenSwap`, collapsed to a plain fade when the user prefers reduced motion. */
@@ -157,7 +174,7 @@ export function useScreenVariants(): Variants {
 
 /** `popIn`, collapsed to a plain fade when the user prefers reduced motion. */
 export function usePopVariants(): Variants {
-  return useReducedMotion() ? fadeOnly : popIn;
+  return useReducedMotion() ? fadeReset : popIn;
 }
 
 /** `sheetUp`, collapsed to a plain fade when the user prefers reduced motion. */
