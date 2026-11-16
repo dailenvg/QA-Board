@@ -53,10 +53,8 @@ export interface GlassFolderProps {
   href: string;
   /** Accessible name of that link. */
   linkLabel: string;
-  /** Stands on the glass at its bottom right. Decorative: clicks pass through to the link. */
-  keycap?: ReactNode;
-  /** Controls pinned to the top-right corner, above the link, at full size. */
-  corner?: ReactNode;
+  /** Controls on the glass at its bottom right, above the link, at full size. */
+  actions?: ReactNode;
   /** Width in px. Everything scales with it; the height is (272 + 54) / 340 of it. */
   width: number;
   /** Assemble itself the first time it scrolls into view. */
@@ -86,8 +84,7 @@ export function GlassFolder({
   files,
   href,
   linkLabel,
-  keycap,
-  corner,
+  actions,
   width,
   appear = true,
   appearDelay = 0,
@@ -203,19 +200,9 @@ export function GlassFolder({
             />
           ))}
         </Link>
-
-        {keycap ? (
-          <div className="gf-key" aria-hidden="true">
-            {keycap}
-          </div>
-        ) : null}
       </div>
 
-      {corner ? (
-        <div className="gf-corner" style={{ top: HEADROOM * k }}>
-          {corner}
-        </div>
-      ) : null}
+      {actions ? <div className="gf-actions">{actions}</div> : null}
     </div>
   );
 }
