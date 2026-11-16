@@ -82,6 +82,7 @@ export function InviteCard({ data, actions }: InviteCardProps) {
                 onChange={invites.setChips}
                 readOnly={invites.sending}
                 label={COPY.label}
+                noun={COPY.noun}
                 hint={COPY.hint(invites.left)}
                 max={invites.left}
                 describe={(chips, overflow) =>

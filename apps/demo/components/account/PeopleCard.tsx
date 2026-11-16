@@ -164,8 +164,10 @@ export function PeopleCard({
       icon="users"
       testId="people-card"
     >
-      <div ref={groups} className="flex flex-col gap-5">
-        <div className="flex flex-col gap-2">
+      {/* `relative`: popLayout positions the Pending invites group leaving against this one. */}
+      <div ref={groups} className="relative flex flex-col gap-5">
+        {/* `relative`: popLayout positions the empty state leaving against this group. */}
+        <div className="relative flex flex-col gap-2">
           <h3
             id={headingId}
             ref={heading}
@@ -200,10 +202,20 @@ export function PeopleCard({
               ))}
             </AnimatePresence>
           </motion.ul>
-          {alone ? <PeopleEmpty left={seatsLeft(managed.seats)} /> : null}
+          {/*
+           * In presence, popped out of the flow as it leaves: the first invite's group takes its
+           * place at once while it fades, instead of jumping up once it's gone. Nothing in it
+           * takes focus, so its exit never drops focus.
+           */}
+          <AnimatePresence mode="popLayout">
+            {alone ? <PeopleEmpty key="empty" left={seatsLeft(managed.seats)} /> : null}
+          </AnimatePresence>
         </div>
-        {/* In presence: the group leaves with an exit once its last invite is cancelled. */}
-        <AnimatePresence>
+        {/*
+         * In presence: the group leaves with an exit once its last invite is cancelled, out of
+         * the flow, so the empty state coming back above doesn't push it down as it fades.
+         */}
+        <AnimatePresence mode="popLayout">
           {managed && actions && invites.length > 0 ? (
             <PendingInvites
               key="pending"

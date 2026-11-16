@@ -14,8 +14,8 @@ interface SeatMeterProps {
 
 /**
  * Seats used of the workspace's limit (4b.2): words, then a bar in a meter
- * for assistive tech. The brand's blue while there's room; the comments'
- * warm tone once full or over (nothing is broken, so never red).
+ * for assistive tech. The brand's blue while there's room; the warning's
+ * amber once full or over (nothing is broken, so never red).
  */
 export function SeatMeter({ seats, members, invited }: SeatMeterProps) {
   const full = seats.used >= seats.limit;
@@ -40,7 +40,7 @@ export function SeatMeter({ seats, members, invited }: SeatMeterProps) {
         aria-valuenow={Math.min(seats.used, seats.limit)}
         aria-valuetext={COPY.valueText(seats.used, seats.limit)}
       >
-        <GrowBar share={share} fill={full ? "bg-comments" : "bg-brand-text"} height="h-3" />
+        <GrowBar share={share} fill={full ? "bg-warning" : "bg-brand-text"} height="h-3" />
       </div>
     </div>
   );

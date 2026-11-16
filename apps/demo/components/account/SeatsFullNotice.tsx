@@ -46,19 +46,19 @@ export function SeatsFullNotice({
       initial="hidden"
       animate="visible"
       exit="exit"
-      className="flex flex-col items-start gap-3 rounded-tile bg-comments-soft p-4 sm:flex-row sm:items-center sm:gap-4"
+      className="flex flex-col items-start gap-3 rounded-tile bg-warning-soft p-4 sm:flex-row sm:items-center sm:gap-4"
       data-testid="seats-full"
       data-over={over || undefined}
     >
       <Squiggy mood="thinking" size={72} still className="shrink-0" />
       <div role="status" className="flex min-w-0 flex-col gap-1">
         {nothingSent ? (
-          <p className="text-body font-semibold text-comments-text">{COPY.nothingSent}</p>
+          <p className="text-body font-semibold text-warning-text">{COPY.nothingSent}</p>
         ) : null}
         <h3
           ref={heading}
           tabIndex={-1}
-          className="text-heading font-semibold text-pretty text-comments-text wrap-anywhere focus:outline-none"
+          className="text-heading font-semibold text-pretty text-warning-text wrap-anywhere focus:outline-none"
         >
           {over ? COPY.overTitle(workspaceName, seats.used, seats.limit) : COPY.title(seats.limit)}
         </h3>

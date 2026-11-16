@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { MEMBERS_COPY } from "../account/members-copy";
 import {
   addChips,
+  addedLine,
   chipLabel,
   chipsMessage,
   invalidChipsLine,
   markChips,
+  RECIPIENTS_NOUN,
   removeChip,
   sendableChips,
   type InviteChip,
@@ -60,6 +63,18 @@ describe("invite chips", () => {
     expect(
       markChips([chip("ana@acme.studio"), chip("leo@acme.studio")], ["ANA@acme.studio"], "outside"),
     ).toEqual([chip("ana@acme.studio", "outside"), chip("leo@acme.studio")]);
+  });
+
+  it("are counted as recipients in the Share window and as addresses in Members", () => {
+    expect(RECIPIENTS_NOUN.list).toBe("Recipients");
+    expect(addedLine(["a@b.co"], 1, RECIPIENTS_NOUN)).toBe("Added a@b.co. 1 recipient.");
+    expect(addedLine(["c@d.co", "e@f.co"], 3, RECIPIENTS_NOUN)).toBe(
+      "Added c@d.co, e@f.co. 3 recipients.",
+    );
+    const members = MEMBERS_COPY.invite.noun;
+    expect(members.list).toBe("Addresses");
+    expect(addedLine(["a@b.co"], 1, members)).toBe("Added a@b.co. 1 address.");
+    expect(addedLine(["c@d.co", "e@f.co"], 3, members)).toBe("Added c@d.co, e@f.co. 3 addresses.");
   });
 
   it("send only with at least one chip and nothing wrong", () => {

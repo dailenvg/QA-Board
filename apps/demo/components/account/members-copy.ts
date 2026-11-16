@@ -88,6 +88,8 @@ export const MEMBERS_COPY = {
         `${counted(members, "person", "people")} · ${invited} invited`,
     },
     label: "Email addresses",
+    /** The chips' list name, and the count in "Added …" for screen readers. */
+    noun: { list: "Addresses", one: "address", many: "addresses" },
     hint: (left: number) => `${counted(left, "seat", "seats")} left`,
     /** Typed past the seats left. */
     overflow: (left: number, overflow: number) =>
