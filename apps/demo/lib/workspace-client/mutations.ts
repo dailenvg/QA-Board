@@ -49,10 +49,18 @@ const write = (
 
 /**
  * The comment as the API takes it: whose it is comes from the request (the
- * session, or `fromShare`), not the body.
+ * session, or `fromShare`), not the body, and so does the author's photo
+ * (`authorAvatar`, `team`): only the server says those.
  */
 function commentBody(comment: Comment) {
-  const { projectId: _project, fromClient: _client, mine: _mine, ...body } = comment;
+  const {
+    projectId: _project,
+    fromClient: _client,
+    mine: _mine,
+    authorAvatar: _avatar,
+    team: _team,
+    ...body
+  } = comment;
   return body;
 }
 

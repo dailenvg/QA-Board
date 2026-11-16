@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { shareIconSrc } from "../routes";
 import type { ClientBrand } from "./types";
 
 /**
@@ -50,6 +51,7 @@ export function toClientBrand(brand: ShareBrand): ClientBrand {
     color: brand.color,
     hasLogo: brand.logoKey !== null,
     logoVersion: brand.logoKey === null ? null : logoVersion(brand.logoKey),
+    iconVersion: iconVersionOf(brand),
   };
 }
 
@@ -65,6 +67,19 @@ export function brandIconVersion(brand: Pick<ClientBrand, "name" | "color" | "lo
 }
 
 /**
+ * `brandIconVersion` of a company as the server reads it (its logo's key, not
+ * its version), so a review link's icon and the app's (`/api/account/workspace/icon`)
+ * agree on one version for the same name, color and logo.
+ */
+export function iconVersionOf(brand: Pick<ShareBrand, "name" | "color" | "logoKey">): string {
+  return brandIconVersion({
+    name: brand.name,
+    color: brand.color,
+    logoVersion: brand.logoKey === null ? null : logoVersion(brand.logoKey),
+  });
+}
+
+/**
  * Where a shared link's company icon is: its logo, or its monogram without
  * one, as a square PNG (`/api/s/<token>/brand/icon`). The favicon link
  * previews show beside the company's name, and the invitation email's header.
@@ -73,7 +88,7 @@ export function brandIconPath(
   token: string,
   brand: Pick<ClientBrand, "name" | "color" | "logoVersion">,
 ): string {
-  return `/api/s/${encodeURIComponent(token)}/brand/icon?v=${brandIconVersion(brand)}`;
+  return shareIconSrc(token, brandIconVersion(brand));
 }
 
 /**

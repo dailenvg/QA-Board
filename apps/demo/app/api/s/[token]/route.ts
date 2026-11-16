@@ -11,6 +11,6 @@ type Params = { params: Promise<{ token: string }> };
 export async function GET(request: Request, { params }: Params) {
   const { token } = await params;
   return asClient(request, token, "clientRead", async ({ services, share }) =>
-    json(await clientView(services.store, share)),
+    json(await clientView(services.store, share, token)),
   );
 }

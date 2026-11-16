@@ -13,7 +13,7 @@ import {
 } from "@/test/workspace-fixture";
 import type { Database } from "../db/database";
 import { inlineBackend } from "../share/blob-backend";
-import { logoVersion } from "../share/brand";
+import { iconVersionOf, logoVersion } from "../share/brand";
 import { createPostgresStore } from "../share/postgres-store";
 import { clientShare, clientView, createShare, putOwnerBlob } from "../share/service";
 import { importData } from "./import-data";
@@ -100,7 +100,7 @@ describe("a workspace's share, seen by its guest", () => {
     expect(logo.status).toBe(200);
     const share = await clientShare(services.store, created.token, Date.now());
     if (!share) throw new Error("share closed");
-    const rendered = await clientView(services.store, share);
+    const rendered = await clientView(services.store, share, created.token);
 
     const wire = [
       await view.text(),
@@ -129,6 +129,7 @@ describe("a workspace's share, seen by its guest", () => {
       color: null,
       hasLogo: true,
       logoVersion: logoVersion(logoKey),
+      iconVersion: iconVersionOf({ name: "acme", color: null, logoKey }),
     });
   });
 });

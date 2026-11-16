@@ -14,6 +14,7 @@ import {
   type MembersWorld,
   type Person,
 } from "@/test/members-fixture";
+import { workspaceIconUrl } from "../../account/public-icon";
 import { hashSecret } from "../../share/tokens";
 import { toDate } from "../times";
 import { createInvites, readAddresses } from "./create-invites";
@@ -258,9 +259,15 @@ describe("createInvites: emails", () => {
       true,
     ]);
     expect(batches).toHaveLength(1);
+    // Its icon loads signed out, by the workspace's opaque key, never its id.
+    const iconUrl = await workspaceIconUrl(world.db, world.workspaceId, EMAIL_ON);
+    expect(iconUrl).toMatch(
+      /^https:\/\/squint\.test\/api\/c\/[A-Za-z0-9_-]{22}\/brand\/icon\?v=[0-9a-f]{16}$/,
+    );
+    expect(iconUrl).not.toContain(world.workspaceId);
     expect(batches[0]).toMatchObject({
       from: '"Acme Studio via Squint" <noreply@squint.test>',
-      brand: { iconUrl: null, color: null },
+      brand: { iconUrl, color: null },
       invites: [
         { workspace: "Acme Studio", inviter: "Ana Ruiz", email: "cleo@x.test" },
         { workspace: "Acme Studio", inviter: "Ana Ruiz", email: "dan@x.test" },

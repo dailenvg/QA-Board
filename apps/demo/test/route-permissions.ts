@@ -86,6 +86,8 @@ export const ROUTE_PERMISSIONS: Record<string, Record<string, RouteAccess>> = {
     PUT: may("workspace.manage"),
     DELETE: may("workspace.manage"),
   },
+  // The company badge on the team's avatars in the app (4.11).
+  "/api/account/workspace/icon": { GET: READ },
   "/api/account/storage": { GET: READ },
   // Invites (people switch): any invite, whoever made it (D2).
   "/api/account/members/invites": { POST: may("members.manage") },
@@ -123,6 +125,8 @@ export const ROUTE_PERMISSIONS: Record<string, Record<string, RouteAccess>> = {
   "/api/s/:token/blobs/:key": { GET: GUEST },
   "/api/s/:token/brand/icon": { GET: GUEST },
   "/api/s/:token/brand/logo": { GET: GUEST },
+  // A team member's avatar on the link, by their key there (4.11), behind its password.
+  "/api/s/:token/people/:key/avatar": { GET: GUEST },
 
   // Signing in and out, and links from emails.
   "/api/auth/login": { POST: PUBLIC },
@@ -138,6 +142,8 @@ export const ROUTE_PERMISSIONS: Record<string, Record<string, RouteAccess>> = {
   "/api/frame-check": { GET: PUBLIC },
   "/api/pinpoint": { GET: PUBLIC, POST: PUBLIC, PATCH: PUBLIC },
   "/api/p/:id/brand/icon": { GET: PUBLIC },
+  // A workspace's company icon by its opaque key, for its invite emails (signed out).
+  "/api/c/:key/brand/icon": { GET: PUBLIC },
   "/api/cron/expire": { GET: { kind: "cron-secret" } },
 };
 

@@ -73,9 +73,16 @@ describe("toShareState", () => {
 
   it("sends no secrets or local keys, and fits the server's schema", () => {
     expect(JSON.stringify(state)).not.toMatch(/blobKey|ownerKey|token|projectId/);
-    // Whose a comment is stays in the workspace: guests never see it.
-    const own = toShareState(project, [{ ...comment, mine: true }], [snapshot]);
-    expect(own.comments[0]).not.toHaveProperty("mine");
+    // Whose a comment is stays in the workspace: guests never see it, nor the app's avatar URL.
+    const avatar = "/api/w/ws-1/people/AAAAAAAAAAAAAAAAAAAAAA/avatar?v=1";
+    const own = toShareState(
+      project,
+      [{ ...comment, mine: true, team: true, authorAvatar: avatar }],
+      [snapshot],
+    );
+    for (const field of ["mine", "team", "authorAvatar"]) {
+      expect(own.comments[0]).not.toHaveProperty(field);
+    }
     expect(stateSchema.safeParse(state).success).toBe(true);
     expect(state.project.source).toEqual({
       kind: "pages",

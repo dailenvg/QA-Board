@@ -3,6 +3,7 @@
 import { motion, useReducedMotion } from "motion/react";
 import type { MemberSwitch } from "@/lib/auth/permissions";
 import { instant, spring, useRevealVariants } from "@/lib/motion";
+import { useCompanyBadgeSrc } from "@/lib/workspace-client/use-company-badge";
 import type { AskContext } from "@/lib/workspace-client/permission-copy";
 import { Menu } from "../ui/Menu";
 import { PersonAvatar } from "../ui/PersonAvatar";
@@ -39,7 +40,7 @@ interface MemberRowProps {
 }
 
 /**
- * A person in the People list: avatar, name with "You" and "Owner" chips,
+ * A person in the People list: avatar with the company badge, name with "You" and "Owner" chips,
  * then the email (where the view has it) and when they joined. The owner's
  * view adds a member's Permissions under it, and a row the viewer may remove
  * gets a menu with Remove. Their own row shows a member what they can do.
@@ -56,6 +57,7 @@ export function MemberRow({
 }: MemberRowProps) {
   const reduce = useReducedMotion();
   const variants = useRevealVariants();
+  const badgeSrc = useCompanyBadgeSrc();
   return (
     <motion.li
       layout="position"
@@ -73,6 +75,7 @@ export function MemberRow({
           fallback={person.fallback}
           src={person.avatarSrc}
           size="md"
+          badgeSrc={badgeSrc}
           photoTestId="member-avatar"
           initialsTestId="member-initials"
         />

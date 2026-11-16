@@ -37,6 +37,8 @@ describe("isPublicPath", () => {
     "/p/123/opengraph-image",
     "/p/123/twitter-image",
     "/api/p/123/brand/icon",
+    // A workspace's icon by its opaque key, for inboxes showing its invite emails.
+    "/api/c/AAAAAAAAAAAAAAAAAAAAAA/brand/icon",
   ])("lets anyone open %s", (path) => {
     expect(isPublicPath(path)).toBe(true);
   });
@@ -70,6 +72,8 @@ describe("isPublicPath", () => {
     "/api/p/123",
     "/api/p/123/brand/logo",
     "/api/p/123/brand/icon/x",
+    "/api/c/AAAAAAAAAAAAAAAAAAAAAA",
+    "/api/c/AAAAAAAAAAAAAAAAAAAAAA/brand/logo",
   ])("needs a session for %s", (path) => {
     expect(isPublicPath(path)).toBe(false);
   });

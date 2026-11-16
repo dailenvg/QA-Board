@@ -1,5 +1,5 @@
-import { readStoredImage, type BrandLogo } from "../share/brand-logo";
-import { logoVersion } from "../share/brand";
+import { cardLogoUri, readStoredImage, type BrandLogo } from "../share/brand-logo";
+import { brandColor, iconVersionOf, logoVersion } from "../share/brand";
 import type { Queryable } from "../share/migrate";
 import type { BlobDriver } from "../workspace/blob-driver";
 import { brandLogoPath } from "../workspace/blob-paths";
@@ -23,13 +23,15 @@ export interface WorkspaceActor {
   workspaceId: string;
 }
 
-const LOGO_ROW = `SELECT logo.key, logo.size, logo.bytes, logo.blob_url
-  FROM workspaces AS workspace
-  JOIN workspace_blobs AS logo
+/** The workspace and its logo row, when there's one where its logo goes. */
+export const WITH_LOGO = `workspaces AS workspace
+  LEFT JOIN workspace_blobs AS logo
     ON logo.workspace_id = workspace.id AND logo.key = workspace.logo_blob_key
     AND logo.project_id IS NULL
-    AND starts_with(logo.key, 'ws/' || workspace.id::text || '/brand/logo/')
-  WHERE workspace.id = $1`;
+    AND starts_with(logo.key, 'ws/' || workspace.id::text || '/brand/logo/')`;
+
+const LOGO_ROW = `SELECT logo.key, logo.size, logo.bytes, logo.blob_url
+  FROM ${WITH_LOGO} WHERE workspace.id = $1 AND logo.key IS NOT NULL`;
 
 async function currentLogo(db: Queryable, workspaceId: string): Promise<ImageRow | null> {
   const { rows } = await db.query<ImageRow>(LOGO_ROW, [workspaceId]);
@@ -53,6 +55,49 @@ export async function readWorkspaceLogo(
 ): Promise<BrandLogo | null> {
   const logo = await currentLogo(db, workspaceId);
   return logo && readStoredImage({ key: logo.key, location: toLocation(logo) }, driver);
+}
+
+/** A workspace's company icon (4.11): what `renderBrandIcon` draws, and its `?v=`. */
+export interface WorkspaceIcon {
+  company: string;
+  color: string | null;
+  /** The logo as a data URI the renderer can draw; null for the monogram. */
+  logoUri: string | null;
+  /** `iconVersionOf` the workspace: what `WorkspaceIdentity.iconVersion` says too. */
+  version: string;
+}
+
+interface IconRow {
+  name: string;
+  brand_color: string | null;
+  logo_key: string | null;
+  bytes: Uint8Array | null;
+  blob_url: string | null;
+}
+
+/** The workspace's name, color and logo, as its badge in the app shows them; null when it's gone. */
+export async function readWorkspaceIcon(
+  db: Queryable,
+  workspaceId: string,
+  driver?: Pick<BlobDriver, "read">,
+): Promise<WorkspaceIcon | null> {
+  const { rows } = await db.query<IconRow>(
+    `SELECT workspace.name, workspace.brand_color, logo.key AS logo_key, logo.bytes, logo.blob_url
+     FROM ${WITH_LOGO} WHERE workspace.id = $1`,
+    [workspaceId],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  const color = brandColor(row.brand_color);
+  const logo = row.logo_key
+    ? await readStoredImage({ key: row.logo_key, location: toLocation(row) }, driver)
+    : null;
+  return {
+    company: row.name,
+    color,
+    logoUri: logo && cardLogoUri(logo),
+    version: iconVersionOf({ name: row.name, color, logoKey: row.logo_key }),
+  };
 }
 
 /**

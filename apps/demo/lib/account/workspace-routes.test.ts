@@ -8,7 +8,9 @@ import { seat, type Seat } from "@/test/workspace-fixture";
 import { migratedPglite } from "@/test/pglite";
 import { createSession } from "../auth/sessions";
 import type { Database } from "../db/database";
+import { findMembership } from "../auth/memberships";
 import type { BlobLocation } from "../share/types";
+import { loadWorkspace } from "../workspace/load-workspace";
 
 const holder = vi.hoisted(() => ({
   db: null as Database | null,
@@ -319,6 +321,65 @@ describe("/api/account/workspace/logo", () => {
     }
     expect(statuses.slice(0, 10).every((status) => status === 200)).toBe(true);
     expect(statuses[10]).toBe(429);
+  });
+});
+
+describe("GET /api/account/workspace/icon", () => {
+  /** The icon's `?v=` as the session's workspace data gives it to the browser. */
+  async function iconVersion(seat: Seat): Promise<string> {
+    const membership = await findMembership(db, seat.userId, seat.workspaceId);
+    if (!membership) throw new Error("no membership");
+    return (await loadWorkspace(db, membership, seat.userId)).workspace.iconVersion;
+  }
+
+  const icon = (cookie: string, version: string) =>
+    callAccount("GET", "/api/account/workspace/icon", { cookie, search: `?v=${version}` });
+
+  it("draws the session's workspace's icon for any member, kept only at its version", async () => {
+    const version = await iconVersion(a);
+    for (const cookie of [a.cookie, await member()]) {
+      const served = await icon(cookie, version);
+      expect(served.status).toBe(200);
+      expect(served.headers.get("content-type")).toBe("image/png");
+      expect(served.headers.get("cache-control")).toBe("private, max-age=300");
+    }
+    expect((await icon(a.cookie, "stale")).headers.get("cache-control")).toBe("private, no-store");
+    // Another workspace's owner gets their own, at another version.
+    expect(await iconVersion(b)).not.toBe(version);
+    const admin = await insertUser(db, "admin@squint.test", "admin");
+    const adminCookie = `squint_session=${await createSession(db, admin, Date.now())}`;
+    expect((await icon(adminCookie, version)).status).toBe(404);
+  });
+
+  it("changes its version with the logo, the color and the name", async () => {
+    const settings = { name: "acme", brandColor: null, senderName: null };
+    const patch = (body: Record<string, unknown>) =>
+      callAccount("PATCH", "/api/account/workspace", {
+        cookie: a.cookie,
+        body: { ...settings, ...body },
+      });
+    const versions = [await iconVersion(a)];
+    expect((await put("/api/account/workspace/logo", a.cookie, LOGO)).status).toBe(200);
+    versions.push(await iconVersion(a));
+    expect((await patch({ brandColor: "#1157ce" })).status).toBe(200);
+    versions.push(await iconVersion(a));
+    expect((await patch({ brandColor: "#1157ce", name: "Acme Studio" })).status).toBe(200);
+    versions.push(await iconVersion(a));
+    const removed = await callAccount("DELETE", "/api/account/workspace/logo", {
+      cookie: a.cookie,
+    });
+    expect(removed.status).toBe(200);
+    versions.push(await iconVersion(a));
+    expect(new Set(versions).size).toBe(versions.length);
+
+    // The route agrees: the newest is current, every older one is stale.
+    const newest = versions.at(-1) ?? "";
+    expect((await icon(a.cookie, newest)).headers.get("cache-control")).toBe(
+      "private, max-age=300",
+    );
+    for (const old of versions.slice(0, -1)) {
+      expect((await icon(a.cookie, old)).headers.get("cache-control")).toBe("private, no-store");
+    }
   });
 });
 

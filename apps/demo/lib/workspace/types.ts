@@ -113,6 +113,11 @@ export interface WorkspaceIdentity {
   fromEmailName: string | null;
   /** Its brand color (`#rrggbb`); null keeps Squint's own. */
   brandColor: string | null;
+  /**
+   * Its company icon's `?v=` (`iconVersionOf`), changing with its name, color
+   * or logo: the badge on the team's avatars reads the icon at it (`workspaceIconSrc`).
+   */
+  iconVersion: string;
 }
 
 /**
@@ -125,6 +130,12 @@ export interface WorkspaceAccess {
   permissions: MemberSwitch[];
   /** The owner's name, for "Ask {Owner}"; null until they give one. */
   ownerName: string | null;
+  /**
+   * The member's own photo, as their comments carry it (`personAvatarSrc`, by
+   * their key here), so a comment they've just posted shows it at once; null
+   * without one.
+   */
+  avatarSrc: string | null;
 }
 
 /** The workspace as its guests meet it, and as the signed-in member may work in it. */

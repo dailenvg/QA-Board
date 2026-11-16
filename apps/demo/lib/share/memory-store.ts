@@ -91,9 +91,11 @@ export function createMemoryStore(): ShareStore {
         .sort((a, b) => a.expiresAt - b.expiresAt || a.id.localeCompare(b.id));
       return done(expired.slice(0, limit).map((record) => record.id));
     },
-    // Shares in memory are never a workspace's.
+    // Shares in memory are never a workspace's: no company, and no team.
     brandOf: () => done(SQUINT_BRAND),
     brandLogo: () => done(null),
+    teamAuthors: () => done(new Map()),
+    teamAvatar: () => done(null),
     snapshots(id, options) {
       const entry = shares.get(id);
       const visible = [...(entry?.snapshots.values() ?? [])].filter(

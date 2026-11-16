@@ -43,6 +43,23 @@ export async function readBrandLogo(
 }
 
 /**
+ * A team member's avatar on a review link, by their key on it
+ * (`ShareStore.teamAvatar`), versioned as that link versions it: never
+ * `logoVersion`, which is the same on every link. Null like `teamAvatar`,
+ * and when the file is gone or isn't a bitmap image.
+ */
+export async function readTeamAvatar(
+  store: ShareStore,
+  shareId: string,
+  key: string,
+  driver?: Pick<BlobDriver, "read">,
+): Promise<BrandLogo | null> {
+  const found = await store.teamAvatar(shareId, key);
+  const image = found && (await readStoredImage(found.blob, driver));
+  return image && { ...image, version: found.version };
+}
+
+/**
  * A stored image row's file (a logo, an avatar), read through the workspace
  * blob driver and versioned by its key. Null when the file is gone or isn't
  * a bitmap image.
@@ -73,16 +90,24 @@ export function pageLogoUri(logo: BrandLogo): string | null {
 }
 
 /**
+ * How a browser keeps a versioned image (a logo, an avatar, the app's company
+ * icon): privately for a few minutes when asked for at its `current`
+ * version, never otherwise, so an old `?v=` never pins a stale picture.
+ */
+export function versionedCacheControl(current: boolean): string {
+  return current ? `private, max-age=${LOGO_MAX_AGE_SECONDS}` : "private, no-store";
+}
+
+/**
  * The logo (or a signed-in user's avatar) for a browser: kept privately for a
  * few minutes when asked for at its current version, never cached otherwise,
  * never sniffed, inert if opened.
  */
 export function brandLogoResponse(logo: BrandLogo, requestedVersion: string | null): Response {
-  const current = requestedVersion === logo.version;
   return new Response(new Uint8Array(logo.bytes), {
     headers: {
       "content-type": logo.contentType,
-      "cache-control": current ? `private, max-age=${LOGO_MAX_AGE_SECONDS}` : "private, no-store",
+      "cache-control": versionedCacheControl(requestedVersion === logo.version),
       "x-content-type-options": "nosniff",
       "content-security-policy": "default-src 'none'; sandbox",
     },

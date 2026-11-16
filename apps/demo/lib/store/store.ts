@@ -1,6 +1,7 @@
 import {
   dispatchSaved,
   dispatchToWorkspace,
+  getWorkspaceAccess,
   getWorkspaceState,
   refreshWorkspace,
   requestWorkspace,
@@ -57,3 +58,11 @@ export const askContext = workspaceAskContext;
 
 /** Reads the workspace from the server again, as after another tab's change. */
 export const refresh = refreshWorkspace;
+
+/**
+ * The signed-in member's own photo, as their comments carry it, as of the
+ * last read; null without one or before this tab connects.
+ */
+export function ownAvatarSrc(): string | null {
+  return getWorkspaceAccess()?.avatarSrc ?? null;
+}

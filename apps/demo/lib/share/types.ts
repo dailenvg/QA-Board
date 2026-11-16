@@ -61,6 +61,24 @@ export interface SharedComment {
   crop?: { rect: Rect };
 }
 
+/**
+ * A comment as a guest reads it: a team member's (one of the workspace's own,
+ * pushed to the link) says so, with their avatar on this link when they have
+ * one (4.11). Nothing of it is stored in the share, and a push never sets it.
+ */
+export interface ClientComment extends SharedComment {
+  /** Their avatar (`/api/s/<token>/people/<key>/avatar?v=`); missing without one, or once they've left. */
+  authorAvatar?: string;
+  /** Written by someone on the company's team; missing on a client's. */
+  team?: true;
+}
+
+/** A team member's avatar on one link: their key and its version there (`share-people.ts`). */
+export interface TeamAvatar {
+  key: string;
+  version: string;
+}
+
 /** Everything the owner controls, pushed whole on every change. */
 export interface ShareState {
   project: SharedProject;
@@ -153,6 +171,11 @@ export interface ClientBrand {
   hasLogo: boolean;
   /** Changes with the logo, so its URL (`?v=`) does too; null without a logo. */
   logoVersion: string | null;
+  /**
+   * The company icon's `?v=` (`brandIconVersion`): changes with the name, color
+   * or logo. The badge on the team's avatars reads the icon at it (`shareIconSrc`).
+   */
+  iconVersion: string;
 }
 
 /**
@@ -174,7 +197,7 @@ export interface ClientView {
   /** Who the link is for (its invitation names them); null: "invited you". */
   clientName: string | null;
   snapshots: SharedSnapshot[];
-  comments: SharedComment[];
+  comments: ClientComment[];
   /** When the review window closes (epoch ms): after it, clients can only read. Null: never. */
   reviewEndsAt: number | null;
   /** How long the review window is, in hours from the link's creation; null for no limit. */

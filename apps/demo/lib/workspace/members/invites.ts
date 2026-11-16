@@ -1,3 +1,4 @@
+import { workspaceIconUrl } from "../../account/public-icon";
 import { authOrigin } from "../../auth/auth-url";
 import { describeError } from "../../auth/http";
 import { DEFAULT_SWITCHES, type Access, type MemberSwitch } from "../../auth/permissions";
@@ -102,7 +103,7 @@ async function stamp(db: Queryable, ids: readonly string[], emailed: boolean, no
 
 /**
  * Emails `invites` (their transaction has committed) in one Resend batch,
- * from the workspace's sender and in its color, and records on each row
+ * from the workspace's sender, with its icon and in its color, and records on each row
  * whether it went out. Answers whether it did: false with email off, on a
  * preview, or when Resend refused (logged without addresses). A failed email
  * never undoes an invite; its link can be copied instead.
@@ -117,7 +118,8 @@ export async function deliverInvites(
 ): Promise<boolean> {
   if (invites.length === 0) return false;
   const emailed =
-    inviteEmailEnabled(env) && (await sendQuietly(workspace, inviter, invites, send, env));
+    inviteEmailEnabled(env) &&
+    (await sendQuietly(workspace, await iconOf(db, workspace, env), inviter, invites, send, env));
   await stamp(
     db,
     invites.map((invite) => invite.id),
@@ -127,8 +129,19 @@ export async function deliverInvites(
   return emailed;
 }
 
+/** The email's icon URL; null (the name alone) when reading it fails, logged by kind only. */
+async function iconOf(db: Queryable, workspace: InvitingWorkspace, env: EmailEnv) {
+  try {
+    return await workspaceIconUrl(db, workspace.id, env);
+  } catch (error) {
+    console.error(`squint members: invite icon unreadable (${describeError(error)})`);
+    return null;
+  }
+}
+
 async function sendQuietly(
   workspace: InvitingWorkspace,
+  iconUrl: string | null,
   inviter: string | null,
   invites: readonly OutgoingInvite[],
   send: SendMemberInvites,
@@ -141,8 +154,8 @@ async function sendQuietly(
   try {
     await send({
       from,
-      // No public icon for a workspace yet: the email shows its name, in its color.
-      brand: { iconUrl: null, color: brandColor(workspace.brandColor) },
+      // Its icon loads signed out, by the workspace's opaque key (`public-icon.ts`).
+      brand: { iconUrl, color: brandColor(workspace.brandColor) },
       invites: invites.map(({ email, token }) => ({
         workspace: workspace.name,
         inviter,

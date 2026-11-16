@@ -44,12 +44,14 @@ const PUBLIC_TREES = [
  * no cookie: the route checks its signature, and a member's session for
  * everything else it does. A project link's preview card and company icon
  * are read by link unfurlers, which never sign in: each shows the company's
- * and the project's names only, or Squint's own card.
+ * and the project's names only, or Squint's own card. A workspace's icon, by
+ * its opaque key, is read by inboxes showing its invite emails.
  */
 const PUBLIC_PATTERNS = [
   /^\/api\/w\/[^/]+\/blobs\/token$/,
   /^\/p\/[^/]+\/(?:opengraph|twitter)-image$/,
   /^\/api\/p\/[^/]+\/brand\/icon$/,
+  /^\/api\/c\/[^/]+\/brand\/icon$/,
 ];
 
 /**

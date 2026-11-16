@@ -46,6 +46,9 @@ async function shared() {
   return { services, created, share };
 }
 
+/** A guest's token: the memory store has no team, so it never shows in a view. */
+const GUEST_TOKEN = "guest-token";
+
 const clientComment = (id: string) => ({ id, x: 5, y: 5, body: "From the client", author: "Cleo" });
 
 describe("access", () => {
@@ -84,14 +87,15 @@ describe("owner push and pull", () => {
 
     // Pushed before pulling: the client comment survives.
     await pushState(services, share, STATE, 0, 300);
-    expect((await clientView(services.store, share)).comments.map((c) => c.id)).toEqual([
-      "c-1",
-      "k-1",
-    ]);
+    expect(
+      (await clientView(services.store, share, GUEST_TOKEN)).comments.map((c) => c.id),
+    ).toEqual(["c-1", "k-1"]);
 
     // Pushed after pulling, without it: the owner deleted it.
     await pushState(services, share, STATE, unseen.cursor, 400);
-    expect((await clientView(services.store, share)).comments.map((c) => c.id)).toEqual(["c-1"]);
+    expect(
+      (await clientView(services.store, share, GUEST_TOKEN)).comments.map((c) => c.id),
+    ).toEqual(["c-1"]);
   });
 
   it("lets the owner win on status, and only reports client additions after the cursor", async () => {
@@ -112,7 +116,7 @@ describe("owner push and pull", () => {
       first.cursor,
       500,
     );
-    const view = await clientView(services.store, share);
+    const view = await clientView(services.store, share, GUEST_TOKEN);
     expect(view.comments.find((c) => c.id === "k-1")?.status).toBe("resolved");
     expect(await pullChanges(services.store, share, first.cursor)).toEqual({
       snapshots: [],
@@ -243,7 +247,9 @@ describe("client writes", () => {
         error: "share-full",
       });
     }
-    expect((await clientView(services.store, share)).comments.map((c) => c.id)).toEqual(["c-1"]);
+    expect(
+      (await clientView(services.store, share, GUEST_TOKEN)).comments.map((c) => c.id),
+    ).toEqual(["c-1"]);
   });
 
   it("adds an active comment once, with its crop", async () => {
@@ -354,7 +360,7 @@ describe("review window", () => {
   it("is 72 hours on a new share, and tells clients when it closes", async () => {
     const { services, share } = await shared();
     expect(share.reviewWindowHours).toBe(72);
-    expect(await clientView(services.store, share)).toMatchObject({
+    expect(await clientView(services.store, share, GUEST_TOKEN)).toMatchObject({
       reviewEndsAt: 100 + 72 * HOUR,
       reviewWindowHours: 72,
     });
@@ -364,14 +370,14 @@ describe("review window", () => {
     const { services, share } = await shared();
     const deadline = 100 + 72 * HOUR;
     await pushState(services, share, { ...STATE, comments: [] }, 0, deadline - 1);
-    expect((await clientView(services.store, share)).reviewEndsAt).toBe(deadline);
+    expect((await clientView(services.store, share, GUEST_TOKEN)).reviewEndsAt).toBe(deadline);
   });
 
   describe.each([24, 72, 168])("of %i hours", (hours) => {
     it("takes client comments and snapshots until the last moment before the deadline", async () => {
       const { services, share, deadline } = await windowed(hours);
       const last = (deadline ?? 0) - 1;
-      expect((await clientView(services.store, share)).reviewEndsAt).toBe(deadline);
+      expect((await clientView(services.store, share, GUEST_TOKEN)).reviewEndsAt).toBe(deadline);
       expect(
         await addClientComment(services, share, clientComment("k-1"), null, last),
       ).toMatchObject({ ok: true });
@@ -393,7 +399,7 @@ describe("review window", () => {
       };
       expect(await captureForClient(services, share, 1024, watched, end + 1)).toMatchObject(closed);
       expect(captured).toBe(false);
-      const view = await clientView(services.store, share);
+      const view = await clientView(services.store, share, GUEST_TOKEN);
       expect(view.comments.map((comment) => comment.id)).toEqual(["c-1"]);
       expect(view.snapshots.map((snapshot) => snapshot.id)).toEqual(["snap-1"]);
     });
@@ -402,7 +408,7 @@ describe("review window", () => {
   it("never closes without a limit", async () => {
     const { services, share } = await windowed(null);
     const muchLater = 100 + 365 * 24 * HOUR;
-    expect(await clientView(services.store, share)).toMatchObject({
+    expect(await clientView(services.store, share, GUEST_TOKEN)).toMatchObject({
       reviewEndsAt: null,
       reviewWindowHours: null,
     });
@@ -429,7 +435,7 @@ describe("retention", () => {
       created: created.expiresAt,
       manifest: (await shareManifest(services.store, share)).expiresAt,
       pull: (await pullChanges(services.store, share, 0)).expiresAt,
-      view: (await clientView(services.store, share)).expiresAt,
+      view: (await clientView(services.store, share, GUEST_TOKEN)).expiresAt,
     };
   }
 
@@ -463,11 +469,15 @@ describe("retention", () => {
     if (!share) throw new Error("no share");
     const dated = { ...STATE, project: { ...STATE.project, createdAt: CREATED } };
     await pushState(services, share, dated, 0, SHARED + 1);
-    expect((await clientView(services.store, share)).expiresAt).toBe(SHARED + RETENTION_MS);
+    expect((await clientView(services.store, share, GUEST_TOKEN)).expiresAt).toBe(
+      SHARED + RETENTION_MS,
+    );
     // Routes read the share afresh on every request.
     const reread = await ownerShare(services.store, created.shareId, created.ownerKey, SHARED + 1);
     if (!reread) throw new Error("no share");
-    expect((await clientView(services.store, reread)).expiresAt).toBe(CREATED + RETENTION_MS);
+    expect((await clientView(services.store, reread, GUEST_TOKEN)).expiresAt).toBe(
+      CREATED + RETENTION_MS,
+    );
     expect(reread.createdAt).toBe(SHARED);
   });
 
@@ -490,7 +500,9 @@ describe("retention", () => {
     const pushedAt = SHARED + 20 * DAY;
     await pushState(services, await owner(pushedAt), ancient, 0, pushedAt);
     const expiresAt = pushedAt + DELETION_NOTICE_MS;
-    expect((await clientView(services.store, await owner(pushedAt))).expiresAt).toBe(expiresAt);
+    expect((await clientView(services.store, await owner(pushedAt), GUEST_TOKEN)).expiresAt).toBe(
+      expiresAt,
+    );
     // A later push keeps the date it already showed.
     const renamed = { ...ancient, project: { ...ancient.project, name: "Renamed" } };
     await pushState(services, await owner(pushedAt + DAY), renamed, 0, pushedAt + DAY);
@@ -537,7 +549,7 @@ describe("owner changes", () => {
       expect(JSON.stringify(batch).length).toBeLessThanOrEqual(SHARE_LIMITS.changeBatchBytes);
     }
     expect((await pushState(services, share, { ...STATE, comments }, 0, 200)).ok).toBe(true);
-    expect((await clientView(services.store, share)).comments).toHaveLength(300);
+    expect((await clientView(services.store, share, GUEST_TOKEN)).comments).toHaveLength(300);
   });
 
   it("refuses changes that would take a share past 1000 comments", async () => {

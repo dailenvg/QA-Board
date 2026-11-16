@@ -1,5 +1,6 @@
 import { brandColor, SQUINT_BRAND } from "./brand";
 import type { Queryable } from "./migrate";
+import { sameShareKey, SHARE_PERSON_KEY, shareAvatarVersion, sharePersonKey } from "./share-people";
 import type { ShareStore } from "./store";
 import type {
   BlobLocation,
@@ -89,6 +90,42 @@ interface BrandRow {
   name: string;
   brand_color: string | null;
   logo_key: string | null;
+}
+
+/**
+ * A user's avatar row, only where the user's avatar goes
+ * (`user/<userId>/avatar/…`), as `lib/account/avatar.ts` reads it.
+ */
+const AVATAR_JOIN = (user: string) => `user_blobs AS avatar
+    ON avatar.user_id = ${user}.id AND avatar.key = ${user}.avatar_blob_key
+    AND starts_with(avatar.key, 'user/' || ${user}.id::text || '/avatar/')`;
+
+/**
+ * Each comment the owner pushed whose workspace comment (same project, same
+ * id) is a team one, with its author while they're still an active member of
+ * the share's workspace, and their avatar's key when they have one.
+ */
+const TEAM_COMMENTS = `squint_shares
+  JOIN squint_share_comments AS shared
+    ON shared.share_id = squint_shares.id AND shared.origin = 'owner' AND NOT shared.pending
+  JOIN comments AS comment
+    ON comment.project_id = squint_shares.project_id AND comment.id = shared.id
+    AND comment.origin = 'team'
+  LEFT JOIN memberships AS member
+    ON member.workspace_id = squint_shares.workspace_id
+    AND member.user_id = comment.author_user_id
+  LEFT JOIN users AS author ON author.id = member.user_id AND author.deleted_at IS NULL
+  LEFT JOIN ${AVATAR_JOIN("author")}`;
+
+interface TeamCommentRow {
+  comment_id: string;
+  /** Null once the author has left, and null with `avatar_key` without a photo. */
+  user_id: string | null;
+  avatar_key: string | null;
+}
+
+interface MemberAvatarRow extends BlobRow {
+  user_id: string;
 }
 
 function toRecord(row: ShareRow): ShareRecord {
@@ -229,6 +266,40 @@ export function createPostgresStore(db: Queryable): ShareStore {
         [id],
       );
       return rows[0] ? toStoredBlob(rows[0]) : null;
+    },
+    async teamAuthors(id) {
+      const { rows } = await db.query<TeamCommentRow>(
+        `SELECT shared.id AS comment_id, author.id AS user_id, avatar.key AS avatar_key
+         FROM ${TEAM_COMMENTS} WHERE squint_shares.id = $1 AND ${ANSWERS}`,
+        [id],
+      );
+      return new Map(
+        rows.map((row) => [
+          row.comment_id,
+          row.user_id && row.avatar_key
+            ? {
+                key: sharePersonKey(id, row.user_id),
+                version: shareAvatarVersion(id, row.avatar_key),
+              }
+            : null,
+        ]),
+      );
+    },
+    async teamAvatar(id, key) {
+      if (!SHARE_PERSON_KEY.test(key)) return null;
+      // One HMAC per member with a photo: a handful at most.
+      const { rows } = await db.query<MemberAvatarRow>(
+        `SELECT member.user_id, avatar.key, avatar.content_type, avatar.size, avatar.bytes,
+           avatar.blob_url
+         FROM squint_shares
+         JOIN memberships AS member ON member.workspace_id = squint_shares.workspace_id
+         JOIN users AS account ON account.id = member.user_id AND account.deleted_at IS NULL
+         JOIN ${AVATAR_JOIN("account")}
+         WHERE squint_shares.id = $1 AND ${ANSWERS}`,
+        [id],
+      );
+      const row = rows.find((entry) => sameShareKey(key, sharePersonKey(id, entry.user_id)));
+      return row ? { blob: toStoredBlob(row), version: shareAvatarVersion(id, row.key) } : null;
     },
     snapshots: (id, options) =>
       list<SharedSnapshot>(

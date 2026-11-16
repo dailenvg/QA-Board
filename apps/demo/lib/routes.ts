@@ -49,6 +49,34 @@ export function workspaceLogoSrc(version: string): string {
   return `/api/account/workspace/logo?v=${encodeURIComponent(version)}`;
 }
 
+/**
+ * The company icon of the signed-in user's workspace (its logo, or its
+ * monogram), at a version that changes with its name, color or logo: the
+ * badge on the team's avatars in the app.
+ */
+export function workspaceIconSrc(version: string): string {
+  return `/api/account/workspace/icon?v=${encodeURIComponent(version)}`;
+}
+
+/**
+ * A workspace's company icon for anyone signed out (an invite email's
+ * header), by its opaque key (`workspaceIconKey`), at a version that changes
+ * with its name, color or logo.
+ */
+export function publicWorkspaceIconSrc(key: string, version: string): string {
+  return `/api/c/${encodeURIComponent(key)}/brand/icon?v=${encodeURIComponent(version)}`;
+}
+
+/** A review link's company icon, at the version its brand says (`ClientBrand.iconVersion`). */
+export function shareIconSrc(token: string, version: string): string {
+  return `/api/s/${encodeURIComponent(token)}/brand/icon?v=${encodeURIComponent(version)}`;
+}
+
+/** A team member's avatar on a review link, by their key on that link, at its version there. */
+export function sharePersonAvatarSrc(token: string, key: string, version: string): string {
+  return `/api/s/${encodeURIComponent(token)}/people/${encodeURIComponent(key)}/avatar?v=${encodeURIComponent(version)}`;
+}
+
 /** Whether `pathname` is in the account settings. */
 export function isAccountPath(pathname: string): boolean {
   return pathname === ACCOUNT_HREF || pathname.startsWith(`${ACCOUNT_HREF}/`);

@@ -8,10 +8,12 @@ import type { Comment } from "@/lib/store/types";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { ClientMark } from "./ClientMark";
+import { CommentAuthorAvatar } from "./CommentAuthorAvatar";
 import { CommentBadge } from "./CommentBadge";
 import { CommentCropThumb } from "./CommentCropThumb";
 import { CommentEdited } from "./CommentEdited";
 import { CommentEditor } from "./CommentEditor";
+import { CommentTeamNote } from "./CommentTeamNote";
 import { PlacementChip } from "./PlacementChip";
 import type { Placement } from "./surface";
 
@@ -101,7 +103,10 @@ export function CommentCard({
       exit="exit"
       data-testid="comment-card"
       data-comment-id={comment.id}
-      className={`relative rounded-tile bg-card transition-colors has-[[data-card-select]:hover]:bg-hover/60 has-[[data-card-select]:active]:bg-hover has-[[data-card-select]:focus-visible]:ring-2 has-[[data-card-select]:focus-visible]:ring-focus ${bottomInset}`}
+      // One color for the card and its avatar's badge ring (`--avatar-surface`): the card at
+      // rest; on hover, the 60% hover tint over the panel, made opaque so the ring can match it;
+      // the hover color when pressed. The list always sits on the panel.
+      className={`relative rounded-tile bg-(--avatar-surface) transition-colors [--avatar-surface:var(--color-card)] has-[[data-card-select]:hover]:[--avatar-surface:color-mix(in_srgb,var(--color-hover)_60%,var(--color-panel))] has-[[data-card-select]:active]:[--avatar-surface:var(--color-hover)] has-[[data-card-select]:focus-visible]:ring-2 has-[[data-card-select]:focus-visible]:ring-focus ${bottomInset}`}
     >
       {selected ? (
         <motion.span
@@ -127,6 +132,8 @@ export function CommentCard({
            * The button's name is its visible header ("Comment 1 by Ana, 2m ago"), so the
            * spoken name matches what's on screen (WCAG 2.5.3). Its ::after stretches over the
            * whole card, so the comment text below stays clickable; it's read as the description.
+           * The header matches the pin's popover: the name (and Client chip) over the time, in
+           * one column beside the avatar. Spans only, since a button holds phrasing content.
            */}
           <button
             type="button"
@@ -137,21 +144,26 @@ export function CommentCard({
             className="flex w-full items-center gap-2 text-left after:absolute after:inset-0 after:rounded-tile focus-visible:outline-none"
           >
             <CommentBadge comment={comment} number={number} />
-            <span className="flex min-w-0 flex-1 items-center gap-2">
-              <span className="min-w-0 truncate text-body font-semibold">
-                <span className="sr-only">by </span>
-                {comment.author}
+            <CommentAuthorAvatar comment={comment} surface="card" />
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="flex min-w-0 items-center gap-2 text-body font-semibold">
+                {/* One line, not the popover's two: the list is scanned, and the card has the room. */}
+                <span className="min-w-0 truncate">
+                  <span className="sr-only">by </span>
+                  {comment.author}
+                  <CommentTeamNote comment={comment} />
+                </span>
+                <ClientMark comment={comment} owner={canModerate} />
               </span>
-              <ClientMark comment={comment} owner={canModerate} />
+              <time
+                dateTime={new Date(comment.createdAt).toISOString()}
+                title={absoluteTime(comment.createdAt)}
+                className="text-label text-muted"
+              >
+                <span className="sr-only">, </span>
+                {relativeTime(comment.createdAt, now)}
+              </time>
             </span>
-            <time
-              dateTime={new Date(comment.createdAt).toISOString()}
-              title={absoluteTime(comment.createdAt)}
-              className="shrink-0 text-label text-muted"
-            >
-              <span className="sr-only">, </span>
-              {relativeTime(comment.createdAt, now)}
-            </time>
           </button>
           <p id={bodyId} className="mt-2 text-body break-words whitespace-pre-wrap text-ink-2">
             {comment.body}
