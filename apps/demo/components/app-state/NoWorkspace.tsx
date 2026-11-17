@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
-import { ACCOUNT_HREF } from "@/lib/routes";
+import { ACCOUNT_HREF, ADMIN_HREF } from "@/lib/routes";
 import { staggerGroup, useRevealVariants } from "@/lib/motion";
 import { ProfileCard } from "../auth/ProfileCard";
 import { StateArt } from "../ui/line-art/StateArt";
@@ -21,7 +21,8 @@ interface NoWorkspaceProps {
 
 /**
  * Signed in, but not a member of any workspace (the admin, for now): an empty
- * state, not an error, with the way to the account settings and Sign out.
+ * state, not an error, with the way to the admin panel (the admin's), the
+ * account settings and Sign out.
  */
 export function NoWorkspace({ email, name, admin }: NoWorkspaceProps) {
   const variants = useRevealVariants();
@@ -48,6 +49,12 @@ export function NoWorkspace({ email, name, admin }: NoWorkspaceProps) {
           </p>
         </motion.div>
         <motion.div variants={variants} className="flex w-full flex-col gap-2">
+          {admin ? (
+            <ButtonLink href={ADMIN_HREF} testId="admin-panel-link">
+              <Icon name="shield" className="size-5" />
+              Open admin
+            </ButtonLink>
+          ) : null}
           <ButtonLink href={ACCOUNT_HREF} variant="secondary" testId="account-settings-link">
             <Icon name="user" className="size-5" />
             Account settings

@@ -6,7 +6,15 @@ import type { LoginError } from "./auth-client";
 import { isFormPost, readForm, seeOther } from "./form-post";
 import { crossSiteRefusal, describeError, isCrossSite } from "./http";
 import { logIn, type LoginResult } from "./login";
-import { loginHref, safeNextPath, withParams, withWelcome, type Welcome } from "./next-path";
+import {
+  homePath,
+  landingPath,
+  loginHref,
+  safeNextPath,
+  withParams,
+  withWelcome,
+  type Welcome,
+} from "./next-path";
 import { loginSchema } from "./schemas";
 import { SESSION_COOKIE, sessionCookieOptions } from "./session-cookie";
 
@@ -50,7 +58,10 @@ async function fromJson(request: NextRequest, deps: AuthRouteDeps): Promise<Resp
   const result = await attempt(request, body.value, deps);
   if (result.ok) {
     return withSession(
-      NextResponse.json({ ok: true, welcome: welcomeOf(result) }, { headers: NO_STORE }),
+      NextResponse.json(
+        { ok: true, welcome: welcomeOf(result), home: homePath(result.user.role) },
+        { headers: NO_STORE },
+      ),
       request,
       result.token,
     );
@@ -74,7 +85,7 @@ async function fromJson(request: NextRequest, deps: AuthRouteDeps): Promise<Resp
 
 /**
  * A form posted before the page hydrated: always a 303. Signed in, on to
- * `next`; otherwise back to /login with an error code (and the lock's seconds),
+ * `next` (or the account's home without one); otherwise back to /login with an error code (and the lock's seconds),
  * never the email or password.
  */
 async function fromForm(request: NextRequest, deps: AuthRouteDeps): Promise<Response> {
@@ -94,7 +105,8 @@ async function fromForm(request: NextRequest, deps: AuthRouteDeps): Promise<Resp
   if (!parsed.success) return back("invalid-credentials");
   const result = await attempt(request, parsed.data, deps);
   if (result.ok) {
-    return withSession(seeOther(withWelcome(next, welcomeOf(result))), request, result.token);
+    const landing = landingPath(next, homePath(result.user.role));
+    return withSession(seeOther(withWelcome(landing, welcomeOf(result))), request, result.token);
   }
   switch (result.reason) {
     case "rate-limited":
@@ -112,8 +124,9 @@ async function fromForm(request: NextRequest, deps: AuthRouteDeps): Promise<Resp
 
 /**
  * `POST /api/auth/login`. JSON `{ email, password }` from the hydrated form:
- * sets the session cookie and answers `{ ok: true, welcome }` (`first` or
- * `back`, for Squiggy's greeting); 401
+ * sets the session cookie and answers `{ ok: true, welcome, home }` (`first`
+ * or `back`, for Squiggy's greeting; `home`, where the account lands without a
+ * `next`: /admin for the admin); 401
  * `invalid-credentials` for a wrong password and an unknown email alike; 403
  * `removed` for the right password on an account removed from its workspace
  * in the last 24 hours (decision 20); 429

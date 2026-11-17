@@ -1,6 +1,9 @@
+import { ADMIN_HREF } from "../routes";
+import type { UserRole } from "./users";
+
 /**
  * Where to go after signing in: the `next` query parameter, carried from the
- * page that sent the browser to /login. Client-safe.
+ * page that sent the browser to /login, or the account's home. Client-safe.
  */
 
 /** Set by middleware on protected requests: the path and query asked for. */
@@ -42,6 +45,19 @@ export function safeNextPath(value: string | null | undefined): string {
 export function loginHref(next?: string | null): string {
   const path = safeNextPath(next);
   return path === "/" ? "/login" : `/login?next=${encodeURIComponent(path)}`;
+}
+
+/** Where an account lands when nothing asked for a page: the admin panel for the admin, else the Overview. */
+export function homePath(role: UserRole): string {
+  return role === "admin" ? ADMIN_HREF : "/";
+}
+
+/**
+ * Where to go once signed in: `next` (already safe), or `home` (`homePath`)
+ * when `next` is the default, the Overview, which `loginHref` never carries.
+ */
+export function landingPath(next: string, home: string): string {
+  return next === "/" ? home : next;
 }
 
 /** `path` (already safe) with `params` added to its query. */

@@ -48,6 +48,7 @@ describe("isPublicPath", () => {
     "/f/default",
     "/p/123",
     "/admin",
+    "/admin/audit",
     "/account",
     "/account/profile",
     "/api/account/profile",

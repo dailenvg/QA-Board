@@ -121,7 +121,7 @@ describe("login form posts (before hydration)", () => {
       deps,
     );
     expect(signedIn.status).toBe(200);
-    expect(await signedIn.json()).toEqual({ ok: true, welcome: "first" });
+    expect(await signedIn.json()).toEqual({ ok: true, welcome: "first", home: "/" });
     expect(signedIn.headers.get("set-cookie")).toMatch(/^squint_session=/);
     const refused = await handleLogin(
       jsonPost("/api/auth/login", { email: EMAIL, password: "x" }),
@@ -129,6 +129,45 @@ describe("login form posts (before hydration)", () => {
     );
     expect(refused.status).toBe(401);
     expect(await refused.json()).toEqual({ error: "invalid-credentials" });
+  });
+});
+
+describe("login lands the admin on the admin panel", () => {
+  const ADMIN = "root@squint.test";
+
+  async function withAdmin(): Promise<Database> {
+    const db = await setup();
+    await insertUser(db, ADMIN, "admin");
+    return db;
+  }
+
+  it("answers the hydrated form with the admin's home", async () => {
+    const deps = { db: Promise.resolve(await withAdmin()), now: NOW };
+    const admin = await handleLogin(
+      jsonPost("/api/auth/login", { email: ADMIN, password: PASSWORD }),
+      deps,
+    );
+    expect(await admin.json()).toEqual({ ok: true, welcome: "first", home: "/admin" });
+  });
+
+  it("sends a form post without a next to /admin, and one with a next there", async () => {
+    const deps = { db: Promise.resolve(await withAdmin()), now: NOW };
+    const home = await handleLogin(
+      formPost("/api/auth/login", { email: ADMIN, password: PASSWORD }),
+      deps,
+    );
+    expect(location(home)).toBe("/admin?welcome=first");
+    const asked = await handleLogin(
+      formPost("/api/auth/login", { email: ADMIN, password: PASSWORD, next: "/account/profile" }),
+      deps,
+    );
+    expect(location(asked)).toBe("/account/profile?welcome=back");
+    // A company account without a next still lands on the Overview.
+    const company = await handleLogin(
+      formPost("/api/auth/login", { email: EMAIL, password: PASSWORD }),
+      deps,
+    );
+    expect(location(company)).toBe("/?welcome=first");
   });
 });
 
