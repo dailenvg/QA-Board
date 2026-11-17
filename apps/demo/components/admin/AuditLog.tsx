@@ -2,7 +2,7 @@
 
 import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useEffect, useId, useOptimistic, useRef, useTransition } from "react";
 import { auditHref, type AuditFilters as Filters } from "@/lib/admin/audit-href";
 import type { AuditFilterOptions, AuditPage } from "@/lib/admin/audit-query";
 import { ADMIN_AUDIT_HREF } from "@/lib/routes";
@@ -77,17 +77,47 @@ function AuditEmpty({
 export function AuditLog({ filters, paged, page, options }: AuditLogProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const navigate = (href: string, scroll = true) =>
-    startTransition(() => router.push(href, { scroll }));
-  const applyFilters = (next: Filters) => navigate(auditHref(next), false);
+  // The selects show a new choice at once, not the old one until the new page is in.
+  const [shownFilters, showFilters] = useOptimistic(filters);
+  const filtersId = useId();
+  const entries = useRef<HTMLElement>(null);
+  const focusEntries = useRef(false);
+  const applyFilters = (next: Filters) =>
+    startTransition(() => {
+      showFilters(next);
+      router.push(auditHref(next), { scroll: false });
+    });
+  // Clear filters unmounts the button pressed: focus goes to the first filter, not the page.
+  const clearFilters = () => {
+    applyFilters({});
+    document.getElementById(`${filtersId}-workspace`)?.focus();
+  };
+  // Newer or Older can vanish under focus (first or last page): the new entries take focus.
+  const turnPage = (href: string) => {
+    focusEntries.current = true;
+    startTransition(() => router.push(href));
+  };
   const filtered = Boolean(filters.workspace || filters.actor || filters.action);
   const listKey = `${auditHref(filters)}#${page.entries[0]?.cursor ?? "none"}`;
+  useEffect(() => {
+    if (!focusEntries.current) return;
+    focusEntries.current = false;
+    entries.current?.focus({ preventScroll: true });
+  }, [listKey]);
   return (
     <div className="flex flex-col gap-4" data-testid="audit-log">
       <SettingsCard title={COPY.title} description={COPY.description} icon="history">
-        <AuditFilters filters={filters} options={options} onChange={applyFilters} />
+        <AuditFilters
+          idBase={filtersId}
+          filters={shownFilters}
+          options={options}
+          onChange={applyFilters}
+          onClear={clearFilters}
+        />
       </SettingsCard>
       <motion.section
+        ref={entries}
+        tabIndex={-1}
         aria-label={COPY.entries}
         aria-busy={pending || undefined}
         animate={{ opacity: pending ? 0.55 : 1 }}
@@ -95,7 +125,7 @@ export function AuditLog({ filters, paged, page, options }: AuditLogProps) {
         className="flex flex-col overflow-hidden rounded-card bg-card shadow-seg"
       >
         {page.entries.length === 0 ? (
-          <AuditEmpty filtered={filtered} paged={paged} onClear={() => applyFilters({})} />
+          <AuditEmpty filtered={filtered} paged={paged} onClear={clearFilters} />
         ) : (
           <ol
             key={listKey}
@@ -111,7 +141,7 @@ export function AuditLog({ filters, paged, page, options }: AuditLogProps) {
       <AuditPager
         newerHref={page.newer ? auditHref(filters, { after: page.newer }) : null}
         olderHref={page.older ? auditHref(filters, { before: page.older }) : null}
-        onNavigate={navigate}
+        onNavigate={turnPage}
       />
     </div>
   );

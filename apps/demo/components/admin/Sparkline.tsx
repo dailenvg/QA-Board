@@ -19,7 +19,8 @@ const H = 40;
 /** Room above the peak and below the floor, so the line's width never clips. */
 const PAD = 2;
 
-const BOX = { lg: "h-24 w-full", sm: "h-8 w-20 sm:w-28" } as const;
+/** `sm` sits in a row: a fixed width on phones, the row's free width from `sm` up. */
+const BOX = { lg: "h-24 w-full", sm: "h-8 w-20 shrink-0 sm:w-auto sm:min-w-0 sm:flex-1" } as const;
 
 /** The line's points, `PAD` inside the box: an all-zero series is a flat line on the floor. */
 function points(values: readonly number[]): Array<[number, number]> {

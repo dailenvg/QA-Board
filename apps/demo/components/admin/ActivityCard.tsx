@@ -3,7 +3,7 @@
 import { motion } from "motion/react";
 import type { AdminActivity } from "@/lib/admin/overview";
 import { DAY_MS, utcDay } from "@/lib/admin/utc-format";
-import { staggerGroup, useRevealVariants } from "@/lib/motion";
+import { revealViewport, staggerGroup, useRevealVariants } from "@/lib/motion";
 import { SettingsCard } from "../account/SettingsCard";
 import { TileEmpty } from "../overview/bento/TileEmpty";
 import { ADMIN_COPY, entryCount } from "./admin-copy";
@@ -61,7 +61,7 @@ export function ActivityCard({ activity }: { activity: AdminActivity }) {
               variants={GROUP}
               initial="hidden"
               whileInView="visible"
-              viewport={{ once: true }}
+              viewport={revealViewport}
               className="flex flex-col divide-y divide-line"
               data-testid="admin-activity-categories"
             >
@@ -72,7 +72,12 @@ export function ActivityCard({ activity }: { activity: AdminActivity }) {
                   data-category={category}
                   className="flex min-h-11 items-center gap-3 py-2"
                 >
-                  <span className="min-w-0 flex-1 text-body text-pretty">
+                  {/*
+                    Phones: the name takes the room. Wider: a fixed name column and the line
+                    takes the rest, so each kind's line sits by its name, long enough to read
+                    day by day, not a short line far off at the card's edge.
+                  */}
+                  <span className="min-w-0 flex-1 text-body text-pretty sm:w-48 sm:flex-none">
                     {ADMIN_COPY.categories[category]}
                   </span>
                   <Sparkline

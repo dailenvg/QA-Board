@@ -1,6 +1,5 @@
 "use client";
 
-import { useId } from "react";
 import { SQUINT_ACTOR, type AuditFilters as Filters } from "@/lib/admin/audit-href";
 import type { AuditFilterOptions } from "@/lib/admin/audit-query";
 import { Button } from "../ui/Button";
@@ -11,9 +10,13 @@ import { ADMIN_COPY, actionLabel } from "./admin-copy";
 const COPY = ADMIN_COPY.audit;
 
 interface AuditFiltersProps {
+  /** Prefix of the selects' ids (`${idBase}-workspace` is the first), so focus can be sent here. */
+  idBase: string;
   filters: Filters;
   options: AuditFilterOptions;
   onChange: (filters: Filters) => void;
+  /** Clear filters: shows everything again and moves focus off the button it removes. */
+  onClear: () => void;
 }
 
 /** `options`, with `value` added when it isn't among them (a link to a filter nothing matches). */
@@ -58,8 +61,13 @@ function actionOptions({ actions }: AuditFilterOptions, value?: string): SelectO
  * applies at once (a new URL, so the view is a link); Clear filters shows
  * everything again.
  */
-export function AuditFilters({ filters, options, onChange }: AuditFiltersProps) {
-  const id = useId();
+export function AuditFilters({
+  idBase: id,
+  filters,
+  options,
+  onChange,
+  onClear,
+}: AuditFiltersProps) {
   const set = (key: keyof Filters) => (value: string) =>
     onChange({ ...filters, [key]: value || undefined });
   const fields = [
@@ -94,7 +102,7 @@ export function AuditFilters({ filters, options, onChange }: AuditFiltersProps) 
         <Button
           variant="secondary"
           size="sm"
-          onClick={() => onChange({})}
+          onClick={onClear}
           data-testid="audit-clear"
           className="self-start max-sm:self-stretch"
         >

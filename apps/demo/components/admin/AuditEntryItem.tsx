@@ -4,7 +4,7 @@ import { motion, useReducedMotion, type Variants } from "motion/react";
 import type { AuditDetails } from "@/lib/admin/audit-details";
 import type { AuditRow } from "@/lib/admin/audit-query";
 import { utcDateTime } from "@/lib/admin/utc-format";
-import { duration, ease, revealViewport, rise, staggerStep } from "@/lib/motion";
+import { duration, ease, revealViewport, rise, staggerStep, useRevealVariants } from "@/lib/motion";
 import { ADMIN_COPY, actionLabel, TARGET_LABELS } from "./admin-copy";
 
 const COPY = ADMIN_COPY.audit;
@@ -58,26 +58,32 @@ function targetLabel({ target }: AuditRow): string | null {
  * the safe details. Rises in as it comes on screen.
  */
 export function AuditEntryItem({ entry, order }: { entry: AuditRow; order: number }) {
+  // Reduced motion: a plain fade that also puts back the rise the server may have rendered.
   const reduce = useReducedMotion() ?? false;
+  const fade = useRevealVariants();
   const target = targetLabel(entry);
   const details = detailLines(entry.details);
+  const label = actionLabel(entry.action);
   return (
     <motion.li
       custom={order}
-      variants={rowVariants}
-      initial={reduce ? false : "hidden"}
+      variants={reduce ? fade : rowVariants}
+      initial="hidden"
       whileInView="visible"
       viewport={revealViewport}
       data-testid="audit-entry"
       data-action={entry.action}
-      className="flex min-w-0 flex-col gap-1.5 px-5 py-4 sm:px-6"
+      className="flex min-w-0 flex-col gap-1 px-5 py-4 sm:px-6"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <p className="min-w-0 text-body font-semibold">
-          {actionLabel(entry.action)}
-          <span className="ml-2 align-baseline text-label font-normal text-muted">
-            {entry.action}
-          </span>
+        {/* The raw action code, for the code owner: secondary, and only when it adds something. */}
+        <p className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-body font-semibold">
+          <span className="min-w-0">{label}</span>
+          {label !== entry.action ? (
+            <code className="min-w-0 font-mono text-label font-normal text-muted wrap-anywhere">
+              {entry.action}
+            </code>
+          ) : null}
         </p>
         <time
           dateTime={new Date(entry.at).toISOString()}
