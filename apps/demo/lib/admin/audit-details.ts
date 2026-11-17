@@ -20,8 +20,13 @@ export interface AuditDetails {
   assigned?: boolean;
 }
 
-/** A field's name: a short identifier, never a value someone typed. */
-const FIELD_NAME = /^[a-z][a-z0-9_]{0,39}$/;
+/**
+ * A field's name: a short identifier as the app writes them, snake_case
+ * (`delete_after`), camelCase (`brandColor`) or hyphenated
+ * (`archive-expired`). Never a space, an @, a dot or anything long, so a
+ * value someone typed can't pass for one.
+ */
+const FIELD_NAME = /^[a-z][A-Za-z0-9_-]{0,39}$/;
 
 const switchList = z.array(z.enum(MEMBER_SWITCHES as [MemberSwitch, ...MemberSwitch[]]));
 

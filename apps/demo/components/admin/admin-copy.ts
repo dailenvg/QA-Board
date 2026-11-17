@@ -50,6 +50,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   senderName: "email sender name",
   reviewWindow: "review window",
   clientName: "client name",
+  "archive-expired": "archive period ended",
 };
 
 function fieldLabel(field: string): string {
@@ -155,7 +156,7 @@ export const ADMIN_COPY = {
     /** "Switches before: review links, trash; after: trash, people". */
     switches: (before: readonly MemberSwitch[], after: readonly MemberSwitch[]) =>
       `Switches before: ${switchNames(before)}; after: ${switchNames(after)}`,
-    recipients: (n: number) => `Sent to ${n} ${n === 1 ? "person" : "people"}`,
+    recipients: (n: number) => `Sent to ${number.format(n)} ${n === 1 ? "person" : "people"}`,
     assigned: (assigned: boolean) => (assigned ? "Assigned in ClickUp" : "Not assigned in ClickUp"),
   },
 } as const;
