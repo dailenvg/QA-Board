@@ -1,8 +1,8 @@
 /**
  * Native Pet's packaging palette: each product's band or lid color, plus the
  * brand neutrals. Sampled from product photography (flat, unlit areas of the
- * print where there was one). Folder art and folder mascots both read from
- * here, so a folder's color is defined once.
+ * print where there was one). Folder art reads from here, so a folder's
+ * color is defined once.
  */
 
 import { contrast } from "./color";
@@ -130,7 +130,7 @@ function byCreation(a: Folder, b: Folder): number {
  * Every folder's color, by id: its place in creation order among its siblings
  * (the top-level folders, or one folder's subfolders), through folderColor. The
  * Overview's sort, the grid's column count and the viewport never change it, so
- * a folder's art and mascot keep their color wherever it shows. Deleting an
+ * a folder's art keeps its color wherever it shows. Deleting an
  * older sibling, or moving the folder to another parent, does move it along.
  */
 export function folderSwatches(folders: readonly Folder[]): Map<string, PaletteEntry> {

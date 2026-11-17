@@ -235,12 +235,7 @@
 .gf-sheet-head {
   position: absolute;
   left: 14px;
-  /*
-   * Sheets fanned to the right pass under the ··· chip in the folder's top-right
-   * corner, so their name and host end short of it: the rightmost sheet keeps a
-   * chip's width (48px on screen, in folder units) clear. Sheets further left keep less.
-   */
-  right: calc(14px + max(0, var(--gf-slot)) * 48px / var(--gf-k));
+  right: 14px;
   top: 10px;
   z-index: 1;
   display: flex;
@@ -478,12 +473,12 @@
   stroke: var(--focus);
   stroke-width: calc(3px / var(--gf-k));
 }
-/* A flat layer just above the glass (z 10), below the key (z 12). */
+/* A flat layer just above the glass (z 10), below the actions chip. */
 .gf-label {
   position: absolute;
   left: 26px;
-  /* Clear of the mascot key (104 units wide, 8 in from the edge). */
-  right: 116px;
+  /* Clear of the actions chip: its 26 unit inset, then its 30px and an 8px gap on screen. */
+  right: calc(26px + 38px / var(--gf-k));
   bottom: 28px;
   z-index: 11;
   display: flex;
@@ -530,65 +525,32 @@
 }
 
 /*
- * ---- the key: the folder's mascot, standing on the glass at its bottom right ----
- * No plate: the colored mascot is the key. A hairline and a soft lift keep pale
- * hues (Clean Breath, Pumpkin) from melting into milk glass; the mascot's own
- * ground shadow sits it on the glass. It is part of the folder's link.
+ * ---- actions: a small frosted chip on the glass at its bottom right ----
+ * Outside the stage, so it keeps its full 44px target at any scale; the chip
+ * drawn inside it is 30px across. Its right edge mirrors the label's 26 unit
+ * inset and it is centered on the label's two lines (about 37px tall).
  */
-.gf-key {
+.gf-actions {
+  --gf-actions-inset: 7px;
   position: absolute;
-  right: 8px;
-  bottom: 4px;
-  z-index: 12;
-  width: 104px;
-  height: 104px;
-  display: grid;
-  place-items: center;
-  /* Clicks land on the glass's link underneath. */
-  pointer-events: none;
-  filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.9))
-    drop-shadow(0 6px 10px rgba(10, 12, 20, 0.22));
-  transition:
-    transform 0.35s var(--gf-spring),
-    opacity 0.6s var(--gf-ease) 0.7s,
-    scale 0.7s var(--gf-spring) 0.7s;
-}
-.gf-root[data-tone="dark"] .gf-key {
-  filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.4)) drop-shadow(0 6px 12px rgba(0, 0, 0, 0.55));
-}
-@media (hover: hover) {
-  .gf-root:hover .gf-key {
-    transform: translateY(-3px);
-  }
-}
-.gf-root:has(.gf-hit:focus-visible) .gf-key {
-  transform: translateY(-3px);
-}
-/* A press anywhere on the folder (glass, art or files: all the same link) presses the key. */
-.gf-root:has(.gf-stage a:active) .gf-key {
-  transform: scale(0.94);
-  transition-duration: 0.12s;
-}
-
-/* ---- corner actions: a small frosted chip, with the full 44px target around it ---- */
-.gf-corner {
-  position: absolute;
-  right: 0;
+  right: calc(26px * var(--gf-k) - var(--gf-actions-inset));
+  bottom: calc(28px * var(--gf-k) - 4px);
   z-index: 30;
   transition:
     opacity 0.6s var(--gf-ease) 0.7s,
     scale 0.7s var(--gf-spring) 0.7s;
 }
-.gf-corner [aria-haspopup="menu"] {
+.gf-actions [aria-haspopup="menu"] {
   position: relative;
   isolation: isolate;
+  border-radius: 999px;
   background: transparent;
   color: var(--gf-ink);
 }
-.gf-corner [aria-haspopup="menu"]::before {
+.gf-actions [aria-haspopup="menu"]::before {
   content: "";
   position: absolute;
-  inset: 7px;
+  inset: var(--gf-actions-inset);
   z-index: -1;
   border-radius: 999px;
   background: rgba(252, 252, 252, 0.66);
@@ -602,7 +564,7 @@
     transform 0.25s var(--gf-spring),
     background-color 0.2s var(--gf-ease);
 }
-.gf-root[data-tone="dark"] .gf-corner [aria-haspopup="menu"]::before {
+.gf-root[data-tone="dark"] .gf-actions [aria-haspopup="menu"]::before {
   background: rgba(22, 22, 26, 0.66);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.16),
@@ -610,50 +572,50 @@
     0 6px 14px -6px rgba(0, 0, 0, 0.7);
 }
 @media (hover: hover) {
-  .gf-corner [aria-haspopup="menu"]:hover::before {
+  .gf-actions [aria-haspopup="menu"]:hover::before {
     transform: scale(1.08);
     background-color: rgba(255, 255, 255, 0.86);
   }
-  .gf-root[data-tone="dark"] .gf-corner [aria-haspopup="menu"]:hover::before {
+  .gf-root[data-tone="dark"] .gf-actions [aria-haspopup="menu"]:hover::before {
     background-color: rgba(40, 40, 46, 0.86);
   }
 }
 /*
- * While the fan is out the chip floats over the sheets: an almost opaque
- * backing and a white halo keep it a separate object, not part of the paper.
+ * While the fan is out the chip floats over the moving glass: an almost opaque
+ * backing and a white halo keep it a separate object, not part of the panel.
  */
 @media (hover: hover) {
-  .gf-root:hover .gf-corner [aria-haspopup="menu"]::before {
+  .gf-root:hover .gf-actions [aria-haspopup="menu"]::before {
     background-color: rgba(255, 255, 255, 0.94);
     box-shadow:
       0 0 0 2px rgba(255, 255, 255, 0.7),
       0 0 0 0.5px rgba(0, 0, 0, 0.18),
       0 8px 18px -6px rgba(10, 12, 20, 0.5);
   }
-  .gf-root[data-tone="dark"]:hover .gf-corner [aria-haspopup="menu"]::before {
+  .gf-root[data-tone="dark"]:hover .gf-actions [aria-haspopup="menu"]::before {
     background-color: rgba(36, 36, 42, 0.94);
     box-shadow:
       0 0 0 2px rgba(255, 255, 255, 0.14),
       0 8px 18px -6px rgba(0, 0, 0, 0.8);
   }
 }
-.gf-root:has(:focus-visible) .gf-corner [aria-haspopup="menu"]::before {
+.gf-root:has(:focus-visible) .gf-actions [aria-haspopup="menu"]::before {
   background-color: rgba(255, 255, 255, 0.94);
 }
-.gf-root[data-tone="dark"]:has(:focus-visible) .gf-corner [aria-haspopup="menu"]::before {
+.gf-root[data-tone="dark"]:has(:focus-visible) .gf-actions [aria-haspopup="menu"]::before {
   background-color: rgba(36, 36, 42, 0.94);
 }
-.gf-corner [aria-haspopup="menu"]:active::before {
+.gf-actions [aria-haspopup="menu"]:active::before {
   transform: scale(0.94);
 }
-.gf-corner [aria-haspopup="menu"][aria-expanded="true"]::before {
+.gf-actions [aria-haspopup="menu"][aria-expanded="true"]::before {
   background-color: rgba(255, 255, 255, 0.92);
 }
-.gf-root[data-tone="dark"] .gf-corner [aria-haspopup="menu"][aria-expanded="true"]::before {
+.gf-root[data-tone="dark"] .gf-actions [aria-haspopup="menu"][aria-expanded="true"]::before {
   background-color: rgba(48, 48, 54, 0.92);
 }
 /* The ring hugs the chip rather than the larger target. */
-.gf-corner [aria-haspopup="menu"]:focus-visible {
+.gf-actions [aria-haspopup="menu"]:focus-visible {
   outline-offset: -5px;
 }
 
@@ -673,8 +635,7 @@
   translate: 0 46px;
   opacity: 0;
 }
-.gf-root:not([data-entered]) .gf-key,
-.gf-root:not([data-entered]) .gf-corner {
+.gf-root:not([data-entered]) .gf-actions {
   opacity: 0;
   scale: 0.6;
 }

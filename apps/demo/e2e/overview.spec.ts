@@ -145,7 +145,7 @@ test("creating a project on Folders stays there and drops it into its folder", a
   await expect(card.locator(".gf-front.gf-bump")).toHaveCount(1);
 });
 
-test("a folder is one link to its page, with a decorative mascot key and no extra buttons", async ({
+test("a folder is one link to its page, with its menu as the only button", async ({
   page,
   isMobile,
 }) => {
@@ -158,20 +158,19 @@ test("a folder is one link to its page, with a decorative mascot key and no extr
   await expect(folderLink).not.toHaveAttribute("aria-expanded");
   await expect(card.getByRole("link", { name: /View all/ })).toHaveCount(0);
   await expect(card.getByRole("button", { name: /New project/ })).toHaveCount(0);
-  // The menu is the card's only button; the mascot key is drawn on the folder's link.
+  // The menu is the card's only button; the label is printed on the folder's link.
   await expect(card.getByRole("button")).toHaveCount(1);
-  const key = card.locator(".gf-key");
-  await expect(key).toHaveAttribute("aria-hidden", "true");
-  // On a phone the "Added" toast can sit over the key; let it go first.
+  const label = card.locator(".gf-label");
+  await expect(label).toHaveAttribute("aria-hidden", "true");
+  // On a phone the "Added" toast can sit over the label; let it go first.
   await expect(page.getByTestId("toast")).toHaveCount(0, { timeout: 10_000 });
-  await key.scrollIntoViewIfNeeded();
+  await label.scrollIntoViewIfNeeded();
   await expect(card.getByTestId("glass-folder")).toHaveAttribute("data-entered");
-  await expect(key.locator(".squint-mascot")).toBeVisible();
 
-  const box = await key.boundingBox();
-  if (!box) throw new Error("The mascot key has no box.");
+  const box = await label.boundingBox();
+  if (!box) throw new Error("The folder's label has no box.");
   const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-  // A tap or a click on the mascot lands on the folder's link underneath it.
+  // A tap or a click on the label lands on the folder's link underneath it.
   if (isMobile) await page.touchscreen.tap(center.x, center.y);
   else await page.mouse.click(center.x, center.y);
   await expect(page).toHaveURL(new RegExp(`/f/${DEFAULT_FOLDER.id}$`));
@@ -277,14 +276,14 @@ test("sorting the folders reorders them and is remembered after a reload", async
   await expect(page.getByTestId("sort-menu")).toHaveAccessibleName("Sort: Date");
 });
 
-test("the corner menu renames a folder and protects the last one", async ({ page }) => {
+test("the folder's menu renames a folder and protects the last one", async ({ page }) => {
   await openFoldersWithFolder(page);
   await addUrlProject(page, "example.com", "Homepage");
 
   const card = folderCard(page, DEFAULT_FOLDER.name);
   const trigger = card.getByRole("button", { name: "Actions for My projects" });
   await trigger.scrollIntoViewIfNeeded();
-  // Top-right corner of the folder, with a full 44px target once it has assembled.
+  // Bottom right of the glass, with a full 44px target once it has assembled.
   await expect.poll(async () => (await trigger.boundingBox())?.width).toBeGreaterThanOrEqual(44);
   const [folderBox, triggerBox] = await Promise.all([
     card.getByTestId("glass-folder").boundingBox(),
@@ -292,8 +291,10 @@ test("the corner menu renames a folder and protects the last one", async ({ page
   ]);
   if (!folderBox || !triggerBox) throw new Error("The folder or its menu has no box.");
   expect(triggerBox.height).toBeGreaterThanOrEqual(44);
-  expect(triggerBox.x + triggerBox.width).toBeCloseTo(folderBox.x + folderBox.width, 0);
-  expect(triggerBox.y).toBeLessThan(folderBox.y + folderBox.height * 0.35);
+  expect(triggerBox.x + triggerBox.width).toBeLessThanOrEqual(folderBox.x + folderBox.width);
+  expect(triggerBox.x).toBeGreaterThan(folderBox.x + folderBox.width * 0.7);
+  expect(triggerBox.y + triggerBox.height).toBeLessThanOrEqual(folderBox.y + folderBox.height);
+  expect(triggerBox.y).toBeGreaterThan(folderBox.y + folderBox.height * 0.7);
 
   await trigger.click();
   await expect(
@@ -309,7 +310,7 @@ test("the corner menu renames a folder and protects the last one", async ({ page
   ).toHaveCount(1);
 });
 
-test("with two folders the corner menu deletes one", async ({ page }) => {
+test("with two folders the folder's menu deletes one", async ({ page }) => {
   await openFoldersWithFolder(page);
   await addUrlProject(page, "example.com", "Homepage");
   await addFolder(page, "Client work");

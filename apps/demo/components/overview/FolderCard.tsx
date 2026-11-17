@@ -7,10 +7,8 @@ import { folderHref } from "@/lib/routes";
 import type { Folder } from "@/lib/store/types";
 import type { Theme } from "@/lib/theme";
 import { useElementWidth } from "@/lib/use-element-width";
-import { useEngagement } from "@/lib/use-engagement";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { Menu, type MenuItem } from "../ui/Menu";
-import { FolderMascot } from "./FolderMascot";
 import { GlassFolder, type FolderFile } from "./glass-folder/GlassFolder";
 import { FOLDER_ASPECT, FOLDER_MAX_WIDTH, HEADROOM, W } from "./glass-folder/geometry";
 import { folderArt } from "./glass-folder/recipes";
@@ -18,6 +16,11 @@ import { folderArt } from "./glass-folder/recipes";
 /** Folders assemble one after another along a row, then each as it scrolls in. */
 const APPEAR_STAGGER_MS = 90;
 const APPEAR_STAGGER_MAX = 4;
+/**
+ * The glass draws the chip (`.gf-actions`), so the trigger keeps only its 44px target: none of
+ * the ghost trigger's gray hover, press and open fills to paint behind the chip.
+ */
+const CHIP_TRIGGER_CLASS = "grid size-11 place-items-center";
 
 interface FolderCardProps {
   folder: Folder;
@@ -25,7 +28,7 @@ interface FolderCardProps {
   /** What it holds, such as "5 projects in all" (subfolders included). */
   meta: string;
   index: number;
-  /** The folder's color, shared by its art and its mascot. */
+  /** The folder's color, for its art. */
   swatch: PaletteEntry;
   tone: Theme;
   actions: MenuItem[];
@@ -34,13 +37,14 @@ interface FolderCardProps {
 /**
  * One folder on the Overview, sized to its grid column. The whole folder
  * links to the folder's page; its newest projects fan out on hover or
- * keyboard focus, and the folder's actions sit in its top-right corner.
- * While hovered, focused or showing its menu, the card rises above its
+ * keyboard focus, and the folder's actions sit in a frosted chip at the
+ * bottom right of the glass. Their menu opens above the chip, over its own
+ * folder rather than the row below (it drops below when the screen has no room
+ * above). While hovered, focused or showing its menu, the card rises above its
  * neighbours so the fan can overlap them.
  */
 export function FolderCard({ folder, files, meta, index, swatch, tone, actions }: FolderCardProps) {
   const [measure, width] = useElementWidth<HTMLDivElement>();
-  const [engaged, engagement] = useEngagement();
   const touch = useMediaQuery("(hover: none)");
   const reduce = useReducedMotion();
   const variants = useRevealVariants();
@@ -56,7 +60,6 @@ export function FolderCard({ folder, files, meta, index, swatch, tone, actions }
       // headroom (the top of its box) is pulled back and rows sit closer.
       style={{ maxWidth: FOLDER_MAX_WIDTH, marginTop: touch ? -(HEADROOM / W) * width : undefined }}
       className="relative w-full min-w-0 hover:z-10 focus-within:z-10 has-[[aria-expanded=true]]:z-20"
-      {...engagement}
     >
       <div ref={measure} style={{ aspectRatio: FOLDER_ASPECT }}>
         {width > 0 ? (
@@ -70,12 +73,13 @@ export function FolderCard({ folder, files, meta, index, swatch, tone, actions }
             width={width}
             href={folderHref(folder.id)}
             linkLabel={`Open ${folder.name}, ${meta}`}
-            keycap={<FolderMascot swatch={swatch} active={engaged} />}
-            corner={
+            actions={
               <Menu
                 label={`Actions for ${folder.name}`}
                 testId="folder-card-menu"
                 items={actions}
+                triggerClassName={CHIP_TRIGGER_CLASS}
+                placement="above"
               />
             }
             appearDelay={Math.min(index, APPEAR_STAGGER_MAX) * APPEAR_STAGGER_MS}
