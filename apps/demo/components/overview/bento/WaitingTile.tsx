@@ -85,7 +85,8 @@ export function WaitingTile({ open, resolved, oldest, now, thumb }: WaitingTileP
                   thumb={thumb(comment.projectId)}
                   testId="waiting-row"
                 >
-                  <span className="flex min-w-0 items-center gap-2">
+                  {/* As tall as the Client pin, so every row matches the first, which useFitRows measures. */}
+                  <span className="flex min-h-6 min-w-0 items-center gap-2">
                     <span className="min-w-0 truncate text-body font-semibold">
                       {comment.projectName}
                     </span>

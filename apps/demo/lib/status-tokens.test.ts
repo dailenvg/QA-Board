@@ -117,6 +117,13 @@ describe.each([
     expect(contrast(color(tokens, "warning"), color(tokens, "card"))).toBeGreaterThanOrEqual(MARK);
   });
 
+  it("reads status chip labels at 4.5:1 on their solid fills", () => {
+    const ink = color(tokens, "on-highlight");
+    for (const fill of ["ready", "comments"] as const) {
+      expect(contrast(color(tokens, fill), ink), fill).toBeGreaterThanOrEqual(TEXT);
+    }
+  });
+
   it("numbers resolved pins at 4.5:1", () => {
     expect(
       contrast(color(tokens, "resolved-pin"), color(tokens, "on-resolved-pin")),
