@@ -26,7 +26,7 @@ const SAMPLE_PROJECT = "Homepage refresh";
 /**
  * How a guest meets the workspace, from the settings as typed (saved or
  * not): the invitation email's sender, and the top of a review link with its
- * logo (or monogram), name and accent. The accent rule eases to each new color.
+ * logo (or default mark), name and accent. The accent rule eases to each new color.
  */
 export function InvitePreview({ name, color, senderName, logoSrc }: InvitePreviewProps) {
   const reduce = useReducedMotion();

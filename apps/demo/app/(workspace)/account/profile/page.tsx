@@ -20,6 +20,7 @@ export default async function ProfilePage() {
     <ProfileSettings
       name={user.name}
       email={user.email}
+      admin={user.role === "admin"}
       avatarVersion={await sessionAvatarVersion(user.id)}
       deletion={await sessionDeletion(user)}
       clickUp={await sessionClickUpSection(user.id)}

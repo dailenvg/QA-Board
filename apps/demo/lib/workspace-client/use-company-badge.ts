@@ -1,13 +1,19 @@
+import type { CompanyBadge } from "../avatar/company-badge";
 import { workspaceIconSrc } from "../routes";
 import { useWorkspaceAccess } from "./use-workspace-access";
 
 /**
  * The company badge on the team's avatars in the app (4b.15): the signed-in
- * workspace's icon, as fresh as the rest of the workspace, so a new logo,
- * color or name shows on the next read. Null outside a workspace (the admin,
- * a review link), where nobody gets one.
+ * workspace's icon when it has a logo, else its default badge in its brand
+ * color, as fresh as the rest of the workspace, so a new logo, color or name
+ * shows on the next read. Null outside a workspace (the admin, a review
+ * link), where nobody gets one.
  */
-export function useCompanyBadgeSrc(): string | null {
+export function useCompanyBadge(): CompanyBadge | null {
   const access = useWorkspaceAccess();
-  return access && workspaceIconSrc(access.iconVersion);
+  if (!access) return null;
+  return {
+    logoSrc: access.hasLogo ? workspaceIconSrc(access.iconVersion) : null,
+    color: access.brandColor,
+  };
 }

@@ -47,7 +47,13 @@ export default async function OverviewPage({
   if (target) redirect(target);
   const session = await loadSessionWorkspace();
   if (session.kind === "none")
-    return <NoWorkspace email={session.user.email} name={session.user.name} />;
+    return (
+      <NoWorkspace
+        email={session.user.email}
+        name={session.user.name}
+        admin={session.user.role === "admin"}
+      />
+    );
   if (session.kind !== "ready") return <Overview />;
   const { id, name } = session.start.data.workspace;
   const identity = await sessionWorkspaceIdentity(id, name);

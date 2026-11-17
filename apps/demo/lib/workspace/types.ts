@@ -113,6 +113,8 @@ export interface WorkspaceIdentity {
   fromEmailName: string | null;
   /** Its brand color (`#rrggbb`); null keeps Squint's own. */
   brandColor: string | null;
+  /** Whether it has a logo: the company badge shows its icon then, else the default badge. */
+  hasLogo: boolean;
   /**
    * Its company icon's `?v=` (`iconVersionOf`), changing with its name, color
    * or logo: the badge on the team's avatars reads the icon at it (`workspaceIconSrc`).

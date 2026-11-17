@@ -224,7 +224,10 @@ export const BRAND_SURFACES = [
   { id: "panel", label: "Light gray", hex: "#f4f4f5" },
 ] as const;
 
-/** A brand color is a mark (a rule, a ring, a monogram tile): 3:1 on each surface (WCAG 1.4.11). */
+/**
+ * A brand color is a mark (a rule, a ring, a default mark's bubble): 3:1 on each surface
+ * (WCAG 1.4.11).
+ */
 export const MIN_BRAND_CONTRAST = MIN_MARK_CONTRAST;
 
 export interface SurfaceContrast {

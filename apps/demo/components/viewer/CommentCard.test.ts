@@ -25,9 +25,11 @@ const noop = () => {};
 const owner: CommentViewer = { team: true, moderator: true };
 const member: CommentViewer = { team: true, moderator: false };
 
+const LOGO_BADGE = "/api/s/token/brand/icon?v=0123456789abcdef";
+
 /** A review link's people: Acme Studio's badge, on the comments the server marks `team`. */
 const LINK_PEOPLE: CommentPeople = {
-  badgeSrc: "/api/s/token/brand/icon?v=0123456789abcdef",
+  badge: { logoSrc: LOGO_BADGE, color: null },
   teamCompany: "Acme Studio",
   isTeam: (comment) => comment.team === true,
 };
@@ -151,14 +153,23 @@ describe("the author's avatar (4b.15)", () => {
       expect(html).toContain('data-testid="comment-avatar"');
       expect(html).toContain(`src="${PHOTO}"`);
       expect(html).toContain('data-testid="company-badge"');
-      expect(html).toContain(`src="${LINK_PEOPLE.badgeSrc}"`);
+      expect(html).toContain(`src="${LOGO_BADGE}"`);
       expect(html).toContain(`<span class="sr-only">${TEAM}</span>`);
-      // Without a photo: initials, still with the badge.
-      const initials = draw({ ...COMMENT, team: true });
-      expect(initials).toContain('data-testid="comment-initials"');
-      expect(initials).toContain('data-testid="company-badge"');
+      // Without a photo: the default mark, head and shoulders beside the badge, no initials.
+      const badged = draw({ ...COMMENT, team: true });
+      expect(badged).toMatch(/<svg[^>]*data-testid="comment-initials"[^>]*data-mark="person"/);
+      expect(badged).toContain('data-testid="company-badge"');
+      expect(badged).not.toContain("<text");
     },
   );
+
+  it("draws the company's default badge in its color when it has no logo", () => {
+    const people = { ...LINK_PEOPLE, badge: { logoSrc: null, color: "#0f766e" } };
+    const html = card({ ...COMMENT, team: true }, member, people);
+    expect(html).toMatch(/<svg[^>]*data-testid="company-badge"[^>]*data-mark="company"/);
+    expect(html).toContain('fill="#0f766e"');
+    expect(html).not.toContain(LOGO_BADGE);
+  });
 
   it.each([
     ["comment card", (comment: Comment) => card(comment, member, LINK_PEOPLE)],
@@ -166,10 +177,19 @@ describe("the author's avatar (4b.15)", () => {
   ])("on a review link's %s, gives a client's comment initials and nothing else", (_name, draw) => {
     // A photo a client's comment somehow carried is never shown.
     const html = draw({ ...COMMENT, authorAvatar: PHOTO });
-    expect(html).toContain('data-testid="comment-initials"');
+    expect(html).toMatch(/<span[^>]*data-testid="comment-initials"[^>]*>B<\/span>/);
+    expect(html).not.toContain("data-mark");
     expect(html).not.toContain(PHOTO);
     expect(html).not.toContain("company-badge");
     expect(html).not.toContain(TEAM);
+  });
+
+  it("without a badge to show, gives a team member's mark their initials", () => {
+    // In the workspace, outside a signed-in session: no company, so no badge.
+    const html = card({ ...COMMENT });
+    expect(html).toMatch(/<svg[^>]*data-testid="comment-initials"[^>]*data-mark="person"/);
+    expect(html).toMatch(/<text[^>]*>B<\/text>/);
+    expect(html).not.toContain("company-badge");
   });
 
   it("in the workspace, says nothing of a team and leaves a client's comment unbadged", () => {
@@ -179,6 +199,7 @@ describe("the author's avatar (4b.15)", () => {
     const client = card({ ...COMMENT, fromClient: true, authorAvatar: PHOTO }, owner);
     expect(client).not.toContain(PHOTO);
     expect(client).toContain('data-testid="comment-initials"');
+    expect(client).not.toContain("data-mark");
     expect(client).not.toContain("company-badge");
   });
 });

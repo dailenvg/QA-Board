@@ -164,8 +164,8 @@ export interface ClientBrand {
   custom: boolean;
   name: string;
   /**
-   * `#rrggbb`, for accents only (a rule, a frame), never behind text but the
-   * monogram's initials, which take the ink that reads on it; null keeps the app's own.
+   * `#rrggbb`, for accents only (a rule, a frame, the default mark's bubble), never
+   * behind text; the mark's icon takes the ink that reads on it. Null keeps the app's own.
    */
   color: string | null;
   hasLogo: boolean;

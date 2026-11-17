@@ -116,7 +116,7 @@ describe("loadJoinPage: the invite itself", () => {
     });
   });
 
-  it("draws the monogram for a logo too large to inline, and inlines one at the cap", async () => {
+  it("draws the default mark for a logo too large to inline, and inlines one at the cap", async () => {
     const png = (size: number) => {
       const bytes = new Uint8Array(size);
       bytes.set(PNG);

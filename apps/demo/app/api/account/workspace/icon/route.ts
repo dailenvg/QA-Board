@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * `GET ?v=<version>`: the company icon of the signed-in user's workspace (its
- * logo, or its monogram), as a square PNG, for any member: the badge on the
+ * logo, or its default mark), as a square PNG, for any member: the badge on the
  * team's avatars in the app, the twin of a review link's `brand/icon` (4.11).
  * Kept a few minutes at its current version, never at another.
  */

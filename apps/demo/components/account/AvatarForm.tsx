@@ -3,25 +3,27 @@
 import { useState } from "react";
 import { personMonogramName } from "@/lib/monogram";
 import { avatarSrc } from "@/lib/routes";
-import { MonogramTile } from "../brand/MonogramTile";
-import { ImageUploader } from "./ImageUploader";
+import { PersonMark } from "../avatar/PersonMark";
+import { ImageUploader, UPLOADER_TILE_PX } from "./ImageUploader";
 import { SettingsCard } from "./SettingsCard";
 
 interface AvatarFormProps {
-  /** For the monogram without a photo: the user's name, else their email. */
+  /** For the default mark without a photo: the user's name, else their email. */
   name: string | null;
   email: string;
+  /** The Squint admin: their own default mark. */
+  admin: boolean;
   /** The current avatar's `?v=`, or null without one. */
   initialVersion: string | null;
 }
 
 /** The user's photo, shown with their account in the workspace's sidebar. */
-export function AvatarForm({ name, email, initialVersion }: AvatarFormProps) {
+export function AvatarForm({ name, email, admin, initialVersion }: AvatarFormProps) {
   const [version, setVersion] = useState(initialVersion);
   return (
     <SettingsCard
       title="Photo"
-      description="Shown with your account in Squint's sidebar. Without one, your initials stand in."
+      description="Shown with your account in Squint's sidebar. Without one, Squint draws an avatar for you."
       icon="camera"
       testId="avatar-settings"
     >
@@ -30,11 +32,12 @@ export function AvatarForm({ name, email, initialVersion }: AvatarFormProps) {
         target="avatar"
         noun="photo"
         src={version && avatarSrc(version)}
+        // The sidebar's default mark, drawn large.
         fallback={
-          <MonogramTile
-            name={personMonogramName(name, email)}
-            color={null}
-            className="size-full text-title"
+          <PersonMark
+            label={personMonogramName(name, email)}
+            admin={admin}
+            size={UPLOADER_TILE_PX}
           />
         }
         onChange={setVersion}

@@ -1,11 +1,12 @@
 import { createContext, use } from "react";
 import type { Comment } from "@/lib/store/types";
-import { useCompanyBadgeSrc } from "@/lib/workspace-client/use-company-badge";
+import type { CompanyBadge } from "@/lib/avatar/company-badge";
+import { useCompanyBadge } from "@/lib/workspace-client/use-company-badge";
 
 /** Who wrote the viewer's comments, as their avatars show it (4b.15). */
 export interface CommentPeople {
   /** The company badge on the team's avatars; null without a company to show. */
-  badgeSrc: string | null;
+  badge: CompanyBadge | null;
   /**
    * The company, where its badge means something a screen reader needs: on a
    * review link (the team, not another client). Null in the workspace, where
@@ -25,6 +26,6 @@ const notFromClient = (comment: Comment) => !comment.fromClient;
 /** The review link's people when there's one, else the signed-in workspace's. */
 export function useCommentPeople(): CommentPeople {
   const shared = use(CommentPeopleContext);
-  const badgeSrc = useCompanyBadgeSrc();
-  return shared ?? { badgeSrc, teamCompany: null, isTeam: notFromClient };
+  const badge = useCompanyBadge();
+  return shared ?? { badge, teamCompany: null, isTeam: notFromClient };
 }

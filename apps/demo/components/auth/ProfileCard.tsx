@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ACCOUNT_HREF, isAccountPath } from "@/lib/routes";
 import { applyTheme } from "@/lib/theme";
 import { useTheme } from "@/lib/use-theme";
-import { useCompanyBadgeSrc } from "@/lib/workspace-client/use-company-badge";
+import { useCompanyBadge } from "@/lib/workspace-client/use-company-badge";
 import { Menu, type MenuItem } from "../ui/Menu";
 import { PersonAvatar } from "../ui/PersonAvatar";
 
@@ -16,6 +16,8 @@ interface ProfileCardProps {
   name: string | null;
   /** Their photo's URL; null without one. */
   avatarSrc?: string | null;
+  /** The Squint admin: their own default mark without a photo. */
+  admin?: boolean;
   /** No card behind it: for the sidebar's foot, where a separator sets it apart instead. */
   bare?: boolean;
 }
@@ -25,16 +27,22 @@ const CURRENT_TRIGGER_CLASS =
   "grid size-11 place-items-center rounded-pill bg-brand-soft text-brand-text transition-colors hover:bg-hover active:bg-seg aria-expanded:bg-hover";
 
 /**
- * Shows who is signed in (photo or initials, with the company badge in a workspace, name and
+ * Shows who is signed in (photo or default mark, with the company badge in a workspace, name and
  * email), with a menu for account settings, dark mode and Sign out. Sign out is a plain form
  * post to the logout route, which redirects to /login.
  */
-export function ProfileCard({ email, name, avatarSrc = null, bare = false }: ProfileCardProps) {
+export function ProfileCard({
+  email,
+  name,
+  avatarSrc = null,
+  admin = false,
+  bare = false,
+}: ProfileCardProps) {
   const [pending, setPending] = useState(false);
   const form = useRef<HTMLFormElement>(null);
   const theme = useTheme();
   const onAccount = isAccountPath(usePathname());
-  const badgeSrc = useCompanyBadgeSrc();
+  const badge = useCompanyBadge();
 
   // Back from /login, the browser may restore this page from its cache with Sign out still
   // "Signing out…" and inert. Reset it so it works again.
@@ -82,7 +90,8 @@ export function ProfileCard({ email, name, avatarSrc = null, bare = false }: Pro
         name={name}
         fallback={email}
         src={avatarSrc}
-        badgeSrc={badgeSrc}
+        person={admin ? "admin" : "member"}
+        badge={badge}
         surface={bare ? "panel" : "card"}
         photoTestId="account-avatar"
         initialsTestId="account-initials"

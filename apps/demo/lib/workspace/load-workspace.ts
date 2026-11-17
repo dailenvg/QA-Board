@@ -55,7 +55,8 @@ interface BrandRow {
 
 /**
  * Who the workspace's emails come from, and its color: for the Share window's
- * preview. With its icon's version, from the same read as the icon's route.
+ * preview. With whether it has a logo and its icon's version, from the same
+ * read as the icon's route, for the company badge.
  */
 async function brandOf(db: Queryable, workspaceId: string) {
   const { rows } = await db.query<BrandRow>(
@@ -68,6 +69,7 @@ async function brandOf(db: Queryable, workspaceId: string) {
   return {
     fromEmailName: row?.from_email_name ?? null,
     brandColor: row?.brand_color ?? null,
+    hasLogo: Boolean(row?.logo_key),
     iconVersion: iconVersionOf({
       name: row?.name ?? "",
       color: brandColor(row?.brand_color),

@@ -15,13 +15,15 @@ interface NoWorkspaceProps {
   email: string;
   /** Their name, for their initials; null uses the email. */
   name: string | null;
+  /** The Squint admin: their own default mark. */
+  admin: boolean;
 }
 
 /**
  * Signed in, but not a member of any workspace (the admin, for now): an empty
  * state, not an error, with the way to the account settings and Sign out.
  */
-export function NoWorkspace({ email, name }: NoWorkspaceProps) {
+export function NoWorkspace({ email, name, admin }: NoWorkspaceProps) {
   const variants = useRevealVariants();
   return (
     <main id="main" className="grid min-h-dvh place-items-center p-4">
@@ -50,7 +52,7 @@ export function NoWorkspace({ email, name }: NoWorkspaceProps) {
             <Icon name="user" className="size-5" />
             Account settings
           </ButtonLink>
-          <ProfileCard email={email} name={name} />
+          <ProfileCard email={email} name={name} admin={admin} />
         </motion.div>
       </motion.section>
     </main>

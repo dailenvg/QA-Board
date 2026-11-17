@@ -151,7 +151,7 @@ describe("a logo a page inlines", () => {
     );
   });
 
-  it("is left off past the cap, for the monogram", () => {
+  it("is left off past the cap, for the default mark", () => {
     expect(pageLogoUri(logoOf(new Uint8Array(PAGE_LOGO_MAX_BYTES + 1), "image/png"))).toBeNull();
   });
 });

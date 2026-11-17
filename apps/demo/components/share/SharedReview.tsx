@@ -61,17 +61,21 @@ const markedTeam = (comment: Comment) => comment.team === true;
 
 /**
  * The link's people: the team's comments carry the company's badge (its icon
- * at the brand's version), and say "on the {Company} team" to screen readers.
+ * at the brand's version, or its default badge without a logo), and say "on
+ * the {Company} team" to screen readers.
  * An anonymous link has no company, so no badge.
  */
 function sharedPeople(token: string, brand: ClientBrand): CommentPeople {
   return brand.custom
     ? {
-        badgeSrc: shareIconSrc(token, brand.iconVersion),
+        badge: {
+          logoSrc: brand.hasLogo ? shareIconSrc(token, brand.iconVersion) : null,
+          color: brand.color,
+        },
         teamCompany: brand.name,
         isTeam: markedTeam,
       }
-    : { badgeSrc: null, teamCompany: null, isTeam: markedTeam };
+    : { badge: null, teamCompany: null, isTeam: markedTeam };
 }
 
 /** The earlier of two moments (epoch ms), ignoring missing ones; null when neither is set. */

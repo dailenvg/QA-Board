@@ -9,7 +9,7 @@ import { escapeHtml } from "./resend";
 
 /** How the email shows the company. */
 export interface EmailBrand {
-  /** The company's icon (logo or monogram), absolute; null: the name alone. */
+  /** The company's icon (logo or default mark), absolute; null: the name alone. */
   iconUrl: string | null;
   /** `#rrggbb`, for the button and the link; null keeps Squint's blue. */
   color: string | null;
