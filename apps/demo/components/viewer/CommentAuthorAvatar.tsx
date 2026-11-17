@@ -18,8 +18,6 @@ export function CommentAuthorAvatar({ comment, surface }: CommentAuthorAvatarPro
   const team = isTeam(comment);
   return (
     <PersonAvatar
-      name={comment.author}
-      fallback={comment.author}
       src={team ? (comment.authorAvatar ?? null) : null}
       size="xs"
       person={team ? "member" : "client"}

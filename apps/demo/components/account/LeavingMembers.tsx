@@ -55,13 +55,7 @@ function LeavingRow({ person }: { person: LeavingMember }) {
       className="flex min-h-11 items-center gap-3 rounded-row px-3 py-2"
       data-testid="leaving-row"
     >
-      <PersonAvatar
-        name={person.name?.trim() || null}
-        fallback={person.email}
-        src={null}
-        size="md"
-        badge={badge}
-      />
+      <PersonAvatar src={null} size="md" badge={badge} />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <span className="min-w-0 truncate text-nav font-semibold text-ink" title={name}>

@@ -19,14 +19,12 @@ const LOGO_FRAME = "overflow-hidden rounded-field bg-card shadow-seg ring-1 ring
  * rounded tile, or its default mark standing free in the same slot, beside
  * its name. The tile is decorative: the name says it.
  */
-export function WorkspaceHeader({ name, brandColor, logoSrc }: WorkspaceIdentity) {
+export function WorkspaceHeader({ name, logoSrc }: WorkspaceIdentity) {
   const reveal = useRevealVariants();
-  const mark = <CompanyMark color={brandColor} size={MARK_PX} testId="workspace-header-default" />;
+  const mark = <CompanyMark size={MARK_PX} testId="workspace-header-default" />;
   // A logo that won't load leaves its frame, which crops to its corners: the tile fit (85%)
   // keeps the bubble's tail clear of them, never clipped.
-  const framedMark = (
-    <CompanyMark color={brandColor} size={MARK_PX} fit="tile" testId="workspace-header-default" />
-  );
+  const framedMark = <CompanyMark size={MARK_PX} fit="tile" testId="workspace-header-default" />;
   return (
     <motion.header
       variants={stagger}

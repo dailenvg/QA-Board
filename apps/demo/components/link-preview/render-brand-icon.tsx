@@ -27,11 +27,11 @@ function LogoIcon({ uri }: { uri: string }) {
 }
 
 /**
- * The company's default mark (a building on a bubble in its brand color,
- * magenta without one) on its own light square, so it needs no dark edge.
+ * The company's default mark (a building on a gray bubble) on its own light
+ * square, so it needs no dark edge.
  */
-function DefaultIcon({ color }: { color: string | null }) {
-  const uri = companyMarkUri({ color, size: BRAND_ICON_SIZE, tile: AVATAR_TILE });
+function DefaultIcon() {
+  const uri = companyMarkUri({ size: BRAND_ICON_SIZE, tile: AVATAR_TILE });
   return (
     // eslint-disable-next-line @next/next/no-img-element -- ImageResponse draws plain <img> only.
     <img src={uri} alt="" width={BRAND_ICON_SIZE} height={BRAND_ICON_SIZE} />
@@ -57,7 +57,7 @@ export async function renderBrandIcon(
   { cacheControl = LINK_ICON_CACHE }: { cacheControl?: string } = {},
 ): Promise<ImageResponse | null> {
   if (!card) return null;
-  const icon = card.logoUri ? <LogoIcon uri={card.logoUri} /> : <DefaultIcon color={card.color} />;
+  const icon = card.logoUri ? <LogoIcon uri={card.logoUri} /> : <DefaultIcon />;
   return new ImageResponse(icon, {
     width: BRAND_ICON_SIZE,
     height: BRAND_ICON_SIZE,

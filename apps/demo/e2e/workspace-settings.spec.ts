@@ -1,6 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
-import { COMPANY_DEFAULT_FILL } from "../lib/avatar/default-avatar";
-import { COMMENTER_PALETTE } from "../lib/brand-palette";
+import { AVATAR_FILL } from "../lib/avatar/default-avatar";
 import { expect, test } from "./test";
 import { SIGNED_OUT } from "./auth-fixtures";
 import { expectMark } from "./avatar-fixtures";
@@ -104,7 +103,7 @@ test("the owner names the workspace and picks a color and sender name, previewed
   await expect(card.getByTestId("workspace-slug")).toHaveText(E2E_COMPANY.slug);
   await expect(preview.getByTestId("invite-preview-name")).toHaveText(E2E_COMPANY.name);
   const mark = preview.getByTestId("brand-default");
-  await expectMark(mark, "company", COMPANY_DEFAULT_FILL);
+  await expectMark(mark, "company", AVATAR_FILL);
   await expect(card.getByRole("button", { name: "Save changes" })).toHaveAttribute(
     "aria-disabled",
     "true",
@@ -158,13 +157,13 @@ test("a guest sees the default mark, then the uploaded logo, then the default ag
   const { token } = await shareWorkspaceProject(page, PROJECT);
   const { guest, close } = await openAsGuest(page, baseURL, token);
   const brand = guest.getByTestId("guest-brand");
-  await expectMark(brand.getByTestId("brand-default"), "company", COMPANY_DEFAULT_FILL);
+  await expectMark(brand.getByTestId("brand-default"), "company", AVATAR_FILL);
   await expect(brand.getByTestId("brand-logo")).toHaveCount(0);
 
   await page.goto("/account/workspace");
   const logoCard = page.getByTestId("workspace-logo-settings");
   const fallback = logoCard.getByTestId("logo-fallback");
-  await expectMark(fallback.locator("svg"), "company", COMPANY_DEFAULT_FILL);
+  await expectMark(fallback.locator("svg"), "company", AVATAR_FILL);
   // Saved at Fit: the browser squares it, the logo whole on transparent padding, scaled to
   // 512 px, and stores a PNG.
   await pickAndSave(page, logoCard.getByTestId("logo-input"), png(800, 400));
@@ -188,10 +187,10 @@ test("a guest sees the default mark, then the uploaded logo, then the default ag
 
   await logoCard.getByRole("button", { name: "Remove logo" }).click();
   await expect(page.getByTestId("logo-saved")).toHaveText("Logo removed.");
-  await expectMark(fallback.locator("svg"), "company", COMPANY_DEFAULT_FILL);
+  await expectMark(fallback.locator("svg"), "company", AVATAR_FILL);
   expect(await logoRow()).toBeNull();
   await guest.reload();
-  await expectMark(brand.getByTestId("brand-default"), "company", COMPANY_DEFAULT_FILL);
+  await expectMark(brand.getByTestId("brand-default"), "company", AVATAR_FILL);
   await expect(brand.getByTestId("brand-logo")).toHaveCount(0);
   await close();
 });
@@ -203,7 +202,7 @@ test("the Overview opens with the workspace's name and default mark, then its lo
   const header = page.getByTestId("workspace-header");
   await expect(header.getByTestId("workspace-header-name")).toHaveText(E2E_COMPANY.name);
   const mark = header.getByTestId("workspace-header-default");
-  await expectMark(mark, "company", COMPANY_DEFAULT_FILL);
+  await expectMark(mark, "company", AVATAR_FILL);
   // Free in its slot: the tile's frame belongs to a logo.
   await expect(header.getByTestId("workspace-header-tile")).toHaveCSS("box-shadow", "none");
   await expect(header.getByTestId("workspace-header-logo")).toHaveCount(0);
@@ -262,18 +261,15 @@ test("a photo is cropped square, resized, and shown with the account in the side
   await page.goto("/account/profile");
   const sidebar = page.getByRole("complementary", { name: "Workspace" });
   await expect(sidebar.getByTestId("account-avatar")).toHaveCount(0);
-  // Without a photo, the user's default mark in their pin color: head and shoulders beside the
-  // company badge, no initials.
+  // Without a photo, the user's default mark: head and shoulders, no initials.
   const initials = sidebar.getByTestId("account-initials");
   await expect(initials).toHaveText("");
-  await expect(initials).toHaveAttribute("data-mark", "person");
-  const fill = await initials.locator(":scope > path").first().getAttribute("fill");
-  expect(COMMENTER_PALETTE.map((entry) => entry.hex)).toContain(fill);
+  await expectMark(initials, "person", AVATAR_FILL);
   const card = page.getByTestId("avatar-settings");
-  // The editor draws it large, with no badge: their initials under a small head.
+  // The editor draws it large.
   const editorMark = card.getByTestId("avatar-fallback").locator("svg");
-  await expectMark(editorMark, "person", fill ?? "");
-  await expect(editorMark).toHaveText(/^\S{1,2}$/);
+  await expectMark(editorMark, "person", AVATAR_FILL);
+  await expect(editorMark).toHaveText("");
 
   // The crop step starts a photo at Fill, its least: the round avatar must be covered.
   await card.getByTestId("avatar-input").setInputFiles(png(900, 600));

@@ -87,8 +87,6 @@ export function ProfileCard({
       className={`flex min-w-0 items-center gap-3 text-left ${bare ? "py-1 pl-2" : "rounded-card bg-card py-2 pr-2 pl-4"}`}
     >
       <PersonAvatar
-        name={name}
-        fallback={email}
         src={avatarSrc}
         person={admin ? "admin" : "member"}
         badge={badge}

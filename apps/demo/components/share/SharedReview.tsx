@@ -69,10 +69,7 @@ const markedTeam = (comment: Comment) => comment.team === true;
 function sharedPeople(token: string, brand: ClientBrand): CommentPeople {
   return brand.custom
     ? {
-        badge: {
-          logoSrc: brand.hasLogo ? shareIconSrc(token, brand.iconVersion) : null,
-          color: brand.color,
-        },
+        badge: { logoSrc: brand.hasLogo ? shareIconSrc(token, brand.iconVersion) : null },
         teamCompany: brand.name,
         isTeam: markedTeam,
       }

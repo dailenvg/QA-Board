@@ -36,7 +36,7 @@ function frameEdge(color: string | null, hasLogo: boolean): string {
  */
 export function BrandFrame({ brand, logoSrc }: BrandFrameProps) {
   const fallback = brand.custom ? (
-    <CompanyMark color={brand.color} size={FRAME_PX} fit="circle" testId="brand-default" />
+    <CompanyMark size={FRAME_PX} fit="circle" testId="brand-default" />
   ) : (
     <SquintMark className="size-7" />
   );

@@ -1,8 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { AVATAR_INK, COMPANY_DEFAULT_FILL } from "@/lib/avatar/default-avatar";
-import { PAPER } from "@/lib/brand-palette";
+import { AVATAR_FILL, AVATAR_INK } from "@/lib/avatar/default-avatar";
 import { CompanyCardPreview } from "./CompanyCardPreview";
 
 const SVG_URI = /src="data:image\/svg\+xml;base64,([^"]+)"/;
@@ -32,8 +31,8 @@ describe("CompanyCardPreview's company mark", () => {
     const { html, mark } = card(null);
     expect(html).not.toContain(">HP<");
     expect(mark).not.toBeNull();
-    // Magenta without a brand color, the building in ink; nothing satori can't draw.
-    expect(fills(mark ?? "").slice(0, 2)).toEqual([COMPANY_DEFAULT_FILL, AVATAR_INK]);
+    // The bubble's gray, the building in ink; nothing satori can't draw.
+    expect(fills(mark ?? "").slice(0, 2)).toEqual([AVATAR_FILL, AVATAR_INK]);
     expect(mark).not.toMatch(/<text|var\(|filter|vector-effect|transform|style=/);
     // No background square: the frame's paper shows behind it.
     expect(mark).not.toContain('d="M0 0H100V100H0Z"');
@@ -41,12 +40,8 @@ describe("CompanyCardPreview's company mark", () => {
     expect(html).toMatch(/<img src="data:image\/svg\+xml[^"]*" alt="" width="104" height="104"/);
   });
 
-  it("takes the brand color, the building turning paper with an ink outline on a dark one", () => {
-    const { mark } = card("#0f766e");
-    const [bubble, building] = fills(mark ?? "");
-    expect(bubble).toBe("#0f766e");
-    expect(building).toBe(PAPER);
-    expect(mark).toContain(`fill="${PAPER}" stroke="${AVATAR_INK}"`);
+  it("stays gray whatever the brand color: the color rings the frame, never the mark", () => {
+    expect(card("#0f766e").mark).toBe(card(null).mark);
   });
 
   it("shows the logo instead when the card can draw one", () => {

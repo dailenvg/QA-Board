@@ -1,5 +1,5 @@
 import type { Browser, Locator, Page } from "@playwright/test";
-import { COMPANY_DEFAULT_FILL, personFill } from "../lib/avatar/default-avatar";
+import { AVATAR_FILL } from "../lib/avatar/default-avatar";
 import { expect, test } from "./test";
 import { addDisposableMember, newAddress, type DisposableAccount } from "./account-db";
 import { SIGNED_OUT } from "./auth-fixtures";
@@ -167,13 +167,12 @@ test("a member's comment carries their photo and the company badge, in the works
     onLink.getByRole("button", { name: new RegExp(`by ${MEMBER}\\s*, on the ${COMPANY} team`) }),
   ).toBeVisible();
 
-  // A client's comment: the plain initials circle, no badge, and nothing said about a team.
+  // A client's comment: the person mark, no badge, and nothing said about a team.
   await hideComments(client);
   await postComment(client, "Client's note", { x: 120, y: 90 }, "Cleo Client");
   await showComments(client);
   const clientCard = card(client, "Client's note");
-  await expect(clientCard.getByTestId("comment-initials")).toHaveText("CC");
-  await expect(clientCard.getByTestId("comment-initials")).not.toHaveAttribute("data-mark");
+  await expectMark(clientCard.getByTestId("comment-initials"), "person", AVATAR_FILL);
   await expect(clientCard.getByTestId("company-badge")).toHaveCount(0);
   await expect(clientCard.getByRole("button", { name: /team/ })).toHaveCount(0);
 
@@ -194,11 +193,11 @@ test("a member's comment carries their photo and the company badge, in the works
   await client.reload();
   await showComments(client);
   const linkDefault = card(client, "Mia's note").getByTestId("company-badge");
-  await expectMark(linkDefault, "company", COMPANY_DEFAULT_FILL);
+  await expectMark(linkDefault, "company", AVATAR_FILL);
   await page.reload();
   await showComments(page);
   const appDefault = card(page, "Mia's note").getByTestId("company-badge");
-  await expectMark(appDefault, "company", COMPANY_DEFAULT_FILL);
+  await expectMark(appDefault, "company", AVATAR_FILL);
 
   await client.context().close();
   await miaPage.context().close();
@@ -216,13 +215,13 @@ test("the sidebar and Members rows carry the badge bottom left, the owner's too;
 
   const sidebar = page.getByTestId("sidebar-account");
   await badgeIn(sidebar, APP_BADGE);
-  // Olga has no photo: her default mark in her pin color, head and shoulders beside the badge.
+  // Olga has no photo: her default mark, head and shoulders beside the badge.
   const olga = sidebar.getByTestId("account-initials");
-  await expectMark(olga, "person", personFill(OWNER));
+  await expectMark(olga, "person", AVATAR_FILL);
   await expect(olga).toHaveText("");
   await expectBadgeBottomLeft(sidebar.getByTestId("company-badge"), olga);
   await badgeIn(row(page, OWNER), APP_BADGE);
-  await expectMark(row(page, OWNER).getByTestId("member-initials"), "person", personFill(OWNER));
+  await expectMark(row(page, OWNER).getByTestId("member-initials"), "person", AVATAR_FILL);
   await badgeIn(row(page, MEMBER), APP_BADGE);
   const miaPhoto = row(page, MEMBER).getByTestId("member-avatar");
   await loaded(miaPhoto, PHOTO_PX);

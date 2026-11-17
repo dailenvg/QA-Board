@@ -7,15 +7,9 @@ import {
 
 interface DefaultAvatarProps {
   kind: AvatarKind;
-  /** The bubble's color: `personFill`, `companyFill` or a kind's own. */
-  fill: string;
   /** The slot's side in CSS px, for the outline's weight and the detail drawn. */
   size: number;
   fit?: AvatarFit;
-  /** A person's initials, under the head. */
-  initials?: string;
-  /** A person as head and shoulders, without initials (`drawDefaultAvatar`). */
-  silhouette?: boolean;
   testId?: string;
 }
 
@@ -38,17 +32,8 @@ function Shape({ shape }: { shape: AvatarShape }) {
  * theme never disagree. Free marks overflow their box on purpose (the tail,
  * the edge): no crop, no ring. Decorative: a name is always beside it.
  */
-export function DefaultAvatar({
-  kind,
-  fill,
-  size,
-  fit = "free",
-  initials,
-  silhouette,
-  testId,
-}: DefaultAvatarProps) {
-  const drawing = drawDefaultAvatar({ kind, fill, size, fit, edge: true, initials, silhouette });
-  const text = drawing.initials;
+export function DefaultAvatar({ kind, size, fit = "free", testId }: DefaultAvatarProps) {
+  const drawing = drawDefaultAvatar({ kind, size, fit, edge: true });
   return (
     <svg
       viewBox="0 0 100 100"
@@ -66,21 +51,6 @@ export function DefaultAvatar({
       {drawing.art.map((shape, index) => (
         <Shape key={index} shape={shape} />
       ))}
-      {text ? (
-        // The page's Figtree, inherited: no font-family here.
-        <text
-          x={text.x}
-          y={text.y}
-          fontSize={text.fontSize}
-          fontWeight={text.fontWeight}
-          letterSpacing={text.letterSpacing}
-          fill={text.fill}
-          textAnchor="middle"
-          dominantBaseline="central"
-        >
-          {text.text}
-        </text>
-      ) : null}
     </svg>
   );
 }

@@ -71,8 +71,6 @@ export function MemberRow({
     >
       <div className={ROW}>
         <PersonAvatar
-          name={person.avatarName}
-          fallback={person.fallback}
           src={person.avatarSrc}
           size="md"
           badge={badge}
