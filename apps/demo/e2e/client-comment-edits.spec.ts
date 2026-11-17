@@ -73,6 +73,24 @@ async function startEdit(own: Locator, words: string): Promise<Locator> {
   return field;
 }
 
+/**
+ * Waits until nothing from `locator` up is moved by a transform: opening the editor slides the
+ * card into its new place (its `layout` animation) and swaps the editor in from the side.
+ * Boxes read before then are mid-slide, and each read lands on a different frame.
+ */
+async function inPlace(locator: Locator): Promise<void> {
+  await expect
+    .poll(() =>
+      locator.evaluate((element) => {
+        for (let node: Element | null = element; node; node = node.parentElement) {
+          if (getComputedStyle(node).transform !== "none") return false;
+        }
+        return true;
+      }),
+    )
+    .toBe(true);
+}
+
 /** The owner resolves the client's comment in the workspace; answers once the server has it. */
 async function ownerResolves(page: Page, text: string): Promise<void> {
   const saved = page.waitForResponse(
@@ -197,6 +215,7 @@ test("on a 375 px phone, the editor fits the sheet and saves", async ({ page, br
 
   const own = await byId(client, card(client, "Menu overlaps"));
   await startEdit(own, "Menu overlaps the logo");
+  await inPlace(own.locator("form"));
   const save = own.getByRole("button", { name: "Save" });
   const cancel = own.getByRole("button", { name: "Cancel" });
   for (const button of [save, cancel]) {
