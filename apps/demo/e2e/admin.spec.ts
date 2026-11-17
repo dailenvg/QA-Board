@@ -64,10 +64,10 @@ test.describe("the admin", () => {
     );
     await expect(nav.getByRole("link")).toHaveText(["Overview", "Audit log"]);
     // The seed made two workspaces with an owner each, and the admin.
-    await expect(page.getByTestId("admin-stat-workspaces-value")).toHaveText(/^\d+$/);
-    expect(
-      Number(await page.getByTestId("admin-stat-workspaces-value").textContent()),
-    ).toBeGreaterThanOrEqual(2);
+    // Polled: the count ticks up from 0 as it comes on screen.
+    await expect
+      .poll(async () => Number(await page.getByTestId("admin-stat-workspaces-value").textContent()))
+      .toBeGreaterThanOrEqual(2);
     await expect(page.getByTestId("admin-stat-storageBytes-value")).toHaveText(/\d+(\.\d)? \w+/);
     await expect(page.getByTestId("admin-activity")).toBeVisible();
     // The seed's own entries are on record today, so the last 30 days are never empty here.
@@ -122,12 +122,29 @@ test.describe("the admin", () => {
     await pickFilter(page, "actor", "Squint (automatic)");
     await expect(page).toHaveURL(new RegExp(`\\?workspace=${trail.workspaceId}&actor=squint$`));
     await expect(entries(page)).toHaveCount(1);
+    // Screen readers hear the result once the new page is in.
+    await expect(page.getByTestId("audit-status")).toHaveText(/^1 entry shown, newest .+ UTC$/);
     await expectAccessible(page);
     await pickFilter(page, "action", "Workspace settings changed");
-    await expect(page.getByText("No entries match")).toBeVisible();
+    await expect(page.getByText("No entries match", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("audit-status")).toHaveText("No entries match these filters");
     await page.getByTestId("audit-clear").click();
     await expect(page).toHaveURL(/\/admin\/audit$/);
     await expect(page.getByTestId("audit-clear")).toHaveCount(0);
+  });
+
+  test("goes back to the newest entries from past the end, keeping the filters", async ({
+    page,
+    baseURL,
+  }) => {
+    const trail = await seedAuditTrail(2);
+    await asAdmin(page, baseURL);
+    // A cursor older than every entry: nothing past it.
+    await page.goto(`/admin/audit?workspace=${trail.workspaceId}&before=1-1`);
+    await expect(page.getByText("Nothing more here")).toBeVisible();
+    await page.getByRole("link", { name: "Back to newest" }).click();
+    await expect(page).toHaveURL(new RegExp(`/admin/audit\\?workspace=${trail.workspaceId}$`));
+    await expect(entries(page)).toHaveCount(3);
   });
 
   test("reads the audit log at 375px without scrolling sideways", async ({ page, baseURL }) => {
@@ -160,9 +177,18 @@ test.describe("the admin", () => {
     await expect(page.getByTestId("no-workspace")).toBeVisible();
     await page.getByTestId("admin-panel-link").click();
     await expect(page).toHaveURL(/\/admin$/);
+    // In the panel, home is the panel.
+    await expect(page.getByRole("link", { name: "Squint Visual review (home)" })).toHaveAttribute(
+      "href",
+      "/admin",
+    );
     await page.goto("/account/profile");
     await page.getByTestId("account-menu").click();
     await page.getByRole("menuitem", { name: "Admin" }).click();
+    await expect(page).toHaveURL(/\/admin$/);
+    // The account settings show the way back without opening a menu.
+    await page.goto("/account/profile");
+    await page.getByTestId("back-to-admin").click();
     await expect(page).toHaveURL(/\/admin$/);
   });
 
@@ -183,5 +209,9 @@ test.describe("a company user", () => {
     await page.getByTestId("account-menu").click();
     await expect(page.getByRole("menuitem", { name: "Account" })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: "Admin" })).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await page.goto("/account/profile");
+    await expect(page.getByRole("heading", { level: 1, name: "Account" })).toBeVisible();
+    await expect(page.getByTestId("back-to-admin")).toHaveCount(0);
   });
 });

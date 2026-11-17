@@ -20,6 +20,8 @@ export function entryCount(n: number): string {
 
 export const ADMIN_COPY = {
   title: "Admin",
+  /** In the account settings, for the admin: back to the panel. */
+  backToAdmin: "Back to admin",
   summary: "Everything across Squint's workspaces, read-only.",
   nav: "Admin",
   unavailable: {
@@ -96,6 +98,14 @@ export const ADMIN_COPY = {
       "Changes to accounts, workspaces, people and review links show up here as they happen.",
     noMatchTitle: "No entries match",
     noMatchBody: "Try another workspace, person or action, or clear the filters.",
+    /** Read out after a filter or page change (a polite live region). */
+    status: {
+      /** "50 entries shown, newest Nov 17, 2026, 14:05 UTC". */
+      shown: (n: number, newest: string) => `${entryCount(n)} shown, newest ${newest}`,
+      noMatch: "No entries match these filters",
+      end: "No more entries here",
+      empty: "No entries yet",
+    },
     endTitle: "Nothing more here",
     endBody: "Go back to the newest entries to keep reading.",
   },

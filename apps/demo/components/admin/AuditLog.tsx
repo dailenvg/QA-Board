@@ -2,10 +2,10 @@
 
 import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useOptimistic, useRef, useTransition } from "react";
+import { useEffect, useId, useOptimistic, useRef, useState, useTransition } from "react";
 import { auditHref, type AuditFilters as Filters } from "@/lib/admin/audit-href";
 import type { AuditFilterOptions, AuditPage } from "@/lib/admin/audit-query";
-import { ADMIN_AUDIT_HREF } from "@/lib/routes";
+import { utcDateTime } from "@/lib/admin/utc-format";
 import { duration } from "@/lib/motion";
 import { SettingsCard } from "../account/SettingsCard";
 import { TileEmpty } from "../overview/bento/TileEmpty";
@@ -18,6 +18,9 @@ import { AuditPager } from "./AuditPager";
 
 const COPY = ADMIN_COPY.audit;
 
+/** The list while a new page loads: dimmed, but muted text keeps near 3:1. */
+const PENDING_OPACITY = 0.7;
+
 interface AuditLogProps {
   filters: Filters;
   /** A page other than the newest is open (the URL has a cursor). */
@@ -26,13 +29,25 @@ interface AuditLogProps {
   options: AuditFilterOptions;
 }
 
+function isFiltered(filters: Filters): boolean {
+  return Boolean(filters.workspace || filters.actor || filters.action);
+}
+
+/** What the live region says once a new page is in: how many it shows, or why none. */
+function resultMessage(page: AuditPage, filters: Filters, paged: boolean): string {
+  const newest = page.entries[0];
+  if (newest) return COPY.status.shown(page.entries.length, utcDateTime(newest.at));
+  if (paged) return COPY.status.end;
+  return isFiltered(filters) ? COPY.status.noMatch : COPY.status.empty;
+}
+
 /** Nothing to list: none yet, none matching the filters, or nothing past a cursor. */
 function AuditEmpty({
-  filtered,
+  filters,
   paged,
   onClear,
 }: {
-  filtered: boolean;
+  filters: Filters;
   paged: boolean;
   onClear: () => void;
 }) {
@@ -42,13 +57,14 @@ function AuditEmpty({
         <TileEmpty title={COPY.endTitle} scene="caughtUp">
           {COPY.endBody}
         </TileEmpty>
-        <ButtonLink href={ADMIN_AUDIT_HREF} variant="secondary" className="self-start">
+        {/* The same filters, from the newest page: only the cursor goes. */}
+        <ButtonLink href={auditHref(filters)} variant="secondary" className="self-start">
           {COPY.newest}
         </ButtonLink>
       </div>
     );
   }
-  if (filtered) {
+  if (isFiltered(filters)) {
     return (
       <div className="flex flex-col gap-4 p-5 sm:p-6">
         <TileEmpty title={COPY.noMatchTitle} scene="noMatch">
@@ -82,9 +98,12 @@ export function AuditLog({ filters, paged, page, options }: AuditLogProps) {
   const filtersId = useId();
   const entries = useRef<HTMLElement>(null);
   const focusEntries = useRef(false);
+  // Silent on arrival; set in the same transition as a change, so it speaks with the new page.
+  const [announce, setAnnounce] = useState(false);
   const applyFilters = (next: Filters) =>
     startTransition(() => {
       showFilters(next);
+      setAnnounce(true);
       router.push(auditHref(next), { scroll: false });
     });
   // Clear filters unmounts the button pressed: focus goes to the first filter, not the page.
@@ -95,9 +114,11 @@ export function AuditLog({ filters, paged, page, options }: AuditLogProps) {
   // Newer or Older can vanish under focus (first or last page): the new entries take focus.
   const turnPage = (href: string) => {
     focusEntries.current = true;
-    startTransition(() => router.push(href));
+    startTransition(() => {
+      setAnnounce(true);
+      router.push(href);
+    });
   };
-  const filtered = Boolean(filters.workspace || filters.actor || filters.action);
   const listKey = `${auditHref(filters)}#${page.entries[0]?.cursor ?? "none"}`;
   useEffect(() => {
     if (!focusEntries.current) return;
@@ -120,12 +141,12 @@ export function AuditLog({ filters, paged, page, options }: AuditLogProps) {
         tabIndex={-1}
         aria-label={COPY.entries}
         aria-busy={pending || undefined}
-        animate={{ opacity: pending ? 0.55 : 1 }}
+        animate={{ opacity: pending ? PENDING_OPACITY : 1 }}
         transition={{ duration: duration.micro }}
         className="flex flex-col overflow-hidden rounded-card bg-card shadow-seg"
       >
         {page.entries.length === 0 ? (
-          <AuditEmpty filtered={filtered} paged={paged} onClear={clearFilters} />
+          <AuditEmpty filters={filters} paged={paged} onClear={clearFilters} />
         ) : (
           <ol
             key={listKey}
@@ -138,6 +159,9 @@ export function AuditLog({ filters, paged, page, options }: AuditLogProps) {
           </ol>
         )}
       </motion.section>
+      <p role="status" aria-live="polite" className="sr-only" data-testid="audit-status">
+        {announce ? resultMessage(page, filters, paged) : ""}
+      </p>
       <AuditPager
         newerHref={page.newer ? auditHref(filters, { after: page.newer }) : null}
         olderHref={page.older ? auditHref(filters, { before: page.older }) : null}
