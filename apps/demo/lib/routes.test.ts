@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { FOLDERS_HREF, folderHref, isAccountPath, isFoldersPath, OVERVIEW_HREF } from "./routes";
+import {
+  ADMIN_AUDIT_HREF,
+  ADMIN_HREF,
+  FOLDERS_HREF,
+  folderHref,
+  isAccountPath,
+  isAdminPath,
+  isFoldersPath,
+  OVERVIEW_HREF,
+} from "./routes";
 
 describe("routes", () => {
   it("puts the folder grid and every folder's page in the Folders section", () => {
@@ -9,5 +18,13 @@ describe("routes", () => {
       expect(isFoldersPath(elsewhere)).toBe(false);
     }
     expect(isAccountPath(FOLDERS_HREF)).toBe(false);
+  });
+
+  it("puts the admin's Overview and every page under it in the admin panel", () => {
+    expect(isAdminPath(ADMIN_HREF)).toBe(true);
+    expect(isAdminPath(ADMIN_AUDIT_HREF)).toBe(true);
+    for (const elsewhere of [OVERVIEW_HREF, "/administrator", "/account", "/api/admin"]) {
+      expect(isAdminPath(elsewhere)).toBe(false);
+    }
   });
 });
