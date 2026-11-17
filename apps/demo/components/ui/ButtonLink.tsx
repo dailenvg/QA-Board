@@ -17,6 +17,11 @@ interface ButtonLinkProps {
   testId?: string;
   external?: boolean;
   ariaLabel?: string;
+  /**
+   * Called for a client-side navigation only (not a new tab or window); call
+   * `preventDefault` to navigate yourself, as inside a transition.
+   */
+  onNavigate?: (event: { preventDefault: () => void }) => void;
 }
 
 /** Link styled as a button, with spring hover and press feedback. */
@@ -29,6 +34,7 @@ export function ButtonLink({
   testId,
   external = false,
   ariaLabel,
+  onNavigate,
 }: ButtonLinkProps) {
   const reduce = useReducedMotion();
   return (
@@ -36,6 +42,7 @@ export function ButtonLink({
       href={href}
       data-testid={testId}
       aria-label={ariaLabel}
+      onNavigate={onNavigate}
       className={`${buttonClass(variant, size)} ${className}`}
       {...(reduce ? {} : press)}
       {...(external ? { target: "_blank", rel: "noreferrer" } : {})}
