@@ -123,9 +123,11 @@ test.describe("the admin", () => {
     await expect(page).toHaveURL(new RegExp(`\\?workspace=${trail.workspaceId}&actor=squint$`));
     await expect(entries(page)).toHaveCount(1);
     // Screen readers hear the result once the new page is in.
-    await expect(page.getByTestId("audit-status")).toHaveText(/^1 entry shown, newest .+ UTC$/);
+    await expect(page.getByTestId("audit-status")).toHaveText(
+      /^Showing 1 entry, newest from .+ UTC$/,
+    );
     await expectAccessible(page);
-    await pickFilter(page, "action", "Workspace settings changed");
+    await pickFilter(page, "action", "Changed workspace settings");
     await expect(page.getByText("No entries match", { exact: true })).toBeVisible();
     await expect(page.getByTestId("audit-status")).toHaveText("No entries match these filters");
     await page.getByTestId("audit-clear").click();

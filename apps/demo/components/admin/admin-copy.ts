@@ -18,6 +18,44 @@ export function entryCount(n: number): string {
   return `${number.format(n)} ${n === 1 ? "entry" : "entries"}`;
 }
 
+/**
+ * Each field name the app records, in plain words; a name not listed here
+ * shows as recorded. The camelCase names are what the workspace and review
+ * link settings write.
+ */
+export const FIELD_LABELS: Readonly<Record<string, string>> = {
+  name: "name",
+  email: "email",
+  password: "password",
+  avatar: "photo",
+  sessions: "sessions",
+  clickup: "ClickUp connection",
+  logo: "logo",
+  workspace: "workspace",
+  membership: "membership",
+  memberships: "memberships",
+  permissions: "switches",
+  invite: "invite",
+  invites: "invitations",
+  expires_at: "expiry date",
+  revoked_at: "cancellation date",
+  deleted_at: "date deleted",
+  delete_after: "deletion date",
+  removed_from: "removed from workspace",
+  removed_permissions: "switches before removal",
+  password_resets: "password reset links",
+  email_changes: "email change links",
+  seat_limit: "seat limit",
+  brandColor: "brand color",
+  senderName: "email sender name",
+  reviewWindow: "review window",
+  clientName: "client name",
+};
+
+function fieldLabel(field: string): string {
+  return FIELD_LABELS[field] ?? field;
+}
+
 export const ADMIN_COPY = {
   title: "Admin",
   /** In the account settings, for the admin: back to the panel. */
@@ -100,24 +138,25 @@ export const ADMIN_COPY = {
     noMatchBody: "Try another workspace, person or action, or clear the filters.",
     /** Read out after a filter or page change (a polite live region). */
     status: {
-      /** "50 entries shown, newest Nov 17, 2026, 14:05 UTC". */
-      shown: (n: number, newest: string) => `${entryCount(n)} shown, newest ${newest}`,
+      /** "Showing 50 entries, newest from Nov 17, 2026, 14:05 UTC". */
+      shown: (n: number, newest: string) => `Showing ${entryCount(n)}, newest from ${newest}`,
       noMatch: "No entries match these filters",
-      end: "No more entries here",
+      end: "No entries past this point",
       empty: "No entries yet",
     },
     endTitle: "Nothing more here",
-    endBody: "Go back to the newest entries to keep reading.",
+    endBody: "There are no entries past this point.",
   },
   details: {
-    /** "Changed name, brand_color". */
-    fields: (names: readonly string[]) => `Changed ${names.join(", ")}`,
+    /** "Changed: name, brand color". */
+    fields: (names: readonly string[]) => `Changed: ${names.map(fieldLabel).join(", ")}`,
     reviewWindow: (choice: ReviewWindowChoice) => `Review window: ${REVIEW_WINDOW_LABELS[choice]}`,
     viaInvite: "Joined from an invite",
+    /** "Switches before: review links, trash; after: trash, people". */
     switches: (before: readonly MemberSwitch[], after: readonly MemberSwitch[]) =>
-      `Switches went from ${switchNames(before)} to ${switchNames(after)}`,
+      `Switches before: ${switchNames(before)}; after: ${switchNames(after)}`,
     recipients: (n: number) => `Sent to ${n} ${n === 1 ? "person" : "people"}`,
-    assigned: (assigned: boolean) => (assigned ? "Assigned in ClickUp" : "Not assigned"),
+    assigned: (assigned: boolean) => (assigned ? "Assigned in ClickUp" : "Not assigned in ClickUp"),
   },
 } as const;
 
@@ -131,41 +170,41 @@ export const TARGET_LABELS: Readonly<Record<string, string>> = {
 
 /** Each action in plain words; an action not listed here shows as recorded. */
 export const ACTION_LABELS: Readonly<Record<string, string>> = {
-  "user.name_changed": "Name changed",
-  "user.password_changed": "Password changed",
-  "user.password_reset": "Password reset by email",
-  "user.email_change_requested": "Email change requested",
-  "user.email_changed": "Email changed",
+  "user.name_changed": "Changed name",
+  "user.password_changed": "Changed password",
+  "user.password_reset": "Reset password by email",
+  "user.email_change_requested": "Asked to change email",
+  "user.email_changed": "Changed email",
   "user.signed_out_everywhere": "Signed out everywhere",
-  "user.avatar_changed": "Photo changed",
-  "user.avatar_removed": "Photo removed",
-  "user.deletion_scheduled": "Account deletion scheduled",
-  "user.restored": "Account restored",
-  "user.deleted": "Account deleted",
-  "user.clickup_connected": "ClickUp connected",
-  "user.clickup_disconnected": "ClickUp disconnected",
-  "workspace.settings_changed": "Workspace settings changed",
-  "workspace.logo_changed": "Workspace logo changed",
-  "workspace.logo_removed": "Workspace logo removed",
-  "workspace.deletion_scheduled": "Workspace deletion scheduled",
-  "workspace.restored": "Workspace restored",
-  "workspace.created": "Workspace created",
-  "workspace.deleted": "Workspace deleted",
-  "membership.added": "Member added",
-  "membership.removed": "Member removed",
-  "membership.permissions_changed": "Member switches changed",
-  "member.invited": "Member invited",
-  "member.invite_resent": "Invite sent again",
-  "member.invite_cancelled": "Invite cancelled",
-  "project.deleted": "Project deleted",
-  "project.clickup_sent": "Project sent to ClickUp",
-  "share.settings_changed": "Review link settings changed",
-  "share.password_set": "Review link password set",
-  "share.password_removed": "Review link password removed",
-  "share.invites_sent": "Review link invitations sent",
-  "seed.user_created": "Account created by setup",
-  "seed.workspace_created": "Workspace created by setup",
-  "seed.owner_linked": "Owner linked by setup",
+  "user.avatar_changed": "Changed photo",
+  "user.avatar_removed": "Removed photo",
+  "user.deletion_scheduled": "Scheduled account deletion",
+  "user.restored": "Restored account",
+  "user.deleted": "Deleted account",
+  "user.clickup_connected": "Connected ClickUp",
+  "user.clickup_disconnected": "Disconnected ClickUp",
+  "workspace.settings_changed": "Changed workspace settings",
+  "workspace.logo_changed": "Changed workspace logo",
+  "workspace.logo_removed": "Removed workspace logo",
+  "workspace.deletion_scheduled": "Scheduled workspace deletion",
+  "workspace.restored": "Restored workspace",
+  "workspace.created": "Created workspace",
+  "workspace.deleted": "Deleted workspace",
+  "membership.added": "Added member",
+  "membership.removed": "Removed member",
+  "membership.permissions_changed": "Changed member switches",
+  "member.invited": "Sent invite",
+  "member.invite_resent": "Sent invite again",
+  "member.invite_cancelled": "Cancelled invite",
+  "project.deleted": "Deleted project",
+  "project.clickup_sent": "Sent project to ClickUp",
+  "share.settings_changed": "Changed review link settings",
+  "share.password_set": "Set review link password",
+  "share.password_removed": "Removed review link password",
+  "share.invites_sent": "Sent review link invitations",
+  "seed.user_created": "Created account during setup",
+  "seed.workspace_created": "Created workspace during setup",
+  "seed.owner_linked": "Made workspace owner during setup",
 };
 
 export function actionLabel(action: string): string {
