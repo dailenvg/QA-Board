@@ -27,6 +27,9 @@ const config: NextConfig = {
   // runtime, so there are no binaries to add to the trace. @node-rs/argon2 loads a native
   // binding per platform, which webpack can't bundle.
   serverExternalPackages: ["@sparticuz/chromium-min", "@node-rs/argon2"],
+  // Phosphor's entry re-exports some 1,500 icons; load only the ones imported, dev builds too.
+  // The name has to match the import exactly, and Icon imports the server-safe entry.
+  experimental: { optimizePackageImports: ["@phosphor-icons/react/dist/ssr"] },
   outputFileTracingIncludes: {
     // Link preview cards read Figtree with fs at render time; tracing misses it on some builds.
     "/opengraph-image": ["./assets/fonts/**"],

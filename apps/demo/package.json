@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.2",
+    "@phosphor-icons/react": "2.1.10",
     "@pinpoint/server": "workspace:*",
     "@pinpoint/widget": "workspace:*",
     "@sparticuz/chromium-min": "153.0.0",
