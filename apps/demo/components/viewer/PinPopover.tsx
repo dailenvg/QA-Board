@@ -226,7 +226,10 @@ export function PinPopover({
          * its Client chip) under 20px.
          */}
         <div className="flex min-w-0 flex-1 flex-col">
-          <h2 id={titleId} className="flex min-w-0 items-center gap-2 text-body font-semibold">
+          <h2
+            id={titleId}
+            className="flex min-h-6 min-w-0 items-center gap-2 text-body font-semibold"
+          >
             {/*
              * Two lines, not one: with the Client chip, a single line left room for about
              * seven characters of the name in the 304px popover, where the comment is read in full.

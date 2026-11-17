@@ -3,7 +3,8 @@
 import type { CSSProperties } from "react";
 import type { ProjectStatus } from "@/lib/store/status";
 import { BlobImage } from "../../ui/BlobImage";
-import { STATUS_DOT } from "../../ui/StatusChip";
+import { Icon } from "../../ui/Icon";
+import { STATUS_FILL, STATUS_ICON } from "../../ui/StatusChip";
 import { hashString, rng } from "./art";
 import { SHEET_W } from "./geometry";
 
@@ -78,7 +79,12 @@ export function FolderSheet({
         </span>
       )}
       <span className="gf-sheet-head">
-        {file.status ? <span className={`gf-sheet-status ${STATUS_DOT[file.status]}`} /> : null}
+        {file.status ? (
+          <span className={`gf-sheet-status ${STATUS_FILL[file.status]}`}>
+            {/* 12px on screen, so size-3 draws it bold; the CSS class sizes it in folder units. */}
+            <Icon name={STATUS_ICON[file.status]} className="gf-sheet-status-icon size-3" />
+          </span>
+        ) : null}
         <span className="gf-sheet-name">{file.name}</span>
         {file.meta ? <span className="gf-sheet-meta">{file.meta}</span> : null}
       </span>

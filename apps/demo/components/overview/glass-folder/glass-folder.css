@@ -248,18 +248,30 @@
   gap: 8px;
   white-space: nowrap;
 }
+/* The status chip's mark at sheet scale: a 16px pin in the status color with its icon. */
 .gf-sheet-status {
   flex: none;
   align-self: center;
-  width: calc(6px / var(--gf-k));
-  height: calc(6px / var(--gf-k));
-  border-radius: 999px;
-  /* On white paper a dark ring keeps the dot at 3:1 (sky blue alone is 2.1:1). */
-  box-shadow: 0 0 0 calc(1px / var(--gf-k)) rgba(24, 24, 27, 0.55);
+  display: grid;
+  place-items: center;
+  width: calc(16px / var(--gf-k));
+  height: calc(16px / var(--gf-k));
+  border-radius: calc(8px / var(--gf-k)) calc(8px / var(--gf-k)) calc(8px / var(--gf-k))
+    calc(2px / var(--gf-k));
+  /*
+   * A faint ink edge outlines sky and mint pins on white paper (dark ink) and every pin in the
+   * dark theme (light ink). The icon carries the status: 5:1 or more on each fill.
+   */
+  box-shadow: 0 0 0 calc(1px / var(--gf-k)) color-mix(in srgb, var(--ink) 30%, transparent);
 }
-.gf-root[data-tone="dark"] .gf-sheet-status,
+/* Picture sheets are dark in both themes, so their pin keeps a white edge. */
 .gf-sheet--art .gf-sheet-status {
   box-shadow: 0 0 0 calc(1px / var(--gf-k)) rgba(255, 255, 255, 0.85);
+}
+/* Unlayered, so this outranks the icon's size-3 utility. */
+.gf-sheet-status-icon {
+  width: calc(12px / var(--gf-k));
+  height: calc(12px / var(--gf-k));
 }
 .gf-sheet-name {
   flex: 1;
