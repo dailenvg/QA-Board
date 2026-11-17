@@ -3,7 +3,7 @@ export function ClientChip() {
   return (
     <span
       data-testid="client-chip"
-      className="shrink-0 rounded-pill bg-brand-soft px-2 py-0.5 text-label font-semibold text-brand-text"
+      className="inline-flex h-6 shrink-0 items-center rounded-pin bg-brand px-3 text-label font-semibold whitespace-nowrap text-on-brand dark:ring-1 dark:ring-on-brand/20 dark:ring-inset"
     >
       Client
     </span>
