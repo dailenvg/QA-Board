@@ -167,6 +167,35 @@ describe("writesFor", () => {
     expect(result[2]?.body).toEqual({ cursor: 5, lastSyncedAt: 11 });
   });
 
+  it("copies a pulled client edit from the link, sending no words, and only for a comment still here", () => {
+    const guest: Comment = { ...comment, id: "guest", projectId: "p3", fromClient: true };
+    const before = { ...DATA, comments: [...DATA.comments, guest] };
+    const edit = { id: "guest", body: "Planted?", editedAt: 9 };
+    const merge = {
+      type: "share/merge" as const,
+      id: "p3",
+      comments: [],
+      snapshots: [],
+      edits: [edit],
+      cursor: 6,
+      at: 12,
+    };
+    const result = writesFor(merge, before, reduce(before, merge));
+    expect(result).toEqual([
+      {
+        method: "POST",
+        path: "/projects/p3/comments/guest/client-edit",
+        body: {},
+        tolerate: [404],
+      },
+      { method: "PATCH", path: "/projects/p3/share-link", body: { cursor: 6, lastSyncedAt: 12 } },
+    ]);
+    // Deleted here before the edit arrived: nothing to copy it onto.
+    expect(writesFor(merge, DATA, reduce(DATA, merge)).map((write) => write.path)).toEqual([
+      "/projects/p3/share-link",
+    ]);
+  });
+
   it("attaches a new link with its secrets and window, and revoking one already gone counts as done", () => {
     const share = {
       id: "s9",

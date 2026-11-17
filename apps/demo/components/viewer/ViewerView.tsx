@@ -511,6 +511,7 @@ export function ViewerView({
       pageNumbers={pageNumbers}
       canModerate={owner}
       moderator={moderator}
+      reviewOpen={!locked}
       onSelect={(id) => select(id, "card")}
       onEdit={commentActions.edit}
       onResolve={commentActions.resolve}

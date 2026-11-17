@@ -1,10 +1,11 @@
 "use client";
 
-import { motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useId, useRef, useState } from "react";
-import { instant, spring, useRevealVariants } from "@/lib/motion";
+import { instant, spring, useRevealVariants, useSwapVariants } from "@/lib/motion";
 import { absoluteTime, relativeTime } from "@/lib/relative-time";
 import type { Comment } from "@/lib/store/types";
+import type { EditOutcome, EditRefusal } from "@/lib/viewer-backend/backend";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { ClientMark } from "./ClientMark";
@@ -12,14 +13,19 @@ import { CommentAuthorAvatar } from "./CommentAuthorAvatar";
 import { CommentBadge } from "./CommentBadge";
 import { CommentCropThumb } from "./CommentCropThumb";
 import { CommentEdited } from "./CommentEdited";
-import { CommentEditor } from "./CommentEditor";
+import { CommentEditor, EMPTY_CLIENT_EDIT } from "./CommentEditor";
 import { CommentTeamNote } from "./CommentTeamNote";
 import { PlacementChip } from "./PlacementChip";
 import type { Placement } from "./surface";
 
 export interface CommentCardActions {
   onSelect: (id: string) => void;
-  onEdit: (id: string, body: string) => void;
+  /**
+   * Saves new words: at once (the team's, nothing returned), or once the
+   * server answers (a client's, 4.12), while the editor waits and then shows
+   * why, if it didn't save.
+   */
+  onEdit: (id: string, body: string) => Promise<EditOutcome> | void;
   onResolve: (id: string) => void;
   onReopen: (id: string) => void;
   onDelete: (comment: Comment) => void;
@@ -34,16 +40,32 @@ interface CommentCardProps extends CommentCardActions {
   pageNumber: number | null;
   /**
    * The workspace's viewer: shows Resolve/Reopen (anyone in the workspace),
-   * and marks client comments. Off on a shared link, which shows no actions.
+   * and marks client comments. Off on a shared link, whose guest only gets
+   * Edit, on their own comments.
    */
   canModerate: boolean;
-  /** Shows Edit: the signed-in member's own comment (`commentRights`). */
+  /** Shows Edit: the signed-in member's own comment, or a guest's own active one (`commentRights`). */
   canEdit: boolean;
   /** Shows Delete: their own, or anyone's for the owner (`commentRights`). */
   canDelete: boolean;
+  /** Says the team resolved it, so its words are locked: a guest's own (`commentRights`). */
+  resolvedNote: boolean;
+  /** Its editor opened or closed, so the list can keep the card in place meanwhile. */
+  onEditing?: (comment: Comment, open: boolean) => void;
   selected: boolean;
   now: number;
 }
+
+/** An edit waiting for the server, or the reason it didn't save. */
+interface SaveState {
+  pending: boolean;
+  error: EditRefusal | null;
+}
+
+const SAVE_IDLE: SaveState = { pending: false, error: null };
+
+/** The guest's own resolved comment: why there's no Edit (4b.16). */
+const RESOLVED_NOTE = "The team resolved this, so it can't be edited.";
 
 /**
  * One comment: select it to find its pin (switching to its snapshot if
@@ -58,6 +80,8 @@ export function CommentCard({
   canModerate,
   canEdit,
   canDelete,
+  resolvedNote,
+  onEditing,
   selected,
   now,
   onSelect,
@@ -67,31 +91,75 @@ export function CommentCard({
   onDelete,
 }: CommentCardProps) {
   const [editing, setEditing] = useState(false);
+  const [save, setSave] = useState<SaveState>(SAVE_IDLE);
   const reduce = useReducedMotion();
   const variants = useRevealVariants();
+  const swap = useSwapVariants();
   const itemRef = useRef<HTMLLIElement>(null);
   const bodyId = useId();
   const editedId = useId();
+  const noteId = useId();
   const placementId = useId();
   const pageId = useId();
   const described = [
     bodyId,
     comment.editedAt ? editedId : null,
+    resolvedNote ? noteId : null,
     pageNumber ? pageId : null,
     placement ? placementId : null,
   ]
     .filter(Boolean)
     .join(" ");
   const resolved = comment.status === "resolved";
+  const actions = canModerate || canEdit;
   // Without the action row (shared link), this keeps the card's bottom inset at 16px.
-  const bottomInset = canModerate ? "" : "pb-2";
+  const bottomInset = actions ? "" : "pb-2";
 
-  /** Closing the editor hands focus back to the Edit button instead of dropping it to the page. */
+  const startEditing = () => {
+    setEditing(true);
+    onEditing?.(comment, true);
+  };
+
+  /** Focus is owed to the card's own button once its text is back (`focusOnReturn`). */
+  const refocus = useRef(false);
+
+  /**
+   * Closing the editor hands focus back to the Edit button (or, once there's
+   * none, the card) instead of dropping it to the page.
+   */
   const finishEditing = () => {
     setEditing(false);
-    requestAnimationFrame(() =>
-      itemRef.current?.querySelector<HTMLElement>("[data-edit-trigger]")?.focus(),
-    );
+    setSave(SAVE_IDLE);
+    onEditing?.(comment, false);
+    refocus.current = true;
+    requestAnimationFrame(() => {
+      const trigger = itemRef.current?.querySelector<HTMLElement>("[data-edit-trigger]");
+      // No Edit any more (the window closed meanwhile): the card's button isn't back yet,
+      // as the text waits for the editor's exit, so `focusOnReturn` takes it then.
+      if (!trigger) return;
+      refocus.current = false;
+      trigger.focus();
+    });
+  };
+
+  const focusOnReturn = (node: HTMLButtonElement | null) => {
+    if (!node || !refocus.current) return;
+    refocus.current = false;
+    // Only if focus fell to the page: a card leaving the tab has already sent it elsewhere.
+    const active = document.activeElement;
+    if (!active || active === document.body) node.focus();
+  };
+
+  const saveEdit = async (body: string) => {
+    const saving = onEdit(comment.id, body);
+    if (!saving) {
+      finishEditing();
+      return;
+    }
+    setSave({ pending: true, error: null });
+    const outcome = await saving;
+    if (outcome.ok) finishEditing();
+    else setSave({ pending: false, error: { error: outcome.error, final: outcome.final } });
   };
 
   return (
@@ -117,80 +185,102 @@ export function CommentCard({
         />
       ) : null}
 
-      {editing ? (
-        <CommentEditor
-          initialBody={comment.body}
-          onCancel={finishEditing}
-          onSave={(body) => {
-            onEdit(comment.id, body);
-            finishEditing();
-          }}
-        />
-      ) : (
-        <div className="p-4 pb-2">
-          {/*
-           * The button's name is its visible header ("Comment 1 by Ana, 2m ago"), so the
-           * spoken name matches what's on screen (WCAG 2.5.3). Its ::after stretches over the
-           * whole card, so the comment text below stays clickable; it's read as the description.
-           * The header matches the pin's popover: the name (and Client chip) over the time, in
-           * one column beside the avatar. Spans only, since a button holds phrasing content.
-           */}
-          <button
-            type="button"
-            data-card-select
-            aria-pressed={selected}
-            aria-describedby={described}
-            onClick={() => onSelect(comment.id)}
-            className="flex w-full items-center gap-2 text-left after:absolute after:inset-0 after:rounded-tile focus-visible:outline-none"
+      {/* The text and the editor swap in place; the card's `layout` takes up the height change. */}
+      <AnimatePresence mode="wait" initial={false}>
+        {editing ? (
+          <motion.div key="editor" variants={swap} initial="hidden" animate="visible" exit="exit">
+            <CommentEditor
+              initialBody={comment.body}
+              pending={save.pending}
+              error={save.error}
+              emptyMessage={canModerate ? undefined : EMPTY_CLIENT_EDIT}
+              onCancel={finishEditing}
+              onSave={(body) => void saveEdit(body)}
+            />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="text"
+            variants={swap}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="p-4 pb-2"
           >
-            <CommentBadge comment={comment} number={number} />
-            <CommentAuthorAvatar comment={comment} surface="card" />
-            <span className="flex min-w-0 flex-1 flex-col">
-              {/* As tall as the Client pin, so cards match with or without it. */}
-              <span className="flex min-h-6 min-w-0 items-center gap-2 text-body font-semibold">
-                {/* One line, not the popover's two: the list is scanned, and the card has the room. */}
-                <span className="min-w-0 truncate">
-                  <span className="sr-only">by </span>
-                  {comment.author}
-                  <CommentTeamNote comment={comment} />
-                </span>
-                <ClientMark comment={comment} owner={canModerate} />
-              </span>
-              <time
-                dateTime={new Date(comment.createdAt).toISOString()}
-                title={absoluteTime(comment.createdAt)}
-                className="text-label text-muted"
-              >
-                <span className="sr-only">, </span>
-                {relativeTime(comment.createdAt, now)}
-              </time>
-            </span>
-          </button>
-          <p id={bodyId} className="mt-2 text-body break-words whitespace-pre-wrap text-ink-2">
-            {comment.body}
-          </p>
-          <CommentEdited id={editedId} editedAt={comment.editedAt} now={now} className="mt-1" />
-          {pageNumber ? (
-            <p
-              id={pageId}
-              data-testid="comment-page"
-              // Same chip as PlacementChip's (8px gap, 12px by 4px padding), on the 4px grid.
-              className="mt-2 inline-flex items-center gap-2 rounded-pill bg-seg px-3 py-1 text-label font-semibold text-ink-2"
+            {/*
+             * The button's name is its visible header ("Comment 1 by Ana, 2m ago"), so the
+             * spoken name matches what's on screen (WCAG 2.5.3). Its ::after stretches over the
+             * whole card, so the comment text below stays clickable; it's read as the description.
+             * The header matches the pin's popover: the name (and Client chip) over the time, in
+             * one column beside the avatar. Spans only, since a button holds phrasing content.
+             */}
+            <button
+              ref={focusOnReturn}
+              type="button"
+              data-card-select
+              aria-pressed={selected}
+              aria-describedby={described}
+              onClick={() => onSelect(comment.id)}
+              className="flex w-full items-center gap-2 text-left after:absolute after:inset-0 after:rounded-tile focus-visible:outline-none"
             >
-              <Icon name="image" className="size-3.5" />
-              Page {pageNumber}
+              <CommentBadge comment={comment} number={number} />
+              <CommentAuthorAvatar comment={comment} surface="card" />
+              <span className="flex min-w-0 flex-1 flex-col">
+                {/* As tall as the Client pin, so cards match with or without it. */}
+                <span className="flex min-h-6 min-w-0 items-center gap-2 text-body font-semibold">
+                  {/* One line, not the popover's two: the list is scanned, and the card has the room. */}
+                  <span className="min-w-0 truncate">
+                    <span className="sr-only">by </span>
+                    {comment.author}
+                    <CommentTeamNote comment={comment} />
+                  </span>
+                  <ClientMark comment={comment} owner={canModerate} />
+                </span>
+                <time
+                  dateTime={new Date(comment.createdAt).toISOString()}
+                  title={absoluteTime(comment.createdAt)}
+                  className="text-label text-muted"
+                >
+                  <span className="sr-only">, </span>
+                  {relativeTime(comment.createdAt, now)}
+                </time>
+              </span>
+            </button>
+            <p id={bodyId} className="mt-2 text-body break-words whitespace-pre-wrap text-ink-2">
+              {comment.body}
             </p>
-          ) : null}
-          {placement ? <PlacementChip id={placementId} placement={placement} now={now} /> : null}
-        </div>
-      )}
+            <CommentEdited id={editedId} editedAt={comment.editedAt} now={now} className="mt-1" />
+            {resolvedNote ? (
+              <p
+                id={noteId}
+                data-testid="comment-resolved-note"
+                className="mt-1 text-label text-muted"
+              >
+                {RESOLVED_NOTE}
+              </p>
+            ) : null}
+            {pageNumber ? (
+              <p
+                id={pageId}
+                data-testid="comment-page"
+                // Same chip as PlacementChip's (8px gap, 12px by 4px padding), on the 4px grid.
+                className="mt-2 inline-flex items-center gap-2 rounded-pill bg-seg px-3 py-1 text-label font-semibold text-ink-2"
+              >
+                <Icon name="image" className="size-3.5" />
+                Page {pageNumber}
+              </p>
+            ) : null}
+            {placement ? <PlacementChip id={placementId} placement={placement} now={now} /> : null}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {editing || !comment.crop ? null : <CommentCropThumb crop={comment.crop} number={number} />}
 
-      {editing || !canModerate ? null : (
+      {editing || !actions ? null : (
         // `relative` lifts the actions above the select button's card-wide ::after.
         <div className="relative flex items-center gap-1 px-2 pb-2">
-          {resolved ? (
+          {!canModerate ? null : resolved ? (
             <Button variant="secondary" size="sm" onClick={() => onReopen(comment.id)}>
               <Icon name="undo" className="size-4" />
               Reopen
@@ -205,7 +295,7 @@ export function CommentCard({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setEditing(true)}
+              onClick={startEditing}
               aria-label={`Edit comment ${number}`}
               data-edit-trigger
             >

@@ -136,3 +136,63 @@ describe("the reviewer's name", () => {
     expect(names.saved).toEqual([]);
   });
 });
+
+describe("this browser's own comments (4.12)", () => {
+  const KEY = "k".repeat(43);
+
+  /** Edit keys kept in a list, as one link's storage would hold them. */
+  function keysInMemory(held: Record<string, string> = {}) {
+    const keys = new Map(Object.entries(held));
+    return {
+      ids: () => [...keys.keys()],
+      keyOf: (id: string) => keys.get(id) ?? null,
+      save: (id: string, key: string) => void keys.set(id, key),
+    };
+  }
+
+  it("knows none on the server's render, then reads them from storage", () => {
+    const store = createClientStore(VIEW, {
+      authorName: null,
+      names: namesInMemory(),
+      editKeys: keysInMemory({ [COMMENT.id]: KEY }),
+    });
+    expect(toViewerData(store.getServerSnapshot()).data.comments[0]).not.toHaveProperty("mine");
+    store.loadOwnComments();
+    expect(toViewerData(store.getSnapshot()).data.comments[0]).toMatchObject({ mine: true });
+    expect(store.editKeyOf(COMMENT.id)).toBe(KEY);
+  });
+
+  it("makes a comment it posts its own, keeping the key out of the view", () => {
+    const editKeys = keysInMemory();
+    const store = createClientStore(
+      { ...VIEW, comments: [] },
+      { authorName: null, names: namesInMemory(), editKeys },
+    );
+    store.addComment({ ...COMMENT, id: "k" }, KEY);
+    expect(editKeys.keyOf("k")).toBe(KEY);
+    expect(toViewerData(store.getSnapshot()).data.comments).toEqual([
+      expect.objectContaining({ id: "k", mine: true }),
+    ]);
+    expect(JSON.stringify(store.getSnapshot().view)).not.toContain(KEY);
+  });
+
+  it("keeps a comment read-only when its key couldn't be stored (storage blocked)", () => {
+    const blocked = { ids: () => [], keyOf: () => null, save: () => {} };
+    const store = createClientStore(
+      { ...VIEW, comments: [] },
+      { authorName: null, names: namesInMemory(), editKeys: blocked },
+    );
+    store.addComment({ ...COMMENT, id: "k" }, KEY);
+    expect(store.getSnapshot().ownComments.size).toBe(0);
+    expect(toViewerData(store.getSnapshot()).data.comments[0]).not.toHaveProperty("mine");
+  });
+
+  it("replaces a comment's words in place, and ignores one that's gone", () => {
+    const store = createClientStore(VIEW, { authorName: null, names: namesInMemory() });
+    store.replaceComment({ ...COMMENT, body: "New words", editedAt: 9 });
+    store.replaceComment({ ...COMMENT, id: "gone", body: "Nope" });
+    expect(store.getSnapshot().view.comments).toEqual([
+      { ...COMMENT, body: "New words", editedAt: 9 },
+    ]);
+  });
+});

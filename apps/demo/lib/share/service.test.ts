@@ -98,26 +98,28 @@ describe("owner push and pull", () => {
     ).toEqual(["c-1"]);
   });
 
-  it("lets the owner win on status, and only reports client additions after the cursor", async () => {
+  it("keeps a client's words and status from a push, and only reports additions after the cursor", async () => {
     const { services, share } = await shared();
     await addClientComment(services, share, clientComment("k-1"), null, 200);
     const first = await pullChanges(services.store, share, 0);
-    const resolved = {
+    // A stale tab: other words, resolved, by another name. Only the server's resolve counts.
+    const pushed = {
       ...clientComment("k-1"),
+      body: "Words the client never wrote",
+      author: "Someone else",
       status: "resolved" as const,
       createdAt: 200,
       updatedAt: 200,
       resolvedAt: 500,
     };
-    await pushState(
-      services,
-      share,
-      { ...STATE, comments: [COMMENT, resolved] },
-      first.cursor,
-      500,
-    );
+    await pushState(services, share, { ...STATE, comments: [COMMENT, pushed] }, first.cursor, 500);
     const view = await clientView(services.store, share, GUEST_TOKEN);
-    expect(view.comments.find((c) => c.id === "k-1")?.status).toBe("resolved");
+    expect(view.comments.find((c) => c.id === "k-1")).toEqual({
+      ...clientComment("k-1"),
+      status: "active",
+      createdAt: 200,
+      updatedAt: 200,
+    });
     expect(await pullChanges(services.store, share, first.cursor)).toEqual({
       snapshots: [],
       comments: [],

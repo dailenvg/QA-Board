@@ -15,11 +15,16 @@ export function isSecretShape(value: string): boolean {
   return /^[A-Za-z0-9_-]{43}$/.test(value);
 }
 
-/** Constant-time check of a presented secret against a stored hash. */
-export function secretMatches(secret: string, storedHash: string): boolean {
-  const presented = Buffer.from(hashSecret(secret), "hex");
+/** Constant-time check of a presented secret's hash (`hashSecret`) against a stored hash. */
+export function hashesMatch(presentedHash: string, storedHash: string): boolean {
+  const presented = Buffer.from(presentedHash, "hex");
   const stored = Buffer.from(storedHash, "hex");
   return presented.length === stored.length && timingSafeEqual(presented, stored);
+}
+
+/** Constant-time check of a presented secret against a stored hash. */
+export function secretMatches(secret: string, storedHash: string): boolean {
+  return hashesMatch(hashSecret(secret), storedHash);
 }
 
 /** A short random id for a share (not a secret). */

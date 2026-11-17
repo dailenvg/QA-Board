@@ -2,6 +2,7 @@ import { cropBlobKey, snapshotBlobKey } from "../blob-store/keys";
 import { pageBlobKey } from "../share/keys";
 import type { ClientView, SharedComment, SharedSnapshot, SharedSource } from "../share/types";
 import type { Comment, Project, ProjectSource, Snapshot, SquintData } from "../store/types";
+import type { EditKeyMemory } from "./edit-keys";
 import type { ReviewerNameMemory } from "./reviewer-name";
 
 /** The single project a shared link shows, under a fixed local id. */
@@ -22,6 +23,12 @@ export interface ClientState {
    * guest pass ran out): the review gives way to the password screen.
    */
   locked: boolean;
+  /**
+   * The comments this browser posted and holds an edit key for (4.12): its
+   * own, which it may edit while they're active. Empty until read from
+   * storage after the first render, so the server's render matches.
+   */
+  ownComments: ReadonlySet<string>;
 }
 
 export interface ClientStore {
@@ -31,8 +38,17 @@ export interface ClientStore {
   getServerSnapshot: () => ClientState;
   /** The server's latest view; a new review deadline (the owner changed the window) reopens it. */
   setView: (view: ClientView) => void;
-  /** A comment the server accepted (ignored if a refresh already brought it). */
-  addComment: (comment: SharedComment) => void;
+  /**
+   * A comment the server accepted (ignored if a refresh already brought it),
+   * with the key that lets this browser edit it, when the answer carried one.
+   */
+  addComment: (comment: SharedComment, editKey?: string) => void;
+  /** A comment the server changed (the client's own edit), in place; ignored when it's gone. */
+  replaceComment: (comment: SharedComment) => void;
+  /** Reads which comments are this browser's own (`ownComments`) from storage. */
+  loadOwnComments: () => void;
+  /** The edit key this browser holds for a comment, or null. */
+  editKeyOf: (commentId: string) => string | null;
   addSnapshot: (snapshot: SharedSnapshot) => void;
   setAuthorName: (name: string) => void;
   /** Without a name for this link, takes the one this browser kept for every link before. */
@@ -46,11 +62,16 @@ interface ClientStoreOptions {
   /** The name remembered for this link, as the server read it from the link's cookie. */
   authorName: string | null;
   names: ReviewerNameMemory;
+  /** The link's edit keys in this browser; none kept without it. */
+  editKeys?: EditKeyMemory;
 }
+
+/** Keeps no keys: a store without `editKeys` has no comments of its own. */
+const NO_EDIT_KEYS: EditKeyMemory = { ids: () => [], keyOf: () => null, save: () => {} };
 
 export function createClientStore(
   initial: ClientView,
-  { authorName, names }: ClientStoreOptions,
+  { authorName, names, editKeys = NO_EDIT_KEYS }: ClientStoreOptions,
 ): ClientStore {
   const rendered: ClientState = {
     view: initial,
@@ -58,6 +79,7 @@ export function createClientStore(
     gone: false,
     reviewClosed: false,
     locked: false,
+    ownComments: new Set(),
   };
   let state = rendered;
   const listeners = new Set<() => void>();
@@ -75,10 +97,29 @@ export function createClientStore(
     getServerSnapshot: () => rendered,
     setView: (view) =>
       set(view.reviewEndsAt === state.view.reviewEndsAt ? { view } : { view, reviewClosed: false }),
-    addComment(comment) {
-      if (state.view.comments.some((entry) => entry.id === comment.id)) return;
-      set({ view: { ...state.view, comments: [...state.view.comments, comment] } });
+    addComment(comment, editKey) {
+      if (editKey) editKeys.save(comment.id, editKey);
+      // Only once the key is really kept: with storage blocked, Edit would show and then
+      // refuse every save, so the comment stays read-only, as 4b.16 says.
+      const kept = editKey !== undefined && editKeys.keyOf(comment.id) === editKey;
+      const own = kept ? new Set([...state.ownComments, comment.id]) : state.ownComments;
+      if (state.view.comments.some((entry) => entry.id === comment.id)) {
+        if (own !== state.ownComments) set({ ownComments: own });
+        return;
+      }
+      set({
+        view: { ...state.view, comments: [...state.view.comments, comment] },
+        ownComments: own,
+      });
     },
+    replaceComment(comment) {
+      const comments = state.view.comments.map((entry) =>
+        entry.id === comment.id ? { ...entry, ...comment } : entry,
+      );
+      set({ view: { ...state.view, comments } });
+    },
+    loadOwnComments: () => set({ ownComments: new Set(editKeys.ids()) }),
+    editKeyOf: (commentId) => editKeys.keyOf(commentId),
     addSnapshot: (snapshot) =>
       set({ view: { ...state.view, snapshots: [...state.view.snapshots, snapshot] } }),
     setAuthorName(name) {
@@ -96,12 +137,14 @@ export function createClientStore(
   };
 }
 
-function toComment(comment: SharedComment): Comment {
+/** A shared comment in the viewer's shape: `mine` when this browser posted it (`ownComments`). */
+function toComment(comment: SharedComment, own: ReadonlySet<string>): Comment {
   const { crop, ...rest } = comment;
   return {
     ...rest,
     projectId: SHARED_PROJECT_ID,
     ...(crop ? { crop: { blobKey: cropBlobKey(comment.id), rect: crop.rect } } : {}),
+    ...(own.has(comment.id) ? { mine: true as const } : {}),
   };
 }
 
@@ -135,7 +178,7 @@ export function toViewerData(state: ClientState): { data: SquintData; project: P
       version: 3,
       folders: [],
       projects: [project],
-      comments: view.comments.map(toComment),
+      comments: view.comments.map((comment) => toComment(comment, state.ownComments)),
       snapshots: view.snapshots.map(toSnapshot),
       authorName: state.authorName,
     },

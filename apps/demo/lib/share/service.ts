@@ -15,6 +15,8 @@ import type {
   ClientComment,
   ClientView,
   CreatedShare,
+  PostedComment,
+  PulledComment,
   ShareChange,
   ShareManifest,
   Sequenced,
@@ -41,7 +43,7 @@ const ok = <T>(value: T): Outcome<T> => ({ ok: true, value });
 /** A client's new comment, before the server sets its status and timestamps. */
 export type ClientCommentInput = Omit<
   SharedComment,
-  "status" | "createdAt" | "updatedAt" | "resolvedAt"
+  "status" | "createdAt" | "updatedAt" | "resolvedAt" | "editedAt"
 >;
 
 // ── Access ─────────────────────────────────────────────────────────────────
@@ -243,8 +245,10 @@ export async function shareManifest(store: ShareStore, share: ShareRecord): Prom
 
 /**
  * Applies one batch of the owner's changes. The owner wins on everything it
- * sends; deletes reach only rows it has seen, so client additions it hasn't
- * pulled yet survive. A share holds at most 200 snapshots and 1000 comments.
+ * sends, except a client's comment, where it only moves the pin's page (the
+ * client's words and the server's resolve stay, `upsertComment`); deletes
+ * reach only rows it has seen, so client additions it hasn't pulled yet
+ * survive. A share holds at most 200 snapshots and 1000 comments.
  */
 export async function applyChanges(
   services: ShareServices,
@@ -284,7 +288,14 @@ export async function applyChanges(
   return ok({ missingBlobs: await missingBlobs(store, updated) });
 }
 
-/** Client additions after `since`, in order, with the cursor to ask from next time. */
+/** The highest of a row's sequences: its insert's, and its latest client edit's. */
+const lastSeq = (row: Sequenced<unknown>) => Math.max(row.seq, row.editSeq ?? 0);
+
+/**
+ * Client additions after `since`, in order, then client edits after it to
+ * comments pulled before (`edited`, 4.12), with the cursor to ask from next
+ * time: past every addition and edit sent, so each comes once.
+ */
 export async function pullChanges(
   store: ShareStore,
   share: ShareRecord,
@@ -298,11 +309,18 @@ export async function pullChanges(
     rows.filter((row) => row.origin === "client" && row.seq > since);
   const newSnapshots = fresh(snapshots);
   const newComments = fresh(comments);
-  const cursor = Math.max(since, ...[...newSnapshots, ...newComments].map((row) => row.seq));
+  const editedComments = comments.filter(
+    (row) => row.origin === "client" && row.seq <= since && (row.editSeq ?? 0) > since,
+  );
+  const sent = [...newSnapshots, ...newComments, ...editedComments];
+  const pulled: PulledComment[] = [
+    ...items(newComments),
+    ...editedComments.map((row) => ({ ...row.item, edited: true as const })),
+  ];
   return {
     snapshots: items(newSnapshots),
-    comments: items(newComments),
-    cursor,
+    comments: pulled,
+    cursor: Math.max(since, ...sent.map(lastSeq)),
     expiresAt: share.expiresAt,
   };
 }
@@ -461,10 +479,11 @@ async function claimCommentId(
   share: ShareRecord,
   comment: SharedComment,
   claim: { claim: string; cropKey: string } | undefined,
+  editKeyHash: string,
   now: number,
 ): Promise<Outcome<undefined>> {
   const { store } = services;
-  const insert = () => store.insertComment(share.id, comment, "client", claim);
+  const insert = () => store.insertComment(share.id, comment, "client", claim, editKeyHash);
   if (await insert()) return ok(undefined);
   const since = await store.pendingSince(share.id, comment.id);
   if (since === null) return fail(409, "exists");
@@ -513,10 +532,12 @@ function checkPage(project: SharedProject, input: ClientCommentInput): Failure |
 }
 
 /**
- * A client's comment: always active, timestamped by the server, immutable for
- * clients afterwards (an id that's taken is refused). Its crop, when sent,
- * must come with the rect it shows. Its page must be one of the project's.
- * Refused once the review window is over.
+ * A client's comment: always active, timestamped by the server (an id that's
+ * taken is refused). Its crop, when sent, must come with the rect it shows.
+ * Its page must be one of the project's. Refused once the review window is
+ * over. It comes back with a new edit key (`editKey`): only the browser
+ * holding it may change the words afterwards (`editClientComment`), and only
+ * the key's hash is kept.
  */
 export async function addClientComment(
   services: ShareServices,
@@ -524,7 +545,7 @@ export async function addClientComment(
   input: ClientCommentInput,
   crop: Uint8Array | null,
   now: number,
-): Promise<Outcome<SharedComment>> {
+): Promise<Outcome<PostedComment>> {
   const { store } = services;
   if (reviewClosed(shareReviewEndsAt(share), now)) return REVIEW_CLOSED;
   if (Boolean(crop) !== Boolean(input.crop)) return fail(400, "crop-mismatch");
@@ -543,10 +564,12 @@ export async function addClientComment(
   const existing = await store.comments(share.id);
   if (existing.length >= SHARE_LIMITS.comments) return fail(413, "share-full");
   const comment: SharedComment = { ...input, status: "active", createdAt: now, updatedAt: now };
+  const editKey = createSecret();
+  const keyHash = hashSecret(editKey);
   if (!crop) {
     // Without a crop there's nothing to wait for: the row is visible as soon as it's claimed.
-    const claimed = await claimCommentId(services, share, comment, undefined, now);
-    return claimed.ok ? ok(comment) : claimed;
+    const claimed = await claimCommentId(services, share, comment, undefined, keyHash, now);
+    return claimed.ok ? ok({ ...comment, editKey }) : claimed;
   }
   // With a crop, the row is claimed pending under a random nonce and its crop goes to a key
   // only this claim uses. Confirming and cleaning up are conditional on the nonce, so an
@@ -554,7 +577,8 @@ export async function addClientComment(
   // delete anyone else's comment or crop.
   const nonce = randomUUID();
   const cropKey = `crop:${comment.id}:${nonce}`;
-  const claimed = await claimCommentId(services, share, comment, { claim: nonce, cropKey }, now);
+  const claim = { claim: nonce, cropKey };
+  const claimed = await claimCommentId(services, share, comment, claim, keyHash, now);
   if (!claimed.ok) return claimed;
   const undo = async () => {
     await store.deleteClaim(share.id, comment.id, nonce);
@@ -581,7 +605,30 @@ export async function addClientComment(
     await discardBlob(services, share, cropKey);
     return fail(409, "pending");
   }
-  return ok(comment);
+  return ok({ ...comment, editKey });
+}
+
+/**
+ * A client changes the words of a comment they posted (4.12), with the edit
+ * key its post gave back (`editKey`). Refused once the review window is over
+ * (403 review-closed); 404 for an unknown comment, someone else's and any
+ * wrong or missing key alike, so nothing about the comment shows; 409 locked
+ * once the team has resolved it. The pin, crop and snapshot never change.
+ */
+export async function editClientComment(
+  { store }: ShareServices,
+  share: ShareRecord,
+  commentId: string,
+  editKey: string | null,
+  body: string,
+  now: number,
+): Promise<Outcome<SharedComment>> {
+  if (reviewClosed(shareReviewEndsAt(share), now)) return REVIEW_CLOSED;
+  if (!editKey || !isSecretShape(editKey)) return fail(404, "not-found");
+  const edited = await store.editClientComment(share.id, commentId, hashSecret(editKey), body, now);
+  if (edited === "missing") return fail(404, "not-found");
+  if (edited === "locked") return fail(409, "locked");
+  return ok(edited);
 }
 
 /**

@@ -78,7 +78,7 @@ interface ShareDialogProps {
 
 const TITLE = "Share with clients";
 const DESCRIPTION =
-  "Clients can view and add comments. Only your team can resolve, edit or delete them.";
+  "Clients can view and add comments, and edit their own until they're resolved. Only your team can resolve or delete them.";
 const CLOSED =
   "The review window has closed, so clients can't comment and invites can't go out. Choose a longer window or No limit in Settings to reopen it.";
 const GONE =

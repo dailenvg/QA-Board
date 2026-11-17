@@ -4,6 +4,7 @@ import { folderMoveProblem, subtreeIds } from "./folders";
 import { placeComment } from "./pages";
 import { prunableSnapshotIds } from "./snapshots";
 import type {
+  ClientEdit,
   Comment,
   CommentCrop,
   CommentStatus,
@@ -84,12 +85,15 @@ export type Action =
   /**
    * Client additions pulled from the share. Idempotent: ids already here are
    * skipped, so a repeated pull changes nothing. The owner's copy wins.
+   * `edits` change only the words (and when) of client comments still here;
+   * one deleted here is never brought back by its edit (4.12).
    */
   | {
       type: "share/merge";
       id: string;
       comments: Comment[];
       snapshots: Snapshot[];
+      edits?: ClientEdit[];
       cursor: number;
       at: number;
     };
@@ -107,6 +111,29 @@ function updateShare(
   };
 }
 
+/**
+ * The project's client comments with `edits` applied: only their words and
+ * when they changed, and only where the edit is newer. Null when none changed.
+ */
+function applyClientEdits(
+  comments: Comment[],
+  projectId: string,
+  edits: readonly ClientEdit[],
+): Comment[] | null {
+  const byId = new Map(edits.map((edit) => [edit.id, edit]));
+  let changed = false;
+  const next = comments.map((comment) => {
+    const edit = byId.get(comment.id);
+    if (!edit || !comment.fromClient || comment.projectId !== projectId) return comment;
+    if (comment.editedAt !== undefined && comment.editedAt >= edit.editedAt) return comment;
+    changed = true;
+    // `updatedAt` moves as the link's did, so the owner's copy matches it and isn't pushed again.
+    const updatedAt = Math.max(comment.updatedAt, edit.editedAt);
+    return { ...comment, body: edit.body, editedAt: edit.editedAt, updatedAt };
+  });
+  return changed ? next : null;
+}
+
 function mergeShared(data: SquintData, action: Extract<Action, { type: "share/merge" }>) {
   const project = data.projects.find((entry) => entry.id === action.id);
   if (!project?.share) return data;
@@ -117,15 +144,16 @@ function mergeShared(data: SquintData, action: Extract<Action, { type: "share/me
     .filter((comment) => !commentIds.has(comment.id))
     .map((comment) => placeComment(comment, project));
   const snapshots = action.snapshots.filter((snapshot) => !snapshotIds.has(snapshot.id));
+  const edited = applyClientEdits(data.comments, action.id, action.edits ?? []);
   const merged = updateShare(data, action.id, (share) => ({
     ...share,
     cursor: Math.max(share.cursor, action.cursor),
     lastSyncedAt: action.at,
   }));
-  if (comments.length === 0 && snapshots.length === 0) return merged;
+  if (comments.length === 0 && snapshots.length === 0 && !edited) return merged;
   return {
     ...merged,
-    comments: [...merged.comments, ...comments],
+    comments: [...(edited ?? merged.comments), ...comments],
     snapshots: [...merged.snapshots, ...snapshots],
     projects: touchProject(merged.projects, action.id, action.at),
   };

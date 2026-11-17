@@ -4,6 +4,7 @@ import * as viewRoute from "@/app/api/s/[token]/route";
 import * as blobRoute from "@/app/api/s/[token]/blobs/[key]/route";
 import * as logoRoute from "@/app/api/s/[token]/brand/logo/route";
 import * as captureRoute from "@/app/api/s/[token]/capture/route";
+import * as commentRoute from "@/app/api/s/[token]/comments/[commentId]/route";
 import * as commentsRoute from "@/app/api/s/[token]/comments/route";
 import * as unlockRoute from "@/app/api/s/[token]/unlock/route";
 import SharedReviewPage, { generateMetadata } from "@/app/s/[token]/page";
@@ -134,6 +135,12 @@ function guest(token: string, cookie: string | null = null) {
       blobRoute.GET(request("/blobs/snapshot:snap-1"), params({ token, key: "snapshot:snap-1" })),
     comment: () =>
       commentsRoute.POST(request("/comments", { method: "POST", body: form() }), params({ token })),
+    // An edit of a comment that isn't there: past the gate, a plain 404.
+    edit: () =>
+      commentRoute.PATCH(
+        request("/comments/unknown", { method: "PATCH", body: JSON.stringify({ body: "Hi" }) }),
+        params({ token, commentId: "unknown" }),
+      ),
     capture: () =>
       captureRoute.POST(
         request("/capture", { method: "POST", body: JSON.stringify({ width: 800 }) }),
@@ -165,6 +172,7 @@ async function statuses(g: Guest) {
     view: (await g.view()).status,
     image: (await g.image()).status,
     comment: (await g.comment()).status,
+    edit: (await g.edit()).status,
     capture: (await g.capture()).status,
   };
 }
@@ -186,7 +194,13 @@ describe("a password-protected review link", () => {
   it("answers 401 password-required on every guest route without a pass, saying nothing more", async () => {
     const created = await linkedShare("p1", PASSWORD);
     const g = guest(created.token);
-    expect(await statuses(g)).toEqual({ view: 401, image: 401, comment: 401, capture: 401 });
+    expect(await statuses(g)).toEqual({
+      view: 401,
+      image: 401,
+      comment: 401,
+      edit: 401,
+      capture: 401,
+    });
     const view = await g.view();
     expect(view.headers.get("cache-control")).toBe("no-store");
     expect(await view.json()).toEqual({ error: "password-required" });
@@ -202,6 +216,7 @@ describe("a password-protected review link", () => {
       view: 200,
       image: 200,
       comment: 201,
+      edit: 404,
       capture: 201,
     });
     const view = (await (await guest(created.token, cookie).view()).json()) as {
@@ -290,6 +305,7 @@ describe("a password-protected review link", () => {
       view: 200,
       image: 200,
       comment: 201,
+      edit: 404,
       capture: 201,
     });
     // A password set again doesn't bring the old passes back.

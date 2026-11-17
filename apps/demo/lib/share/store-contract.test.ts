@@ -26,6 +26,13 @@ import type { ShareStore } from "./store";
 
 const adapt = adaptPglite;
 
+/** The hash of a client's edit key (any sha256 hex), and of another key. */
+const KEY_HASH = "0f".repeat(32);
+const OTHER_HASH = "1e".repeat(32);
+/** The workspace resolving a client's comment at 4 000, and reopening it at 4 500. */
+const RESOLVE = { status: "resolved", resolvedAt: 4_000, updatedAt: 4_000 } as const;
+const REOPEN = { status: "active", resolvedAt: null, updatedAt: 4_500 } as const;
+
 /** Stored blobs, with each per-claim crop key's random nonce masked as `<claim>`. */
 async function storedBlobs(store: ShareStore) {
   const sizes = await store.blobSizes(RECORD.id);
@@ -98,18 +105,143 @@ describe.each(stores)("%s share store", (_name, make) => {
     const store = await make();
     await store.create(RECORD);
     await store.upsertSnapshot(RECORD.id, SNAPSHOT, "owner");
-    expect(await store.insertComment(RECORD.id, COMMENT, "client")).toBe(true);
+    expect(await store.insertComment(RECORD.id, COMMENT, "owner")).toBe(true);
     expect(await store.insertComment(RECORD.id, COMMENT, "client")).toBe(false);
     const [before] = await store.comments(RECORD.id);
-    await store.upsertComment(RECORD.id, { ...COMMENT, status: "resolved" }, "owner");
+    await store.upsertComment(RECORD.id, { ...COMMENT, status: "resolved" }, "client");
     const [after] = await store.comments(RECORD.id);
     expect(after).toEqual({
       item: { ...COMMENT, status: "resolved" },
-      origin: "client",
+      origin: "owner",
       seq: before?.seq,
     });
     const [snapshot] = await store.snapshots(RECORD.id);
     expect(snapshot?.seq).toBeLessThan(after?.seq ?? 0);
+  });
+
+  it("lets an owner's push move a client's comment to another page, and change nothing else", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    const posted = { ...COMMENT, pageId: "page-1" };
+    expect(await store.insertComment(RECORD.id, posted, "client", undefined, KEY_HASH)).toBe(true);
+    const [before] = await store.comments(RECORD.id);
+    // A stale tab's copy: other words, another name and place, resolved, and on page 2.
+    await store.upsertComment(
+      RECORD.id,
+      {
+        ...posted,
+        body: "Old words",
+        author: "Someone",
+        x: 90,
+        status: "resolved",
+        resolvedAt: 9_000,
+        updatedAt: 9_000,
+        pageId: "page-2",
+      },
+      "owner",
+    );
+    expect(await store.comments(RECORD.id)).toEqual([
+      { item: { ...posted, pageId: "page-2" }, origin: "client", seq: before?.seq },
+    ]);
+    // Without a page, it stays where it was.
+    const { pageId: _page, ...pageless } = posted;
+    await store.upsertComment(RECORD.id, pageless, "owner");
+    expect((await store.comments(RECORD.id))[0]?.item.pageId).toBe("page-2");
+    // The key still opens it: the push didn't touch it.
+    expect(await store.editClientComment(RECORD.id, COMMENT.id, KEY_HASH, "Mine", 5_000)).toEqual(
+      expect.objectContaining({ body: "Mine", pageId: "page-2" }),
+    );
+  });
+
+  it("edits a client's words only with the hash of their key, while active", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    await store.insertComment(RECORD.id, COMMENT, "client", undefined, KEY_HASH);
+    await store.insertComment(RECORD.id, { ...COMMENT, id: "no-key" }, "client");
+    await store.insertComment(
+      RECORD.id,
+      { ...COMMENT, id: "owners" },
+      "owner",
+      undefined,
+      KEY_HASH,
+    );
+    const [before] = await store.comments(RECORD.id);
+    expect(before).not.toHaveProperty("editSeq");
+
+    for (const [id, hash] of [
+      [COMMENT.id, OTHER_HASH],
+      ["no-key", KEY_HASH],
+      ["owners", KEY_HASH],
+      ["unknown", KEY_HASH],
+    ] as const) {
+      expect(await store.editClientComment(RECORD.id, id, hash, "Nope", 3_000), id).toBe("missing");
+    }
+    expect(await store.editClientComment("other-share", COMMENT.id, KEY_HASH, "Nope", 3_000)).toBe(
+      "missing",
+    );
+
+    const edited = await store.editClientComment(RECORD.id, COMMENT.id, KEY_HASH, "New", 3_000);
+    expect(edited).toEqual({ ...COMMENT, body: "New", editedAt: 3_000, updatedAt: 3_000 });
+    const [after] = await store.comments(RECORD.id);
+    expect(after?.item).toEqual(edited);
+    // Its place in the owner's deletes stays; the edit takes a later number of its own.
+    expect(after?.seq).toBe(before?.seq);
+    const last = Math.max(...(await store.comments(RECORD.id)).map((row) => row.seq));
+    expect(after?.editSeq).toBeGreaterThan(last);
+    // The hash is never read back.
+    expect(JSON.stringify(await store.comments(RECORD.id))).not.toContain(KEY_HASH);
+
+    expect(await store.setClientCommentStatus(RECORD.id, COMMENT.id, RESOLVE)).toBe(true);
+    expect(await store.editClientComment(RECORD.id, COMMENT.id, KEY_HASH, "Late", 5_000)).toBe(
+      "locked",
+    );
+    // A wrong key on a resolved comment still says nothing about it.
+    expect(await store.editClientComment(RECORD.id, COMMENT.id, OTHER_HASH, "Late", 5_000)).toBe(
+      "missing",
+    );
+    expect((await store.comments(RECORD.id))[0]?.item).toMatchObject({
+      body: "New",
+      status: "resolved",
+      resolvedAt: 4_000,
+      updatedAt: 4_000,
+    });
+
+    expect(await store.setClientCommentStatus(RECORD.id, COMMENT.id, REOPEN)).toBe(true);
+    const reopened = (await store.comments(RECORD.id))[0]?.item;
+    expect(reopened).toMatchObject({ status: "active", updatedAt: 4_500 });
+    expect(reopened).not.toHaveProperty("resolvedAt");
+    expect(await store.editClientComment(RECORD.id, COMMENT.id, KEY_HASH, "Again", 6_000)).toEqual(
+      expect.objectContaining({ body: "Again", status: "active", editedAt: 6_000 }),
+    );
+  });
+
+  it("resolves and reopens only a client's visible comment on the server", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    await store.insertComment(RECORD.id, COMMENT, "owner");
+    await store.insertComment(RECORD.id, { ...COMMENT, id: "pending" }, "client", {
+      claim: "n1",
+      cropKey: "crop:pending:n1",
+    });
+    expect(await store.setClientCommentStatus(RECORD.id, COMMENT.id, RESOLVE)).toBe(false);
+    expect(await store.setClientCommentStatus(RECORD.id, "pending", RESOLVE)).toBe(false);
+    expect(await store.setClientCommentStatus(RECORD.id, "unknown", RESOLVE)).toBe(false);
+    expect((await store.comments(RECORD.id))[0]?.item.status).toBe("active");
+  });
+
+  it("can't edit a comment still being posted, and forgets its key with it", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    const claim = { claim: "n1", cropKey: "crop:c-1:n1" };
+    await store.insertComment(RECORD.id, COMMENT, "client", claim, KEY_HASH);
+    expect(await store.editClientComment(RECORD.id, COMMENT.id, KEY_HASH, "New", 3_000)).toBe(
+      "missing",
+    );
+    await store.deleteClaim(RECORD.id, COMMENT.id, "n1");
+    await store.insertComment(RECORD.id, COMMENT, "client");
+    expect(await store.editClientComment(RECORD.id, COMMENT.id, KEY_HASH, "New", 3_000)).toBe(
+      "missing",
+    );
   });
 
   it("has no team on a share without a workspace: no team authors, no avatars", async () => {

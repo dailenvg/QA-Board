@@ -126,13 +126,14 @@ test("an owner shares a project, a client comments, and the owner resolves and r
   await expect(clientNote.getByTestId("client-chip")).toHaveText("Client");
   await expect(card(page, "Owner note").getByTestId("client-chip")).toHaveCount(0);
 
-  // Owner resolves it; the change is pushed.
-  const pushed = page.waitForResponse(
+  // Owner resolves it; the workspace save is what resolves a client's comment on the link.
+  const saved = page.waitForResponse(
     (response) =>
-      /\/api\/shares\/[^/]+$/.test(response.url()) && response.request().method() === "PATCH",
+      /\/api\/w\/[^/]+\/projects\/[^/]+\/comments\/[^/]+$/.test(response.url()) &&
+      response.request().method() === "PATCH",
   );
   await clientNote.getByRole("button", { name: "Resolve" }).click();
-  expect((await pushed).status()).toBe(200);
+  expect((await saved).status()).toBe(200);
 
   // Client sees it resolved after a reload; still no moderation controls.
   await client.reload();

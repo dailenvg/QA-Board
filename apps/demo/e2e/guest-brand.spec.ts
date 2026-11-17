@@ -40,7 +40,7 @@ test("a guest sees the company that shared the link, with its logo once it has o
   // The comments panel's notice opens with the same invitation (phones show a shorter note).
   if (!isMobile) {
     await expect(guest.getByTestId("client-notice")).toHaveText(
-      `${invitation} Only ${E2E_COMPANY.name} can resolve, edit or delete comments.`,
+      `${invitation} Only ${E2E_COMPANY.name} can resolve or delete comments.`,
     );
   }
 
@@ -93,7 +93,7 @@ test("an anonymous link keeps Squint's own name and look", async ({ page, baseUR
   await guest.keyboard.press("Escape");
   if (!isMobile) {
     await expect(guest.getByTestId("client-notice")).toHaveText(
-      "You can browse this project and add comments. Only the project owner can resolve, edit or delete them.",
+      "You can browse this project, add comments and edit your own until they're resolved. Only the project owner can resolve or delete them.",
     );
   }
   await expect(guest.getByTestId("guest-brand-name")).toHaveText("Squint");

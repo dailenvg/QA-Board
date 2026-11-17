@@ -180,7 +180,8 @@ export interface Comment {
   fromClient?: true;
   /**
    * Written by the signed-in member (the server says so on every read; a new
-   * comment is theirs). Only they edit it. Never pushed to a review link.
+   * comment is theirs). Only they edit it. Never pushed to a review link. On
+   * a review link: posted from this browser, which holds its edit key (4.12).
    */
   mine?: true;
   /**
@@ -195,6 +196,13 @@ export interface Comment {
    * says so, 4.11). The workspace tells its own by `fromClient` instead. Never pushed.
    */
   team?: true;
+}
+
+/** A client's edit to their comment, pulled from its review link (4.12): new words, and when. */
+export interface ClientEdit {
+  id: string;
+  body: string;
+  editedAt: number;
 }
 
 export interface SquintData {

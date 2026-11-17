@@ -1,7 +1,8 @@
-import { OWNER_KEY_HEADER } from "../share/http-headers";
+import { EDIT_KEY_HEADER, OWNER_KEY_HEADER } from "../share/http-headers";
 import type {
   ClientView,
   CreatedShare,
+  PostedComment,
   SharedComment,
   SharedSnapshot,
   ShareChange,
@@ -90,7 +91,13 @@ export function clientApi(token: string) {
     /** The company's logo at `version` (`ClientBrand.logoVersion`), so a new logo is a new URL. */
     logoUrl: (version: string) => `${base}/brand/logo?v=${encodeURIComponent(version)}`,
     addComment: (form: FormData) =>
-      call<SharedComment>(`${base}/comments`, { method: "POST", body: form }),
+      call<PostedComment>(`${base}/comments`, { method: "POST", body: form }),
+    /** The client's edit of their own comment, with the key its post gave back. */
+    editComment: (id: string, body: string, editKey: string) =>
+      call<SharedComment>(
+        `${base}/comments/${encodeURIComponent(id)}`,
+        jsonInit("PATCH", { body }, { [EDIT_KEY_HEADER]: editKey }),
+      ),
     capture: (width: number, signal: AbortSignal) =>
       call<SharedSnapshot>(`${base}/capture`, { ...jsonInit("POST", { width }), signal }),
   };

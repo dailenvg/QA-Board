@@ -1,6 +1,6 @@
 import type { Comment } from "@/lib/store/types";
 import type { ToastInput } from "../ui/ToastProvider";
-import type { ViewerBackend } from "@/lib/viewer-backend/backend";
+import type { EditOutcome, ViewerBackend } from "@/lib/viewer-backend/backend";
 
 interface CommentActionsOptions {
   backend: ViewerBackend;
@@ -35,8 +35,20 @@ export function useCommentActions({
     reopen: (id: string) => {
       if (report(backend.setCommentStatus(id, "active"))) toast({ message: "Comment reopened" });
     },
-    edit: (id: string, body: string) => {
-      report(backend.editComment(id, body));
+    /**
+     * The team's edit shows at once (a refusal is a toast); a guest's waits
+     * for the server, and its editor shows a refusal (`EditOutcome`).
+     */
+    edit: (id: string, body: string): Promise<EditOutcome> | void => {
+      if (!backend.editOwnComment) {
+        report(backend.editComment(id, body));
+        return;
+      }
+      return backend.editOwnComment(id, body).then((outcome) => {
+        // Same words: the editor just closes, since nothing was updated.
+        if (outcome.ok && !outcome.unchanged) toast({ message: "Comment updated." });
+        return outcome;
+      });
     },
     remove: (target: Comment) => {
       onRemoved(target.id);

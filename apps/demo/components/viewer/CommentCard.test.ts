@@ -54,6 +54,7 @@ function card(
       canModerate: viewer.team,
       canEdit: rights.edit,
       canDelete: rights.delete !== null,
+      resolvedNote: rights.resolvedNote,
       selected: false,
       now: NOW,
       onSelect: noop,
@@ -106,6 +107,38 @@ describe("the comment card's actions", () => {
       expect(html).not.toContain(EDIT);
       expect(html).toContain(DELETE);
     }
+  });
+});
+
+describe("a review link's guest (4.12)", () => {
+  const guest: CommentViewer = { team: false, moderator: false };
+  const OWN: Comment = { ...COMMENT, mine: true };
+  const NOTE = "The team resolved this, so it can&#x27;t be edited.";
+
+  it("gets Edit on their own active comment, and nothing else", () => {
+    const html = card(OWN, guest);
+    expect(html).toContain(EDIT);
+    expect(html).toContain("data-edit-trigger");
+    expect(html).not.toContain(DELETE);
+    expect(html).not.toContain("Resolve");
+  });
+
+  it("gets no actions on anyone else's, or once the review window has closed", () => {
+    expect(card(COMMENT, guest)).not.toContain(EDIT);
+    expect(card({ ...COMMENT, team: true }, guest)).not.toContain(EDIT);
+    expect(card(OWN, { ...guest, reviewOpen: false })).not.toContain(EDIT);
+    expect(card(OWN, { ...guest, reviewOpen: false })).not.toContain(NOTE);
+  });
+
+  it("is told why their own resolved comment can't be edited, read after its text", () => {
+    const html = card({ ...OWN, status: "resolved" }, guest);
+    expect(html).not.toContain(EDIT);
+    expect(html).toContain(NOTE);
+    const note = /<p id="([^"]+)" data-testid="comment-resolved-note"/.exec(html)?.[1];
+    expect(note).toBeTruthy();
+    expect(html).toMatch(new RegExp(`aria-describedby="[^"]*${note}`));
+    // Not on a resolved comment that isn't theirs.
+    expect(card({ ...COMMENT, status: "resolved" }, guest)).not.toContain(NOTE);
   });
 });
 

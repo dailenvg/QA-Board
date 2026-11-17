@@ -334,28 +334,70 @@ export async function projectShareIds(
 }
 
 /**
+ * What a guest's comment says on the project's review link: the link is the
+ * authority for a client's words (4.12), so the workspace copies these from
+ * here, never from the browser. `editedAt` is when the guest last changed
+ * the words there (epoch ms), or null.
+ */
+export interface GuestComment {
+  body: string;
+  author: string;
+  x: number;
+  y: number;
+  /** When the guest posted it (epoch ms), as the server stamped it there. */
+  createdAt: number;
+  editedAt: number | null;
+}
+
+interface GuestCommentRow {
+  data: Partial<Record<keyof GuestComment, unknown>>;
+}
+
+const finite = (value: unknown): number | null => {
+  const number = Number(value);
+  return value !== null && value !== undefined && Number.isFinite(number) ? number : null;
+};
+
+/**
  * The guest's comment `commentId` on the review link of the workspace's
  * project, as the link holds it: the only comments a member may save as a
  * guest's (without an author account), so nobody can pass their own, or
- * another member's, off as one. Null when a guest didn't post it there.
- * `editedAt` is when the guest last changed its words on the link (epoch ms),
- * or null: the workspace copies it from here, never from the browser.
+ * another member's, off as one. Null when a guest didn't post it there (or
+ * it's still being posted).
  */
 export async function findGuestComment(
   db: Queryable,
   workspaceId: string,
   projectId: string,
   commentId: string,
-): Promise<{ editedAt: number | null } | null> {
-  const { rows } = await db.query<{ edited_at: unknown }>(
-    `SELECT comment.data->'editedAt' AS edited_at FROM project_share_links AS link
+): Promise<GuestComment | null> {
+  const { rows } = await db.query<GuestCommentRow>(
+    `SELECT comment.data FROM project_share_links AS link
      JOIN squint_share_comments AS comment ON comment.share_id = link.share_id
      WHERE link.workspace_id = $1 AND link.project_id = $2
-       AND comment.id = $3 AND comment.origin = 'client'`,
+       AND comment.id = $3 AND comment.origin = 'client' AND NOT comment.pending`,
     [workspaceId, projectId, commentId],
   );
-  const row = rows[0];
-  if (!row) return null;
-  const editedAt = Number(row.edited_at);
-  return { editedAt: row.edited_at !== null && Number.isFinite(editedAt) ? editedAt : null };
+  const data = rows[0]?.data;
+  const [x, y, createdAt] = [finite(data?.x), finite(data?.y), finite(data?.createdAt)];
+  if (!data || typeof data.body !== "string" || typeof data.author !== "string") return null;
+  if (x === null || y === null || createdAt === null) return null;
+  const { body, author } = data;
+  return { body, author, x, y, createdAt, editedAt: finite(data.editedAt) };
+}
+
+/** The id of the share linked to the workspace's live project, or null without one. */
+export async function linkedShareId(
+  db: Queryable,
+  workspaceId: string,
+  projectId: string,
+): Promise<string | null> {
+  const { rows } = await db.query<{ share_id: string }>(
+    `SELECT link.share_id FROM project_share_links AS link
+     JOIN projects AS project
+       ON project.workspace_id = link.workspace_id AND project.id = link.project_id
+     WHERE link.workspace_id = $1 AND link.project_id = $2 AND project.deleted_at IS NULL`,
+    [workspaceId, projectId],
+  );
+  return rows[0]?.share_id ?? null;
 }

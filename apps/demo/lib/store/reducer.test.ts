@@ -245,6 +245,58 @@ describe("sharing in the reducer", () => {
     expect(data.comments.find((entry) => entry.id === "c1")?.body).toBe(LEGACY_V1.comments[0].body);
   });
 
+  describe("a client's edit pulled from the link (4.12)", () => {
+    const merge = (
+      comments: Comment[],
+      edits: Array<{ id: string; body: string; editedAt: number }>,
+    ) => ({
+      type: "share/merge" as const,
+      id: "site",
+      comments,
+      snapshots: [],
+      edits,
+      cursor: 9,
+      at: 60,
+    });
+    const pulled = () =>
+      reduce(shared(), merge([{ ...comment("k-1", "x"), fromClient: true }], []));
+
+    it("changes only the words and when, of a client's comment still here", () => {
+      const before = pulled();
+      const after = reduce(before, merge([], [{ id: "k-1", body: "Bigger logo", editedAt: 40 }]));
+      const was = before.comments.find((entry) => entry.id === "k-1");
+      // `updatedAt` moves with it, as on the link, so the next push doesn't send it back.
+      expect(after.comments.find((entry) => entry.id === "k-1")).toEqual({
+        ...was,
+        body: "Bigger logo",
+        editedAt: 40,
+        updatedAt: 40,
+      });
+      expect(after.comments.map((entry) => entry.id)).toEqual(before.comments.map((e) => e.id));
+    });
+
+    it("never brings back a comment deleted here", () => {
+      const deleted = reduce(pulled(), { type: "comment/delete", id: "k-1" });
+      const after = reduce(deleted, merge([], [{ id: "k-1", body: "Bigger logo", editedAt: 40 }]));
+      expect(after.comments).toEqual(deleted.comments);
+    });
+
+    it("leaves the team's comments and older edits alone", () => {
+      const edited = reduce(pulled(), merge([], [{ id: "k-1", body: "Newer", editedAt: 50 }]));
+      const stale = reduce(
+        edited,
+        merge(
+          [],
+          [
+            { id: "k-1", body: "Older", editedAt: 40 },
+            { id: "c1", body: "Not a client's", editedAt: 40 },
+          ],
+        ),
+      );
+      expect(stale.comments).toEqual(edited.comments);
+    });
+  });
+
   it("ignores merges for projects that aren't shared, and forgets a share on unshare", () => {
     const merge = {
       type: "share/merge" as const,
