@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { COMPANY_DEFAULT_FILL } from "../lib/avatar/default-avatar";
+import { AVATAR_FILL } from "../lib/avatar/default-avatar";
 import { expect, test } from "./test";
 import { SIGNED_OUT } from "./auth-fixtures";
 import { expectMark } from "./avatar-fixtures";
@@ -51,7 +51,7 @@ test("a guest sees the company that shared the link, with its logo once it has o
   await expect(brand).toContainText("Shared review");
   // No logo or color yet: the company's default mark on magenta, and no accent rule.
   await expect(brand.getByTestId("brand-logo")).toHaveCount(0);
-  await expectMark(brand.getByTestId("brand-default"), "company", COMPANY_DEFAULT_FILL);
+  await expectMark(brand.getByTestId("brand-default"), "company", AVATAR_FILL);
   await expect(guest.getByTestId("accent-rule")).toHaveCount(0);
 
   await brandWorkspace({ color: COLOR, logo: snapshotPng(64, 64) });

@@ -37,7 +37,7 @@ export function ProfileSettings({
   return (
     <div className="flex flex-col gap-4" data-testid="profile-settings">
       <NameForm initialName={name} />
-      <AvatarForm name={name} email={email} admin={admin} initialVersion={avatarVersion} />
+      <AvatarForm admin={admin} initialVersion={avatarVersion} />
       <EmailForm currentEmail={email} />
       <PasswordForm email={email} />
       {clickUp ? <ClickUpSettings section={clickUp} /> : null}

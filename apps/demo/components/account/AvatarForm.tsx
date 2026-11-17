@@ -1,16 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { personMonogramName } from "@/lib/monogram";
 import { avatarSrc } from "@/lib/routes";
 import { PersonMark } from "../avatar/PersonMark";
 import { ImageUploader, UPLOADER_TILE_PX } from "./ImageUploader";
 import { SettingsCard } from "./SettingsCard";
 
 interface AvatarFormProps {
-  /** For the default mark without a photo: the user's name, else their email. */
-  name: string | null;
-  email: string;
   /** The Squint admin: their own default mark. */
   admin: boolean;
   /** The current avatar's `?v=`, or null without one. */
@@ -18,7 +14,7 @@ interface AvatarFormProps {
 }
 
 /** The user's photo, shown with their account in the workspace's sidebar. */
-export function AvatarForm({ name, email, admin, initialVersion }: AvatarFormProps) {
+export function AvatarForm({ admin, initialVersion }: AvatarFormProps) {
   const [version, setVersion] = useState(initialVersion);
   return (
     <SettingsCard
@@ -33,13 +29,7 @@ export function AvatarForm({ name, email, admin, initialVersion }: AvatarFormPro
         noun="photo"
         src={version && avatarSrc(version)}
         // The sidebar's default mark, drawn large.
-        fallback={
-          <PersonMark
-            label={personMonogramName(name, email)}
-            admin={admin}
-            size={UPLOADER_TILE_PX}
-          />
-        }
+        fallback={<PersonMark admin={admin} size={UPLOADER_TILE_PX} />}
         onChange={setVersion}
         hint="A PNG, JPG or WebP. You'll size and position it next. It shows as a circle."
         testId="avatar"

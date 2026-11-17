@@ -47,7 +47,7 @@ export function WorkspaceSettings({ settings, isOwner }: WorkspaceSettingsProps)
           target="logo"
           noun="logo"
           src={logoSrc}
-          fallback={<CompanyMark color={settings.brandColor} size={UPLOADER_TILE_PX} />}
+          fallback={<CompanyMark size={UPLOADER_TILE_PX} />}
           onChange={setLogoVersion}
           hint="A PNG, JPG or WebP of any shape. You'll size and position it next. Transparent backgrounds stay transparent."
           testId="logo"

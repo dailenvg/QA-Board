@@ -9,14 +9,7 @@ export interface PersonRow {
   key: string;
   /** What the row calls them: their name, else their email, else "No name yet". */
   name: string;
-  /** Their own name for the avatar's initials; null without one, so the placeholder never is. */
-  avatarName: string | null;
   avatarSrc: string | null;
-  /**
-   * The initials' source when there's no name (`personMonogramName`): their
-   * email, where the view has it; empty otherwise, which draws the plain tile.
-   */
-  fallback: string;
   isOwner: boolean;
   you: boolean;
   joinedAt: number;
@@ -37,9 +30,7 @@ export function rowsOf(data: MembersData): PersonRow[] {
       return {
         key: member.key,
         name: name ?? COPY.noName,
-        avatarName: name,
         avatarSrc: member.avatarSrc,
-        fallback: "",
         isOwner: member.role === "owner",
         you: member.you,
         joinedAt: member.joinedAt,
@@ -55,9 +46,7 @@ export function rowsOf(data: MembersData): PersonRow[] {
     return {
       key: member.key,
       name: name ?? member.email,
-      avatarName: name,
       avatarSrc: member.avatarSrc,
-      fallback: member.email,
       isOwner: member.role === "owner",
       you: member.you,
       joinedAt: member.joinedAt,

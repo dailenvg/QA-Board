@@ -4,11 +4,10 @@ import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import { useState } from "react";
 import type { CompanyBadge as Badge } from "@/lib/avatar/company-badge";
-import { personMonogramName } from "@/lib/monogram";
+import { avatarStrokePx } from "@/lib/avatar/default-avatar";
 import { fadeOnly } from "@/lib/motion";
 import { CompanyBadge } from "../avatar/CompanyBadge";
 import { PersonMark } from "../avatar/PersonMark";
-import { MonogramTile } from "../brand/MonogramTile";
 
 /** 28px on a comment; 36px beside the sidebar's account menu; 40px on a Members row. */
 type AvatarSize = "xs" | "sm" | "md";
@@ -17,10 +16,8 @@ type AvatarSize = "xs" | "sm" | "md";
 export type AvatarSurface = "panel" | "card" | "tile";
 
 /**
- * Who it is, for what stands in without a photo: someone on the team gets
- * the default mark in their pin color (initials under a head, or head and
- * shoulders beside the company badge), the admin theirs, and a client the
- * plain initials circle.
+ * Who it is, for what stands in without a photo: someone on the team and a
+ * client get the person mark, the admin theirs.
  */
 export type AvatarPerson = "member" | "admin" | "client";
 
@@ -52,9 +49,6 @@ const CUT_OUT: Record<AvatarSurface, string> = {
 };
 
 interface PersonAvatarProps {
-  /** Whose initials stand in without a photo: their name, else what `fallback` says (an email). */
-  name: string | null;
-  fallback: string;
   /** Their photo's URL; null without one. */
   src: string | null;
   size?: AvatarSize;
@@ -67,36 +61,8 @@ interface PersonAvatarProps {
   /** Where the avatar sits, for the badge's cut-out ring. */
   surface?: AvatarSurface;
   photoTestId?: string;
-  /** On whatever stands in without a photo: a default mark (initials or not) or a client's initials. */
+  /** On the default mark that stands in without a photo. */
   initialsTestId?: string;
-}
-
-interface StandInProps {
-  person: AvatarPerson;
-  /** A company badge shows over the corner. */
-  badged: boolean;
-  /** Their name, else their email. */
-  label: string;
-  px: number;
-  testId?: string;
-}
-
-/** What shows without a photo: the default mark, free in the slot, or a client's initials circle. */
-function StandIn({ person, badged, label, px, testId }: StandInProps) {
-  if (person !== "client") {
-    return (
-      <PersonMark
-        label={label}
-        admin={person === "admin"}
-        badged={badged}
-        size={px}
-        testId={testId}
-      />
-    );
-  }
-  return (
-    <MonogramTile name={label} className="size-full rounded-pill text-label" testId={testId} />
-  );
 }
 
 /**
@@ -107,8 +73,6 @@ function StandIn({ person, badged, label, px, testId }: StandInProps) {
  * never a broken image.
  */
 export function PersonAvatar({
-  name,
-  fallback,
   src,
   size = "sm",
   person = "member",
@@ -151,13 +115,7 @@ export function PersonAvatar({
             exit="exit"
             className="absolute inset-0"
           >
-            <StandIn
-              person={person}
-              badged={badge !== null}
-              label={personMonogramName(name, fallback)}
-              px={px}
-              testId={initialsTestId}
-            />
+            <PersonMark admin={person === "admin"} size={px} testId={initialsTestId} />
           </motion.span>
         )}
       </AnimatePresence>
@@ -165,6 +123,7 @@ export function PersonAvatar({
         <CompanyBadge
           badge={badge}
           px={badgePx}
+          strokePx={avatarStrokePx(px)}
           // The ring's color tracks a tinting card's `transition-colors` at the same default duration.
           className={`${hang} ${badgeBox} transition-shadow ${CUT_OUT[surface]}`}
         />

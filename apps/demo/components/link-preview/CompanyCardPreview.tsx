@@ -70,11 +70,11 @@ function CompanyLogo({ uri, accent }: { uri: string; accent: string }) {
 }
 
 /**
- * The company's default mark (a building on a bubble in its brand color,
- * magenta without one) in the logo's frame, on its paper. The tile fit keeps
- * the bubble's tail clear of the frame's corners.
+ * The company's default mark (a building on a gray bubble) in the logo's
+ * frame, on its paper. The tile fit keeps the bubble's tail clear of the
+ * frame's corners.
  */
-function CompanyMark({ color, accent }: { color: string | null; accent: string }) {
+function CompanyMark({ accent }: { accent: string }) {
   return (
     <div
       style={{
@@ -90,7 +90,7 @@ function CompanyMark({ color, accent }: { color: string | null; accent: string }
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- ImageResponse draws plain <img> only. */}
       <img
-        src={companyMarkUri({ color, size: LOGO_SIZE, tile: null })}
+        src={companyMarkUri({ size: LOGO_SIZE, tile: null })}
         alt=""
         width={LOGO_SIZE}
         height={LOGO_SIZE}
@@ -140,11 +140,7 @@ export function CompanyCardPreview({
   return (
     <PreviewFrame art={<SharedReviewArt />}>
       <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
-        {logoUri ? (
-          <CompanyLogo uri={logoUri} accent={accent} />
-        ) : (
-          <CompanyMark color={color} accent={accent} />
-        )}
+        {logoUri ? <CompanyLogo uri={logoUri} accent={accent} /> : <CompanyMark accent={accent} />}
         <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 480 }}>
           <div
             style={{
