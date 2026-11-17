@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { CheckCheck, SendHorizontal } from "lucide-react";
+import { ChecksIcon, PaperPlaneRightIcon } from "@phosphor-icons/react";
 import { duration, ease, spring } from "../lib/motion";
 import { SquintMascot, type Mood } from "../mascot";
 
@@ -139,7 +139,7 @@ export function ChatDemo() {
           whileTap={canResolve ? { scale: 0.97 } : undefined}
           transition={spring.ui}
         >
-          <CheckCheck size={18} strokeWidth={2} aria-hidden="true" />
+          <ChecksIcon size={18} aria-hidden="true" />
           {resolved ? "Resolved" : "Resolve"}
         </motion.button>
       </div>
@@ -197,7 +197,7 @@ export function ChatDemo() {
           whileTap={draft.trim() && !busy ? { scale: 0.97 } : undefined}
           transition={spring.ui}
         >
-          <SendHorizontal size={18} strokeWidth={2} aria-hidden="true" />
+          <PaperPlaneRightIcon size={18} aria-hidden="true" />
           Send
         </motion.button>
       </form>

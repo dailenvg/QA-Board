@@ -1,311 +1,131 @@
-import { createElement } from "react";
+import type { Icon as PhosphorIcon } from "@phosphor-icons/react/dist/lib/types";
+// The SSR build reads no React context, so this one Icon renders in server and client components.
+import {
+  ArrowClockwiseIcon,
+  ArrowCounterClockwiseIcon,
+  ArrowDownIcon,
+  ArrowRightIcon,
+  ArrowSquareOutIcon,
+  ArrowsDownUpIcon,
+  ArrowsOutSimpleIcon,
+  BoxArrowDownIcon,
+  BoxArrowUpIcon,
+  CameraIcon,
+  CaretDownIcon,
+  CaretLeftIcon,
+  CaretRightIcon,
+  CaretUpIcon,
+  ChatCircleIcon,
+  ChatDotsIcon,
+  CheckIcon,
+  ClockCounterClockwiseIcon,
+  ClockIcon,
+  CopyIcon,
+  CursorIcon,
+  DatabaseIcon,
+  DeviceMobileIcon,
+  DeviceTabletIcon,
+  DotsSixVerticalIcon,
+  DotsThreeIcon,
+  DotsThreeVerticalIcon,
+  DownloadSimpleIcon,
+  EnvelopeSimpleIcon,
+  FileCodeIcon,
+  FileTextIcon,
+  FileZipIcon,
+  FolderIcon,
+  FolderPlusIcon,
+  GlobeSimpleIcon,
+  ImageIcon,
+  InfoIcon,
+  LinkIcon,
+  LockSimpleIcon,
+  MagnifyingGlassIcon,
+  MinusIcon,
+  MonitorIcon,
+  MoonIcon,
+  PaperPlaneTiltIcon,
+  PauseIcon,
+  PencilSimpleIcon,
+  PlayIcon,
+  PlusIcon,
+  QuestionIcon,
+  SignOutIcon,
+  SquaresFourIcon,
+  StackIcon,
+  SunIcon,
+  TagIcon,
+  TrashIcon,
+  UploadSimpleIcon,
+  UserIcon,
+  UsersIcon,
+  WarningCircleIcon,
+  XIcon,
+} from "@phosphor-icons/react/dist/ssr";
 
-type IconNode = readonly [string, Readonly<Record<string, string | number>>];
-
-const FOLDER_PATH =
-  "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z";
-
-const FILE_PATH = "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z";
-
-/** Lucide icon geometry (ISC licensed): 24px grid, 1.75px stroke, one set app-wide. */
+/** Phosphor icons (MIT licensed), regular weight, one set app-wide. Names say what they mean. */
 const ICONS = {
-  alert: [
-    ["circle", { cx: 12, cy: 12, r: 10 }],
-    ["path", { d: "M12 8v4M12 16h.01" }],
-  ],
-  archive: [
-    ["rect", { width: 20, height: 5, x: 2, y: 3, rx: 1 }],
-    ["path", { d: "M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" }],
-    ["path", { d: "M10 12h4" }],
-  ],
-  archiveRestore: [
-    ["rect", { width: 20, height: 5, x: 2, y: 3, rx: 1 }],
-    ["path", { d: "M4 8v11a2 2 0 0 0 2 2h2" }],
-    ["path", { d: "M20 8v11a2 2 0 0 1-2 2h-2" }],
-    ["path", { d: "m9 15 3-3 3 3" }],
-    ["path", { d: "M12 12v9" }],
-  ],
-  arrowDown: [
-    ["path", { d: "M12 5v14" }],
-    ["path", { d: "m19 12-7 7-7-7" }],
-  ],
-  arrowUpDown: [
-    ["path", { d: "m21 16-4 4-4-4" }],
-    ["path", { d: "M17 20V4" }],
-    ["path", { d: "m3 8 4-4 4 4" }],
-    ["path", { d: "M7 4v16" }],
-  ],
-  arrow: [
-    ["path", { d: "M5 12h14" }],
-    ["path", { d: "m12 5 7 7-7 7" }],
-  ],
-  camera: [
-    [
-      "path",
-      {
-        d: "M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z",
-      },
-    ],
-    ["circle", { cx: 12, cy: 13, r: 3 }],
-  ],
-  check: [["path", { d: "M20 6 9 17l-5-5" }]],
-  chevronDown: [["path", { d: "m6 9 6 6 6-6" }]],
-  chevronLeft: [["path", { d: "m15 18-6-6 6-6" }]],
-  chevronRight: [["path", { d: "m9 18 6-6-6-6" }]],
-  chevronUp: [["path", { d: "m18 15-6-6-6 6" }]],
-  clock: [
-    ["circle", { cx: 12, cy: 12, r: 10 }],
-    ["path", { d: "M12 6v6l4 2" }],
-  ],
-  close: [
-    ["path", { d: "M18 6 6 18" }],
-    ["path", { d: "m6 6 12 12" }],
-  ],
-  copy: [
-    ["rect", { x: 8, y: 8, width: 14, height: 14, rx: 2 }],
-    ["path", { d: "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" }],
-  ],
-  database: [
-    ["ellipse", { cx: 12, cy: 5, rx: 9, ry: 3 }],
-    ["path", { d: "M3 5V19A9 3 0 0 0 21 19V5" }],
-    ["path", { d: "M3 12A9 3 0 0 0 21 12" }],
-  ],
-  download: [
-    ["path", { d: "M12 15V3" }],
-    ["path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }],
-    ["path", { d: "m7 10 5 5 5-5" }],
-  ],
-  external: [
-    ["path", { d: "M15 3h6v6" }],
-    ["path", { d: "M10 14 21 3" }],
-    ["path", { d: "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" }],
-  ],
-  fileArchive: [
-    ["path", { d: "M10 12v-1M10 18v-2M10 7V6" }],
-    ["path", { d: "M14 2v4a2 2 0 0 0 2 2h4" }],
-    ["path", { d: "M15.5 22H18a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v16a2 2 0 0 0 .274 1.01" }],
-    ["circle", { cx: 10, cy: 20, r: 2 }],
-  ],
-  fileJson: [
-    ["path", { d: FILE_PATH }],
-    ["path", { d: "M14 2v4a2 2 0 0 0 2 2h4" }],
-    ["path", { d: "M10 12a1 1 0 0 0-1 1v1a1 1 0 0 1-1 1 1 1 0 0 1 1 1v1a1 1 0 0 0 1 1" }],
-    ["path", { d: "M14 18a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1 1 1 0 0 1-1-1v-1a1 1 0 0 0-1-1" }],
-  ],
-  fileText: [
-    ["path", { d: FILE_PATH }],
-    ["path", { d: "M14 2v4a2 2 0 0 0 2 2h4" }],
-    ["path", { d: "M10 9H8M16 13H8M16 17H8" }],
-  ],
-  folder: [["path", { d: FOLDER_PATH }]],
-  folderPlus: [
-    ["path", { d: FOLDER_PATH }],
-    ["path", { d: "M12 10v6M9 13h6" }],
-  ],
-  globe: [
-    ["circle", { cx: 12, cy: 12, r: 10 }],
-    ["path", { d: "M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" }],
-    ["path", { d: "M2 12h20" }],
-  ],
-  grip: [
-    ["circle", { cx: 9, cy: 12, r: 1 }],
-    ["circle", { cx: 9, cy: 5, r: 1 }],
-    ["circle", { cx: 9, cy: 19, r: 1 }],
-    ["circle", { cx: 15, cy: 12, r: 1 }],
-    ["circle", { cx: 15, cy: 5, r: 1 }],
-    ["circle", { cx: 15, cy: 19, r: 1 }],
-  ],
-  help: [
-    ["circle", { cx: 12, cy: 12, r: 10 }],
-    ["path", { d: "M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" }],
-    ["path", { d: "M12 17h.01" }],
-  ],
-  history: [
-    ["path", { d: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" }],
-    ["path", { d: "M3 3v5h5" }],
-    ["path", { d: "M12 7v5l4 2" }],
-  ],
-  image: [
-    ["rect", { x: 3, y: 3, width: 18, height: 18, rx: 2 }],
-    ["circle", { cx: 9, cy: 9, r: 2 }],
-    ["path", { d: "m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" }],
-  ],
-  info: [
-    ["circle", { cx: 12, cy: 12, r: 10 }],
-    ["path", { d: "M12 16v-4M12 8h.01" }],
-  ],
-  link: [
-    ["path", { d: "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" }],
-    ["path", { d: "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" }],
-  ],
-  lock: [
-    ["rect", { x: 3, y: 11, width: 18, height: 11, rx: 2 }],
-    ["path", { d: "M7 11V7a5 5 0 0 1 10 0v4" }],
-  ],
-  logOut: [
-    ["path", { d: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" }],
-    ["path", { d: "m16 17 5-5-5-5" }],
-    ["path", { d: "M21 12H9" }],
-  ],
-  layers: [
-    [
-      "path",
-      {
-        d: "M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z",
-      },
-    ],
-    ["path", { d: "M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" }],
-    ["path", { d: "M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17" }],
-  ],
-  layoutGrid: [
-    ["rect", { x: 3, y: 3, width: 7, height: 7, rx: 1 }],
-    ["rect", { x: 14, y: 3, width: 7, height: 7, rx: 1 }],
-    ["rect", { x: 14, y: 14, width: 7, height: 7, rx: 1 }],
-    ["rect", { x: 3, y: 14, width: 7, height: 7, rx: 1 }],
-  ],
-  mail: [
-    ["path", { d: "m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7" }],
-    ["rect", { x: 2, y: 4, width: 20, height: 16, rx: 2 }],
-  ],
-  maximize: [
-    ["path", { d: "M15 3h6v6" }],
-    ["path", { d: "m21 3-7 7" }],
-    ["path", { d: "m3 21 7-7" }],
-    ["path", { d: "M9 21H3v-6" }],
-  ],
-  message: [["path", { d: "M7.9 20A9 9 0 1 0 4 16.1L2 22Z" }]],
-  messageSquare: [["path", { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" }]],
-  messagePlus: [
-    ["path", { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" }],
-    ["path", { d: "M12 7v6M9 10h6" }],
-  ],
-  minus: [["path", { d: "M5 12h14" }]],
-  monitor: [
-    ["rect", { x: 2, y: 3, width: 20, height: 14, rx: 2 }],
-    ["path", { d: "M8 21h8M12 17v4" }],
-  ],
-  moon: [["path", { d: "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" }]],
-  more: [
-    ["circle", { cx: 5, cy: 12, r: 1 }],
-    ["circle", { cx: 12, cy: 12, r: 1 }],
-    ["circle", { cx: 19, cy: 12, r: 1 }],
-  ],
-  moreVertical: [
-    ["circle", { cx: 12, cy: 5, r: 1 }],
-    ["circle", { cx: 12, cy: 12, r: 1 }],
-    ["circle", { cx: 12, cy: 19, r: 1 }],
-  ],
-  pause: [
-    ["rect", { x: 14, y: 4, width: 4, height: 16, rx: 1 }],
-    ["rect", { x: 6, y: 4, width: 4, height: 16, rx: 1 }],
-  ],
-  play: [
-    [
-      "path",
-      {
-        d: "M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z",
-      },
-    ],
-  ],
-  pencil: [
-    [
-      "path",
-      {
-        d: "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z",
-      },
-    ],
-    ["path", { d: "m15 5 4 4" }],
-  ],
-  plus: [
-    ["path", { d: "M5 12h14" }],
-    ["path", { d: "M12 5v14" }],
-  ],
-  pointer: [
-    [
-      "path",
-      {
-        d: "M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z",
-      },
-    ],
-  ],
-  refresh: [
-    ["path", { d: "M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" }],
-    ["path", { d: "M21 3v5h-5" }],
-  ],
-  search: [
-    ["circle", { cx: 11, cy: 11, r: 8 }],
-    ["path", { d: "m21 21-4.3-4.3" }],
-  ],
-  send: [
-    [
-      "path",
-      {
-        d: "M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z",
-      },
-    ],
-    ["path", { d: "m21.854 2.147-10.94 10.939" }],
-  ],
-  share: [
-    ["path", { d: "M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" }],
-    ["path", { d: "m16 6-4-4-4 4" }],
-    ["path", { d: "M12 2v13" }],
-  ],
-  smartphone: [
-    ["rect", { x: 5, y: 2, width: 14, height: 20, rx: 2 }],
-    ["path", { d: "M12 18h.01" }],
-  ],
-  squareCheck: [
-    ["rect", { x: 3, y: 3, width: 18, height: 18, rx: 2 }],
-    ["path", { d: "m9 12 2 2 4-4" }],
-  ],
-  sun: [
-    ["circle", { cx: 12, cy: 12, r: 4 }],
-    [
-      "path",
-      {
-        d: "M12 2v2M12 20v2m-7.07-17.07 1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41",
-      },
-    ],
-  ],
-  tablet: [
-    ["rect", { x: 4, y: 2, width: 16, height: 20, rx: 2 }],
-    ["path", { d: "M12 18h.01" }],
-  ],
-  tag: [
-    [
-      "path",
-      {
-        d: "M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z",
-      },
-    ],
-    ["circle", { cx: 7.5, cy: 7.5, r: 0.5, fill: "currentColor" }],
-  ],
-  trash: [
-    ["path", { d: "M3 6h18" }],
-    ["path", { d: "M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" }],
-    ["path", { d: "M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" }],
-    ["path", { d: "M10 11v6M14 11v6" }],
-  ],
-  undo: [
-    ["path", { d: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" }],
-    ["path", { d: "M3 3v5h5" }],
-  ],
-  upload: [
-    ["path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }],
-    ["path", { d: "m17 8-5-5-5 5" }],
-    ["path", { d: "M12 3v12" }],
-  ],
-  user: [
-    ["path", { d: "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" }],
-    ["circle", { cx: 12, cy: 7, r: 4 }],
-  ],
-  users: [
-    ["path", { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" }],
-    ["circle", { cx: 9, cy: 7, r: 4 }],
-    ["path", { d: "M22 21v-2a4 4 0 0 0-3-3.87" }],
-    ["path", { d: "M16 3.13a4 4 0 0 1 0 7.75" }],
-  ],
-} satisfies Record<string, readonly IconNode[]>;
+  alert: WarningCircleIcon,
+  archive: BoxArrowDownIcon,
+  archiveRestore: BoxArrowUpIcon,
+  arrowDown: ArrowDownIcon,
+  arrowUpDown: ArrowsDownUpIcon,
+  arrow: ArrowRightIcon,
+  camera: CameraIcon,
+  check: CheckIcon,
+  chevronDown: CaretDownIcon,
+  chevronLeft: CaretLeftIcon,
+  chevronRight: CaretRightIcon,
+  chevronUp: CaretUpIcon,
+  clock: ClockIcon,
+  close: XIcon,
+  copy: CopyIcon,
+  database: DatabaseIcon,
+  download: DownloadSimpleIcon,
+  external: ArrowSquareOutIcon,
+  fileArchive: FileZipIcon,
+  fileJson: FileCodeIcon,
+  fileText: FileTextIcon,
+  folder: FolderIcon,
+  folderPlus: FolderPlusIcon,
+  globe: GlobeSimpleIcon,
+  grip: DotsSixVerticalIcon,
+  help: QuestionIcon,
+  history: ClockCounterClockwiseIcon,
+  image: ImageIcon,
+  info: InfoIcon,
+  link: LinkIcon,
+  lock: LockSimpleIcon,
+  logOut: SignOutIcon,
+  layers: StackIcon,
+  layoutGrid: SquaresFourIcon,
+  mail: EnvelopeSimpleIcon,
+  maximize: ArrowsOutSimpleIcon,
+  message: ChatCircleIcon,
+  messagePlus: ChatDotsIcon,
+  minus: MinusIcon,
+  monitor: MonitorIcon,
+  moon: MoonIcon,
+  more: DotsThreeIcon,
+  moreVertical: DotsThreeVerticalIcon,
+  pause: PauseIcon,
+  play: PlayIcon,
+  pencil: PencilSimpleIcon,
+  plus: PlusIcon,
+  pointer: CursorIcon,
+  refresh: ArrowClockwiseIcon,
+  search: MagnifyingGlassIcon,
+  send: PaperPlaneTiltIcon,
+  smartphone: DeviceMobileIcon,
+  sun: SunIcon,
+  tablet: DeviceTabletIcon,
+  tag: TagIcon,
+  trash: TrashIcon,
+  undo: ArrowCounterClockwiseIcon,
+  upload: UploadSimpleIcon,
+  user: UserIcon,
+  users: UsersIcon,
+} satisfies Record<string, PhosphorIcon>;
 
 export type IconName = keyof typeof ICONS;
 
@@ -314,23 +134,18 @@ interface IconProps {
   className?: string;
 }
 
-/** Decorative icon. Pair it with visible text or an aria-label on the control. */
+/**
+ * At 12px and under, regular's line thins below 0.8px and breaks up on chips and pins, so
+ * these sizes draw bold. One rule here, so no caller picks a weight.
+ */
+const TINY = /(?:^|\s)size-(?:2|2\.5|3)(?=\s|$)/;
+
+/**
+ * Decorative icon. Pair it with visible text or an aria-label on the control. Its size comes
+ * from the class (`size-4`, `size-5`…), which outranks Phosphor's 1em width and height.
+ */
 export function Icon({ name, className = "size-5" }: IconProps) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.75}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      {(ICONS[name] as readonly IconNode[]).map(([tag, attributes], index) =>
-        createElement(tag, { key: index, ...attributes }),
-      )}
-    </svg>
-  );
+  const Glyph = ICONS[name];
+  const weight = TINY.test(className) ? "bold" : "regular";
+  return <Glyph className={className} weight={weight} aria-hidden="true" focusable="false" />;
 }

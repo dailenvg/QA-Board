@@ -214,11 +214,6 @@ export const WIDGET_CSS = /* css */ `
   width: 18px;
   height: 18px;
   flex: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  fill: none;
 }
 
 /* Toolbar ---------------------------------------------------------------- */

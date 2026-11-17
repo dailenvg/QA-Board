@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion, type Variants } from "framer-motion";
-import { Download, Moon, Sun } from "lucide-react";
+import { DownloadSimpleIcon, MoonIcon, SunIcon } from "@phosphor-icons/react";
 import { ease, duration, pageTransition, spring, stagger } from "./lib/motion";
 import { MOODS, MOOD_SPECS, SquintMascot, type Mood } from "./mascot";
 import { MoodPicker, Toggle } from "./demo/Controls";
@@ -69,7 +69,11 @@ export function App() {
             transition={spring.ui}
             variants={item(reduce)}
           >
-            {theme === "dark" ? <Sun size={20} strokeWidth={2} /> : <Moon size={20} strokeWidth={2} />}
+            {theme === "dark" ? (
+              <SunIcon size={20} aria-hidden="true" />
+            ) : (
+              <MoonIcon size={20} aria-hidden="true" />
+            )}
           </motion.button>
         </header>
 
@@ -183,7 +187,7 @@ export function App() {
                   whileTap={{ scale: 0.97 }}
                   transition={spring.ui}
                 >
-                  <Download size={18} strokeWidth={2} aria-hidden="true" />
+                  <DownloadSimpleIcon size={18} aria-hidden="true" />
                   squint-mark.svg
                 </motion.a>
               </div>
