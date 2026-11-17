@@ -31,7 +31,11 @@ function parseComment(value: FormDataEntryValue | null): unknown {
   }
 }
 
-/** `POST` multipart `comment` + optional `crop`: a client adds a comment (always active). */
+/**
+ * `POST` multipart `comment` + optional `crop`: a client adds a comment
+ * (always active). 201 with the comment and its `editKey`, which lets this
+ * browser edit the words later: sent this once, never again.
+ */
 export async function POST(request: Request, { params }: Params) {
   const { token } = await params;
   return asClient(request, token, "clientComment", async ({ services, share }) => {

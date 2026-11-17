@@ -1,6 +1,6 @@
 import { can } from "@/lib/auth/permissions";
 import { json } from "@/lib/share/http";
-import { deleteComment, updateComment } from "@/lib/workspace/comments";
+import { changeComment, deleteComment } from "@/lib/workspace/comments";
 import { noContent, notFound, param, readBody } from "@/lib/workspace/http";
 import { commentPatchSchema, idSchema } from "@/lib/workspace/schemas";
 import { withMember } from "@/lib/workspace/with-member";
@@ -19,15 +19,16 @@ function ids(params: Params) {
 /**
  * `PATCH { body?, status?, crop? }`: edits, resolves or reopens the comment,
  * or adds its crop. Any member resolves and reopens; the text and crop are
- * the author's alone. 404 for a comment the patch may not change, as for one
- * that isn't there.
+ * the author's alone. Resolving a client's comment also locks it on the
+ * review link (`changeComment`). 404 for a comment the patch may not change,
+ * as for one that isn't there.
  */
 export const PATCH = withMember<Params>(async (request, { db, user, workspaceId, now }, params) => {
   const target = ids(params);
   if (!target) return notFound();
   const body = await readBody(request, commentPatchSchema);
   if (!body.ok) return body.response;
-  const comment = await updateComment(
+  const comment = await changeComment(
     db,
     workspaceId,
     target.projectId,

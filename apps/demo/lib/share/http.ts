@@ -3,7 +3,7 @@ import { clientAddress, createRateLimiter, rateLimitAddress } from "../capture/r
 import { SHARE_LIMITS } from "./schemas";
 import type { Failure } from "./service";
 
-export { OWNER_KEY_HEADER } from "./http-headers";
+export { EDIT_KEY_HEADER, OWNER_KEY_HEADER } from "./http-headers";
 
 const NO_STORE = { "cache-control": "no-store" };
 
@@ -13,6 +13,8 @@ const LIMITS = {
   ownerWrite: createRateLimiter({ limit: 300, windowMs: 60_000 }),
   ownerRead: createRateLimiter({ limit: 600, windowMs: 60_000 }),
   clientComment: createRateLimiter({ limit: 20, windowMs: 60_000 }),
+  /** A client changing their own comments' words (4.12): as many as new comments. */
+  clientEdit: createRateLimiter({ limit: 20, windowMs: 60_000 }),
   clientCapture: createRateLimiter({ limit: 6, windowMs: 60_000 }),
   clientRead: createRateLimiter({ limit: 600, windowMs: 60_000 }),
   /** A brake before Postgres's own password limit (`password-attempts.ts`), which is the real one. */

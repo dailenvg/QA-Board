@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { namesInMemory, VIEW } from "@/test/share-fixture";
 import { createClientBackend } from "./client-backend";
 import { createClientStore } from "./client-store";
+import { linkEditKeys } from "./edit-keys";
 import { createServerBlobs } from "./server-blobs";
 
 const TOKEN = "t".repeat(43);
@@ -14,19 +15,26 @@ const input = {
   author: "Cleo",
 };
 
-function setup(answers: Array<() => Response>) {
+function setup(answers: Array<() => Response>, comments = VIEW.comments.slice(0, 0)) {
   const calls: string[] = [];
-  vi.stubGlobal("fetch", (url: string) => {
+  const sent: RequestInit[] = [];
+  vi.stubGlobal("fetch", (url: string, init: RequestInit = {}) => {
     calls.push(url);
+    sent.push(init);
     const answer = answers.shift();
     return answer ? Promise.resolve(answer()) : Promise.reject(new TypeError("offline"));
   });
+  const kept = new Map<string, string>();
+  const editKeys = linkEditKeys(TOKEN, () => ({
+    getItem: (name) => kept.get(name) ?? null,
+    setItem: (name, value) => void kept.set(name, value),
+  }));
   const store = createClientStore(
-    { ...VIEW, comments: [] },
-    { authorName: null, names: namesInMemory() },
+    { ...VIEW, comments },
+    { authorName: null, names: namesInMemory(), editKeys },
   );
   const backend = createClientBackend({ token: TOKEN, store, blobs: createServerBlobs(TOKEN) });
-  return { store, backend, calls };
+  return { store, backend, calls, sent, editKeys };
 }
 
 const accepted = () =>
@@ -116,5 +124,100 @@ describe("client snapshots", () => {
     expect(outcome?.ok).toBe(false);
     expect(outcome && !outcome.ok && outcome.message).toContain("password");
     expect(store.getSnapshot().locked).toBe(true);
+  });
+});
+
+describe("a client's edit of their own comment (4.12)", () => {
+  const KEY = "k".repeat(43);
+  const mine = { ...input, status: "active" as const, createdAt: 5, updatedAt: 5 };
+
+  /** The guest posted `mine` from this browser, so it holds its key. */
+  async function posted(answers: Array<() => Response>) {
+    const created = () => Response.json({ ...mine, editKey: KEY }, { status: 201 });
+    const context = setup([created, ...answers]);
+    await context.backend.addComment(input, null);
+    return context;
+  }
+
+  it("keeps the key from the post in this browser only, not in the view", async () => {
+    const { store, editKeys } = await posted([]);
+    expect(editKeys.keyOf("draft-1")).toBe(KEY);
+    expect(store.getSnapshot().ownComments).toEqual(new Set(["draft-1"]));
+    expect(JSON.stringify(store.getSnapshot().view)).not.toContain(KEY);
+  });
+
+  it("sends the key in its header, and shows the saved words", async () => {
+    const saved = { ...mine, body: "Bigger logo", editedAt: 9, updatedAt: 9 };
+    const { store, backend, calls, sent } = await posted([() => Response.json(saved)]);
+    expect(await backend.editOwnComment?.("draft-1", "  Bigger logo ")).toEqual({ ok: true });
+    expect(calls.at(-1)).toBe(`/api/s/${TOKEN}/comments/draft-1`);
+    const request = sent.at(-1);
+    expect(request?.method).toBe("PATCH");
+    expect(new Headers(request?.headers).get("x-squint-edit-key")).toBe(KEY);
+    expect(request?.body).toBe(JSON.stringify({ body: "Bigger logo" }));
+    expect(store.getSnapshot().view.comments[0]).toMatchObject({
+      body: "Bigger logo",
+      editedAt: 9,
+    });
+  });
+
+  it("sends nothing for the same words", async () => {
+    const { backend, calls } = await posted([]);
+    const before = calls.length;
+    expect(await backend.editOwnComment?.("draft-1", "Please fix")).toEqual({
+      ok: true,
+      unchanged: true,
+    });
+    expect(calls).toHaveLength(before);
+  });
+
+  it("can't edit a comment this browser holds no key for", async () => {
+    const { backend, calls } = setup([], [mine]);
+    expect(await backend.editOwnComment?.("draft-1", "Mine?")).toEqual({
+      ok: false,
+      error: "This comment can't be edited any more.",
+      final: true,
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it.each([
+    [409, { error: "locked" }, "The team resolved this comment while you were editing", true],
+    [403, { error: "review-closed" }, "The review window has closed", true],
+    [404, { error: "not-found" }, "This comment can't be edited any more.", true],
+    [429, { error: "rate-limited" }, "You've made a lot of edits", false],
+    [500, { error: "storage" }, "Couldn't save your edit.", false],
+  ])("explains a %i in the editor, final: %s", async (status, body, words, final) => {
+    const { backend } = await posted([
+      () => Response.json(body, { status }),
+      () => Response.json({ ...VIEW, comments: [{ ...mine, status: "resolved" }] }),
+    ]);
+    const outcome = await backend.editOwnComment?.("draft-1", "Bigger logo");
+    expect(outcome).toMatchObject({ ok: false, final });
+    expect(outcome?.ok === false && outcome.error).toContain(words);
+  });
+
+  it("says when it couldn't reach Squint, and lets Save try again", async () => {
+    const { backend } = await posted([]);
+    expect(await backend.editOwnComment?.("draft-1", "Bigger logo")).toEqual({
+      ok: false,
+      error: "Couldn't reach Squint. Check your connection and try again.",
+      final: false,
+    });
+  });
+
+  it("reads the link again after a resolve, and closes the review after the window", async () => {
+    const resolved = { ...VIEW, comments: [{ ...mine, status: "resolved" }] };
+    const locked = await posted([
+      () => Response.json({ error: "locked" }, { status: 409 }),
+      () => Response.json(resolved),
+    ]);
+    await locked.backend.editOwnComment?.("draft-1", "Bigger logo");
+    await vi.waitFor(() =>
+      expect(locked.store.getSnapshot().view.comments[0]?.status).toBe("resolved"),
+    );
+    const closed = await posted([() => Response.json({ error: "review-closed" }, { status: 403 })]);
+    await closed.backend.editOwnComment?.("draft-1", "Bigger logo");
+    expect(closed.store.getSnapshot().reviewClosed).toBe(true);
   });
 });

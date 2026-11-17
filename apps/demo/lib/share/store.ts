@@ -1,6 +1,8 @@
 import type { ShareBrand } from "./brand";
 import type {
   BlobLocation,
+  ClientEditRefusal,
+  ClientStatusChange,
   Origin,
   Sequenced,
   SharedComment,
@@ -82,9 +84,17 @@ export interface ShareStore {
     id: string,
     options?: { includePending: boolean },
   ): Promise<Sequenced<SharedSnapshot>[]>;
+  /** With each row's `editSeq` once a client has edited it; never its edit key's hash. */
   comments(id: string, options?: { includePending: boolean }): Promise<Sequenced<SharedComment>[]>;
   /** Inserts, or replaces the data of an existing row (keeping its origin and seq). */
   upsertSnapshot(id: string, snapshot: SharedSnapshot, origin: Origin): Promise<void>;
+  /**
+   * Inserts, or changes an existing row, keeping its origin and seq: an
+   * owner's row takes `comment` whole; a client's only takes its `pageId`
+   * (when it has one), since its words change only by the client's edit and
+   * its status only on the server's resolve (4.12). So a tab that hasn't
+   * pulled can't put old words back, reopen a resolved comment or resolve one.
+   */
   upsertComment(id: string, comment: SharedComment, origin: Origin): Promise<void>;
   /** Inserts a client's snapshot as pending: invisible until `confirmSnapshot`. */
   insertPendingSnapshot(id: string, snapshot: SharedSnapshot): Promise<void>;
@@ -105,6 +115,33 @@ export interface ShareStore {
     comment: SharedComment,
     origin: Origin,
     claim?: { claim: string; cropKey: string },
+    editKeyHash?: string,
+  ): Promise<boolean>;
+  /**
+   * A client's edit of their visible comment's words, in one step (4.12):
+   * only with the hash of the key it was posted with (`editKeyHash`, checked
+   * in constant time) and only while it's active. Sets `body`, `editedAt` and
+   * `updatedAt` (`now`), and a fresh `editSeq`. Answers the comment as it is
+   * now, `missing` (no such comment, another origin, no key or another key)
+   * or `locked` (the right key, but no longer active).
+   */
+  editClientComment(
+    id: string,
+    commentId: string,
+    editKeyHash: string,
+    body: string,
+    now: number,
+  ): Promise<SharedComment | ClientEditRefusal>;
+  /**
+   * Resolves (`resolvedAt` set) or reopens (none) a client's visible comment
+   * right away, as the workspace did, with its times there (so the owner's
+   * copy matches and isn't pushed again): the lock on its edits (4.12).
+   * False when there's no such client comment.
+   */
+  setClientCommentStatus(
+    id: string,
+    commentId: string,
+    change: ClientStatusChange,
   ): Promise<boolean>;
   /**
    * Makes the comment visible, with a fresh seq so a pull can't skip it, only

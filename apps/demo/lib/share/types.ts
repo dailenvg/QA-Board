@@ -54,6 +54,11 @@ export interface SharedComment {
   createdAt: number;
   updatedAt: number;
   resolvedAt?: number;
+  /**
+   * When its words last changed after posting (epoch ms): the client's own
+   * edit (4.12) on a client's comment, the author's on a team one.
+   */
+  editedAt?: number;
   snapshotId?: string;
   /** The page the pin is on: one of the project's pages (page projects, when not on a snapshot). */
   pageId?: string;
@@ -99,6 +104,12 @@ export interface Sequenced<T> {
    * Missing for owner and older rows, whose crop is `crop:<id>`. Server-side only.
    */
   cropKey?: string;
+  /**
+   * Comments only: from the same sequence as `seq`, taken by the client's
+   * latest edit (045); missing while it has none. The owner's pull finds
+   * edits by it. Server-side only.
+   */
+  editSeq?: number;
 }
 
 export interface ShareRecord {
@@ -206,13 +217,41 @@ export interface ClientView {
   expiresAt: number | null;
 }
 
-/** The owner's pull: client additions after `since`, and the new cursor. */
+/**
+ * A client's comment as the owner pulls it: `edited` when the owner pulled it
+ * before and the client has changed its words since (4.12). Then only its
+ * `body` and `editedAt` are news.
+ */
+export interface PulledComment extends SharedComment {
+  edited?: true;
+}
+
+/** The owner's pull: client additions and edits after `since`, and the new cursor. */
 export interface ShareChanges {
   snapshots: SharedSnapshot[];
-  comments: SharedComment[];
+  comments: PulledComment[];
   cursor: number;
   /** When the share is deleted for good (epoch ms); null when it never expires on its own. */
   expiresAt: number | null;
+}
+
+/**
+ * What a client gets back for a new comment: the comment, and the key that
+ * lets this browser edit its words (4.12). Only the key's hash is stored, so
+ * this answer is the one time it's ever sent.
+ */
+export interface PostedComment extends SharedComment {
+  editKey: string;
+}
+
+/** Why a client's edit wasn't saved: no such comment for that key, or no longer active. */
+export type ClientEditRefusal = "missing" | "locked";
+
+/** A client comment resolved (with `resolvedAt`) or reopened (null) in the workspace, and when. */
+export interface ClientStatusChange {
+  status: CommentStatus;
+  resolvedAt: number | null;
+  updatedAt: number;
 }
 
 /** The owner's answer to creating a share. Token and owner key are shown this once. */

@@ -56,6 +56,8 @@ export const ROUTE_PERMISSIONS: Record<string, Record<string, RouteAccess>> = {
   // Text, crop and delete are row checks inside (decision 6): the route lets every member in.
   "/api/w/:workspaceId/projects/:projectId/comments": { GET: READ, POST: WRITE },
   "/api/w/:workspaceId/projects/:projectId/comments/:commentId": { PATCH: WRITE, DELETE: WRITE },
+  // A client's edit, copied from the review link (4.12): sync, like the pull that finds it.
+  "/api/w/:workspaceId/projects/:projectId/comments/:commentId/client-edit": { POST: WRITE },
   // Reading the link (every member's viewer syncs it) and the pull position are sync, not managing it.
   "/api/w/:workspaceId/projects/:projectId/share-link": {
     GET: READ,
@@ -121,6 +123,8 @@ export const ROUTE_PERMISSIONS: Record<string, Record<string, RouteAccess>> = {
   "/api/s/:token": { GET: GUEST },
   "/api/s/:token/unlock": { POST: GUEST },
   "/api/s/:token/comments": { POST: GUEST },
+  // A client's edit of their own comment: the token, and the comment's edit key (4.12).
+  "/api/s/:token/comments/:commentId": { PATCH: GUEST },
   "/api/s/:token/capture": { POST: GUEST },
   "/api/s/:token/blobs/:key": { GET: GUEST },
   "/api/s/:token/brand/icon": { GET: GUEST },

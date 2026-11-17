@@ -108,7 +108,21 @@ function restoreWrites(comment: Comment): ServerWrite[] {
     : [write("POST", path, body, [409])];
 }
 
-/** Client additions a pull merged: their snapshots first, which comments may sit on. */
+/** Comments whose client edited their words since `before` (4.12). */
+function clientEdited(before: SquintData, after: SquintData): Comment[] {
+  const was = new Map(before.comments.map((comment) => [comment.id, comment.editedAt]));
+  return after.comments.filter(
+    (comment) =>
+      comment.fromClient && was.has(comment.id) && was.get(comment.id) !== comment.editedAt,
+  );
+}
+
+/**
+ * Client additions and edits a pull merged: their snapshots first, which
+ * comments may sit on. The server reads what each guest's comment says from
+ * the review link itself, so an edit sends no words (and a comment the team
+ * deleted meanwhile answers 404: nothing to bring back).
+ */
 function mergeWrites(before: SquintData, after: SquintData, projectId: string): ServerWrite[] {
   const share = after.projects.find((project) => project.id === projectId)?.share;
   if (!share) return [];
@@ -119,6 +133,9 @@ function mergeWrites(before: SquintData, after: SquintData, projectId: string): 
     // Guests' comments: saved without an author account (the server checks they're a guest's).
     ...added(before.comments, after.comments).map((comment) =>
       write("POST", commentsPath(projectId), { ...commentBody(comment), fromShare: true }, [409]),
+    ),
+    ...clientEdited(before, after).map((comment) =>
+      write("POST", `${commentPath(projectId, comment.id)}/client-edit`, {}, [404]),
     ),
     write("PATCH", linkPath(projectId), {
       cursor: share.cursor,

@@ -2,6 +2,7 @@ import { cropBlobKey, snapshotBlobKey } from "../blob-store/keys";
 import { parsePageBlobKey } from "../share/keys";
 import { SHARE_LIMITS } from "../share/limits";
 import type {
+  PulledComment,
   SharedComment,
   SharedPage,
   SharedSnapshot,
@@ -29,6 +30,7 @@ function sharedComment(comment: Comment): SharedComment {
     createdAt: comment.createdAt,
     updatedAt: comment.updatedAt,
     ...(comment.resolvedAt !== undefined ? { resolvedAt: comment.resolvedAt } : {}),
+    ...(comment.editedAt !== undefined ? { editedAt: comment.editedAt } : {}),
     ...(comment.snapshotId ? { snapshotId: comment.snapshotId } : {}),
     ...(comment.pageId ? { pageId: comment.pageId } : {}),
     ...(comment.crop ? { crop: { rect: comment.crop.rect } } : {}),
@@ -95,8 +97,8 @@ export function localBlobKey(serverKey: string, project: Project): string | null
   return page && (page.rev ?? 0) === key.rev ? page.blobKey : null;
 }
 
-export function fromSharedComment(comment: SharedComment, projectId: string): Comment {
-  const { crop, ...rest } = comment;
+export function fromSharedComment(comment: PulledComment, projectId: string): Comment {
+  const { crop, edited: _edited, ...rest } = comment;
   return {
     ...rest,
     projectId,

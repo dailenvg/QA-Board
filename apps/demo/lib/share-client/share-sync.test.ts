@@ -203,7 +203,7 @@ describe("Qanto's scenario: a full share and a client crop", () => {
 
 describe("Qanto's scenario: many long client comments", () => {
   it("never makes the owner's push outgrow a request: unchanged items aren't resent", async () => {
-    const { share, sync, data, actions } = await sharedWorkspace(SITE_PROJECT, {
+    const { share, sync, data, actions, store } = await sharedWorkspace(SITE_PROJECT, {
       ...STATE,
       snapshots: [],
     });
@@ -242,6 +242,8 @@ describe("Qanto's scenario: many long client comments", () => {
     expect(patches[0]?.bytes).toBeLessThan(SHARE_LIMITS.body + 2_000);
     const sizes = await Promise.all(sent.map((request) => request.bytes));
     expect(Math.max(...sizes)).toBeLessThanOrEqual(SHARE_LIMITS.jsonBytes);
+    // The workspace's resolve reaches the link itself (4.12): a push never changes a client's status.
+    await store.whenSaved();
     const { shareServices } = await import("../share/server");
     const rows = await (await shareServices()).store.comments(share.id);
     expect(rows.find((row) => row.item.id === "long-7")?.item.status).toBe("resolved");
@@ -319,5 +321,41 @@ describe("sharing a page project", () => {
     expect(view.ok && view.value.project.source).toMatchObject({
       pages: [{ id: "page-1" }, { id: "pg2", name: "about-v2.png", rev: 1 }],
     });
+  }, 60_000);
+});
+
+describe("a client's edit, end to end (4.12)", () => {
+  it("reaches the workspace through the pull, isn't pushed back, and a resolve locks it", async () => {
+    const { share, sync, data, store, db, owner, actions } = await sharedWorkspace(SITE_PROJECT, {
+      ...STATE,
+      snapshots: [],
+    });
+    const { clientApi } = await import("./api");
+    const client = clientApi(share.token);
+    const posted = await client.addComment(commentForm("k-edit", false));
+    if (!posted.ok) throw new Error(posted.error);
+    await sync.pullNow("p1");
+    expect(data().comments.map((c) => c.id)).toEqual(["k-edit"]);
+
+    const edited = await client.editComment("k-edit", "Bigger logo", posted.value.editKey);
+    expect(edited).toMatchObject({ ok: true, value: { body: "Bigger logo" } });
+    await sync.pullNow("p1");
+    const editedAt = edited.ok ? edited.value.editedAt : undefined;
+    expect(data().comments[0]).toMatchObject({ body: "Bigger logo", editedAt });
+    await store.whenSaved();
+    const [saved] = await listComments(db, owner.workspaceId, "p1");
+    expect(saved).toMatchObject({ body: "Bigger logo", fromClient: true });
+    expect(saved?.editedAt).toBe(editedAt);
+
+    // The owner's copy matches the link's now: a push sends nothing back.
+    sent.length = 0;
+    await sync.pushNow("p1");
+    expect(await shareRequests("PATCH")).toEqual([]);
+
+    // Resolving it in the workspace locks it on the link straight away.
+    actions.setCommentStatus("k-edit", "resolved");
+    await store.whenSaved();
+    const late = await client.editComment("k-edit", "Too late", posted.value.editKey);
+    expect(late).toMatchObject({ ok: false, status: 409, error: "locked" });
   }, 60_000);
 });

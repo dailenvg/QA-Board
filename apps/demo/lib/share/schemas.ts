@@ -4,6 +4,8 @@ import { SHARE_LIMITS } from "./limits";
 export { SHARE_LIMITS } from "./limits";
 
 const id = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
+/** A snapshot's or comment's id, as a share stores it (also in a route's path). */
+export const itemIdSchema = id;
 const time = z.number().int().nonnegative();
 const percent = z.number().finite().min(0).max(100);
 const httpUrl = z
@@ -92,6 +94,7 @@ export const commentSchema = z.object({
   createdAt: time,
   updatedAt: time,
   resolvedAt: time.optional(),
+  editedAt: time.optional(),
 });
 
 export const stateSchema = z.object({
@@ -115,6 +118,9 @@ export const changeSchema = z.object({
 
 /** A client's new comment. Status and timestamps are the server's to set. */
 export const clientCommentSchema = z.object(commentFields);
+
+/** A client's edit of their own comment (4.12): its new words, and nothing else. */
+export const clientEditSchema = z.object({ body: commentFields.body });
 
 export const captureSchema = z.object({ width: z.number().finite() });
 

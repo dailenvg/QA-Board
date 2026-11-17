@@ -1,9 +1,12 @@
+import type { Database } from "../db/database";
 import { personAvatarSrc } from "../routes";
 import { logoVersion } from "../share/brand";
 import type { Queryable } from "../share/migrate";
+import { createPostgresStore } from "../share/postgres-store";
 import type { Comment, CommentCrop } from "../store/types";
 import { personKey } from "./members/person-key";
 import type { CommentCreate, CommentPatch } from "./schemas";
+import { linkedShareId, type GuestComment } from "./share-links";
 import { toDate, toMs } from "./times";
 import { done, refuse, type QueryResult } from "./query-result";
 
@@ -168,24 +171,36 @@ function clampEditedAt(editedAt: number | undefined, createdAt: number, now: num
  * one, 'client' without. A team comment is posted under the member's own
  * name (`users.name`; the body's `author` only while they have none) and,
  * when it's one of theirs brought back by Undo, keeps `editedAt`
- * (`clampEditedAt`). A guest's never takes it from the browser: only
- * `guestEditedAt`, read from the review link's own row (`findGuestComment`),
- * clamped the same way. Run the project check first for a 404.
+ * (`clampEditedAt`). A guest's (`guest`, read from the review link's own row,
+ * `findGuestComment`) takes its words, name, position, creation and
+ * `editedAt` from there, never from the browser, so they can't be changed on
+ * the way in.
+ * Run the project check first for a 404.
  */
 export async function addComment(
   db: Queryable,
   workspaceId: string,
   projectId: string,
-  input: CommentCreate,
+  sent: CommentCreate,
   authorUserId: string | null,
   now: number,
-  guestEditedAt: number | null = null,
+  guest: GuestComment | null = null,
 ): Promise<QueryResult<Comment>> {
+  const input = guest
+    ? {
+        ...sent,
+        body: guest.body,
+        author: guest.author,
+        x: guest.x,
+        y: guest.y,
+        createdAt: guest.createdAt,
+      }
+    : sent;
   if (!(await surfaceExists(db, projectId, input))) return refuse("unknown-surface");
   const createdAt = input.createdAt ?? now;
   const resolvedAt = input.status === "resolved" ? (input.resolvedAt ?? now) : null;
   const editedAt = clampEditedAt(
-    authorUserId ? input.editedAt : (guestEditedAt ?? undefined),
+    authorUserId ? input.editedAt : (guest?.editedAt ?? undefined),
     createdAt,
     now,
   );
@@ -268,6 +283,75 @@ export async function updateComment(
     ],
   );
   return rows[0] ? toComment(rows[0], workspaceId, actor.userId) : null;
+}
+
+/**
+ * `updateComment`, and when it resolves or reopens a client's comment, the
+ * same on the review link's row, in one transaction (4.12): resolving locks
+ * the client's edits at once, without waiting for a browser's push, and
+ * reopening unlocks them. A client's edit and a resolve meet on the link
+ * row's lock, so whichever commits second sees the other.
+ */
+export async function changeComment(
+  db: Database,
+  workspaceId: string,
+  projectId: string,
+  id: string,
+  patch: CommentPatch,
+  now: number,
+  actor: Pick<CommentActor, "userId">,
+): Promise<Comment | null> {
+  return db.transaction(async (tx) => {
+    const comment = await updateComment(tx, workspaceId, projectId, id, patch, now, actor);
+    if (!comment?.fromClient || !patch.status) return comment;
+    const shareId = await linkedShareId(tx, workspaceId, projectId);
+    if (shareId) {
+      await createPostgresStore(tx).setClientCommentStatus(shareId, id, {
+        status: comment.status,
+        resolvedAt: comment.resolvedAt ?? null,
+        updatedAt: comment.updatedAt,
+      });
+    }
+    return comment;
+  });
+}
+
+/**
+ * Copies a client's edit from the review link (`guest`, `findGuestComment`)
+ * onto their comment in the workspace (4.12): its words and `edited_at` (and
+ * `updated_at`, as the link's moved), only where the link's edit is newer
+ * than the one already here. Never inserts,
+ * so an edit to a comment the team has deleted is dropped, not brought back.
+ * The comment as it is now, or null when the live project has no such
+ * client comment.
+ */
+export async function applyClientEdit(
+  db: Queryable,
+  workspaceId: string,
+  projectId: string,
+  id: string,
+  guest: GuestComment,
+): Promise<Comment | null> {
+  const where = `project.id = comment.project_id AND project.workspace_id = $1
+       AND project.deleted_at IS NULL AND comment.project_id = $2 AND comment.id = $3
+       AND comment.origin = 'client'`;
+  if (guest.editedAt !== null) {
+    const { rows } = await db.query<CommentRow>(
+      `UPDATE comments AS comment
+       SET body = $4, edited_at = $5, updated_at = GREATEST(comment.updated_at, $5)
+       FROM projects AS project
+       WHERE ${where} AND (comment.edited_at IS NULL OR comment.edited_at < $5)
+       RETURNING ${COLUMNS}`,
+      [workspaceId, projectId, id, guest.body, toDate(guest.editedAt)],
+    );
+    if (rows[0]) return toComment(rows[0], workspaceId);
+  }
+  // Already as new as the link's (a repeated pull, another tab): answer it as it is.
+  const { rows } = await db.query<CommentRow>(
+    `SELECT ${COLUMNS} FROM comments AS comment JOIN projects AS project ON ${where}`,
+    [workspaceId, projectId, id],
+  );
+  return rows[0] ? toComment(rows[0], workspaceId) : null;
 }
 
 /**

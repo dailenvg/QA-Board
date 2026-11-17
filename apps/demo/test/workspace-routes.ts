@@ -9,6 +9,7 @@ import * as importRoute from "@/app/api/w/[workspaceId]/import/route";
 import * as archive from "@/app/api/w/[workspaceId]/projects/[projectId]/archive/route";
 import * as clickUpSend from "@/app/api/w/[workspaceId]/projects/[projectId]/clickup/route";
 import * as blob from "@/app/api/w/[workspaceId]/projects/[projectId]/blobs/[key]/route";
+import * as clientEdit from "@/app/api/w/[workspaceId]/projects/[projectId]/comments/[commentId]/client-edit/route";
 import * as comment from "@/app/api/w/[workspaceId]/projects/[projectId]/comments/[commentId]/route";
 import * as comments from "@/app/api/w/[workspaceId]/projects/[projectId]/comments/route";
 import * as label from "@/app/api/w/[workspaceId]/projects/[projectId]/label/route";
@@ -49,6 +50,7 @@ const ROUTES: Array<[string, Partial<Record<string, unknown>>]> = [
   ["/projects/:projectId/snapshots/:snapshotId", snapshot],
   ["/projects/:projectId/comments", comments],
   ["/projects/:projectId/comments/:commentId", comment],
+  ["/projects/:projectId/comments/:commentId/client-edit", clientEdit],
   ["/projects/:projectId/share-link", shareLink],
   ["/projects/:projectId/share-link/settings", shareSettings],
   ["/projects/:projectId/share-link/password", sharePassword],

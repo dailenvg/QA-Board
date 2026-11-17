@@ -2,6 +2,7 @@ import { brandColor, SQUINT_BRAND } from "./brand";
 import type { Queryable } from "./migrate";
 import { sameShareKey, SHARE_PERSON_KEY, shareAvatarVersion, sharePersonKey } from "./share-people";
 import type { ShareStore } from "./store";
+import { hashesMatch } from "./tokens";
 import type {
   BlobLocation,
   Origin,
@@ -38,6 +39,7 @@ interface ItemRow<T> {
   origin: Origin;
   seq: string | number;
   crop_key?: string | null;
+  edit_seq?: string | number | null;
 }
 
 interface BlobRow {
@@ -148,8 +150,15 @@ function toRecord(row: ShareRow): ShareRecord {
 }
 
 function toSequenced<T>(row: ItemRow<T>): Sequenced<T> {
-  const sequenced: Sequenced<T> = { item: row.data, origin: row.origin, seq: Number(row.seq) };
-  return row.crop_key ? { ...sequenced, cropKey: row.crop_key } : sequenced;
+  return {
+    item: row.data,
+    origin: row.origin,
+    seq: Number(row.seq),
+    ...(row.crop_key ? { cropKey: row.crop_key } : {}),
+    ...(row.edit_seq !== null && row.edit_seq !== undefined
+      ? { editSeq: Number(row.edit_seq) }
+      : {}),
+  };
 }
 
 function toLocation(row: Pick<BlobRow, "bytes" | "blob_url">): BlobLocation {
@@ -171,6 +180,18 @@ function toStoredBlob(row: BlobRow): StoredBlob {
 const upsertSql = (table: string) => `INSERT INTO ${table} (share_id, id, data, origin)
   VALUES ($1, $2, $3::jsonb, $4)
   ON CONFLICT (share_id, id) DO UPDATE SET data = EXCLUDED.data`;
+
+/** `upsertSql` for comments, except that a client's row only takes the pushed `pageId` (4.12). */
+const UPSERT_COMMENT = `INSERT INTO squint_share_comments AS t (share_id, id, data, origin)
+  VALUES ($1, $2, $3::jsonb, $4)
+  ON CONFLICT (share_id, id) DO UPDATE SET data = CASE
+    WHEN t.origin = 'client'
+      THEN t.data || jsonb_strip_nulls(jsonb_build_object('pageId', EXCLUDED.data->'pageId'))
+    ELSE EXCLUDED.data
+  END`;
+
+/** A visible client comment, by share and id. */
+const CLIENT_ROW = "share_id = $1 AND id = $2 AND origin = 'client' AND NOT pending";
 
 /** Shares in Postgres. Call `migrate()` on the pool first (see `server.ts`). */
 export function createPostgresStore(db: Queryable): ShareStore {
@@ -312,7 +333,7 @@ export function createPostgresStore(db: Queryable): ShareStore {
         "squint_share_comments",
         id,
         options?.includePending ? "" : "AND NOT pending",
-        ", crop_key",
+        ", crop_key, edit_seq",
       ),
     async upsertSnapshot(id, snapshot, origin) {
       await db.query(upsertSql("squint_share_snapshots"), [
@@ -323,12 +344,7 @@ export function createPostgresStore(db: Queryable): ShareStore {
       ]);
     },
     async upsertComment(id, comment, origin) {
-      await db.query(upsertSql("squint_share_comments"), [
-        id,
-        comment.id,
-        JSON.stringify(comment),
-        origin,
-      ]);
+      await db.query(UPSERT_COMMENT, [id, comment.id, JSON.stringify(comment), origin]);
     },
     async insertPendingSnapshot(id, snapshot) {
       await db.query(
@@ -354,10 +370,11 @@ export function createPostgresStore(db: Queryable): ShareStore {
       );
       return rows.map((row) => row.id);
     },
-    async insertComment(id, comment, origin, claim) {
+    async insertComment(id, comment, origin, claim, editKeyHash) {
       const { rows } = await db.query(
-        `INSERT INTO squint_share_comments (share_id, id, data, origin, pending, claim, crop_key)
-         VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7)
+        `INSERT INTO squint_share_comments
+           (share_id, id, data, origin, pending, claim, crop_key, edit_key_hash)
+         VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, $8)
          ON CONFLICT (share_id, id) DO NOTHING RETURNING id`,
         [
           id,
@@ -367,7 +384,49 @@ export function createPostgresStore(db: Queryable): ShareStore {
           Boolean(claim),
           claim?.claim ?? null,
           claim?.cropKey ?? null,
+          editKeyHash ?? null,
         ],
+      );
+      return rows.length === 1;
+    },
+    async editClientComment(id, commentId, editKeyHash, body, now) {
+      // The key is checked in constant time here; the update then matches the same hash again,
+      // so the check and the change can't fall apart. Only the status can have moved in between
+      // (a resolve, which takes the same row lock): the update then matches nothing.
+      const { rows: found } = await db.query<{ edit_key_hash: string | null }>(
+        `SELECT edit_key_hash FROM squint_share_comments WHERE ${CLIENT_ROW}`,
+        [id, commentId],
+      );
+      const stored = found[0]?.edit_key_hash;
+      if (!stored || !hashesMatch(editKeyHash, stored)) return "missing";
+      const { rows } = await db.query<{ data: SharedComment }>(
+        `UPDATE squint_share_comments SET
+           data = data || jsonb_build_object('body', $4::text, 'editedAt', $5::bigint,
+             'updatedAt', $5::bigint),
+           edit_seq = nextval('squint_share_seq')
+         WHERE ${CLIENT_ROW} AND edit_key_hash = $3 AND data->>'status' = 'active'
+         RETURNING data`,
+        [id, commentId, stored, body, now],
+      );
+      if (rows[0]) return rows[0].data;
+      // Resolved, or deleted by the owner's push since the check.
+      const { rows: still } = await db.query(
+        `SELECT 1 FROM squint_share_comments WHERE ${CLIENT_ROW}`,
+        [id, commentId],
+      );
+      return still.length === 1 ? "locked" : "missing";
+    },
+    async setClientCommentStatus(id, commentId, { status, resolvedAt, updatedAt }) {
+      const { rows } = await db.query(
+        `UPDATE squint_share_comments SET data = CASE
+           WHEN $3 = 'resolved'
+             THEN data || jsonb_build_object('status', 'resolved', 'updatedAt', $5::bigint)
+               || jsonb_strip_nulls(jsonb_build_object('resolvedAt', $4::bigint))
+           ELSE (data - 'resolvedAt')
+             || jsonb_build_object('status', 'active', 'updatedAt', $5::bigint)
+         END
+         WHERE ${CLIENT_ROW} RETURNING id`,
+        [id, commentId, status, resolvedAt, updatedAt],
       );
       return rows.length === 1;
     },

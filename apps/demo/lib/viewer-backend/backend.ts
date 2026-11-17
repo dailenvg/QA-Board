@@ -27,6 +27,19 @@ export interface PendingCrop {
 export type CaptureOutcome = { ok: true; snapshot: Snapshot } | { ok: false; message: string };
 
 /**
+ * Why an edit that waits for the server wasn't saved. A `final` one can't be
+ * retried (the comment is resolved, gone, or the review window closed): the
+ * editor keeps the text to copy and offers only Close.
+ */
+export interface EditRefusal {
+  error: string;
+  final: boolean;
+}
+
+/** `unchanged`: the words were the same, so nothing was sent and there's nothing to confirm. */
+export type EditOutcome = { ok: true; unchanged?: true } | ({ ok: false } & EditRefusal);
+
+/**
  * Everything the viewer changes, behind one interface: the owner's local
  * store, or a shared link's server. The role decides which controls show;
  * client implementations refuse the owner-only calls anyway.
@@ -41,6 +54,12 @@ export interface ViewerBackend {
   setAuthorName(name: string): void;
   setCommentStatus(id: string, status: CommentStatus): Result;
   editComment(id: string, body: string): Result;
+  /**
+   * A shared link's guest changing the words of a comment they posted from
+   * this browser (4.12): resolves once the server has it or refused it.
+   * Missing for the owner, whose edits go through `editComment` at once.
+   */
+  editOwnComment?(id: string, body: string): Promise<EditOutcome>;
   deleteComment(id: string): Result;
   restoreComment(comment: Comment): Result;
   /** See `replaceWithImage` in `lib/store/actions`. */

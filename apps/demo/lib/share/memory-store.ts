@@ -1,5 +1,6 @@
 import { SQUINT_BRAND } from "./brand";
 import type { ShareStore } from "./store";
+import { hashesMatch } from "./tokens";
 import type {
   BlobLocation,
   Origin,
@@ -20,6 +21,8 @@ interface Entry {
   pending: Map<string, string>;
   /** Pending snapshot ids. */
   pendingSnapshots: Set<string>;
+  /** The edit key hash of each client comment posted with one (045). */
+  editKeys: Map<string, string>;
 }
 
 const bySeq = <T>(a: Sequenced<T>, b: Sequenced<T>) => a.seq - b.seq;
@@ -44,6 +47,12 @@ export function createMemoryStore(): ShareStore {
     map.set(item.id, existing ? { ...existing, item } : { item, origin, seq: (seq += 1) });
   };
 
+  /** A visible client comment's row, as `CLIENT_ROW` finds it in Postgres. */
+  const clientRow = (entry: Entry | undefined, commentId: string) => {
+    const row = entry?.comments.get(commentId);
+    return row?.origin === "client" && !entry?.pending.has(commentId) ? row : undefined;
+  };
+
   const removeBlobs = (entry: Entry | undefined, keys: readonly string[]): BlobLocation[] =>
     keys.flatMap((key) => {
       const blob = entry?.blobs.get(key);
@@ -61,6 +70,7 @@ export function createMemoryStore(): ShareStore {
         parts: new Map(),
         pending: new Map(),
         pendingSnapshots: new Set(),
+        editKeys: new Map(),
       });
       return done(undefined);
     },
@@ -115,7 +125,16 @@ export function createMemoryStore(): ShareStore {
       return done(undefined);
     },
     upsertComment(id, comment, origin) {
-      upsert(shares.get(id)?.comments, comment, origin);
+      const comments = shares.get(id)?.comments;
+      const existing = comments?.get(comment.id);
+      // A client's row only takes where the pin is (4.12), as `UPSERT_COMMENT` does.
+      if (existing?.origin === "client") {
+        const pageId = comment.pageId ?? existing.item.pageId;
+        comments?.set(comment.id, {
+          ...existing,
+          item: { ...existing.item, ...(pageId === undefined ? {} : { pageId }) },
+        });
+      } else upsert(comments, comment, origin);
       return done(undefined);
     },
     insertPendingSnapshot(id, snapshot) {
@@ -144,10 +163,11 @@ export function createMemoryStore(): ShareStore {
       }
       return done(stale);
     },
-    insertComment(id, comment, origin, claim) {
+    insertComment(id, comment, origin, claim, editKeyHash) {
       const entry = shares.get(id);
       if (!entry || entry.comments.has(comment.id)) return done(false);
       upsert(entry.comments, comment, origin);
+      if (editKeyHash) entry.editKeys.set(comment.id, editKeyHash);
       if (claim) {
         entry.pending.set(comment.id, claim.claim);
         const row = entry.comments.get(comment.id);
@@ -163,11 +183,34 @@ export function createMemoryStore(): ShareStore {
       entry.comments.set(commentId, { ...row, seq: (seq += 1) });
       return done(true);
     },
+    editClientComment(id, commentId, editKeyHash, body, now) {
+      const entry = shares.get(id);
+      const row = clientRow(entry, commentId);
+      const stored = entry?.editKeys.get(commentId);
+      if (!entry || !row || !stored || !hashesMatch(editKeyHash, stored)) return done("missing");
+      if (row.item.status !== "active") return done("locked");
+      const item = { ...row.item, body, editedAt: now, updatedAt: now };
+      entry.comments.set(commentId, { ...row, item, editSeq: (seq += 1) });
+      return done(item);
+    },
+    setClientCommentStatus(id, commentId, { status, resolvedAt, updatedAt }) {
+      const entry = shares.get(id);
+      const row = clientRow(entry, commentId);
+      if (!entry || !row) return done(false);
+      const { resolvedAt: _previous, ...rest } = row.item;
+      const item =
+        status === "resolved" && resolvedAt !== null
+          ? { ...rest, status, resolvedAt, updatedAt }
+          : { ...rest, status, updatedAt };
+      entry.comments.set(commentId, { ...row, item });
+      return done(true);
+    },
     deleteClaim(id, commentId, claim) {
       const entry = shares.get(id);
       if (!entry || entry.pending.get(commentId) !== claim) return done(false);
       entry.pending.delete(commentId);
       entry.comments.delete(commentId);
+      entry.editKeys.delete(commentId);
       return done(true);
     },
     cropKeyOf(id, commentId) {
@@ -190,6 +233,7 @@ export function createMemoryStore(): ShareStore {
       for (const staleId of stale) {
         entry?.pending.delete(staleId);
         entry?.comments.delete(staleId);
+        entry?.editKeys.delete(staleId);
       }
       return done(stale);
     },
@@ -204,6 +248,7 @@ export function createMemoryStore(): ShareStore {
       for (const commentId of ids) {
         shares.get(id)?.comments.delete(commentId);
         shares.get(id)?.pending.delete(commentId);
+        shares.get(id)?.editKeys.delete(commentId);
       }
       return done(undefined);
     },

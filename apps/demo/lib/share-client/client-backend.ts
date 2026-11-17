@@ -7,6 +7,7 @@ import type { Comment } from "../store/types";
 import {
   OWNER_ONLY,
   type CaptureOutcome,
+  type EditOutcome,
   type NewComment,
   type PendingCrop,
   type ViewerBackend,
@@ -42,6 +43,17 @@ const CAPTURE_CLOSED = "The review window has closed, so new snapshots can't be 
 /** 401 password-required: the link's password changed, or the guest pass ran out. */
 const LOCKED = "Your comment wasn't sent: this link needs its password again. Your text is kept.";
 const CAPTURE_LOCKED = "This link needs its password again before a new snapshot can be taken.";
+
+/** A client's edit of their own comment (4.12), by what the server answered. */
+const EDIT_LOCKED =
+  "The team resolved this comment while you were editing, so it can't be edited now. Your text is still here to copy.";
+const EDIT_CLOSED =
+  "The review window has closed, so comments can't be edited now. Your text is still here to copy.";
+/** 404: the team deleted it, or this browser's key no longer matches; they answer the same. */
+const EDIT_GONE = "This comment can't be edited any more.";
+const EDIT_TOO_MANY = "You've made a lot of edits in a short time. Try again in a minute.";
+const EDIT_OFFLINE = "Couldn't reach Squint. Check your connection and try again.";
+const EDIT_FAILED = "Couldn't save your edit. Try again in a moment.";
 
 interface ClientBackendOptions {
   token: string;
@@ -79,6 +91,15 @@ function commentForm(comment: Comment, blob: Blob | null, crop: PendingCrop | nu
 export function createClientBackend({ token, store, blobs }: ClientBackendOptions): ViewerBackend {
   const api = clientApi(token);
 
+  /** Reads the link again, so a comment resolved or deleted by the team shows so. */
+  const refresh = async () => {
+    const view = await api.view();
+    if (view.ok) store.setView(view.value);
+    else if (view.status === 404) store.markGone();
+  };
+
+  const refused = (error: string, final: boolean): EditOutcome => ({ ok: false, error, final });
+
   return {
     role: "client",
     async addComment(input: NewComment, crop): Promise<Result<Comment>> {
@@ -107,8 +128,11 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
       // answer didn't arrive. Counting it as sent can't lose it or post it twice.
       if (result.ok || result.status === 409) {
         if (blob) blobs.hold(`crop:${comment.id}`, blob);
-        if (result.ok) store.addComment(result.value);
-        else {
+        if (result.ok) {
+          // The key stays out of the view: it's only kept in this browser's storage.
+          const { editKey, ...posted } = result.value;
+          store.addComment(posted, editKey);
+        } else {
           const view = await api.view();
           if (view.ok) store.setView(view.value);
         }
@@ -139,6 +163,43 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
     setAuthorName: (name) => store.setAuthorName(cleanName(name)),
     setCommentStatus: ownerOnly,
     editComment: ownerOnly,
+    /**
+     * Only with the key this browser got when posting it. A refusal for good
+     * reads the link again, which the open editor outlasts (its card stays
+     * until it closes), so closing it shows the comment as it now is.
+     */
+    async editOwnComment(id, body): Promise<EditOutcome> {
+      const key = store.editKeyOf(id);
+      if (!key) return refused(EDIT_GONE, true);
+      const words = body.trim();
+      const current = store.getSnapshot().view.comments.find((comment) => comment.id === id);
+      if (current?.body === words) return { ok: true, unchanged: true };
+      const result = await api.editComment(id, words, key);
+      if (result.ok) {
+        store.replaceComment(result.value);
+        return { ok: true };
+      }
+      // Awaited: once the editor offers Close, the list already knows the comment left the
+      // tab, so closing it moves focus on instead of to a card that then disappears.
+      if (result.status === 409 && result.error === "locked") {
+        await refresh();
+        return refused(EDIT_LOCKED, true);
+      }
+      if (result.error === "review-closed") {
+        store.markReviewClosed();
+        return refused(EDIT_CLOSED, true);
+      }
+      if (result.status === 404) {
+        await refresh();
+        return refused(EDIT_GONE, true);
+      }
+      if (isPasswordRequired(result)) {
+        store.markLocked();
+        return refused(EDIT_FAILED, false);
+      }
+      if (result.status === 429) return refused(EDIT_TOO_MANY, false);
+      return refused(result.status === 0 ? EDIT_OFFLINE : EDIT_FAILED, false);
+    },
     deleteComment: ownerOnly,
     restoreComment: ownerOnly,
     replaceWithImage: () => Promise.resolve(ownerOnly()),

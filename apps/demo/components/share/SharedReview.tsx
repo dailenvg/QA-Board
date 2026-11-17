@@ -5,6 +5,7 @@ import { BlobSourceContext } from "@/lib/blob-store/blob-source";
 import { createClientBackend } from "@/lib/share-client/client-backend";
 import { createClientStore, toViewerData } from "@/lib/share-client/client-store";
 import type { DraftStorage } from "@/lib/share-client/draft-storage";
+import { linkEditKeys } from "@/lib/share-client/edit-keys";
 import { linkNameMemory } from "@/lib/share-client/reviewer-name";
 import { createServerBlobs } from "@/lib/share-client/server-blobs";
 import { useClientRefresh } from "@/lib/share-client/use-client-refresh";
@@ -45,14 +46,14 @@ interface SharedReviewProps {
 function clientCopy(brand: ClientBrand, project: string, client: string | null) {
   if (!brand.custom) {
     return {
-      note: "You can add comments. Only the project owner can resolve or edit them.",
+      note: "You can add comments and edit your own until they're resolved. Only the project owner can resolve or delete them.",
       notice:
-        "You can browse this project and add comments. Only the project owner can resolve, edit or delete them.",
+        "You can browse this project, add comments and edit your own until they're resolved. Only the project owner can resolve or delete them.",
     };
   }
   return {
-    note: `You can add comments. Only ${brand.name} can resolve or edit them.`,
-    notice: `${invitationLine(brand.name, project, client)} Only ${brand.name} can resolve, edit or delete comments.`,
+    note: `You can add comments and edit your own until they're resolved. Only ${brand.name} can resolve or delete them.`,
+    notice: `${invitationLine(brand.name, project, client)} Only ${brand.name} can resolve or delete comments.`,
   };
 }
 
@@ -102,7 +103,11 @@ export function SharedReview({
   onLocked,
 }: SharedReviewProps) {
   const [store] = useState(() =>
-    createClientStore(initial, { authorName, names: linkNameMemory(token) }),
+    createClientStore(initial, {
+      authorName,
+      names: linkNameMemory(token),
+      editKeys: linkEditKeys(token),
+    }),
   );
   const [blobs] = useState(() => createServerBlobs(token));
   const backend = useMemo(
@@ -115,6 +120,8 @@ export function SharedReview({
   const { data, project } = useMemo(() => toViewerData(state), [state]);
   useClientRefresh(token, store);
   useEffect(() => store.carryOverAuthorName(), [store]);
+  // This browser's own comments (it holds their edit keys) are known only here, after hydration.
+  useEffect(() => store.loadOwnComments(), [store]);
   const { locked } = state;
   const lockedBrand = state.view.brand;
   const lockedProjectName = state.view.project.name;

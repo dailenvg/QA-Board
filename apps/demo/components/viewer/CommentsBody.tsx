@@ -1,12 +1,13 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import type { RefObject } from "react";
+import { useState, type RefObject } from "react";
 import { staggerGroup, useRevealVariants } from "@/lib/motion";
 import type { Comment } from "@/lib/store/types";
 import { StateArt } from "../ui/line-art/StateArt";
 import { CommentCard, type CommentCardActions } from "./CommentCard";
 import { commentRights } from "./comment-rights";
+import { listedOnTab } from "./listed-on-tab";
 import type { Placement } from "./surface";
 import type { CommentTab } from "./types";
 
@@ -18,6 +19,8 @@ interface CommentsBodyProps extends CommentCardActions {
   canModerate: boolean;
   /** The workspace's owner (`comment.moderate`): may delete anyone's comment. */
   moderator: boolean;
+  /** A shared link still takes its guest's edits (its review window is open). */
+  reviewOpen: boolean;
   /** Picked in the panel's header (`PanelHeading`). */
   tab: CommentTab;
   selectedId: string | null;
@@ -56,6 +59,34 @@ function emptyCopy(tab: CommentTab, total: number, scope: string | undefined) {
 
 const stagger = staggerGroup();
 
+/**
+ * Focus for a card that leaves once its editor closes (resolved or deleted
+ * meanwhile), as after a delete (`focusAfterRemoval`): the card after it,
+ * else the one before, else the panel's heading, never the page. Two frames:
+ * after the card has tried to keep it.
+ */
+function focusAfterLeaving(shown: readonly Comment[], id: string) {
+  const at = shown.findIndex((comment) => comment.id === id);
+  const neighbour = at < 0 ? undefined : (shown[at + 1] ?? shown[at - 1]);
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      const card = neighbour
+        ? document.querySelector<HTMLElement>(
+            `[data-comment-id="${CSS.escape(neighbour.id)}"] [data-card-select]`,
+          )
+        : null;
+      if (card) {
+        card.focus();
+        return;
+      }
+      const heading = document.querySelector<HTMLElement>('[data-testid="comments-panel"] h2');
+      if (!heading) return;
+      heading.tabIndex = -1;
+      heading.focus();
+    }),
+  );
+}
+
 /** The comment list for the selected tab, with its empty states. */
 export function CommentsBody({
   comments,
@@ -63,6 +94,7 @@ export function CommentsBody({
   placements,
   canModerate,
   moderator,
+  reviewOpen,
   tab,
   selectedId,
   now,
@@ -72,7 +104,19 @@ export function CommentsBody({
   ...actions
 }: CommentsBodyProps) {
   const variants = useRevealVariants();
-  const shown = comments.filter((comment) => comment.status === tab);
+  /** Comments whose editor is open, as they were when it opened (`listedOnTab`). */
+  const [editing, setEditing] = useState<ReadonlyMap<string, Comment>>(new Map());
+  const shown = listedOnTab(comments, tab, editing);
+  const onEditing = (comment: Comment, open: boolean) => {
+    setEditing((current) => {
+      const next = new Map(current);
+      if (open) next.set(comment.id, comment);
+      else next.delete(comment.id);
+      return next;
+    });
+    const stays = comments.some((entry) => entry.id === comment.id && entry.status === tab);
+    if (!open && !stays) focusAfterLeaving(shown, comment.id);
+  };
   const empty = emptyCopy(tab, comments.length, scope);
 
   return (
@@ -89,7 +133,7 @@ export function CommentsBody({
       >
         <AnimatePresence mode="popLayout">
           {shown.map((comment) => {
-            const rights = commentRights(comment, { team: canModerate, moderator });
+            const rights = commentRights(comment, { team: canModerate, moderator, reviewOpen });
             return (
               <CommentCard
                 key={comment.id}
@@ -100,6 +144,8 @@ export function CommentsBody({
                 canModerate={canModerate}
                 canEdit={rights.edit}
                 canDelete={rights.delete !== null}
+                resolvedNote={rights.resolvedNote}
+                onEditing={onEditing}
                 selected={comment.id === selectedId}
                 now={now}
                 {...actions}

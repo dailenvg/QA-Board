@@ -2,7 +2,7 @@ import { snapshotBlobKey } from "../blob-store/keys";
 import { commentsFor } from "../store/selectors";
 import { snapshotsFor } from "../store/snapshots";
 import { dispatch, getSnapshot } from "../store/store";
-import type { Comment, Project, ProjectShare, Snapshot } from "../store/types";
+import type { ClientEdit, Comment, Project, ProjectShare, Snapshot } from "../store/types";
 import { storeWorkspaceBlob } from "../workspace-client/blob-upload";
 import { workspaceBlobs } from "../workspace-client/workspace-store";
 import { ownerApi } from "./api";
@@ -184,7 +184,11 @@ async function copyBlob(share: ProjectShare, projectId: string, key: string): Pr
   return (await storeWorkspaceBlob(projectId, key, fetched.blob)).ok ? "copied" : "retry";
 }
 
-/** Merges what arrived. A comment whose crop is gone for good comes without it. */
+/**
+ * Merges what arrived. A comment whose crop is gone for good comes without
+ * it. An edit to a comment pulled before brings only its new words: its crop
+ * is already here.
+ */
 async function collect(share: ProjectShare, projectId: string, changes: ShareChanges) {
   let held = false;
   const snapshots: Snapshot[] = [];
@@ -194,8 +198,13 @@ async function collect(share: ProjectShare, projectId: string, changes: ShareCha
     // A missing image still merges: the snapshot shows its "not available" state.
     else snapshots.push(fromSharedSnapshot(snapshot, projectId));
   }
+  const edits: ClientEdit[] = changes.comments.flatMap((comment) =>
+    comment.edited && comment.editedAt !== undefined
+      ? [{ id: comment.id, body: comment.body, editedAt: comment.editedAt }]
+      : [],
+  );
   const comments: Comment[] = [];
-  for (const comment of changes.comments) {
+  for (const comment of changes.comments.filter((entry) => !entry.edited)) {
     const copied = comment.crop ? await copyBlob(share, projectId, `crop:${comment.id}`) : "copied";
     if (copied === "retry") {
       held = true;
@@ -206,12 +215,13 @@ async function collect(share: ProjectShare, projectId: string, changes: ShareCha
     // Pulls bring clients' comments only; the workspace marks them so too once saved.
     comments.push({ ...pulled, fromClient: true });
   }
-  return { snapshots, comments, held };
+  return { snapshots, comments, edits, held };
 }
 
 /**
- * Pulls client comments and snapshots added since the last pull, copies their
- * images into the workspace, then merges them (idempotent by id), which saves
+ * Pulls client comments and snapshots added since the last pull (and clients'
+ * edits since), copies their images into the workspace, then merges them
+ * (idempotent by id; an edit only reaches a comment still here), which saves
  * them and the new pull position to the workspace too. Only a temporary failure
  * holds the cursor back, so the next pull asks again; an image that can never
  * arrive doesn't stall anything. While anything is held, sync isn't shown as done.
@@ -225,11 +235,11 @@ export async function pullNow(projectId: string): Promise<void> {
     update(projectId, result.status === 404 ? { phase: "gone" } : { pullHeld: true });
     return;
   }
-  const { snapshots, comments, held } = await collect(share, projectId, result.value);
+  const { snapshots, comments, edits, held } = await collect(share, projectId, result.value);
   const cursor = held ? share.cursor : result.value.cursor;
   const at = Date.now();
-  if (comments.length || snapshots.length || cursor !== share.cursor) {
-    dispatch({ type: "share/merge", id: projectId, comments, snapshots, cursor, at });
+  if (comments.length || snapshots.length || edits.length || cursor !== share.cursor) {
+    dispatch({ type: "share/merge", id: projectId, comments, snapshots, edits, cursor, at });
   }
   update(projectId, held ? { pullHeld: true } : { pullHeld: false, checkedAt: at });
 }

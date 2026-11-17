@@ -22,8 +22,9 @@ export const GET = withMember<Params>(async (_request, { db, user, workspaceId }
  * `POST`: a new comment by the signed-in member (201), under their own name
  * whatever `author` says (it's only used while they have none). With
  * `fromShare`, a guest's comment pulled from the project's review link, saved
- * without an author account and with when its words last changed there; 404
- * unless a guest posted that comment there.
+ * without an author account, with its words, name, position, creation time
+ * and last edit as the link holds them (whatever the body says); 404 unless
+ * a guest posted that comment there.
  * Its snapshot or page must be the project's (422 `unknown-surface`); 409
  * when the id is taken.
  */
@@ -36,7 +37,6 @@ export const POST = withMember<Params>(async (request, { db, user, workspaceId, 
   const guest = fromShare ? await findGuestComment(db, workspaceId, projectId, comment.id) : null;
   if (fromShare && !guest) return notFound();
   const author = guest ? null : user.id;
-  const editedAt = guest?.editedAt ?? null;
-  const added = await addComment(db, workspaceId, projectId, comment, author, now, editedAt);
+  const added = await addComment(db, workspaceId, projectId, comment, author, now, guest);
   return added.ok ? json(added.value, 201) : refusal(added.reason);
 });
