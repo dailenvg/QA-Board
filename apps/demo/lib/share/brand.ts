@@ -56,12 +56,18 @@ export function toClientBrand(brand: ShareBrand): ClientBrand {
 }
 
 /**
+ * Bump when the icon's drawing changes (2: the default mark replaced the
+ * initials), so caches that keep an icon for good at its `?v=` fetch it again.
+ */
+const ICON_ART = 2;
+
+/**
  * The `?v=` of a company's icon: changes with its name, color or logo, so
  * link previews and inboxes that cached the old one fetch it again.
  */
 export function brandIconVersion(brand: Pick<ClientBrand, "name" | "color" | "logoVersion">) {
   return createHash("sha256")
-    .update(JSON.stringify([brand.name, brand.color, brand.logoVersion]))
+    .update(JSON.stringify([ICON_ART, brand.name, brand.color, brand.logoVersion]))
     .digest("hex")
     .slice(0, 16);
 }
@@ -80,7 +86,7 @@ export function iconVersionOf(brand: Pick<ShareBrand, "name" | "color" | "logoKe
 }
 
 /**
- * Where a shared link's company icon is: its logo, or its monogram without
+ * Where a shared link's company icon is: its logo, or its default mark without
  * one, as a square PNG (`/api/s/<token>/brand/icon`). The favicon link
  * previews show beside the company's name, and the invitation email's header.
  */
@@ -93,7 +99,7 @@ export function brandIconPath(
 
 /**
  * Where a project link's company icon is (`/api/p/<projectId>/brand/icon`),
- * as `brandIconPath` is for a review link: the logo, or the monogram, as a
+ * as `brandIconPath` is for a review link: the logo, or the default mark, as a
  * square PNG, its `?v=` changing with the company's name, color or logo.
  */
 export function projectIconPath(

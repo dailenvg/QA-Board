@@ -3,7 +3,7 @@
 import { motion } from "motion/react";
 import { useId } from "react";
 import { staggerGroup, useRevealVariants } from "@/lib/motion";
-import { useCompanyBadgeSrc } from "@/lib/workspace-client/use-company-badge";
+import { useCompanyBadge } from "@/lib/workspace-client/use-company-badge";
 import type { LeavingMember } from "@/lib/workspace/members/members-data";
 import { PersonAvatar } from "../ui/PersonAvatar";
 import { MEMBERS_COPY } from "./members-copy";
@@ -43,10 +43,10 @@ export function LeavingMembers({ leaving }: { leaving: readonly LeavingMember[] 
   );
 }
 
-/** Still the company's person until they're gone: their initials keep the badge. */
+/** Still the company's person until they're gone: their default mark keeps the badge. */
 function LeavingRow({ person }: { person: LeavingMember }) {
   const variants = useRevealVariants();
-  const badgeSrc = useCompanyBadgeSrc();
+  const badge = useCompanyBadge();
   const date = useDeleteDate(person.until);
   const name = person.name?.trim() || person.email;
   return (
@@ -60,7 +60,7 @@ function LeavingRow({ person }: { person: LeavingMember }) {
         fallback={person.email}
         src={null}
         size="md"
-        badgeSrc={badgeSrc}
+        badge={badge}
       />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">

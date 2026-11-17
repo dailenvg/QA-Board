@@ -10,12 +10,12 @@ import { accentStyle } from "../share/brand-accent";
 import { BrandFrame } from "../share/BrandMark";
 import { PasswordRevealContext, useRevealedPasswords } from "./password-reveal";
 
-/** A company the panel speaks for (an invite's workspace): its logo or monogram, name and color. */
+/** A company the panel speaks for (an invite's workspace): its logo or default mark, name and color. */
 export interface AuthPanelBrand {
   name: string;
   /** `#rrggbb`, or null for Squint's own accent. */
   color: string | null;
-  /** Its logo's URL; null draws its monogram. */
+  /** Its logo's URL; null draws its default mark. */
   logoSrc: string | null;
 }
 
@@ -103,10 +103,7 @@ export function AuthPanel({
                 className="flex max-w-full min-w-0 items-center justify-center gap-3 self-center"
                 data-testid="auth-brand"
               >
-                <BrandFrame
-                  brand={{ custom: true, name: brand.name, color: brand.color }}
-                  logoSrc={brand.logoSrc}
-                />
+                <BrandFrame brand={{ custom: true, color: brand.color }} logoSrc={brand.logoSrc} />
                 <span
                   className="min-w-0 truncate text-heading font-bold tracking-tight"
                   title={brand.name}

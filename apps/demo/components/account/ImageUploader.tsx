@@ -27,13 +27,16 @@ interface ImageUploaderProps {
   noun: string;
   /** The current image's URL; null shows `fallback`. */
   src: string | null;
-  /** What stands in without an image (a monogram). */
+  /** What stands in without an image: a default mark, drawn free (no frame). */
   fallback: ReactNode;
   /** After an upload (its new version) or a removal (null). */
   onChange: (version: string | null) => void;
   hint: string;
   testId: string;
 }
+
+/** The image's tile (`size-24`), in CSS px: what a default mark standing in is drawn for. */
+export const UPLOADER_TILE_PX = 96;
 
 type Status = "idle" | "preparing" | "uploading" | "removing" | "uploaded" | "removed";
 
@@ -45,20 +48,25 @@ const BUSY_LABELS: Partial<Record<Status, string>> = {
 interface StoredImageProps {
   src: string;
   fallback: ReactNode;
+  /** Its frame's shape: round for a photo, a tile's corners for a logo. */
+  shape: string;
   /** Its backing: a logo's light one, showing through its transparent parts on dark surfaces. */
   className: string;
 }
 
 /**
- * The stored image, filling the tile (cropped, not shrunk: the file stays
- * whole), fading in over a breathing placeholder; `fallback` if it won't load.
+ * The stored image, filling its framed tile (cropped, not shrunk: the file
+ * stays whole), fading in over a breathing placeholder; `fallback`, unframed,
+ * if it won't load.
  */
-function StoredImage({ src, fallback, className }: StoredImageProps) {
+function StoredImage({ src, fallback, shape, className }: StoredImageProps) {
   const [loaded, setLoaded] = useState(false);
   const [broken, setBroken] = useState(false);
   if (broken) return fallback;
   return (
-    <>
+    <span
+      className={`relative grid size-full place-items-center overflow-hidden bg-card shadow-seg ring-1 ring-line ${shape}`}
+    >
       {loaded ? null : <Skeleton className="absolute inset-0 size-full rounded-none" />}
       <motion.span
         className={`relative size-full ${className}`}
@@ -69,15 +77,15 @@ function StoredImage({ src, fallback, className }: StoredImageProps) {
         <Image
           src={src}
           alt=""
-          width={96}
-          height={96}
+          width={UPLOADER_TILE_PX}
+          height={UPLOADER_TILE_PX}
           unoptimized
           onLoad={() => setLoaded(true)}
           onError={() => setBroken(true)}
           className="block size-full object-cover"
         />
       </motion.span>
-    </>
+    </span>
   );
 }
 
@@ -179,9 +187,8 @@ export function ImageUploader({
   return (
     <div ref={rootRef} className="flex flex-col" aria-busy={busy} data-testid={testId}>
       <div className="flex items-center gap-4 max-sm:flex-col max-sm:items-start">
-        <span
-          className={`relative grid size-24 shrink-0 place-items-center overflow-hidden bg-card shadow-seg ring-1 ring-line ${shape}`}
-        >
+        {/* A fixed slot: the image brings its own frame; the default mark stands free in it. */}
+        <span className="relative grid size-24 shrink-0 place-items-center">
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.span
               key={src ?? "fallback"}
@@ -192,7 +199,11 @@ export function ImageUploader({
               className="grid size-full place-items-center"
               data-testid={src ? `${testId}-image` : `${testId}-fallback`}
             >
-              {src ? <StoredImage src={src} fallback={fallback} className={backing} /> : fallback}
+              {src ? (
+                <StoredImage src={src} fallback={fallback} shape={shape} className={backing} />
+              ) : (
+                fallback
+              )}
             </motion.span>
           </AnimatePresence>
         </span>

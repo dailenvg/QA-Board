@@ -22,7 +22,7 @@ const STALE_CACHE = "public, max-age=3600";
 
 /**
  * `GET ?v=<version>`: the company icon of a workspace (its logo, or its
- * monogram), as a square PNG, by the workspace's opaque key: the header of
+ * default mark), as a square PNG, by the workspace's opaque key: the header of
  * its member invite emails, which load it signed out. It shows the company's
  * name and logo only, as a review link's icon does. 404 alike for an unknown
  * key and a workspace archived, waiting to be deleted, or gone.

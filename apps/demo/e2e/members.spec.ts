@@ -598,6 +598,8 @@ test("with reduced motion, inviting and cancelling still work, and the page pass
   await openMembers(page);
   await inviteInUi(page, [cleo]);
   await expect(inviteRow(page, cleo)).toBeVisible();
+  // "Just you so far" fades out as the invite lands: axe would read it mid-fade.
+  await expect(page.getByTestId("people-empty")).toHaveCount(0);
   // The cards fade in as they scroll into view: checked once both have.
   for (const id of ["invite-card", "people-card"]) {
     await page.getByTestId(id).scrollIntoViewIfNeeded();

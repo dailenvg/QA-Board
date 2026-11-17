@@ -51,7 +51,7 @@ export function workspaceLogoSrc(version: string): string {
 
 /**
  * The company icon of the signed-in user's workspace (its logo, or its
- * monogram), at a version that changes with its name, color or logo: the
+ * default mark), at a version that changes with its name, color or logo: the
  * badge on the team's avatars in the app.
  */
 export function workspaceIconSrc(version: string): string {

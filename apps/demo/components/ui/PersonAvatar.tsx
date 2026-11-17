@@ -3,8 +3,11 @@
 import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import { useState } from "react";
+import type { CompanyBadge as Badge } from "@/lib/avatar/company-badge";
 import { personMonogramName } from "@/lib/monogram";
 import { fadeOnly } from "@/lib/motion";
+import { CompanyBadge } from "../avatar/CompanyBadge";
+import { PersonMark } from "../avatar/PersonMark";
 import { MonogramTile } from "../brand/MonogramTile";
 
 /** 28px on a comment; 36px beside the sidebar's account menu; 40px on a Members row. */
@@ -13,19 +16,27 @@ type AvatarSize = "xs" | "sm" | "md";
 /** What the avatar sits on: the company badge's cut-out ring takes its color. */
 export type AvatarSurface = "panel" | "card" | "tile";
 
+/**
+ * Who it is, for what stands in without a photo: someone on the team gets
+ * the default mark in their pin color (initials under a head, or head and
+ * shoulders beside the company badge), the admin theirs, and a client the
+ * plain initials circle.
+ */
+export type AvatarPerson = "member" | "admin" | "client";
+
 interface AvatarMetrics {
   box: string;
   px: number;
-  /** The badge: half the avatar wide, hung off its bottom-right corner by `hang`. */
+  /** The badge: half the avatar wide, hung off its bottom-left corner by `hang`. */
   badge: string;
   badgePx: number;
   hang: string;
 }
 
 const SIZES: Record<AvatarSize, AvatarMetrics> = {
-  xs: { box: "size-7", px: 28, badge: "size-3.5", badgePx: 14, hang: "-right-0.5 -bottom-0.5" },
-  sm: { box: "size-9", px: 36, badge: "size-4.5", badgePx: 18, hang: "-right-1 -bottom-1" },
-  md: { box: "size-10", px: 40, badge: "size-5", badgePx: 20, hang: "-right-1 -bottom-1" },
+  xs: { box: "size-7", px: 28, badge: "size-3.5", badgePx: 14, hang: "-left-0.5 -bottom-0.5" },
+  sm: { box: "size-9", px: 36, badge: "size-4.5", badgePx: 18, hang: "-left-1 -bottom-1" },
+  md: { box: "size-10", px: 40, badge: "size-5", badgePx: 20, hang: "-left-1 -bottom-1" },
 };
 
 /**
@@ -47,22 +58,52 @@ interface PersonAvatarProps {
   /** Their photo's URL; null without one. */
   src: string | null;
   size?: AvatarSize;
+  person?: AvatarPerson;
   /**
-   * The company's icon hung off the avatar's bottom-right corner (4b.15), for someone
-   * on the team; null without one. Decorative: the name is always beside it.
+   * The company's badge, hung off the avatar's bottom-left corner (4b.15), for
+   * someone on the team; null without one. Decorative: the name is always beside it.
    */
-  badgeSrc?: string | null;
+  badge?: Badge | null;
   /** Where the avatar sits, for the badge's cut-out ring. */
   surface?: AvatarSurface;
   photoTestId?: string;
+  /** On whatever stands in without a photo: a default mark (initials or not) or a client's initials. */
   initialsTestId?: string;
 }
 
+interface StandInProps {
+  person: AvatarPerson;
+  /** A company badge shows over the corner. */
+  badged: boolean;
+  /** Their name, else their email. */
+  label: string;
+  px: number;
+  testId?: string;
+}
+
+/** What shows without a photo: the default mark, free in the slot, or a client's initials circle. */
+function StandIn({ person, badged, label, px, testId }: StandInProps) {
+  if (person !== "client") {
+    return (
+      <PersonMark
+        label={label}
+        admin={person === "admin"}
+        badged={badged}
+        size={px}
+        testId={testId}
+      />
+    );
+  }
+  return (
+    <MonogramTile name={label} className="size-full rounded-pill text-label" testId={testId} />
+  );
+}
+
 /**
- * Someone's photo, or their initials without one, with the company badge for
- * the team. One fixed slot: photo and initials cross-fade in place, so the
+ * Someone's photo, or their default mark without one, with the company badge
+ * for the team. One fixed slot: photo and mark cross-fade in place, so the
  * text beside it never shifts. A photo that won't load (removed in another
- * tab) gives way to the initials, and a badge that won't load is left out:
+ * tab) gives way to the mark, and a badge that won't load is left out:
  * never a broken image.
  */
 export function PersonAvatar({
@@ -70,13 +111,14 @@ export function PersonAvatar({
   fallback,
   src,
   size = "sm",
-  badgeSrc = null,
+  person = "member",
+  badge = null,
   surface = "card",
   photoTestId,
   initialsTestId,
 }: PersonAvatarProps) {
   const [brokenSrc, setBrokenSrc] = useState<string | null>(null);
-  const { box, px } = SIZES[size];
+  const { box, px, badge: badgeBox, badgePx, hang } = SIZES[size];
   return (
     <span className={`relative ${box} shrink-0`}>
       <AnimatePresence initial={false}>
@@ -109,54 +151,24 @@ export function PersonAvatar({
             exit="exit"
             className="absolute inset-0"
           >
-            <MonogramTile
-              name={personMonogramName(name, fallback)}
-              color={null}
-              className="size-full rounded-pill text-label"
+            <StandIn
+              person={person}
+              badged={badge !== null}
+              label={personMonogramName(name, fallback)}
+              px={px}
               testId={initialsTestId}
             />
           </motion.span>
         )}
       </AnimatePresence>
-      {badgeSrc ? <CompanyBadge src={badgeSrc} size={size} surface={surface} /> : null}
-    </span>
-  );
-}
-
-interface CompanyBadgeProps {
-  src: string;
-  size: AvatarSize;
-  surface: AvatarSurface;
-}
-
-/**
- * The company's icon as a small rounded square (a logo tile's radius, never a
- * circle, so it can't pass for a second person or a status dot), hung off
- * the avatar's corner, with a hairline so a white logo stays defined on a white
- * card: line-strong, since line (1.27:1 on white) all but vanished there. No
- * motion of its own: it arrives with the avatar.
- */
-function CompanyBadge({ src, size, surface }: CompanyBadgeProps) {
-  const [brokenSrc, setBrokenSrc] = useState<string | null>(null);
-  const { badge, badgePx, hang } = SIZES[size];
-  if (src === brokenSrc) return null;
-  return (
-    <span
-      aria-hidden="true"
-      // The ring's color tracks a tinting card's `transition-colors` at the same default duration.
-      className={`absolute ${hang} ${badge} rounded-[25%] transition-shadow ${CUT_OUT[surface]}`}
-    >
-      <Image
-        src={src}
-        alt=""
-        width={badgePx}
-        height={badgePx}
-        unoptimized
-        onError={() => setBrokenSrc(src)}
-        data-testid="company-badge"
-        className="block size-full rounded-[25%] object-cover"
-      />
-      <span className="pointer-events-none absolute inset-0 rounded-[25%] ring-1 ring-line-strong ring-inset" />
+      {badge ? (
+        <CompanyBadge
+          badge={badge}
+          px={badgePx}
+          // The ring's color tracks a tinting card's `transition-colors` at the same default duration.
+          className={`${hang} ${badgeBox} transition-shadow ${CUT_OUT[surface]}`}
+        />
+      ) : null}
     </span>
   );
 }

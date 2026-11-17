@@ -9,6 +9,12 @@ export const metadata: Metadata = { title: "Folders" };
 export default async function FoldersPage() {
   const session = await loadSessionWorkspace();
   if (session.kind === "none")
-    return <NoWorkspace email={session.user.email} name={session.user.name} />;
+    return (
+      <NoWorkspace
+        email={session.user.email}
+        name={session.user.name}
+        admin={session.user.role === "admin"}
+      />
+    );
   return <FoldersView />;
 }

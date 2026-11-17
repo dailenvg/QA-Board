@@ -1,6 +1,9 @@
 import type { Locator, Page } from "@playwright/test";
+import { COMPANY_DEFAULT_FILL } from "../lib/avatar/default-avatar";
+import { COMMENTER_PALETTE } from "../lib/brand-palette";
 import { expect, test } from "./test";
 import { SIGNED_OUT } from "./auth-fixtures";
+import { expectMark } from "./avatar-fixtures";
 import { E2E_COMPANY } from "./e2e-env";
 import { snapshotPng } from "./sample-snapshot";
 import {
@@ -100,7 +103,8 @@ test("the owner names the workspace and picks a color and sender name, previewed
   const preview = card.getByTestId("invite-preview");
   await expect(card.getByTestId("workspace-slug")).toHaveText(E2E_COMPANY.slug);
   await expect(preview.getByTestId("invite-preview-name")).toHaveText(E2E_COMPANY.name);
-  await expect(preview.getByTestId("brand-monogram")).toHaveText("EA");
+  const mark = preview.getByTestId("brand-default");
+  await expectMark(mark, "company", COMPANY_DEFAULT_FILL);
   await expect(card.getByRole("button", { name: "Save changes" })).toHaveAttribute(
     "aria-disabled",
     "true",
@@ -109,7 +113,6 @@ test("the owner names the workspace and picks a color and sender name, previewed
   // The preview follows each edit before anything is saved.
   await card.getByLabel("Workspace name").fill("Northwind Studio");
   await expect(preview.getByTestId("invite-preview-name")).toHaveText("Northwind Studio");
-  await expect(preview.getByTestId("brand-monogram")).toHaveText("NS");
   await expect(preview.getByTestId("invite-preview-invitation")).toHaveText(
     "Northwind Studio has invited you to review Homepage refresh. Choose Comment (or press C), then click or tap anywhere to leave feedback.",
   );
@@ -123,13 +126,14 @@ test("the owner names the workspace and picks a color and sender name, previewed
   await expect(color).toHaveAttribute("aria-invalid", "true");
   await expect(card.getByTestId("brand-contrast")).toContainText("On white: 1.1:1");
 
+  await color.fill("#0f766e");
+  await expect(color).not.toHaveAttribute("aria-invalid");
+  await expect(card.getByTestId("brand-contrast")).toContainText("On white: 5.5:1");
+  await expectMark(mark, "company", "#0f766e");
   await color.fill("#E03B9D");
   await expect(color).not.toHaveAttribute("aria-invalid");
   await expect(card.getByTestId("brand-contrast")).toContainText("On white: 4.0:1");
-  await expect(preview.getByTestId("brand-monogram")).toHaveCSS(
-    "background-color",
-    "rgb(224, 59, 157)",
-  );
+  await expectMark(mark, "company", "#e03b9d");
 
   await card.getByLabel("Email sender name").fill("Northwind  Team");
   await expect(preview.getByTestId("invite-preview-sender")).toHaveText(
@@ -147,19 +151,20 @@ test("the owner names the workspace and picks a color and sender name, previewed
   await expect(saved.getByLabel("Email sender name")).toHaveValue("Northwind Team");
 });
 
-test("a guest sees the monogram, then the uploaded logo, then the monogram again once it's removed", async ({
+test("a guest sees the default mark, then the uploaded logo, then the default again once it's removed", async ({
   page,
   baseURL,
 }) => {
   const { token } = await shareWorkspaceProject(page, PROJECT);
   const { guest, close } = await openAsGuest(page, baseURL, token);
   const brand = guest.getByTestId("guest-brand");
-  await expect(brand.getByTestId("brand-monogram")).toHaveText("EA");
+  await expectMark(brand.getByTestId("brand-default"), "company", COMPANY_DEFAULT_FILL);
   await expect(brand.getByTestId("brand-logo")).toHaveCount(0);
 
   await page.goto("/account/workspace");
   const logoCard = page.getByTestId("workspace-logo-settings");
-  await expect(logoCard.getByTestId("logo-fallback")).toBeVisible();
+  const fallback = logoCard.getByTestId("logo-fallback");
+  await expectMark(fallback.locator("svg"), "company", COMPANY_DEFAULT_FILL);
   // Saved at Fit: the browser squares it, the logo whole on transparent padding, scaled to
   // 512 px, and stores a PNG.
   await pickAndSave(page, logoCard.getByTestId("logo-input"), png(800, 400));
@@ -179,27 +184,28 @@ test("a guest sees the monogram, then the uploaded logo, then the monogram again
   await expect(logo).toBeVisible();
   expect(await naturalSize(logo)).toEqual([512, 512]);
   await expectFills(logo, brand.getByTestId("brand-mark"));
-  await expect(brand.getByTestId("brand-monogram")).toHaveCount(0);
+  await expect(brand.getByTestId("brand-default")).toHaveCount(0);
 
   await logoCard.getByRole("button", { name: "Remove logo" }).click();
   await expect(page.getByTestId("logo-saved")).toHaveText("Logo removed.");
-  await expect(logoCard.getByTestId("logo-fallback")).toBeVisible();
+  await expectMark(fallback.locator("svg"), "company", COMPANY_DEFAULT_FILL);
   expect(await logoRow()).toBeNull();
   await guest.reload();
-  await expect(brand.getByTestId("brand-monogram")).toHaveText("EA");
+  await expectMark(brand.getByTestId("brand-default"), "company", COMPANY_DEFAULT_FILL);
   await expect(brand.getByTestId("brand-logo")).toHaveCount(0);
   await close();
 });
 
-test("the Overview opens with the workspace's name and monogram, then its logo once it has one", async ({
+test("the Overview opens with the workspace's name and default mark, then its logo once it has one", async ({
   page,
 }) => {
   await openOverview(page);
   const header = page.getByTestId("workspace-header");
   await expect(header.getByTestId("workspace-header-name")).toHaveText(E2E_COMPANY.name);
-  const monogram = header.getByTestId("workspace-header-monogram");
-  await expect(monogram).toHaveText("EA");
-  await expect(monogram).toHaveCSS("background-color", "rgb(1, 45, 97)");
+  const mark = header.getByTestId("workspace-header-default");
+  await expectMark(mark, "company", COMPANY_DEFAULT_FILL);
+  // Free in its slot: the tile's frame belongs to a logo.
+  await expect(header.getByTestId("workspace-header-tile")).toHaveCSS("box-shadow", "none");
   await expect(header.getByTestId("workspace-header-logo")).toHaveCount(0);
   // The name is no heading: the page's one h1 stays the hero's.
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(OVERVIEW_HEADLINE.empty);
@@ -219,7 +225,7 @@ test("the Overview opens with the workspace's name and monogram, then its logo o
   );
   expect(await naturalSize(logo)).toEqual([512, 512]);
   await expectFills(logo, header.getByTestId("workspace-header-tile"));
-  await expect(monogram).toHaveCount(0);
+  await expect(mark).toHaveCount(0);
   await expect(header.getByTestId("workspace-header-name")).toHaveText(E2E_COMPANY.name);
 });
 
@@ -256,13 +262,18 @@ test("a photo is cropped square, resized, and shown with the account in the side
   await page.goto("/account/profile");
   const sidebar = page.getByRole("complementary", { name: "Workspace" });
   await expect(sidebar.getByTestId("account-avatar")).toHaveCount(0);
-  // Without a photo, the user's initials: paper on navy, which reads in both themes.
+  // Without a photo, the user's default mark in their pin color: head and shoulders beside the
+  // company badge, no initials.
   const initials = sidebar.getByTestId("account-initials");
-  await expect(initials).toHaveText(/^\S{1,2}$/);
-  await expect(initials).toHaveCSS("background-color", "rgb(1, 45, 97)");
-  await expect(initials).toHaveCSS("color", "rgb(253, 253, 253)");
+  await expect(initials).toHaveText("");
+  await expect(initials).toHaveAttribute("data-mark", "person");
+  const fill = await initials.locator(":scope > path").first().getAttribute("fill");
+  expect(COMMENTER_PALETTE.map((entry) => entry.hex)).toContain(fill);
   const card = page.getByTestId("avatar-settings");
-  await expect(card.getByTestId("avatar-fallback")).toBeVisible();
+  // The editor draws it large, with no badge: their initials under a small head.
+  const editorMark = card.getByTestId("avatar-fallback").locator("svg");
+  await expectMark(editorMark, "person", fill ?? "");
+  await expect(editorMark).toHaveText(/^\S{1,2}$/);
 
   // The crop step starts a photo at Fill, its least: the round avatar must be covered.
   await card.getByTestId("avatar-input").setInputFiles(png(900, 600));

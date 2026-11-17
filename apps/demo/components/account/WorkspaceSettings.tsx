@@ -3,8 +3,8 @@
 import { useState } from "react";
 import type { WorkspaceSettings as Settings } from "@/lib/account/workspace-settings";
 import { workspaceLogoSrc } from "@/lib/routes";
-import { MonogramTile } from "../brand/MonogramTile";
-import { ImageUploader } from "./ImageUploader";
+import { CompanyMark } from "../avatar/CompanyMark";
+import { ImageUploader, UPLOADER_TILE_PX } from "./ImageUploader";
 import { SettingsCard } from "./SettingsCard";
 import { WorkspaceForm } from "./WorkspaceForm";
 
@@ -38,7 +38,7 @@ export function WorkspaceSettings({ settings, isOwner }: WorkspaceSettingsProps)
     <div className="flex flex-col gap-4" data-testid="workspace-settings">
       <SettingsCard
         title="Logo"
-        description="Shown to guests at the top of your review links and on their link previews. Without one, your workspace's initials stand in, on your brand color."
+        description="Shown to guests at the top of your review links and on their link previews. Without one, a building in your brand color stands in."
         icon="image"
         testId="workspace-logo-settings"
       >
@@ -47,13 +47,7 @@ export function WorkspaceSettings({ settings, isOwner }: WorkspaceSettingsProps)
           target="logo"
           noun="logo"
           src={logoSrc}
-          fallback={
-            <MonogramTile
-              name={settings.name}
-              color={settings.brandColor}
-              className="size-full text-display"
-            />
-          }
+          fallback={<CompanyMark color={settings.brandColor} size={UPLOADER_TILE_PX} />}
           onChange={setLogoVersion}
           hint="A PNG, JPG or WebP of any shape. You'll size and position it next. Transparent backgrounds stay transparent."
           testId="logo"

@@ -11,6 +11,8 @@ import { PasswordForm } from "./PasswordForm";
 interface ProfileSettingsProps {
   name: string | null;
   email: string;
+  /** The Squint admin: their own default mark without a photo. */
+  admin: boolean;
   /** The avatar's `?v=`, or null without one. */
   avatarVersion: string | null;
   /** What deleting the account asks to be typed, and what's in its way; null hides it (the admin's). */
@@ -27,6 +29,7 @@ interface ProfileSettingsProps {
 export function ProfileSettings({
   name,
   email,
+  admin,
   avatarVersion,
   deletion,
   clickUp,
@@ -34,7 +37,7 @@ export function ProfileSettings({
   return (
     <div className="flex flex-col gap-4" data-testid="profile-settings">
       <NameForm initialName={name} />
-      <AvatarForm name={name} email={email} initialVersion={avatarVersion} />
+      <AvatarForm name={name} email={email} admin={admin} initialVersion={avatarVersion} />
       <EmailForm currentEmail={email} />
       <PasswordForm email={email} />
       {clickUp ? <ClickUpSettings section={clickUp} /> : null}

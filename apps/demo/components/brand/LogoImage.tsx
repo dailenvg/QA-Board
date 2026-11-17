@@ -8,7 +8,7 @@ import { Skeleton } from "../ui/Skeleton";
 
 interface LogoImageProps {
   src: string;
-  /** What stands in if it won't load (a monogram). */
+  /** What stands in if it won't load (a default mark). */
   fallback: ReactNode;
   testId?: string;
 }

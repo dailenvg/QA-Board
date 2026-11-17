@@ -316,16 +316,48 @@ export async function samplePng(page: Page, label = "Mockup", height = 900): Pro
   return Buffer.from(dataUrl.split(",")[1] ?? "", "base64");
 }
 
+/** From this width the viewer shows its comments in a side panel; under it, in a bottom sheet. */
+const SIDE_PANEL_MIN_WIDTH = 1024;
+
+/**
+ * The comments sheet's toggle once the page has hydrated, or null on a wide screen. The server
+ * can't see the viewport, so it always draws the collapsed sheet: a wide screen swaps it for
+ * the side panel as it hydrates (a toggle seen before then is gone by the click), and a narrow
+ * one ignores a click until React has hydrated the toggle (it sets its props on the node then).
+ */
+async function hydratedSheetToggle(page: Page): Promise<Locator | null> {
+  const panel = page.getByTestId("comments-panel");
+  await expect(panel).toBeVisible();
+  const toggle = panel.getByRole("button", { name: /(Show|Hide) comments/ });
+  if ((page.viewportSize()?.width ?? 0) >= SIDE_PANEL_MIN_WIDTH) {
+    await expect(toggle).toHaveCount(0);
+    return null;
+  }
+  await expect
+    .poll(() =>
+      toggle.evaluate((node) => Object.keys(node).some((key) => key.startsWith("__reactProps$"))),
+    )
+    .toBe(true);
+  return toggle;
+}
+
+/** Opens or collapses the comments bottom sheet on small screens; wide screens have none. */
+async function setCommentsSheet(page: Page, open: boolean): Promise<void> {
+  const toggle = await hydratedSheetToggle(page);
+  if (!toggle) return;
+  const expanded = String(open);
+  if ((await toggle.getAttribute("aria-expanded")) !== expanded) await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", expanded);
+}
+
 /** The comments panel is a collapsed bottom sheet on small screens. */
 export async function showComments(page: Page): Promise<void> {
-  const toggle = page.getByRole("button", { name: /Show comments/ });
-  if (await toggle.isVisible()) await toggle.click();
+  await setCommentsSheet(page, true);
 }
 
 /** Collapses the comments bottom sheet on small screens, uncovering the canvas. */
 export async function hideComments(page: Page): Promise<void> {
-  const toggle = page.getByRole("button", { name: /Hide comments/ });
-  if (await toggle.isVisible()) await toggle.click();
+  await setCommentsSheet(page, false);
 }
 
 export function topBarStatus(page: Page): Locator {

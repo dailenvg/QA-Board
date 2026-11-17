@@ -5,5 +5,5 @@ export const dynamic = "force-dynamic";
 
 /** The project link's card for X. Rendered here, not re-exported, so a cardVersion bump changes this URL too. */
 export default function ProjectTwitterImage({ params }: { params: { id: string } }) {
-  return renderProjectCard(params.id, { cardVersion: 5 });
+  return renderProjectCard(params.id, { cardVersion: 6 });
 }

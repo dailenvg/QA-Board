@@ -47,6 +47,7 @@ function workspace(projects: WorkspaceProject[], folders = true): WorkspaceData 
       name: "Acme",
       fromEmailName: null,
       brandColor: null,
+      hasLogo: false,
       iconVersion: "0123456789abcdef",
       role: "owner",
       permissions: ["review_links", "trash", "import"],

@@ -9,7 +9,7 @@ type Params = { params: Promise<{ id: string }> };
 
 /**
  * `GET ?v=<version>`: the icon of the company whose project this is (its
- * logo, or its monogram), as a square PNG for a project link's preview and
+ * logo, or its default mark), as a square PNG for a project link's preview and
  * its sign-in screen. Open signed out: the company is all the link shows.
  * 404 alike for an unknown id and for a project in the trash or archived,
  * or whose workspace is archived or waiting to be deleted.

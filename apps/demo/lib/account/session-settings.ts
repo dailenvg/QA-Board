@@ -81,7 +81,7 @@ export async function sessionAvatarSrc(userId: string): Promise<string | null> {
 /** What the Overview's header shows of the workspace. */
 export interface WorkspaceIdentity {
   name: string;
-  /** `#rrggbb`, or null: the monogram sits on the neutral navy. */
+  /** `#rrggbb`, or null: the default mark takes magenta. */
   brandColor: string | null;
   /** The logo's URL, versioned so a new logo is a new URL; null without one. */
   logoSrc: string | null;
@@ -90,7 +90,7 @@ export interface WorkspaceIdentity {
 /**
  * The name, brand color and logo of a workspace the session's user is
  * already known to belong to (`loadSessionWorkspace` checked). If reading
- * them fails (logged by kind only), `name` alone: the header shows its monogram.
+ * them fails (logged by kind only), `name` alone: the header shows its default mark.
  */
 export const sessionWorkspaceIdentity = cache(
   async (workspaceId: string, name: string): Promise<WorkspaceIdentity> => {

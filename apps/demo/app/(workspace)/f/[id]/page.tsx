@@ -9,6 +9,12 @@ export default async function FolderPage({ params }: { params: Promise<{ id: str
   const { id } = await params;
   const session = await loadSessionWorkspace();
   if (session.kind === "none")
-    return <NoWorkspace email={session.user.email} name={session.user.name} />;
+    return (
+      <NoWorkspace
+        email={session.user.email}
+        name={session.user.name}
+        admin={session.user.role === "admin"}
+      />
+    );
   return <FolderView folderId={id} />;
 }

@@ -40,7 +40,7 @@ async function genericPreview(parent: ResolvingMetadata): Promise<Metadata> {
 
 /**
  * A workspace's link previews as its invitation, under the company's name and
- * icon (its logo, or its monogram) rather than Squint's: chat apps show both
+ * icon (its logo, or its default mark) rather than Squint's: chat apps show both
  * beside the card, and guests see the icon in their tab.
  */
 function companyPreview(token: string, brand: ClientBrand, invitation: Invitation): Metadata {

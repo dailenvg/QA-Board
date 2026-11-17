@@ -14,7 +14,7 @@ export interface ProjectSignInBrand {
   company: string;
   project: string;
   color: string | null;
-  /** The company's icon (its logo drawn square), or null to show its monogram. */
+  /** The company's icon (its logo drawn square), or null to show its default mark. */
   logoSrc: string | null;
 }
 
@@ -30,7 +30,7 @@ const SQUINT = { custom: false, name: "Squint", color: null } as const;
 
 /**
  * A project's link opened signed out: whose it is (the company's logo or
- * monogram and name) and the project's name, and Sign in, which comes back
+ * default mark and name) and the project's name, and Sign in, which comes back
  * here, with a line pointing anyone not on the team to the sender for a
  * review link. Nothing else of the project. A link that doesn't open to a live
  * project (unknown, in the trash, archived, its workspace closed) shows the

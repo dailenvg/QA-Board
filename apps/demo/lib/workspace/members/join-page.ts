@@ -26,7 +26,7 @@ export interface JoinBrand {
   color: string | null;
   /**
    * The logo inline as a data URI (the visitor may have no session to fetch
-   * it with); null: the monogram, also for a logo too large to inline.
+   * it with); null: the default mark, also for a logo too large to inline.
    */
   logoSrc: string | null;
   /** The owner's name, for "Ask {Owner}"; null when they have none. */
@@ -110,7 +110,7 @@ async function accountOf(
 }
 
 /**
- * The workspace's logo as a data URI, or null (the monogram) without one, when
+ * The workspace's logo as a data URI, or null (the default mark) without one, when
  * its file won't read, or when it's too large to inline (`pageLogoUri`).
  */
 async function logoUri(

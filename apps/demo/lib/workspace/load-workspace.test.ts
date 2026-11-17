@@ -61,6 +61,7 @@ describe("loadWorkspace", () => {
       name: "acme",
       fromEmailName: null,
       brandColor: null,
+      hasLogo: false,
       iconVersion: iconVersionOf({ name: "acme", color: null, logoKey: null }),
       role: "owner",
       permissions: ["review_links", "trash", "import"],

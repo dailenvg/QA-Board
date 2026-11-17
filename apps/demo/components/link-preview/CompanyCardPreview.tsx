@@ -1,5 +1,5 @@
 import { PAPER } from "@/lib/brand-palette";
-import { monogram } from "@/lib/monogram";
+import { companyMarkUri } from "./company-mark-uri";
 import { PreviewFrame } from "./PreviewFrame";
 import { PreviewText, type TextSegment } from "./PreviewText";
 import { SharedReviewArt } from "./SharedReviewArt";
@@ -12,7 +12,7 @@ interface CompanyCardPreviewProps {
   line: readonly TextSegment[];
   /** The company's brand color, for the logo frame and rule only; null keeps cobalt. */
   color: string | null;
-  /** The logo as a PNG, JPEG or GIF data URI; null shows the company's monogram. */
+  /** The logo as a PNG, JPEG or GIF data URI; null shows the company's default mark. */
   logoUri: string | null;
 }
 
@@ -23,6 +23,7 @@ const LOGO_RADIUS = 32;
 const LOGO_BORDER = 4;
 /** The logo fills the frame inside its border, cropped to the frame's corners. */
 const LOGO_SIZE = LOGO_FRAME - 2 * LOGO_BORDER;
+const FRAME_SHADOW = `0 16px 32px -20px ${PREVIEW_COLORS.shadow}`;
 
 /** At most `max` characters, ending in an ellipsis when cut. */
 export function clip(text: string, max: number): string {
@@ -53,7 +54,7 @@ function CompanyLogo({ uri, accent }: { uri: string; accent: string }) {
         borderRadius: LOGO_RADIUS,
         background: PAPER,
         border: `${LOGO_BORDER}px solid ${accent}`,
-        boxShadow: `0 16px 32px -20px ${PREVIEW_COLORS.shadow}`,
+        boxShadow: FRAME_SHADOW,
       }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- ImageResponse draws plain <img> only. */}
@@ -68,28 +69,32 @@ function CompanyLogo({ uri, accent }: { uri: string; accent: string }) {
   );
 }
 
-/** The company's initials on its brand color (navy without one), in the logo's frame. */
-function CompanyMonogram({ company, color }: { company: string; color: string | null }) {
-  const tile = monogram(company, color);
+/**
+ * The company's default mark (a building on a bubble in its brand color,
+ * magenta without one) in the logo's frame, on its paper. The tile fit keeps
+ * the bubble's tail clear of the frame's corners.
+ */
+function CompanyMark({ color, accent }: { color: string | null; accent: string }) {
   return (
     <div
       style={{
         width: LOGO_FRAME,
         height: LOGO_FRAME,
         display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
         flexShrink: 0,
         borderRadius: LOGO_RADIUS,
-        background: tile.background,
-        color: tile.ink,
-        fontSize: 48,
-        fontWeight: 800,
-        letterSpacing: -1,
-        boxShadow: `0 16px 32px -20px ${PREVIEW_COLORS.shadow}`,
+        background: PAPER,
+        border: `${LOGO_BORDER}px solid ${accent}`,
+        boxShadow: FRAME_SHADOW,
       }}
     >
-      {tile.initials}
+      {/* eslint-disable-next-line @next/next/no-img-element -- ImageResponse draws plain <img> only. */}
+      <img
+        src={companyMarkUri({ color, size: LOGO_SIZE, tile: null })}
+        alt=""
+        width={LOGO_SIZE}
+        height={LOGO_SIZE}
+      />
     </div>
   );
 }
@@ -120,7 +125,7 @@ function ProjectName({ project }: { project: string }) {
 
 /**
  * A company's card: the company (its logo when the card can draw it, its
- * monogram otherwise), a line saying who it's for, and the project's name,
+ * default mark otherwise), a line saying who it's for, and the project's name,
  * with Squiggy beside them. A client's invitation and a team's project link
  * differ in the line only.
  */
@@ -138,7 +143,7 @@ export function CompanyCardPreview({
         {logoUri ? (
           <CompanyLogo uri={logoUri} accent={accent} />
         ) : (
-          <CompanyMonogram company={company} color={color} />
+          <CompanyMark color={color} accent={accent} />
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 480 }}>
           <div

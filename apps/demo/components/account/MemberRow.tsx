@@ -3,7 +3,7 @@
 import { motion, useReducedMotion } from "motion/react";
 import type { MemberSwitch } from "@/lib/auth/permissions";
 import { instant, spring, useRevealVariants } from "@/lib/motion";
-import { useCompanyBadgeSrc } from "@/lib/workspace-client/use-company-badge";
+import { useCompanyBadge } from "@/lib/workspace-client/use-company-badge";
 import type { AskContext } from "@/lib/workspace-client/permission-copy";
 import { Menu } from "../ui/Menu";
 import { PersonAvatar } from "../ui/PersonAvatar";
@@ -57,7 +57,7 @@ export function MemberRow({
 }: MemberRowProps) {
   const reduce = useReducedMotion();
   const variants = useRevealVariants();
-  const badgeSrc = useCompanyBadgeSrc();
+  const badge = useCompanyBadge();
   return (
     <motion.li
       layout="position"
@@ -75,7 +75,7 @@ export function MemberRow({
           fallback={person.fallback}
           src={person.avatarSrc}
           size="md"
-          badgeSrc={badgeSrc}
+          badge={badge}
           photoTestId="member-avatar"
           initialsTestId="member-initials"
         />

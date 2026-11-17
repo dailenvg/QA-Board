@@ -61,7 +61,7 @@ export async function readWorkspaceLogo(
 export interface WorkspaceIcon {
   company: string;
   color: string | null;
-  /** The logo as a data URI the renderer can draw; null for the monogram. */
+  /** The logo as a data URI the renderer can draw; null for the default mark. */
   logoUri: string | null;
   /** `iconVersionOf` the workspace: what `WorkspaceIdentity.iconVersion` says too. */
   version: string;

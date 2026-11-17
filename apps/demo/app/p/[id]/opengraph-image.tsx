@@ -16,5 +16,5 @@ export const contentType = LINK_PREVIEW_TYPE;
  * segment, or Next drops it once the page sets `openGraph`.
  */
 export default function ProjectImage({ params }: { params: { id: string } }) {
-  return renderProjectCard(params.id, { cardVersion: 5 });
+  return renderProjectCard(params.id, { cardVersion: 6 });
 }

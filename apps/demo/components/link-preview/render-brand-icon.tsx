@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
+import { AVATAR_TILE } from "@/lib/avatar/default-avatar";
 import { PAPER } from "@/lib/brand-palette";
-import { monogram } from "@/lib/monogram";
+import { companyMarkUri } from "./company-mark-uri";
 import { linkPreviewFonts } from "./link-preview-fonts";
 
 /** Big enough for an Apple touch icon; link previews and inboxes scale it down. */
@@ -25,53 +26,38 @@ function LogoIcon({ uri }: { uri: string }) {
   );
 }
 
-/** The company's initials on its brand color (navy without one). */
-function MonogramIcon({ company, color }: { company: string; color: string | null }) {
-  const tile = monogram(company, color);
+/**
+ * The company's default mark (a building on a bubble in its brand color,
+ * magenta without one) on its own light square, so it needs no dark edge.
+ */
+function DefaultIcon({ color }: { color: string | null }) {
+  const uri = companyMarkUri({ color, size: BRAND_ICON_SIZE, tile: AVATAR_TILE });
   return (
-    <div
-      style={{
-        width: "100%",
-        height: "100%",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: tile.background,
-        color: tile.ink,
-        fontSize: 84,
-        fontWeight: 800,
-        letterSpacing: -2,
-      }}
-    >
-      {tile.initials}
-    </div>
+    // eslint-disable-next-line @next/next/no-img-element -- ImageResponse draws plain <img> only.
+    <img src={uri} alt="" width={BRAND_ICON_SIZE} height={BRAND_ICON_SIZE} />
   );
 }
 
 /** The company behind a link, as its card reads it. */
 interface IconSource {
-  company: string;
   color: string | null;
-  /** The logo as a data URI the renderer can draw; null for the monogram. */
+  /** The logo as a data URI the renderer can draw; null for the default mark. */
   logoUri: string | null;
 }
 
 /**
  * A company icon as a square PNG (a review link's, a project link's, the
- * app's badge): the logo when the renderer can draw it (PNG, JPEG or GIF), the
- * monogram otherwise. Null without a company (an anonymous link, or one that
- * doesn't open). `cacheControl` replaces the links' five private minutes.
+ * app's badge, an invite email's): the logo when the renderer can draw it
+ * (PNG, JPEG or GIF), the company's default mark otherwise. Null without a
+ * company (an anonymous link, or one that doesn't open). `cacheControl`
+ * replaces the links' five private minutes.
  */
 export async function renderBrandIcon(
   card: IconSource | null,
   { cacheControl = LINK_ICON_CACHE }: { cacheControl?: string } = {},
 ): Promise<ImageResponse | null> {
   if (!card) return null;
-  const icon = card.logoUri ? (
-    <LogoIcon uri={card.logoUri} />
-  ) : (
-    <MonogramIcon company={card.company} color={card.color} />
-  );
+  const icon = card.logoUri ? <LogoIcon uri={card.logoUri} /> : <DefaultIcon color={card.color} />;
   return new ImageResponse(icon, {
     width: BRAND_ICON_SIZE,
     height: BRAND_ICON_SIZE,

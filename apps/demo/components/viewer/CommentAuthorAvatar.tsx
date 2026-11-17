@@ -10,11 +10,11 @@ interface CommentAuthorAvatarProps {
 
 /**
  * Who wrote a comment, between its pin number and their name: a team
- * member's photo (or initials) with the company badge; a client's initials,
- * the same size and without a badge, so names line up in the list.
+ * member's photo (or default mark) with the company badge; a client's
+ * initials circle, the same size and without a badge, so names line up in the list.
  */
 export function CommentAuthorAvatar({ comment, surface }: CommentAuthorAvatarProps) {
-  const { badgeSrc, isTeam } = useCommentPeople();
+  const { badge, isTeam } = useCommentPeople();
   const team = isTeam(comment);
   return (
     <PersonAvatar
@@ -22,7 +22,8 @@ export function CommentAuthorAvatar({ comment, surface }: CommentAuthorAvatarPro
       fallback={comment.author}
       src={team ? (comment.authorAvatar ?? null) : null}
       size="xs"
-      badgeSrc={team ? badgeSrc : null}
+      person={team ? "member" : "client"}
+      badge={team ? badge : null}
       surface={surface}
       photoTestId="comment-avatar"
       initialsTestId="comment-initials"

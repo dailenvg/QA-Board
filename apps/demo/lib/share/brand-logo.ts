@@ -22,7 +22,7 @@ const CARD_TYPES = new Set(["image/png", "image/jpeg", "image/gif"]);
 const CARD_LOGO_MAX_BYTES = 1_000_000;
 
 /**
- * Larger logos are left off a page that inlines them, for the monogram: the
+ * Larger logos are left off a page that inlines them, for the default mark: the
  * page ships the data URI twice (its HTML and its RSC payload), and the upload
  * cap alone would let that reach megabytes.
  */
@@ -84,7 +84,7 @@ export function cardLogoUri(logo: BrandLogo): string | null {
   return dataUri(logo);
 }
 
-/** The logo as a data URI for a page to inline, or null (the monogram) when it's too large. */
+/** The logo as a data URI for a page to inline, or null (the default mark) when it's too large. */
 export function pageLogoUri(logo: BrandLogo): string | null {
   return logo.bytes.length > PAGE_LOGO_MAX_BYTES ? null : dataUri(logo);
 }

@@ -5,7 +5,7 @@ interface TeamReviewPreviewProps {
   project: string;
   /** The company's brand color, for the logo frame and rule only; null keeps cobalt. */
   color: string | null;
-  /** The logo as a PNG, JPEG or GIF data URI; null shows the company's monogram. */
+  /** The logo as a PNG, JPEG or GIF data URI; null shows the company's default mark. */
   logoUri: string | null;
 }
 

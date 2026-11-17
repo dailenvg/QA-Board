@@ -1,7 +1,9 @@
 import type { Browser, Locator, Page } from "@playwright/test";
+import { COMPANY_DEFAULT_FILL, personFill } from "../lib/avatar/default-avatar";
 import { expect, test } from "./test";
 import { addDisposableMember, newAddress, type DisposableAccount } from "./account-db";
 import { SIGNED_OUT } from "./auth-fixtures";
+import { expectBadgeBottomLeft, expectMark } from "./avatar-fixtures";
 import {
   browserAs,
   inviteByApi,
@@ -27,7 +29,8 @@ import {
  * The company badge on the team's avatars (PR 5, 4b.15): in the sidebar, on
  * Members rows, and on team comments in the workspace and on review links,
  * where it reads "on the {Company} team" to screen readers. Never on a
- * client's comment. Every workspace here is made for the test.
+ * client's comment. It hangs bottom left, clear of a default mark's tail.
+ * Every workspace here is made for the test.
  */
 
 test.use({ storageState: SIGNED_OUT });
@@ -67,7 +70,7 @@ async function loaded(image: Locator, width: number): Promise<string> {
   return `${src.pathname}${src.search}`;
 }
 
-/** The badge in `scope`, drawn: its path and query, matching `shape`. */
+/** The logo's badge in `scope`, drawn: its path and query, matching `shape`. */
 async function badgeIn(scope: Locator, shape: RegExp): Promise<string> {
   const src = await loaded(scope.getByTestId("company-badge"), ICON_PX);
   expect(src).toMatch(shape);
@@ -127,7 +130,11 @@ test("a member's comment carries their photo and the company badge, in the works
   await showComments(page);
   const inApp = card(page, "Mia's note");
   await loaded(inApp.getByTestId("comment-avatar"), PHOTO_PX);
-  const appBadge = await badgeIn(inApp, APP_BADGE);
+  await badgeIn(inApp, APP_BADGE);
+  await expectBadgeBottomLeft(
+    inApp.getByTestId("company-badge"),
+    inApp.getByTestId("comment-avatar"),
+  );
   await expect(inApp.getByRole("button", { name: /team/ })).toHaveCount(0);
   if (!testInfo.project.use.hasTouch) {
     // Hovered, the card tints and the cut-out ring tints with it: no halo of the resting color.
@@ -154,18 +161,19 @@ test("a member's comment carries their photo and the company badge, in the works
   }).toPass({ timeout: 30_000 });
   const onLink = card(client, "Mia's note");
   expect(await loaded(onLink.getByTestId("comment-avatar"), PHOTO_PX)).toMatch(LINK_PHOTO);
-  const linkBadge = await badgeIn(onLink, LINK_BADGE);
+  await badgeIn(onLink, LINK_BADGE);
   await expect(
     // Chromium's name computation spaces out sr-only text: "Mia Reyes , on the … team".
     onLink.getByRole("button", { name: new RegExp(`by ${MEMBER}\\s*, on the ${COMPANY} team`) }),
   ).toBeVisible();
 
-  // A client's comment: initials, no badge, and nothing said about a team.
+  // A client's comment: the plain initials circle, no badge, and nothing said about a team.
   await hideComments(client);
   await postComment(client, "Client's note", { x: 120, y: 90 }, "Cleo Client");
   await showComments(client);
   const clientCard = card(client, "Client's note");
   await expect(clientCard.getByTestId("comment-initials")).toHaveText("CC");
+  await expect(clientCard.getByTestId("comment-initials")).not.toHaveAttribute("data-mark");
   await expect(clientCard.getByTestId("company-badge")).toHaveCount(0);
   await expect(clientCard.getByRole("button", { name: /team/ })).toHaveCount(0);
 
@@ -180,21 +188,23 @@ test("a member's comment carries their photo and the company badge, in the works
   await expect(pulled.getByTestId("comment-initials")).toBeVisible();
   await expect(pulled.getByTestId("company-badge")).toHaveCount(0);
 
-  // Without the logo, the badge is the monogram, at a new version on both sides.
+  // Without the logo, the badge is the company's default, drawn in place on both sides.
   const removed = await page.request.delete("/api/account/workspace/logo", { data: {} });
   expect(removed.status()).toBe(200);
   await client.reload();
   await showComments(client);
-  expect(await badgeIn(card(client, "Mia's note"), LINK_BADGE)).not.toBe(linkBadge);
+  const linkDefault = card(client, "Mia's note").getByTestId("company-badge");
+  await expectMark(linkDefault, "company", COMPANY_DEFAULT_FILL);
   await page.reload();
   await showComments(page);
-  expect(await badgeIn(card(page, "Mia's note"), APP_BADGE)).not.toBe(appBadge);
+  const appDefault = card(page, "Mia's note").getByTestId("company-badge");
+  await expectMark(appDefault, "company", COMPANY_DEFAULT_FILL);
 
   await client.context().close();
   await miaPage.context().close();
 });
 
-test("the sidebar and Members rows carry the badge, the owner's too; invite rows don't", async ({
+test("the sidebar and Members rows carry the badge bottom left, the owner's too; invite rows don't", async ({
   page,
   browser,
   baseURL,
@@ -204,11 +214,19 @@ test("the sidebar and Members rows carry the badge, the owner's too; invite rows
   await inviteByApi(page, pending);
   await openMembers(page);
 
-  await badgeIn(page.getByTestId("sidebar-account"), APP_BADGE);
-  await expect(page.getByTestId("sidebar-account").getByTestId("account-initials")).toBeVisible();
+  const sidebar = page.getByTestId("sidebar-account");
+  await badgeIn(sidebar, APP_BADGE);
+  // Olga has no photo: her default mark in her pin color, head and shoulders beside the badge.
+  const olga = sidebar.getByTestId("account-initials");
+  await expectMark(olga, "person", personFill(OWNER));
+  await expect(olga).toHaveText("");
+  await expectBadgeBottomLeft(sidebar.getByTestId("company-badge"), olga);
   await badgeIn(row(page, OWNER), APP_BADGE);
+  await expectMark(row(page, OWNER).getByTestId("member-initials"), "person", personFill(OWNER));
   await badgeIn(row(page, MEMBER), APP_BADGE);
-  await loaded(row(page, MEMBER).getByTestId("member-avatar"), PHOTO_PX);
+  const miaPhoto = row(page, MEMBER).getByTestId("member-avatar");
+  await loaded(miaPhoto, PHOTO_PX);
+  await expectBadgeBottomLeft(row(page, MEMBER).getByTestId("company-badge"), miaPhoto);
   await expect(inviteRow(page, pending)).toBeVisible();
   await expect(inviteRow(page, pending).getByTestId("company-badge")).toHaveCount(0);
   await miaPage.context().close();
