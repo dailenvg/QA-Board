@@ -146,7 +146,8 @@ export function CommentCard({
             <CommentBadge comment={comment} number={number} />
             <CommentAuthorAvatar comment={comment} surface="card" />
             <span className="flex min-w-0 flex-1 flex-col">
-              <span className="flex min-w-0 items-center gap-2 text-body font-semibold">
+              {/* As tall as the Client pin, so cards match with or without it. */}
+              <span className="flex min-h-6 min-w-0 items-center gap-2 text-body font-semibold">
                 {/* One line, not the popover's two: the list is scanned, and the card has the room. */}
                 <span className="min-w-0 truncate">
                   <span className="sr-only">by </span>
