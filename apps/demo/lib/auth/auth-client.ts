@@ -3,7 +3,7 @@
  * the forms. Never throws: a network failure is an outcome too.
  */
 
-import type { Welcome } from "./next-path";
+import { safeNextPath, type Welcome } from "./next-path";
 
 export type LoginError =
   | "invalid-credentials"
@@ -14,7 +14,8 @@ export type LoginError =
   | "failed";
 
 export type LoginOutcome =
-  { ok: true; welcome: Welcome } | { ok: false; error: LoginError; retryAfterSeconds?: number };
+  | { ok: true; welcome: Welcome; home: string }
+  | { ok: false; error: LoginError; retryAfterSeconds?: number };
 
 export type ResetOutcome = { ok: true } | { ok: false; error: "expired" | "failed" };
 
@@ -45,16 +46,22 @@ async function errorCode(response: Response): Promise<string | null> {
 }
 
 /** The greeting a sign-in earned; a return when the answer doesn't say. */
-async function readWelcome(response: Response): Promise<Welcome> {
+/**
+ * The greeting a sign-in gets (a return, unless it says first) and the
+ * account's home (the Overview, unless it names another page on this site).
+ */
+async function readSignedIn(response: Response): Promise<{ welcome: Welcome; home: string }> {
   const body: unknown = await response.json().catch(() => null);
-  return body && typeof body === "object" && "welcome" in body && body.welcome === "first"
-    ? "first"
-    : "back";
+  const fields = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  return {
+    welcome: fields.welcome === "first" ? "first" : "back",
+    home: safeNextPath(typeof fields.home === "string" ? fields.home : null),
+  };
 }
 
 export async function requestLogin(email: string, password: string): Promise<LoginOutcome> {
   const response = await post("/api/auth/login", { email, password });
-  if (response?.ok) return { ok: true, welcome: await readWelcome(response) };
+  if (response?.ok) return { ok: true, ...(await readSignedIn(response)) };
   switch (response?.status) {
     case 400:
     case 401:

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { JOINED_PATH, loginHref, safeNextPath, withWelcome } from "./next-path";
+import {
+  homePath,
+  JOINED_PATH,
+  landingPath,
+  loginHref,
+  safeNextPath,
+  withWelcome,
+} from "./next-path";
 
 describe("safeNextPath", () => {
   it("keeps paths on this site, with their query", () => {
@@ -35,5 +42,19 @@ describe("loginHref and withWelcome", () => {
     expect(withWelcome("/", "first")).toBe("/?welcome=first");
     expect(withWelcome("/p/1?page=2", "back")).toBe("/p/1?page=2&welcome=back");
     expect(withWelcome("/", "joined")).toBe(JOINED_PATH);
+  });
+});
+
+describe("homePath and landingPath", () => {
+  it("homes the admin on the admin panel and everyone else on the Overview", () => {
+    expect(homePath("admin")).toBe("/admin");
+    expect(homePath("company")).toBe("/");
+  });
+
+  it("goes where `next` says, or home without one", () => {
+    expect(landingPath("/", "/admin")).toBe("/admin");
+    expect(landingPath("/", "/")).toBe("/");
+    expect(landingPath("/p/1?page=2", "/admin")).toBe("/p/1?page=2");
+    expect(landingPath("/admin/audit", "/")).toBe("/admin/audit");
   });
 });

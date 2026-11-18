@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
 import { loginErrorMessage, RESET_LINK, requestLogin } from "@/lib/auth/auth-client";
 import { emailError, passwordError } from "@/lib/auth/field-rules";
-import { withWelcome } from "@/lib/auth/next-path";
+import { landingPath, withWelcome } from "@/lib/auth/next-path";
 import { forgetImportDeferral } from "@/lib/workspace-client/import-deferral";
 import type { Mood } from "../brand/mascot/moods";
 import { Button } from "../ui/Button";
@@ -14,7 +14,7 @@ import { FormAlert } from "./FormAlert";
 import { TextLink } from "./TextLink";
 
 interface LoginFormProps {
-  /** Where to go once signed in (already checked to be on this site). */
+  /** Where to go once signed in (already checked to be on this site); "/" for the account's home. */
   next: string;
   /** Why the page was opened: a completed password reset, an email change, a sign-out everywhere. */
   notice: string | null;
@@ -76,7 +76,7 @@ export function LoginForm({ next, notice, initialError }: LoginFormProps) {
       setStatus("signed-in");
       // A new sign-in asks again about importing this browser's local data.
       forgetImportDeferral();
-      router.replace(withWelcome(next, outcome.welcome));
+      router.replace(withWelcome(landingPath(next, outcome.home), outcome.welcome));
       return;
     }
     setStatus("idle");

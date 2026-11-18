@@ -11,12 +11,19 @@ interface AccountLayoutProps {
   children: ReactNode;
   /** Under the nav on wide screens (who is signed in, for an account with no sidebar). */
   aside?: ReactNode;
+  /** Above the title: the way back to where this account works (the admin's panel). */
+  back?: ReactNode;
 }
 
 const GROUP = staggerGroup();
 
 /** The account settings: title and section nav, then the open section. */
-export function AccountLayout({ sections, children, aside = null }: AccountLayoutProps) {
+export function AccountLayout({
+  sections,
+  children,
+  aside = null,
+  back = null,
+}: AccountLayoutProps) {
   const variants = useRevealVariants();
   const hasWorkspace = sections.some((section) => section.needsWorkspace);
   return (
@@ -30,6 +37,7 @@ export function AccountLayout({ sections, children, aside = null }: AccountLayou
         variants={variants}
         className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-4 lg:w-64 lg:shrink-0"
       >
+        {back}
         <div className="flex flex-col gap-1 px-2">
           <h1 className="text-display font-bold">Account</h1>
           <p className="text-body text-muted" data-testid="account-summary">

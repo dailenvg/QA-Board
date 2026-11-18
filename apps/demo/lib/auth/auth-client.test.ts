@@ -14,13 +14,20 @@ afterEach(() => {
 
 describe("requestLogin", () => {
   it("reads each answer of the login route", async () => {
-    answer(200, {}, JSON.stringify({ ok: true, welcome: "first" }));
-    expect(await requestLogin("a@b.co", "pw")).toEqual({ ok: true, welcome: "first" });
-    answer(200, {}, JSON.stringify({ ok: true, welcome: "back" }));
-    expect(await requestLogin("a@b.co", "pw")).toEqual({ ok: true, welcome: "back" });
-    // An answer that doesn't say greets as a return.
+    answer(200, {}, JSON.stringify({ ok: true, welcome: "first", home: "/" }));
+    expect(await requestLogin("a@b.co", "pw")).toEqual({ ok: true, welcome: "first", home: "/" });
+    answer(200, {}, JSON.stringify({ ok: true, welcome: "back", home: "/admin" }));
+    expect(await requestLogin("a@b.co", "pw")).toEqual({
+      ok: true,
+      welcome: "back",
+      home: "/admin",
+    });
+    // An answer that doesn't say greets as a return, at the Overview.
     answer(200);
-    expect(await requestLogin("a@b.co", "pw")).toEqual({ ok: true, welcome: "back" });
+    expect(await requestLogin("a@b.co", "pw")).toEqual({ ok: true, welcome: "back", home: "/" });
+    // A home off this site is no home.
+    answer(200, {}, JSON.stringify({ ok: true, welcome: "back", home: "https://evil.test/" }));
+    expect(await requestLogin("a@b.co", "pw")).toEqual({ ok: true, welcome: "back", home: "/" });
     answer(401);
     expect(await requestLogin("a@b.co", "pw")).toEqual({
       ok: false,

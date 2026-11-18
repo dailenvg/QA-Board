@@ -82,5 +82,14 @@ export function isAccountPath(pathname: string): boolean {
   return pathname === ACCOUNT_HREF || pathname.startsWith(`${ACCOUNT_HREF}/`);
 }
 
+/** The admin panel, for the Squint admin only: its Overview, and the audit log. */
+export const ADMIN_HREF = "/admin";
+export const ADMIN_AUDIT_HREF = "/admin/audit";
+
+/** Whether `pathname` is in the admin panel. */
+export function isAdminPath(pathname: string): boolean {
+  return pathname === ADMIN_HREF || pathname.startsWith(`${ADMIN_HREF}/`);
+}
+
 /** Sign in again, with the notice for a confirmed email change. */
 export const EMAIL_CHANGED_HREF = "/login?email=changed";

@@ -41,6 +41,8 @@ interface LogoProps {
   mark?: MarkStyle;
   /** False on a shared review link, where there is no home to go to. */
   linked?: boolean;
+  /** Where home is: the Overview, or the admin panel for the admin. */
+  href?: string;
   /** Hides the wordmark and caption on phones (still read out), leaving the mark. */
   compact?: boolean;
 }
@@ -79,10 +81,11 @@ function Mark({
   );
 }
 
-/** Squint mark and wordmark, linking home unless `linked` is false. */
+/** Squint mark and wordmark, linking home (`href`) unless `linked` is false. */
 export function Logo({
   caption,
   linked = true,
+  href = "/",
   compact = false,
   size = "default",
   tone = "default",
@@ -104,7 +107,7 @@ export function Logo({
   }
   return (
     <Link
-      href="/"
+      href={href}
       className={`inline-flex min-h-11 items-center gap-3 rounded-row pr-2 hover:opacity-85 active:opacity-70 ${TONES[tone].link}`}
     >
       <Mark caption={caption} home size={size} tone={tone} markStyle={mark} />

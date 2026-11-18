@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ACCOUNT_HREF, isAccountPath } from "@/lib/routes";
+import { ACCOUNT_HREF, ADMIN_HREF, isAccountPath, isAdminPath } from "@/lib/routes";
 import { applyTheme } from "@/lib/theme";
 import { useTheme } from "@/lib/use-theme";
 import { useCompanyBadge } from "@/lib/workspace-client/use-company-badge";
@@ -28,7 +28,7 @@ const CURRENT_TRIGGER_CLASS =
 
 /**
  * Shows who is signed in (photo or default mark, with the company badge in a workspace, name and
- * email), with a menu for account settings, dark mode and Sign out. Sign out is a plain form
+ * email), with a menu for the admin panel (the admin only), account settings, dark mode and Sign out. Sign out is a plain form
  * post to the logout route, which redirects to /login.
  */
 export function ProfileCard({
@@ -41,7 +41,8 @@ export function ProfileCard({
   const [pending, setPending] = useState(false);
   const form = useRef<HTMLFormElement>(null);
   const theme = useTheme();
-  const onAccount = isAccountPath(usePathname());
+  const pathname = usePathname();
+  const onAccount = isAccountPath(pathname);
   const badge = useCompanyBadge();
 
   // Back from /login, the browser may restore this page from its cache with Sign out still
@@ -60,6 +61,17 @@ export function ProfileCard({
   };
 
   const items: MenuItem[] = [
+    ...(admin
+      ? [
+          {
+            label: "Admin",
+            icon: "shield",
+            href: ADMIN_HREF,
+            current: isAdminPath(pathname),
+            testId: "admin-link",
+          } satisfies MenuItem,
+        ]
+      : []),
     { label: "Account", icon: "user", href: ACCOUNT_HREF, current: onAccount },
     {
       label: "Dark mode",

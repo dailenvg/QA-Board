@@ -63,9 +63,11 @@ const READ_COLUMNS = `${SHARE_COLUMNS}, password_hash, password_set_at, client_n
  * A share answers like a revoked one while its workspace project is in the
  * trash (migration 024) or archived (015), or its workspace is archived (009)
  * or waiting to be deleted (033), until it's restored or un-archived.
- * Anonymous shares have neither.
+ * Anonymous shares have neither. A condition on `squint_shares`, for any query
+ * that must agree with the share routes on which shares answer (the admin
+ * panel's count of live links).
  */
-const ANSWERS = `NOT EXISTS (
+export const SHARE_ANSWERS = `NOT EXISTS (
   SELECT 1 FROM projects AS project
   WHERE project.id = squint_shares.project_id
     AND project.workspace_id = squint_shares.workspace_id
@@ -197,7 +199,7 @@ const CLIENT_ROW = "share_id = $1 AND id = $2 AND origin = 'client' AND NOT pend
 export function createPostgresStore(db: Queryable): ShareStore {
   const one = async (where: string, value: string) => {
     const { rows } = await db.query<ShareRow>(
-      `SELECT ${READ_COLUMNS} FROM squint_shares WHERE ${where} = $1 AND ${ANSWERS}`,
+      `SELECT ${READ_COLUMNS} FROM squint_shares WHERE ${where} = $1 AND ${SHARE_ANSWERS}`,
       [value],
     );
     return rows[0] ? toRecord(rows[0]) : null;
@@ -267,7 +269,7 @@ export function createPostgresStore(db: Queryable): ShareStore {
     async brandOf(id) {
       const { rows } = await db.query<BrandRow>(
         `SELECT workspace.name, workspace.brand_color, logo.key AS logo_key
-         FROM ${BRAND_FROM} WHERE squint_shares.id = $1 AND ${ANSWERS}`,
+         FROM ${BRAND_FROM} WHERE squint_shares.id = $1 AND ${SHARE_ANSWERS}`,
         [id],
       );
       const row = rows[0];
@@ -283,7 +285,7 @@ export function createPostgresStore(db: Queryable): ShareStore {
       const { rows } = await db.query<BlobRow>(
         `SELECT logo.key, logo.content_type, logo.size, logo.bytes, logo.blob_url
          FROM ${BRAND_FROM}
-         WHERE squint_shares.id = $1 AND logo.key IS NOT NULL AND ${ANSWERS}`,
+         WHERE squint_shares.id = $1 AND logo.key IS NOT NULL AND ${SHARE_ANSWERS}`,
         [id],
       );
       return rows[0] ? toStoredBlob(rows[0]) : null;
@@ -291,7 +293,7 @@ export function createPostgresStore(db: Queryable): ShareStore {
     async teamAuthors(id) {
       const { rows } = await db.query<TeamCommentRow>(
         `SELECT shared.id AS comment_id, author.id AS user_id, avatar.key AS avatar_key
-         FROM ${TEAM_COMMENTS} WHERE squint_shares.id = $1 AND ${ANSWERS}`,
+         FROM ${TEAM_COMMENTS} WHERE squint_shares.id = $1 AND ${SHARE_ANSWERS}`,
         [id],
       );
       return new Map(
@@ -316,7 +318,7 @@ export function createPostgresStore(db: Queryable): ShareStore {
          JOIN memberships AS member ON member.workspace_id = squint_shares.workspace_id
          JOIN users AS account ON account.id = member.user_id AND account.deleted_at IS NULL
          JOIN ${AVATAR_JOIN("account")}
-         WHERE squint_shares.id = $1 AND ${ANSWERS}`,
+         WHERE squint_shares.id = $1 AND ${SHARE_ANSWERS}`,
         [id],
       );
       const row = rows.find((entry) => sameShareKey(key, sharePersonKey(id, entry.user_id)));

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { AccountLayout } from "@/components/account/AccountLayout";
 import { AccountShell } from "@/components/account/AccountShell";
+import { BackToAdmin } from "@/components/admin/BackToAdmin";
 import { ProfileCard } from "@/components/auth/ProfileCard";
 import { sectionsFor } from "@/lib/account/sections";
 import { sessionAvatarSrc } from "@/lib/account/session-settings";
@@ -12,7 +13,8 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 /**
  * Account settings. In a workspace they sit in its sidebar shell (the parent
  * layout's); an account in none (the admin) gets a slim shell of its own, with
- * only the sections about the account itself.
+ * only the sections about the account itself, and for the admin a way back
+ * to the admin panel.
  */
 export default async function AccountSettingsLayout({ children }: { children: ReactNode }) {
   const session = await loadSessionWorkspace();
@@ -23,6 +25,7 @@ export default async function AccountSettingsLayout({ children }: { children: Re
     <AccountShell>
       <AccountLayout
         sections={sectionsFor(false)}
+        back={session.user.role === "admin" ? <BackToAdmin /> : null}
         aside={
           <ProfileCard
             email={session.user.email}
