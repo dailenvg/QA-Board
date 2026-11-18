@@ -41,6 +41,18 @@ const BATCH = 50;
  */
 export type PurgeReason = { kind: "trashed"; by?: number } | { kind: "archive-due"; by: number };
 
+/**
+ * The project's workspace isn't suspended by the Squint admin (046): while it
+ * is, the daily purges leave its trash and archived projects alone, and pick
+ * up whatever came due in the meantime on their first run after it's lifted
+ * (the dates still hold, so nothing is skipped for good). An archived
+ * workspace purges as before. A condition on `projects`.
+ */
+const NOT_SUSPENDED = `NOT EXISTS (
+  SELECT 1 FROM workspaces AS held
+  WHERE held.id = projects.workspace_id AND held.suspended_at IS NOT NULL
+)`;
+
 const DUE: Record<PurgeReason["kind"], string> = {
   trashed: "deleted_at IS NOT NULL AND ($3::timestamptz IS NULL OR deleted_at <= $3)",
   "archive-due": "archived_at IS NOT NULL AND delete_after IS NOT NULL AND delete_after <= $3",
@@ -49,7 +61,9 @@ const DUE: Record<PurgeReason["kind"], string> = {
 /** Locks the project if `reason` still holds for it; false once it doesn't (or it's gone). */
 async function lockDue(tx: Queryable, workspaceId: string, projectId: string, reason: PurgeReason) {
   const { rows } = await tx.query(
-    `SELECT 1 FROM projects WHERE workspace_id = $1 AND id = $2 AND ${DUE[reason.kind]} FOR UPDATE`,
+    `SELECT 1 FROM projects WHERE workspace_id = $1 AND id = $2 AND ${DUE[reason.kind]}
+       AND ${NOT_SUSPENDED}
+     FOR UPDATE`,
     [workspaceId, projectId, reason.by === undefined ? null : toDate(reason.by)],
   );
   return rows.length === 1;
@@ -57,7 +71,8 @@ async function lockDue(tx: Queryable, workspaceId: string, projectId: string, re
 
 /**
  * Deletes one project of the workspace for good, if `reason` still holds for
- * it (still in the trash, or still archived and due): its shares, its rows
+ * it (still in the trash, or still archived and due), and its workspace isn't
+ * suspended (`NOT_SUSPENDED`): its shares, its rows
  * (pages, snapshots, comments, review link, file rows), then its files. The
  * reason is confirmed under a lock on the project's row, in the same
  * transaction as the deletes, so a restore or unarchive that lands first
@@ -149,7 +164,8 @@ export function purgeTrash(
     db,
     services,
     { kind: "trashed", by: now - TRASH_GRACE_MS },
-    `SELECT workspace_id, id FROM projects WHERE deleted_at IS NOT NULL AND deleted_at <= $1
+    `SELECT workspace_id, id FROM projects
+     WHERE deleted_at IS NOT NULL AND deleted_at <= $1 AND ${NOT_SUSPENDED}
      ORDER BY deleted_at, id LIMIT $2`,
     deadline,
   );
@@ -172,6 +188,7 @@ export function purgeArchived(
     { kind: "archive-due", by: now },
     `SELECT workspace_id, id FROM projects
      WHERE archived_at IS NOT NULL AND delete_after IS NOT NULL AND delete_after <= $1
+       AND ${NOT_SUSPENDED}
      ORDER BY delete_after, id LIMIT $2`,
     deadline,
   );

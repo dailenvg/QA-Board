@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { describeError } from "../auth/http";
+import { openWorkspace } from "../auth/memberships";
 import { database } from "../db/database";
 import { brandColor, logoVersion } from "../share/brand";
 import { cardLogoUri, readStoredImage, type BrandLogo } from "../share/brand-logo";
@@ -15,8 +16,9 @@ import { idSchema } from "./schemas";
  * it is before signing in. Nothing else: no comments, snapshots, folders or
  * people. Only ids shaped like the app's random UUIDs get one: other ids the
  * API accepts (shorter, maybe guessable) answer as unknown, so only someone
- * given the link can ask. A project in the trash or archived, or a workspace archived or waiting
- * to be deleted (033), answers as an unknown id does: null.
+ * given the link can ask. A project in the trash or archived, or a workspace that isn't open
+ * (`openWorkspace`: archived, waiting to be deleted, suspended), answers as an unknown id does:
+ * null, so a suspension never shows in a link preview.
  */
 export interface ProjectPreview {
   project: string;
@@ -44,7 +46,7 @@ const PREVIEW_FROM = `projects AS project
     AND starts_with(logo.key, 'ws/' || workspace.id::text || '/brand/logo/')
   WHERE project.id = $1
     AND project.deleted_at IS NULL AND project.archived_at IS NULL
-    AND workspace.archived_at IS NULL AND workspace.delete_after IS NULL`;
+    AND ${openWorkspace("workspace")}`;
 
 interface PreviewRow {
   project: string;

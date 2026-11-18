@@ -31,14 +31,17 @@ interface FieldErrors {
 
 const NO_ERRORS: FieldErrors = { email: null, password: null };
 
-/** What the last refusal was: nothing, a mistake to fix, or a removed account (nothing to fix). */
+/**
+ * What the last refusal was: nothing, a mistake to fix, or an account that
+ * can't sign in now (removed, or its workspace suspended: nothing to fix).
+ */
 type Failure = "none" | "mistake" | "removed";
 
-const REMOVED_MESSAGE = loginErrorMessage("removed");
+const HELD_MESSAGES = new Set([loginErrorMessage("removed"), loginErrorMessage("suspended")]);
 
 function failureOf(message: string | null): Failure {
   if (message === null) return "none";
-  return message === REMOVED_MESSAGE ? "removed" : "mistake";
+  return HELD_MESSAGES.has(message) ? "removed" : "mistake";
 }
 
 function moodFor(status: Status, failure: Failure): Mood {
@@ -84,7 +87,7 @@ export function LoginForm({ next, notice, initialError }: LoginFormProps) {
     if (outcome.error === "invalid-credentials") {
       setPassword("");
       passwordRef.current?.focus();
-    } else if (outcome.error === "removed") {
+    } else if (outcome.error === "removed" || outcome.error === "suspended") {
       // The password was right, but typing it again can't help: it's cleared, focus stays put.
       setPassword("");
       submitRef.current?.focus();

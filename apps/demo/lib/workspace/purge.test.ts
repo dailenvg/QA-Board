@@ -302,6 +302,108 @@ describe("purgeArchived", () => {
   });
 });
 
+describe("a suspended workspace", () => {
+  const suspend = (db: Database, workspaceId: string, suspended: boolean) =>
+    db.query("UPDATE workspaces SET suspended_at = $2 WHERE id = $1", [
+      workspaceId,
+      suspended ? new Date(NOW) : null,
+    ]);
+
+  /** In A and in B: a project trashed past its grace, and one archived past its date. */
+  async function dueWorld() {
+    const fixture = await twoWorkspaces();
+    const { db, a, b } = fixture;
+    for (const { workspaceId } of [a, b]) {
+      await addFolder(db, workspaceId);
+      for (const id of [`trashed-${workspaceId}`, `archived-${workspaceId}`]) {
+        await createProject(db, workspaceId, URL_PROJECT(id), NOW);
+        await storeInline(db, workspaceId, { projectId: id, key: "snapshot:s1" }, PNG);
+      }
+      await trashProject(db, workspaceId, `trashed-${workspaceId}`, NOW - TRASH_GRACE_MS - 1);
+      await setArchived(
+        db,
+        workspaceId,
+        `archived-${workspaceId}`,
+        true,
+        NOW - ARCHIVE_GRACE_MS - 1,
+      );
+    }
+    return fixture;
+  }
+
+  const remaining = async (db: Database) =>
+    (await db.query<{ id: string }>("SELECT id FROM projects ORDER BY id")).rows.map(
+      (row) => row.id,
+    );
+
+  it("keeps its trash and archived projects while suspended, and purges them once it's lifted", async () => {
+    const { db, a, b } = await dueWorld();
+    await suspend(db, a.workspaceId, true);
+    const { driver } = fakeStore();
+    expect(await purgeTrash(db, services(driver), NOW, DEADLINE)).toEqual({ count: 1, done: true });
+    expect(await purgeArchived(db, services(driver), NOW, DEADLINE)).toEqual({
+      count: 1,
+      done: true,
+    });
+    // B is purged as usual; A keeps both, files and all.
+    expect(await remaining(db)).toEqual([`archived-${a.workspaceId}`, `trashed-${a.workspaceId}`]);
+    expect(await storageSummary(db, a.workspaceId)).toMatchObject({ blobCount: 2 });
+
+    // The first run after it's lifted catches up on what came due meanwhile.
+    await suspend(db, a.workspaceId, false);
+    const later = NOW + 7 * 24 * 60 * 60 * 1000;
+    expect(await purgeTrash(db, services(driver), later, DEADLINE)).toEqual({
+      count: 1,
+      done: true,
+    });
+    expect(await purgeArchived(db, services(driver), later, DEADLINE)).toEqual({
+      count: 1,
+      done: true,
+    });
+    expect(await remaining(db)).toEqual([]);
+    expect(await listProjects(db, b.workspaceId)).toEqual([]);
+  });
+
+  it("never fills a batch with a suspended workspace's projects", async () => {
+    const { db, a } = await twoWorkspaces();
+    await addFolder(db, a.workspaceId);
+    for (let index = 0; index < 51; index += 1) {
+      await createProject(db, a.workspaceId, URL_PROJECT(`old-${index}`), NOW);
+      await trashProject(db, a.workspaceId, `old-${index}`, NOW - TRASH_GRACE_MS - 1);
+    }
+    await suspend(db, a.workspaceId, true);
+    const { driver } = fakeStore();
+    expect(await purgeTrash(db, services(driver), NOW, DEADLINE)).toEqual({ count: 0, done: true });
+  });
+
+  it("keeps a project whose workspace is suspended after the cron listed it", async () => {
+    const { db, a } = await dueWorld();
+    const racing: Database = {
+      async query(text, params) {
+        const result = await db.query(text, params);
+        if (text.includes("ORDER BY deleted_at, id LIMIT")) await suspend(db, a.workspaceId, true);
+        return result as never;
+      },
+      transaction: (run) => db.transaction(run),
+    };
+    const { driver } = fakeStore();
+    expect(await purgeTrash(racing, services(driver), NOW, DEADLINE)).toEqual({
+      count: 1,
+      done: true,
+    });
+    expect(await remaining(db)).toContain(`trashed-${a.workspaceId}`);
+  });
+
+  it("purges an archived workspace's projects as before", async () => {
+    const { db, a } = await dueWorld();
+    await db.query("UPDATE workspaces SET archived_at = now() WHERE id = $1", [a.workspaceId]);
+    const { driver } = fakeStore();
+    expect(await purgeTrash(db, services(driver), NOW, DEADLINE)).toMatchObject({ count: 2 });
+    expect(await purgeArchived(db, services(driver), NOW, DEADLINE)).toMatchObject({ count: 2 });
+    expect(await remaining(db)).toEqual([]);
+  });
+});
+
 describe("sweepWorkspaceBlobs", () => {
   it("deletes rows left without a project, and old files no row records", async () => {
     const { db, a } = await twoWorkspaces();

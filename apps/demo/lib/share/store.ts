@@ -23,6 +23,13 @@ export interface ShareStore {
   byId(id: string): Promise<ShareRecord | null>;
   byTokenHash(tokenHash: string): Promise<ShareRecord | null>;
   /**
+   * The share behind `tokenHash` while it's paused: it would answer but for its
+   * workspace's suspension by the Squint admin. Null otherwise, and always in
+   * the memory store, which has no workspaces. Only to tell a guest the review
+   * isn't available right now; never to serve it.
+   */
+  pausedByTokenHash(tokenHash: string): Promise<ShareRecord | null>;
+  /**
    * Whether the share's row is still there, open or not: unlike `byId`, it
    * counts a share closed with its project or workspace (in the trash,
    * archived, waiting to be deleted), which opens again when that's undone.

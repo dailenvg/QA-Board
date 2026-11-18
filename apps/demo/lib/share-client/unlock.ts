@@ -28,6 +28,11 @@ export type UnlockFailure =
 
 export type UnlockOutcome = { ok: true; view: ClientView } | UnlockFailure;
 
+/** A guest route's answer that the link is paused: its workspace is suspended for now. */
+export function isPaused(result: ApiResult<unknown>): boolean {
+  return !result.ok && result.status === 404 && result.error === "paused";
+}
+
 /** A guest route's answer that the link now needs its password: the guest pass is missing or void. */
 export function isPasswordRequired(result: ApiResult<unknown>): boolean {
   return !result.ok && result.status === 401 && result.error === "password-required";

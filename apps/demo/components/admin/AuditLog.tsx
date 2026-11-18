@@ -12,14 +12,12 @@ import { TileEmpty } from "../overview/bento/TileEmpty";
 import { Button } from "../ui/Button";
 import { ButtonLink } from "../ui/ButtonLink";
 import { ADMIN_COPY } from "./admin-copy";
+import { PENDING_OPACITY } from "./admin-motion";
 import { AuditEntryItem } from "./AuditEntryItem";
 import { AuditFilters } from "./AuditFilters";
 import { AuditPager } from "./AuditPager";
 
 const COPY = ADMIN_COPY.audit;
-
-/** The list while a new page loads: dimmed, but muted text keeps near 3:1. */
-const PENDING_OPACITY = 0.7;
 
 interface AuditLogProps {
   filters: Filters;

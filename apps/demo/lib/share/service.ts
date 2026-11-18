@@ -82,6 +82,21 @@ export async function clientShare(
   return share && secretMatches(token, share.tokenHash) ? live(share, now) : null;
 }
 
+/**
+ * Whether a client link that doesn't open (`clientShare` is null) is only
+ * paused: its workspace is suspended, and it opens again once that's lifted.
+ * Unknown, revoked and expired tokens are false.
+ */
+export async function isPausedShare(
+  store: ShareStore,
+  token: string,
+  now: number,
+): Promise<boolean> {
+  if (!isSecretShape(token)) return false;
+  const share = await store.pausedByTokenHash(hashSecret(token));
+  return share !== null && secretMatches(token, share.tokenHash) && live(share, now) !== null;
+}
+
 // ── Blob bookkeeping ───────────────────────────────────────────────────────
 
 /** Where a comment row's crop is stored: its claim's key, else `crop:<id>`. */

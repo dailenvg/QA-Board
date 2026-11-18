@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { authOrigin } from "../auth/auth-url";
 import { describeError } from "../auth/http";
+import { openWorkspace } from "../auth/memberships";
 import { database } from "../db/database";
 import type { EmailEnv } from "../email/resend";
 import { publicWorkspaceIconSrc } from "../routes";
@@ -39,13 +40,14 @@ function matches(key: string, candidate: string): boolean {
 /**
  * The open workspace whose key is `key`: one HMAC per open workspace (no
  * column holds the key, so nothing needs a migration). Null for a key no
- * workspace has, and for one that's archived or waiting to be deleted (033),
- * as a project link's icon answers. A purged workspace has no row at all.
+ * workspace has, and for one that isn't open (`openWorkspace`: archived,
+ * waiting to be deleted, suspended), as a project link's icon answers. A
+ * purged workspace has no row at all.
  */
 async function workspaceOfKey(db: Queryable, key: string): Promise<string | null> {
   if (!WORKSPACE_ICON_KEY.test(key)) return null;
   const { rows } = await db.query<{ id: string }>(
-    "SELECT id FROM workspaces WHERE archived_at IS NULL AND delete_after IS NULL",
+    `SELECT id FROM workspaces WHERE ${openWorkspace("workspaces")}`,
   );
   return rows.find((row) => matches(key, workspaceIconKey(row.id)))?.id ?? null;
 }

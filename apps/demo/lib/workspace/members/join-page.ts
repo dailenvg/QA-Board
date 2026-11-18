@@ -1,4 +1,5 @@
 import { describeError } from "../../auth/http";
+import { openWorkspace } from "../../auth/memberships";
 import type { SessionUser } from "../../auth/users";
 import { database } from "../../db/database";
 import { brandColor } from "../../share/brand";
@@ -86,7 +87,7 @@ async function openInvite(db: Queryable, token: string): Promise<InviteRow | nul
        (SELECT u.name FROM memberships AS m JOIN users AS u ON u.id = m.user_id
         WHERE m.workspace_id = w.id AND m.role = 'owner') AS owner
      FROM workspace_invites AS i JOIN workspaces AS w ON w.id = i.workspace_id
-     WHERE i.token_hash = $1 AND w.archived_at IS NULL AND w.delete_after IS NULL`,
+     WHERE i.token_hash = $1 AND ${openWorkspace("w")}`,
     [hashSecret(token)],
   );
   return rows[0] ?? null;

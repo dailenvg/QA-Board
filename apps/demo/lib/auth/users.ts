@@ -1,4 +1,5 @@
 import type { Queryable } from "../share/migrate";
+import { openWorkspace } from "./memberships";
 
 export type UserRole = "admin" | "company";
 
@@ -41,28 +42,51 @@ export interface SignInCandidate {
    * password gets told why (decision 20).
    */
   removed: boolean;
+  /**
+   * A company account whose every workspace is closed, at least one of them
+   * suspended by the Squint admin (046): they can't sign in until it's lifted,
+   * and the right password gets told so. Anyone with another open workspace
+   * signs in as usual (and only opens that one); the admin never is.
+   */
+  suspended: boolean;
 }
+
+/**
+ * The account belongs to a suspended workspace and to no open one. A
+ * condition on `users`; never true for the admin, who belongs to none.
+ */
+const SUSPENDED_ONLY = `users.role = 'company'
+  AND EXISTS (
+    SELECT 1 FROM memberships AS m JOIN workspaces AS w ON w.id = m.workspace_id
+    WHERE m.user_id = users.id AND w.suspended_at IS NOT NULL
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM memberships AS m JOIN workspaces AS w ON w.id = m.workspace_id
+    WHERE m.user_id = users.id AND ${openWorkspace("w")}
+  )`;
 
 /**
  * In one lookup, so every email costs the same: a user who can sign in, or
  * else one removed from a workspace whose removal hasn't run its 24 hours
  * (`removed_from` is set only by a removal; `delete_after` still ahead). An
- * account deleted by its own user, or removed longer ago, is no one. Null
- * when there's none.
+ * account deleted by its own user, or removed longer ago, is no one. Whether
+ * it's held by a suspension comes with it. Null when there's none.
  */
 export async function findSignInCandidate(
   db: Queryable,
   email: string,
   now: number,
 ): Promise<SignInCandidate | null> {
-  const { rows } = await db.query<UserRow & { removed: boolean }>(
-    `SELECT id, email, name, role, password_hash, deleted_at IS NOT NULL AS removed FROM users
+  const { rows } = await db.query<UserRow & { removed: boolean; suspended: boolean }>(
+    `SELECT id, email, name, role, password_hash, deleted_at IS NOT NULL AS removed,
+       (${SUSPENDED_ONLY}) AS suspended
+     FROM users
      WHERE email = $1
        AND (deleted_at IS NULL OR (removed_from IS NOT NULL AND delete_after > $2))`,
     [email, new Date(now)],
   );
   const row = rows[0];
   if (!row) return null;
-  const { removed, ...user } = row;
-  return { user, removed };
+  const { removed, suspended, ...user } = row;
+  return { user, removed, suspended };
 }

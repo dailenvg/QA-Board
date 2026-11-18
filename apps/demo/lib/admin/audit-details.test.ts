@@ -92,7 +92,7 @@ describe("the field names the app records", () => {
       const path = join(dir, name);
       if (statSync(path).isDirectory()) return sources(path);
       const isSource = /\.(ts|sql)$/.test(name) && !name.endsWith(".test.ts");
-      return isSource && !path.startsWith(join(LIB, "admin")) ? [path] : [];
+      return isSource ? [path] : [];
     });
   }
 
@@ -124,8 +124,8 @@ describe("the field names the app records", () => {
     for (const match of text.matchAll(/\bfields\s*[:=]\s*\[/g)) {
       found.push(...names(bracketed(text, (match.index ?? 0) + match[0].length - 1), where));
     }
-    // `auditAccount(tx, id, "action", ["name"], now)` and `auditWorkspace(...)`.
-    for (const match of text.matchAll(/\baudit(?:Account|Workspace)\(/g)) {
+    // `auditAccount(tx, id, "action", ["name"], now)`, `auditWorkspace(...)` and `auditAdmin(...)`.
+    for (const match of text.matchAll(/\baudit(?:Account|Workspace|Admin)\(/g)) {
       const call = text.slice(match.index, text.indexOf(";", match.index));
       const open = call.indexOf("[");
       if (open >= 0) found.push(...names(bracketed(call, open), where));
@@ -146,7 +146,17 @@ describe("the field names the app records", () => {
 
   it("finds them in the code (so the check below isn't empty)", () => {
     const fields = new Set(recorded.map(({ field }) => field));
-    for (const field of ["archive-expired", "reviewWindow", "clientName", "seat_limit"]) {
+    for (const field of [
+      "archive-expired",
+      "reviewWindow",
+      "clientName",
+      "seat_limit",
+      "storage_quota_bytes",
+      "suspended_at",
+      "sessions",
+      "archived_at",
+      "password_resets",
+    ]) {
       expect(fields).toContain(field);
     }
     expect(fields.size).toBeGreaterThanOrEqual(20);

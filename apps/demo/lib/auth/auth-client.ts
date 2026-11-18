@@ -9,6 +9,8 @@ export type LoginError =
   | "invalid-credentials"
   /** The right password, on an account removed from its workspace (decision 20). */
   | "removed"
+  /** The right password, on an account whose workspace is suspended (and no other is open). */
+  | "suspended"
   | "rate-limited"
   | "not-configured"
   | "failed";
@@ -67,9 +69,14 @@ export async function requestLogin(email: string, password: string): Promise<Log
     case 401:
       return { ok: false, error: "invalid-credentials" };
     case 403:
-      return (await errorCode(response)) === "removed"
-        ? { ok: false, error: "removed" }
-        : { ok: false, error: "failed" };
+      switch (await errorCode(response)) {
+        case "removed":
+          return { ok: false, error: "removed" };
+        case "suspended":
+          return { ok: false, error: "suspended" };
+        default:
+          return { ok: false, error: "failed" };
+      }
     case 429:
       return {
         ok: false,
@@ -92,6 +99,9 @@ export function loginErrorMessage(error: LoginError, retryAfterSeconds = 0): str
     case "removed":
       // No workspace name, no date, and never RESET_LINK's words: reset sends a removed account nothing.
       return "You're no longer in a Squint workspace, so you can't sign in. Ask the person who invited you for a new invite.";
+    case "suspended":
+      // Only after the right password, and never why or which workspace.
+      return "Your workspace isn't available right now, so you can't sign in. Try again later.";
     case "rate-limited": {
       const minutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
       return `Too many attempts. Try again in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`;

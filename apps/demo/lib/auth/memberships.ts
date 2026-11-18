@@ -26,8 +26,17 @@ function toMembership({ permissions, ...row }: MembershipRow): Membership {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** A workspace anyone can work in: not archived, and not waiting to be deleted (033). */
-const OPEN_WORKSPACE = "w.archived_at IS NULL AND w.delete_after IS NULL";
+/**
+ * A workspace anyone can work in, as a condition on its row, named `alias` in
+ * the query: not archived, not waiting to be deleted (033), and not suspended
+ * by the Squint admin (046). Every check of whether a workspace is open uses
+ * this, so a closed one is closed everywhere at once.
+ */
+export function openWorkspace(alias: string): string {
+  return `${alias}.archived_at IS NULL AND ${alias}.delete_after IS NULL AND ${alias}.suspended_at IS NULL`;
+}
+
+const OPEN_WORKSPACE = openWorkspace("w");
 
 /**
  * The user's membership of a workspace that's open (`OPEN_WORKSPACE`), or null: also for

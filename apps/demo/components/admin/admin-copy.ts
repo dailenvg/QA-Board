@@ -1,4 +1,6 @@
 import type { AuditCategory } from "@/lib/admin/audit-category";
+import { MAX_QUOTA_GB, MIN_QUOTA_GB } from "@/lib/admin/quota";
+import type { AdminActionError } from "@/lib/admin/workspaces-client";
 import type { MemberSwitch } from "@/lib/auth/permissions";
 import { REVIEW_WINDOW_LABELS, type ReviewWindowChoice } from "@/lib/share/review-window";
 import { MEMBERS_COPY } from "../account/members-copy";
@@ -46,6 +48,9 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   password_resets: "password reset links",
   email_changes: "email change links",
   seat_limit: "seat limit",
+  storage_quota_bytes: "storage quota",
+  suspended_at: "suspension",
+  archived_at: "archive status",
   brandColor: "brand color",
   senderName: "email sender name",
   reviewWindow: "review window",
@@ -61,7 +66,7 @@ export const ADMIN_COPY = {
   title: "Admin",
   /** In the account settings, for the admin: back to the panel. */
   backToAdmin: "Back to admin",
-  summary: "Everything across Squint's workspaces, read-only.",
+  summary: "Everything across Squint's workspaces.",
   nav: "Admin",
   unavailable: {
     description: "This page couldn't be loaded.",
@@ -99,12 +104,130 @@ export const ADMIN_COPY = {
         "Changes to accounts, workspaces, people and review links show up here as they happen.",
     },
   },
+  workspaces: {
+    title: "Workspaces",
+    description:
+      "Every workspace, its owner and how much it stores. Last activity is the latest project change, comment or change by its people. Dates are in UTC.",
+    loading: "Loading the workspaces…",
+    columns: {
+      workspace: "Workspace",
+      owner: "Owner",
+      members: "Members",
+      projects: "Projects",
+      storage: "Storage",
+      lastActivity: "Last activity",
+      status: "Status",
+      actions: "Actions",
+    },
+    noOwner: "No owner",
+    noActivity: "None yet",
+    /** After the size used: "1.2 GB of 5 GB". */
+    ofQuota: (quota: string) => `of ${quota}`,
+    overQuota: "Over quota",
+    status: {
+      active: "Active",
+      suspended: "Suspended",
+      deleting: "Scheduled for deletion",
+    },
+    /** The row's menu, for screen readers: "Actions for Acme". */
+    actions: (name: string) => `Actions for ${name}`,
+    menu: {
+      quota: "Edit storage quota",
+      reset: "Reset owner password",
+      /** In place of `reset`, unavailable, when the owner's account is deleted or there's none. */
+      resetNoOwner: "Can't reset password: no active owner",
+      suspend: "Suspend",
+      unsuspend: "Lift suspension",
+      archive: "Archive",
+      /** In place of `archive`, unavailable, when the owner scheduled the workspace for deletion. */
+      archiveDeleting: "Can't archive: scheduled for deletion",
+      working: "Working…",
+    },
+    emptyTitle: "No workspaces yet",
+    emptyBody: "Workspaces show up here once they're set up.",
+    archived: {
+      title: "Archived",
+      description:
+        "Locked, with everything kept. Archiving never schedules a deletion. Unarchive one to open it again as it was.",
+      emptyTitle: "Nothing archived",
+      emptyBody: "Archived workspaces show up here.",
+      unarchive: "Unarchive",
+      unarchiving: "Unarchiving…",
+      /** The button for screen readers: "Unarchive Acme". */
+      unarchiveLabel: (name: string) => `Unarchive ${name}`,
+    },
+    quota: {
+      title: (name: string) => `Storage quota for ${name}`,
+      description: (used: string) => `It stores ${used} now.`,
+      label: "Quota in GB",
+      invalid: `Enter a number of GB from ${MIN_QUOTA_GB} to ${number.format(MAX_QUOTA_GB)}, with at most one decimal.`,
+      /** The new quota is under what it stores: allowed, and said plainly. */
+      below: (used: string) =>
+        `That's less than the ${used} it stores now. Uploads stop until it's under the quota again. Nothing is deleted.`,
+      cancel: "Cancel",
+      save: "Save quota",
+      saving: "Saving…",
+      saved: (name: string) => `Saved the storage quota for ${name}.`,
+    },
+    reset: {
+      title: "Reset the owner's password",
+      /** Before the link is made. */
+      description: (email: string) =>
+        `Make a link that lets ${email} set a new password. It's shown only once, here. It expires in 1 hour and works only once. Nothing is emailed, so send it to them yourself.`,
+      cancel: "Cancel",
+      confirm: "Make reset link",
+      pending: "Making link…",
+      /** Once it's made: "Works once, until 15:05 UTC. Copy it now: it won't be shown again." */
+      ready: (time: string) => `Works once, until ${time}. Copy it now: it won't be shown again.`,
+      label: "Reset link",
+      copy: "Copy link",
+      copied: "Copied",
+      copyFailed: "Couldn't copy the link. Select it and copy it yourself.",
+      done: "Done",
+    },
+    suspend: {
+      title: (name: string) => `Suspend ${name}?`,
+      points: [
+        "Its members can't open it. Anyone without another open workspace is signed out and can't sign in.",
+        "Its review links pause: clients see that the review isn't available right now and can't comment.",
+        "All its data is kept. Lift the suspension at any time to open everything again.",
+      ],
+      confirm: "Suspend workspace",
+      pending: "Suspending…",
+      done: (name: string) => `Suspended ${name}.`,
+      lifted: (name: string) => `Lifted the suspension of ${name}.`,
+    },
+    archive: {
+      title: (name: string) => `Archive ${name}?`,
+      points: [
+        "It's locked: its members can't open it, and its review links stop working.",
+        "Nothing is deleted, and no deletion is scheduled.",
+        "To undo it, unarchive it from the Archived list. It opens again as it was.",
+      ],
+      confirm: "Archive workspace",
+      pending: "Archiving…",
+      done: (name: string) => `Archived ${name}.`,
+      undone: (name: string) => `Unarchived ${name}.`,
+    },
+    errors: {
+      "not-found": "This workspace isn't there any more. Reload the page to see the current list.",
+      "no-owner": "This workspace has no active owner, so there's no password to reset.",
+      deleting:
+        "Its owner scheduled this workspace for deletion, so it can't be archived. Nothing changed.",
+      invalid: "Squint didn't accept that. Check it and try again.",
+      "signed-out": "You're signed out. Sign in again, then try once more.",
+      offline: "Couldn't reach Squint. Check your connection and try again.",
+      failed: "Something went wrong on Squint's side, and nothing changed. Try again.",
+    } satisfies Record<AdminActionError, string>,
+    retry: "Try again",
+  },
   categories: {
     account: "Accounts",
     workspace: "Workspaces",
     people: "People and invites",
     projects: "Projects",
     reviewLinks: "Review links",
+    admin: "Admin actions",
     other: "Other",
   } satisfies Record<AuditCategory, string>,
   audit: {
@@ -203,6 +326,12 @@ export const ACTION_LABELS: Readonly<Record<string, string>> = {
   "share.password_set": "Set review link password",
   "share.password_removed": "Removed review link password",
   "share.invites_sent": "Sent review link invitations",
+  "admin.workspace_quota_changed": "Changed workspace storage quota",
+  "admin.owner_reset_link_created": "Made password reset link for owner",
+  "admin.workspace_suspended": "Suspended workspace",
+  "admin.workspace_unsuspended": "Lifted workspace suspension",
+  "admin.workspace_archived": "Archived workspace",
+  "admin.workspace_unarchived": "Unarchived workspace",
   "seed.user_created": "Created account during setup",
   "seed.workspace_created": "Created workspace during setup",
   "seed.owner_linked": "Made workspace owner during setup",

@@ -122,7 +122,8 @@ function memberInviteSteps(now: number): Promise<[StepResult, StepResult]> {
 
 /**
  * Workspace projects trashed more than 30 days ago, deleted for good, and
- * archived ones whose deletion date has come; then deleted accounts (and the
+ * archived ones whose deletion date has come, except in a suspended workspace
+ * (caught up once it's lifted); then deleted accounts (and the
  * workspaces they owned) whose 30 days are up; then workspace and avatar
  * files nothing records any more, which picks up any file a failed delete
  * left. Skipped without a database.

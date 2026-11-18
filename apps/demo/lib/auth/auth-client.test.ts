@@ -41,6 +41,8 @@ describe("requestLogin", () => {
     });
     answer(403, {}, JSON.stringify({ error: "removed" }));
     expect(await requestLogin("a@b.co", "pw")).toEqual({ ok: false, error: "removed" });
+    answer(403, {}, JSON.stringify({ error: "suspended" }));
+    expect(await requestLogin("a@b.co", "pw")).toEqual({ ok: false, error: "suspended" });
     // Any other refusal (another site's Origin) is no answer about the account.
     answer(403, {}, JSON.stringify({ error: "cross-site" }));
     expect(await requestLogin("a@b.co", "pw")).toEqual({ ok: false, error: "failed" });

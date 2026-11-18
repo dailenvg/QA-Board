@@ -2,10 +2,17 @@ import { apiAccount } from "../auth/guards";
 import { findMembership } from "../auth/memberships";
 import { refusalFor, type Permission } from "../auth/permissions";
 import { verifyGuestPass } from "./guest-pass";
-import { guardStorage, notFound, passwordRequired, rateLimit, type LimitName } from "./http";
+import {
+  guardStorage,
+  notFound,
+  passwordRequired,
+  paused,
+  rateLimit,
+  type LimitName,
+} from "./http";
 import { OWNER_KEY_HEADER } from "./http-headers";
 import { shareServices, type ShareServices } from "./server";
-import { clientShare, ownerShare } from "./service";
+import { clientShare, isPausedShare, ownerShare } from "./service";
 import type { ShareRecord } from "./types";
 
 export interface ShareContext {
@@ -61,7 +68,8 @@ export async function asOwner(
 
 /**
  * Rate limit, then the share token from the path; unknown, revoked or expired
- * is a plain 404, and a storage failure a JSON 500. Then the password gate: a
+ * is a plain 404, paused (its workspace suspended) a 404 `paused`, and a
+ * storage failure a JSON 500. Then the password gate: a
  * protected link without a valid guest pass (`verifyGuestPass`) is 401
  * `password-required`. Only what a locked link may still show passes
  * `{ gated: false }`: the company's logo, and the unlock route itself.
@@ -79,7 +87,7 @@ export async function asClient(
     const services = await shareServices();
     const now = Date.now();
     const share = await clientShare(services.store, token, now);
-    if (!share) return notFound();
+    if (!share) return (await isPausedShare(services.store, token, now)) ? paused() : notFound();
     if (gated && !verifyGuestPass(request.headers.get("cookie"), share, now)) {
       return passwordRequired();
     }

@@ -79,6 +79,8 @@ export function createMemoryStore(): ShareStore {
       done(
         [...shares.values()].find((entry) => entry.record.tokenHash === tokenHash)?.record ?? null,
       ),
+    // No workspaces in memory, so nothing is ever suspended.
+    pausedByTokenHash: () => done(null),
     exists: (id) => done(shares.has(id)),
     setProject(id, project, at, expiresAt) {
       const entry = shares.get(id);

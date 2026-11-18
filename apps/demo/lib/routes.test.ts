@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ADMIN_AUDIT_HREF,
   ADMIN_HREF,
+  ADMIN_WORKSPACES_HREF,
   FOLDERS_HREF,
   folderHref,
   isAccountPath,
@@ -23,6 +24,7 @@ describe("routes", () => {
   it("puts the admin's Overview and every page under it in the admin panel", () => {
     expect(isAdminPath(ADMIN_HREF)).toBe(true);
     expect(isAdminPath(ADMIN_AUDIT_HREF)).toBe(true);
+    expect(isAdminPath(ADMIN_WORKSPACES_HREF)).toBe(true);
     for (const elsewhere of [OVERVIEW_HREF, "/administrator", "/account", "/api/admin"]) {
       expect(isAdminPath(elsewhere)).toBe(false);
     }

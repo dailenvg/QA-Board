@@ -4,7 +4,7 @@ import { toClientBrand } from "./brand";
 import { cardLogoUri, readBrandLogo } from "./brand-logo";
 import { verifyGuestPass } from "./guest-pass";
 import { shareServices } from "./server";
-import { clientShare, clientView } from "./service";
+import { clientShare, clientView, isPausedShare } from "./service";
 import type { ClientBrand, ClientView, LockedShare } from "./types";
 
 /**
@@ -17,8 +17,8 @@ export type GuestShare = { locked: false; view: ClientView } | ({ locked: true }
 /**
  * What a guest's link opens at this moment, for a request carrying
  * `cookieHeader`, or null when its token is unknown, revoked or expired, or
- * its project is in the trash, or its workspace is archived or waiting to be
- * deleted. Read once per request: the page and its metadata both ask.
+ * its project is in the trash, or its workspace is archived, waiting to be
+ * deleted or suspended. Read once per request: the page and its metadata both ask.
  */
 export const openGuestShare = cache(
   async (token: string, cookieHeader: string | null): Promise<GuestShare | null> => {
@@ -38,6 +38,17 @@ export const openGuestShare = cache(
     return { locked: false, view: await clientView(store, share, token) };
   },
 );
+
+/**
+ * Whether a link that doesn't open (`openGuestShare` is null) is only paused,
+ * its workspace suspended by the Squint admin: the page then says the review
+ * isn't available right now. Its metadata and preview card stay generic, as
+ * for any link that doesn't open, so a preview never tells.
+ */
+export const isGuestSharePaused = cache(async (token: string): Promise<boolean> => {
+  const { store } = await shareServices();
+  return isPausedShare(store, token, Date.now());
+});
 
 /** The company behind a guest's link, locked or not. */
 export function guestBrand(guest: GuestShare): ClientBrand {
@@ -65,7 +76,7 @@ export interface InvitationCard extends Invitation {
 
 /**
  * The link preview card of a workspace's link, password-protected or not;
- * null for an anonymous one or one that doesn't open.
+ * null for an anonymous one or one that doesn't open (a paused one included).
  */
 export async function invitationCard(token: string): Promise<InvitationCard | null> {
   const { store } = await shareServices();

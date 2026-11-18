@@ -1,31 +1,15 @@
 "use client";
 
-import { motion, useReducedMotion, type Variants } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import type { AuditDetails } from "@/lib/admin/audit-details";
 import type { AuditRow } from "@/lib/admin/audit-query";
 import { utcDateTime } from "@/lib/admin/utc-format";
-import { duration, ease, revealViewport, rise, staggerStep, useRevealVariants } from "@/lib/motion";
+import { revealViewport, useRevealVariants } from "@/lib/motion";
 import { ADMIN_COPY, actionLabel, TARGET_LABELS } from "./admin-copy";
+import { rowVariants } from "./admin-motion";
 
 const COPY = ADMIN_COPY.audit;
 const DETAILS = ADMIN_COPY.details;
-
-/** Rows past this many on screen at once rise in together, not one by one. */
-const STAGGERED = 8;
-
-/** `fadeUp`'s rise, each row a stagger step after the one before it (up to `STAGGERED`). */
-const rowVariants: Variants = {
-  hidden: { opacity: 0, y: rise },
-  visible: (order: number) => ({
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: duration.component,
-      ease: ease.out,
-      delay: Math.min(order, STAGGERED) * staggerStep,
-    },
-  }),
-};
 
 /** The entry's safe details in words: never more than `auditDetails` kept. */
 function detailLines(details: AuditDetails): string[] {

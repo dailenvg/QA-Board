@@ -62,7 +62,7 @@ test.describe("the admin", () => {
       "aria-current",
       "page",
     );
-    await expect(nav.getByRole("link")).toHaveText(["Overview", "Audit log"]);
+    await expect(nav.getByRole("link")).toHaveText(["Overview", "Workspaces", "Audit log"]);
     // The seed made two workspaces with an owner each, and the admin.
     // Polled: the count ticks up from 0 as it comes on screen.
     await expect
@@ -202,7 +202,12 @@ test.describe("the admin", () => {
 
 test.describe("a company user", () => {
   test("gets a 404 for every admin page, and no way there", async ({ page }) => {
-    for (const path of ["/admin", "/admin/audit", "/admin/audit?actor=squint"]) {
+    for (const path of [
+      "/admin",
+      "/admin/workspaces",
+      "/admin/audit",
+      "/admin/audit?actor=squint",
+    ]) {
       const response = await page.goto(path);
       expect(response?.status()).toBe(404);
       await expect(page.getByRole("heading", { level: 1, name: "Page not found" })).toBeVisible();

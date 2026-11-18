@@ -35,3 +35,14 @@ export function utcDateTime(at: number): string {
   const date = new Date(at);
   return `${utcDay(at)}, ${date.getUTCFullYear()}, ${two(date.getUTCHours())}:${two(date.getUTCMinutes())} UTC`;
 }
+
+/** "Nov 7, 2026". */
+export function utcDate(at: number): string {
+  return `${utcDay(at)}, ${new Date(at).getUTCFullYear()}`;
+}
+
+/** "09:05 UTC". */
+export function utcTime(at: number): string {
+  const date = new Date(at);
+  return `${two(date.getUTCHours())}:${two(date.getUTCMinutes())} UTC`;
+}

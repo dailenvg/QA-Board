@@ -23,7 +23,7 @@ export interface AdminCounts {
    * Review links a client can open right now: not revoked (a revoked share's
    * row is gone), not expired (an anonymous share's `expires_at`), and
    * answering (`SHARE_ANSWERS`: its project isn't trashed or archived, its
-   * workspace isn't archived or due for deletion).
+   * workspace isn't archived, due for deletion or suspended).
    */
   activeShares: number;
   /** Bytes stored across every workspace (storage_usage). */

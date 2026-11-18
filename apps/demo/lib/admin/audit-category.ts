@@ -3,7 +3,7 @@
  * every action carries (`lib/account/audit.ts`). Client-safe.
  */
 export type AuditCategory =
-  "account" | "workspace" | "people" | "projects" | "reviewLinks" | "other";
+  "account" | "workspace" | "people" | "projects" | "reviewLinks" | "admin" | "other";
 
 /** Every category, in the order the admin panel lists them. */
 export const AUDIT_CATEGORIES: readonly AuditCategory[] = [
@@ -12,6 +12,7 @@ export const AUDIT_CATEGORIES: readonly AuditCategory[] = [
   "people",
   "projects",
   "reviewLinks",
+  "admin",
   "other",
 ];
 
@@ -22,6 +23,7 @@ const BY_PREFIX: Readonly<Record<string, AuditCategory>> = {
   member: "people",
   project: "projects",
   share: "reviewLinks",
+  admin: "admin",
 };
 
 /** The category of `action` ("user.name_changed" is account); "other" for a prefix it doesn't know (the seed's). */
