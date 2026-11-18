@@ -63,7 +63,11 @@ describe("runExpiry", () => {
 
     const run = await runExpiry({ trigger: "admin" });
 
-    expect(run).toMatchObject({ running: false, anyFailed: false, report: { trash: 1, done: true } });
+    expect(run).toMatchObject({
+      running: false,
+      anyFailed: false,
+      report: { trash: 1, done: true },
+    });
     const [row] = await runs(db);
     expect(row).toMatchObject({ trigger: "admin", done: true, failed: false });
     expect(row?.finished_at).toBeInstanceOf(Date);

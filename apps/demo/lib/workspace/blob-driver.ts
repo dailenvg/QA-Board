@@ -14,6 +14,8 @@ export interface ListedFile {
   url: string;
   pathname: string;
   uploadedAt: Date;
+  /** Bytes, when the listing says (Vercel Blob's does), for the admin's dry run. */
+  size?: number;
 }
 
 /** What a client upload token allows, decided by the route before it's issued. */

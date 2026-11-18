@@ -13,12 +13,7 @@ import { pruneWorkspaceInviteSends } from "../workspace/members/invite-sends";
 import { pruneEndedInvites } from "../workspace/members/prune-invites";
 import { purgeArchived, purgeTrash, sweepWorkspaceBlobs } from "../workspace/purge";
 import { claimCronRun, finishCronRun } from "./cron-runs";
-import {
-  EXPIRY_STEPS,
-  type CronTrigger,
-  type ExpiryReport,
-  type ExpiryStep,
-} from "./expiry-steps";
+import { EXPIRY_STEPS, type CronTrigger, type ExpiryReport, type ExpiryStep } from "./expiry-steps";
 
 /**
  * The work stops starting new deletes at `EXPIRY_BUDGET_MS`; the rest of a
@@ -217,8 +212,7 @@ async function record(claimed: Claim, report: ExpiryReport): Promise<void> {
 
 /** A run's outcome: refused while another is running, or its report. */
 export type ExpiryRun =
-  | { running: true }
-  | { running: false; report: ExpiryReport; anyFailed: boolean };
+  { running: true } | { running: false; report: ExpiryReport; anyFailed: boolean };
 
 /**
  * The daily cleanup, started by `trigger`. Independent steps, each with its

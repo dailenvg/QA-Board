@@ -1,4 +1,4 @@
-import type { SweepResult } from "./orphan-blobs";
+import type { OrphanScan, SweepResult } from "./orphan-blobs";
 import { ORPHAN_BLOB_MS } from "./retention";
 import type { ShareServices } from "./server";
 import { revokeShare } from "./service";
@@ -36,6 +36,18 @@ export async function expireShares(
 }
 
 /**
+ * Which Blob files are orphans at `now`, for the sweep and its dry run alike:
+ * uploaded before the cutoff (a day past retention), under a share whose row
+ * is gone.
+ */
+function orphanRule(
+  store: ShareServices["store"],
+  now: number,
+): [before: number, isLive: (shareId: string) => Promise<boolean>] {
+  return [now - ORPHAN_BLOB_MS, (shareId) => store.exists(shareId)];
+}
+
+/**
  * Deletes Blob files a failed revoke left behind: uploaded more than a day
  * past retention, under a share whose row is gone (`exists`). A share that's
  * only closed (its project in the trash, its workspace archived or waiting to
@@ -49,5 +61,19 @@ export async function sweepOrphanedBlobs(
   deadline: number,
 ): Promise<SweepResult | null> {
   if (!blobs.sweep) return null;
-  return blobs.sweep(now - ORPHAN_BLOB_MS, (shareId) => store.exists(shareId), deadline);
+  return blobs.sweep(...orphanRule(store, now), deadline);
+}
+
+/**
+ * What `sweepOrphanedBlobs` would delete at `now`, by the same cutoff and the
+ * same live check, counted and never deleted: the admin's dry run. Null when
+ * images aren't kept in Vercel Blob.
+ */
+export async function scanOrphanedBlobs(
+  { store, blobs }: ShareServices,
+  now: number,
+  deadline: number,
+): Promise<OrphanScan | null> {
+  if (!blobs.scan) return null;
+  return blobs.scan(...orphanRule(store, now), deadline);
 }

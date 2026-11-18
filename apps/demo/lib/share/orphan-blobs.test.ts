@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { shareIdOf, sweepOrphanBlobs, type BlobLister, type ListedBlob } from "./orphan-blobs";
+import {
+  countOrphanBlobs,
+  shareIdOf,
+  sweepOrphanBlobs,
+  type BlobLister,
+  type ListedBlob,
+} from "./orphan-blobs";
 
 const NOW = Date.UTC(2026, 9, 27);
 const DAY = 86_400_000;
@@ -73,6 +79,53 @@ describe("orphaned Blob files", () => {
     const isLive = () => Promise.resolve(false);
     expect(await sweepOrphanBlobs(api, BEFORE, isLive, Date.now() - 1)).toEqual({
       deleted: 0,
+      done: false,
+    });
+    expect(list).not.toHaveBeenCalled();
+  });
+});
+
+describe("the orphaned Blob files' dry run", () => {
+  const sized = (pathname: string, size: number, uploadedAt = OLD): ListedBlob => ({
+    ...blob(pathname, uploadedAt),
+    size,
+  });
+
+  it("counts exactly what the sweep then deletes, with their bytes, and deletes nothing", async () => {
+    const { api, list, deleted } = lister([
+      [
+        sized("squint/live/page-1.png", 1000),
+        sized("squint/gone/recent.png", 1000, new Date(BEFORE)),
+        sized("squint/stray.png", 1000),
+        sized("squint/gone/crop-1.png", 300),
+        sized("squint/gone/crop-2.png", 200),
+      ],
+      [sized("squint/also-gone/snapshot-1.jpg", 40), sized("squint/live/crop-1.png", 1000)],
+    ]);
+    const isLive = (shareId: string) => Promise.resolve(shareId === "live");
+    const del = vi.spyOn(api, "del");
+
+    const counted = await countOrphanBlobs(list, BEFORE, isLive, Infinity);
+
+    expect(counted).toEqual({ files: 3, bytes: 540, done: true });
+    expect(del).not.toHaveBeenCalled();
+    const swept = await sweepOrphanBlobs(api, BEFORE, isLive, Infinity);
+    expect(swept.deleted).toBe(counted.files);
+    expect(deleted.flat()).toHaveLength(3);
+  });
+
+  it("says the bytes aren't known when the listing leaves a size out", async () => {
+    const { list } = lister([[sized("squint/gone/a.png", 10), blob("squint/gone/b.png")]]);
+    const counted = await countOrphanBlobs(list, BEFORE, () => Promise.resolve(false), Infinity);
+    expect(counted).toEqual({ files: 2, bytes: null, done: true });
+  });
+
+  it("stops before the next page once the deadline has passed", async () => {
+    const { list } = lister([[blob("squint/gone/a.png")]]);
+    const isLive = () => Promise.resolve(false);
+    expect(await countOrphanBlobs(list, BEFORE, isLive, Date.now() - 1)).toEqual({
+      files: 0,
+      bytes: 0,
       done: false,
     });
     expect(list).not.toHaveBeenCalled();

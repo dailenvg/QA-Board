@@ -2,16 +2,23 @@ import { audit } from "../account/audit";
 import { avatarRowExists, parseAvatarPath, USER_BLOB_PREFIX } from "../account/avatar";
 import type { Database } from "../db/database";
 import type { BlobBackend } from "../share/blob-backend";
+import { addToTally, EMPTY_TALLY, type OrphanTally } from "../share/orphan-blobs";
 import type { Queryable } from "../share/migrate";
 import { createPostgresStore } from "../share/postgres-store";
-import type { AnyBlobDriver, ClientUploadDriver } from "./blob-driver";
+import type { AnyBlobDriver, ClientUploadDriver, ListedFile } from "./blob-driver";
 import {
   parseBlobPath,
   parseBrandLogoPath,
   projectBlobPrefix,
   WORKSPACE_BLOB_PREFIX,
 } from "./blob-paths";
-import { blobRowExists, deleteBlobRows, orphanedBlobRows, toLocation } from "./blobs";
+import {
+  blobRowExists,
+  deleteBlobRows,
+  orphanedBlobRows,
+  orphanedBlobTotals,
+  toLocation,
+} from "./blobs";
 import { TRASH_GRACE_MS, UNCOMMITTED_BLOB_MS } from "./limits";
 import { projectShareIds } from "./share-links";
 import { toDate } from "./times";
@@ -220,36 +227,39 @@ async function isRecorded(db: Queryable, path: string): Promise<boolean | null> 
 }
 
 /**
- * Vercel Blob files under `prefix` that no row records, uploaded more than
+ * Vercel Blob files that no row records, uploaded more than
  * `UNCOMMITTED_BLOB_MS` before `now`: an upload whose commit never came, or
  * the file of a row deleted with its workspace or account whose own delete
- * failed. Paths `isRecorded` doesn't know are never touched.
+ * failed. Paths `isRecorded` doesn't know never are. Pages through the
+ * workspace files, then the avatars, handing each page's to `onPage`, until
+ * both end (true) or `deadline` passes before the next page (false). The one
+ * rule the sweep and the admin's dry run share.
  */
-async function sweepUnrecorded(
+async function walkUnrecorded(
   db: Queryable,
   blobs: ClientUploadDriver,
-  prefix: string,
   now: number,
   deadline: number,
-) {
-  let count = 0;
-  let cursor: string | undefined;
-  do {
-    if (Date.now() >= deadline) return { count, done: false };
-    const page = await blobs.list(prefix, cursor);
-    const stale: string[] = [];
-    for (const file of page.files) {
-      if (file.uploadedAt.getTime() >= now - UNCOMMITTED_BLOB_MS) continue;
-      if ((await isRecorded(db, file.pathname)) === false) stale.push(file.url);
-    }
-    await blobs.discard(stale.map((url) => ({ kind: "vercel", url })));
-    count += stale.length;
-    cursor = page.hasMore ? page.cursor : undefined;
-  } while (cursor);
-  return { count, done: true };
+  onPage: (stale: ListedFile[]) => Promise<void>,
+): Promise<boolean> {
+  for (const prefix of [WORKSPACE_BLOB_PREFIX, USER_BLOB_PREFIX]) {
+    let cursor: string | undefined;
+    do {
+      if (Date.now() >= deadline) return false;
+      const page = await blobs.list(prefix, cursor);
+      const stale: ListedFile[] = [];
+      for (const file of page.files) {
+        if (file.uploadedAt.getTime() >= now - UNCOMMITTED_BLOB_MS) continue;
+        if ((await isRecorded(db, file.pathname)) === false) stale.push(file);
+      }
+      await onPage(stale);
+      cursor = page.hasMore ? page.cursor : undefined;
+    } while (cursor);
+  }
+  return true;
 }
 
-/** Both prefixes' unrecorded files; inline files live in their rows, so there's nothing to list. */
+/** Deletes what `walkUnrecorded` finds; inline files live in their rows, so there's nothing to list. */
 async function sweepUncommitted(
   db: Queryable,
   blobs: AnyBlobDriver,
@@ -258,12 +268,11 @@ async function sweepUncommitted(
 ): Promise<PurgeResult> {
   if (blobs.kind !== "vercel") return { count: 0, done: true };
   let count = 0;
-  for (const prefix of [WORKSPACE_BLOB_PREFIX, USER_BLOB_PREFIX]) {
-    const swept = await sweepUnrecorded(db, blobs, prefix, now, deadline);
-    count += swept.count;
-    if (!swept.done) return { count, done: false };
-  }
-  return { count, done: true };
+  const done = await walkUnrecorded(db, blobs, now, deadline, async (stale) => {
+    await blobs.discard(stale.map((file) => ({ kind: "vercel", url: file.url })));
+    count += stale.length;
+  });
+  return { count, done };
 }
 
 /** Both sweeps; `count` is the files deleted, avatars included. */
@@ -277,4 +286,35 @@ export async function sweepWorkspaceBlobs(
   if (!rows.done) return rows;
   const files = await sweepUncommitted(db, blobs, now, deadline);
   return { count: rows.count + files.count, done: files.done };
+}
+
+/** What `sweepWorkspaceBlobs` would delete, counted: the admin's dry run. */
+export interface WorkspaceBlobScan {
+  /** Rows whose project is gone, and their files (`orphanedBlobTotals`). */
+  rows: OrphanTally;
+  /** Files no row records; null without Vercel Blob, where there are no files to list. */
+  unrecorded: OrphanTally | null;
+  /** False when `deadline` passed before the listing ended. */
+  done: boolean;
+}
+
+/**
+ * Counts what `sweepWorkspaceBlobs` would delete at `now`, by the same rules
+ * (`ORPHANED_ROW`, `walkUnrecorded`), and deletes nothing: it never discards
+ * a file or deletes a row.
+ */
+export async function scanWorkspaceBlobs(
+  db: Queryable,
+  blobs: AnyBlobDriver,
+  now: number,
+  deadline: number,
+): Promise<WorkspaceBlobScan> {
+  const rows = await orphanedBlobTotals(db);
+  if (blobs.kind !== "vercel") return { rows, unrecorded: null, done: true };
+  let unrecorded = EMPTY_TALLY;
+  const done = await walkUnrecorded(db, blobs, now, deadline, (stale) => {
+    unrecorded = addToTally(unrecorded, stale);
+    return Promise.resolve();
+  });
+  return { rows, unrecorded, done };
 }

@@ -14,7 +14,7 @@ import {
 import { createProject, setArchived, trashProject } from "../workspace/projects";
 import { attachShare } from "../workspace/share-links";
 import { inlineBackend, type BlobBackend } from "./blob-backend";
-import { EXPIRY_BATCH, expireShares, sweepOrphanedBlobs } from "./expiry";
+import { EXPIRY_BATCH, expireShares, scanOrphanedBlobs, sweepOrphanedBlobs } from "./expiry";
 import { createMemoryStore } from "./memory-store";
 import { sweepOrphanBlobs } from "./orphan-blobs";
 import { createPostgresStore } from "./postgres-store";
@@ -428,5 +428,42 @@ describe("the orphaned Blob sweep", () => {
       done: true,
     });
     expect(deleted).toEqual([`https://blob.test/squint/${ids.revoked}/page-1.png`]);
+  });
+});
+
+describe("the orphaned Blob sweep's dry run", () => {
+  it("asks the backend with the sweep's own cutoff and live check, and never sweeps", async () => {
+    const { store } = await storeWith(1, 1);
+    const sweep = vi.fn<NonNullable<BlobBackend["sweep"]>>(() =>
+      Promise.resolve({ deleted: 0, done: true }),
+    );
+    const scan = vi.fn<NonNullable<BlobBackend["scan"]>>(() =>
+      Promise.resolve({ files: 2, bytes: 20, done: true }),
+    );
+    const services = { store, blobs: { ...inlineBackend, sweep, scan } };
+    const now = Date.now();
+
+    expect(await scanOrphanedBlobs(services, now, now + 1000)).toEqual({
+      files: 2,
+      bytes: 20,
+      done: true,
+    });
+    expect(sweep).not.toHaveBeenCalled();
+    await sweepOrphanedBlobs(services, now, now + 1000);
+    const [scanCutoff, scanLive, scanDeadline] = scan.mock.calls[0] ?? [];
+    const [sweepCutoff, sweepLive] = sweep.mock.calls[0] ?? [];
+    expect(scanCutoff).toBe(now - ORPHAN_BLOB_MS);
+    expect(scanCutoff).toBe(sweepCutoff);
+    expect(scanDeadline).toBe(now + 1000);
+    for (const id of ["live-0", "old-0", "never"]) {
+      expect(await scanLive?.(id)).toBe(await sweepLive?.(id));
+    }
+  });
+
+  it("is null when images aren't kept in Vercel Blob", async () => {
+    const { store } = await storeWith(0, 0);
+    expect(
+      await scanOrphanedBlobs({ store, blobs: inlineBackend }, Date.now(), Infinity),
+    ).toBeNull();
   });
 });

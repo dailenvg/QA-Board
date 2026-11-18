@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { STATE } from "@/test/share-fixture";
 import {
   addFolder,
@@ -29,6 +29,7 @@ import {
   purgeArchived,
   purgeProject,
   purgeTrash,
+  scanWorkspaceBlobs,
   sweepWorkspaceBlobs,
   type PurgeServices,
 } from "./purge";
@@ -483,5 +484,93 @@ describe("sweepWorkspaceBlobs", () => {
     ]);
     expect(await sweepWorkspaceBlobs(db, driver, NOW, DEADLINE)).toEqual({ count: 2, done: true });
     expect(discarded).toEqual(["https://store.test/logo-gone", "https://store.test/avatar-gone"]);
+  });
+});
+
+describe("scanWorkspaceBlobs, the sweep's dry run", () => {
+  /** Workspace A with a kept file, a row whose project is gone, and three listed files. */
+  async function sweepable() {
+    const { db, a } = await twoWorkspaces();
+    await addFolder(db, a.workspaceId);
+    await createProject(db, a.workspaceId, URL_PROJECT("p1"), NOW);
+    await createProject(db, a.workspaceId, URL_PROJECT("gone"), NOW);
+    await db.query(
+      `INSERT INTO workspace_blobs (workspace_id, key, project_id, content_type, size, blob_url)
+       VALUES ($1, $2, 'p1', 'image/png', 10, 'https://store.test/kept'),
+              ($1, $3, 'gone', 'image/png', 25, 'https://store.test/orphan')`,
+      [
+        a.workspaceId,
+        blobPath(a.workspaceId, "p1", "page:a"),
+        blobPath(a.workspaceId, "gone", "page:a"),
+      ],
+    );
+    await db.query("DELETE FROM projects WHERE id = 'gone'");
+    const old = new Date(NOW - UNCOMMITTED_BLOB_MS - 1);
+    const store = fakeStore([
+      {
+        pathname: blobPath(a.workspaceId, "p1", "page:a"),
+        url: "https://store.test/kept",
+        uploadedAt: old,
+        size: 10,
+      },
+      {
+        pathname: blobPath(a.workspaceId, "p1", "page:never-committed"),
+        url: "https://store.test/stale",
+        uploadedAt: old,
+        size: 7,
+      },
+      {
+        pathname: `user/${a.userId}/avatar/uploading`,
+        url: "https://store.test/fresh",
+        uploadedAt: new Date(NOW),
+        size: 3,
+      },
+    ]);
+    return { db, ...store };
+  }
+
+  const rowCount = async (db: Database) =>
+    (await db.query("SELECT 1 FROM workspace_blobs")).rows.length;
+
+  it("counts exactly what the sweep then deletes, with their bytes, and deletes nothing", async () => {
+    const { db, driver, discarded } = await sweepable();
+
+    const scan = await scanWorkspaceBlobs(db, driver, NOW, DEADLINE);
+
+    expect(scan).toEqual({
+      rows: { files: 1, bytes: 25 },
+      unrecorded: { files: 1, bytes: 7 },
+      done: true,
+    });
+    expect(discarded).toEqual([]);
+    expect(await rowCount(db)).toBe(2);
+    const swept = await sweepWorkspaceBlobs(db, driver, NOW, DEADLINE);
+    expect(swept.count).toBe(scan.rows.files + (scan.unrecorded?.files ?? 0));
+  });
+
+  it("counts only the rows without Vercel Blob, where there are no files to list", async () => {
+    const { db } = await sweepable();
+    const inline: PurgeServices["blobs"] = {
+      kind: "inline",
+      read: () => Promise.resolve(null),
+      discard: () => Promise.reject(new Error("a dry run never discards")),
+    };
+    expect(await scanWorkspaceBlobs(db, inline, NOW, DEADLINE)).toEqual({
+      rows: { files: 1, bytes: 25 },
+      unrecorded: null,
+      done: true,
+    });
+    expect(await rowCount(db)).toBe(2);
+  });
+
+  it("says it's not done when the deadline passed before the listing", async () => {
+    const { db, driver } = await sweepable();
+    const list = vi.spyOn(driver, "list");
+    expect(await scanWorkspaceBlobs(db, driver, NOW, Date.now() - 1)).toEqual({
+      rows: { files: 1, bytes: 25 },
+      unrecorded: { files: 0, bytes: 0 },
+      done: false,
+    });
+    expect(list).not.toHaveBeenCalled();
   });
 });
