@@ -102,6 +102,7 @@ function QuotaForm({ workspace, saving, onSave, onClose }: QuotaFormProps) {
           id={inputId}
           data-autofocus
           inputMode="decimal"
+          enterKeyHint="done"
           autoComplete="off"
           value={value}
           readOnly={saving}

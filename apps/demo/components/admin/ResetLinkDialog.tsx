@@ -184,7 +184,8 @@ function ReadyLink({
         <Button variant="secondary" onClick={onDone} data-testid="reset-link-done">
           {COPY.done}
         </Button>
-        <Button onClick={copy} data-testid="reset-link-copy">
+        {/* As wide as "Copy link" either way, so "Copied" doesn't shift Done (phones: full width). */}
+        <Button onClick={copy} data-testid="reset-link-copy" className="sm:min-w-36">
           <AnimatePresence mode="wait" initial={false}>
             <motion.span
               key={copied ? "copied" : "copy"}

@@ -52,7 +52,8 @@ export function WorkspaceStorage({ usedBytes, quotaBytes }: WorkspaceStorageProp
         aria-valuenow={Math.min(100, percent)}
         aria-valuetext={`${percent}%`}
       >
-        <GrowBar share={share} fill={FILL[level]} height="h-1.5" />
+        {/* line-strong, not the default seg: seg barely shows on a dark card. */}
+        <GrowBar share={share} fill={FILL[level]} height="h-1.5" track="bg-line-strong" />
       </div>
     </div>
   );

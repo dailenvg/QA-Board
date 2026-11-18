@@ -19,6 +19,11 @@ export interface AdminWorkspace {
   slug: string;
   /** The owner's sign-in email; null when the workspace has no owner row. */
   ownerEmail: string | null;
+  /**
+   * The owner's account can sign in (it isn't deleted, or scheduled to be):
+   * only then can the admin make them a reset link.
+   */
+  ownerActive: boolean;
   /** People in it whose accounts aren't deleted, the owner included. */
   members: number;
   /** Projects not in the trash, archived ones included. */
@@ -52,6 +57,7 @@ interface WorkspaceRow {
   name: string;
   slug: string;
   owner_email: string | null;
+  owner_active: boolean;
   members: number;
   projects: number;
   used_bytes: string | number;
@@ -85,6 +91,7 @@ function toWorkspace(row: WorkspaceRow): AdminWorkspace {
     name: row.name,
     slug: row.slug,
     ownerEmail: row.owner_email,
+    ownerActive: row.owner_active,
     members: row.members,
     projects: row.projects,
     usedBytes: Number(row.used_bytes),
@@ -99,6 +106,7 @@ function toWorkspace(row: WorkspaceRow): AdminWorkspace {
 }
 
 const SELECT_WORKSPACES = `SELECT w.id, w.name, w.slug, owner.email AS owner_email,
+    (owner.id IS NOT NULL AND owner.deleted_at IS NULL) AS owner_active,
     (SELECT count(*) FROM memberships AS m JOIN users AS u ON u.id = m.user_id
        WHERE m.workspace_id = w.id AND u.deleted_at IS NULL)::int AS members,
     (SELECT count(*) FROM projects AS project

@@ -77,6 +77,7 @@ describe("loadAdminWorkspaces", () => {
       deleteAfter: null,
     });
     expect(active[0]?.ownerEmail).toMatch(/^owner-\d+@acme\.test$/);
+    expect(active[0]?.ownerActive).toBe(true);
     expect(active[1]).toMatchObject({ members: 1, projects: 0, usedBytes: 0, quotaBytes: 1000 });
   });
 
@@ -131,6 +132,20 @@ describe("loadAdminWorkspaces", () => {
     expect(archived.map(({ slug, status, archivedAt }) => ({ slug, status, archivedAt }))).toEqual([
       { slug: "bravo", status: "suspended", archivedAt: NOW },
       { slug: "acme", status: "active", archivedAt: NOW - DAY },
+    ]);
+  });
+
+  it("keeps a deleted owner's email, but says they can't be sent a reset link", async () => {
+    const { db, a, b } = await twoWorkspaces();
+    await db.query("UPDATE users SET deleted_at = now() WHERE id = $1", [a.userId]);
+    await db.query("DELETE FROM memberships WHERE workspace_id = $1", [b.workspaceId]);
+    const owners = (await loadAdminWorkspaces(db)).active.map(({ ownerEmail, ownerActive }) => ({
+      owner: ownerEmail !== null,
+      ownerActive,
+    }));
+    expect(owners).toEqual([
+      { owner: true, ownerActive: false },
+      { owner: false, ownerActive: false },
     ]);
   });
 

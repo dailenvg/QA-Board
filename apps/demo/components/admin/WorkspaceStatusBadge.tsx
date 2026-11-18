@@ -6,8 +6,8 @@ import { ADMIN_COPY } from "./admin-copy";
 /** Each status's tint and ink, which meet AA together in both themes, and its icon. */
 const LOOK: Record<WorkspaceStatus, { tone: string; icon: IconName }> = {
   active: { tone: "bg-ready-soft text-ready-text", icon: "check" },
-  suspended: { tone: "bg-danger-soft text-danger", icon: "pause" },
-  deleting: { tone: "bg-warning-soft text-warning-text", icon: "clock" },
+  suspended: { tone: "bg-warning-soft text-warning-text", icon: "pause" },
+  deleting: { tone: "bg-danger-soft text-danger", icon: "clock" },
 };
 
 /** Where a workspace stands, as a badge: active, suspended, or scheduled for deletion. */

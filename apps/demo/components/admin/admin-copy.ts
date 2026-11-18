@@ -134,6 +134,8 @@ export const ADMIN_COPY = {
     menu: {
       quota: "Edit storage quota",
       reset: "Reset owner password",
+      /** In place of `reset`, unavailable, when the owner's account is deleted or there's none. */
+      resetNoOwner: "Can't reset: no active owner",
       suspend: "Suspend",
       unsuspend: "Lift suspension",
       archive: "Archive",

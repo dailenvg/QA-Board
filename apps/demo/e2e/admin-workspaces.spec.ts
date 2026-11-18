@@ -175,6 +175,12 @@ test("suspending stops the owner signing in and pauses the review link, until it
   await expect(confirm).toBeHidden();
   await expect(row(page, workspace)).toHaveAttribute("data-status", "suspended");
   await expect(row(page, workspace).getByTestId("workspace-status")).toHaveText("Suspended");
+  // The suspended badge's amber meets AA too.
+  await settle(page);
+  const badge = await new AxeBuilder({ page })
+    .include(`[data-workspace-id="${workspace.workspaceId}"]`)
+    .analyze();
+  expect(badge.violations).toEqual([]);
   await expect(toast(page, `Suspended ${workspace.name}.`)).toBeVisible();
 
   const owner = await (await browser.newContext({ storageState: SIGNED_OUT })).newPage();

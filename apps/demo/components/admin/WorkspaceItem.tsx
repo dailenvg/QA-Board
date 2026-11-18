@@ -60,7 +60,13 @@ function menuItems(workspace: AdminWorkspace, handlers: WorkspaceHandlers): Menu
   const suspended = workspace.suspendedAt !== null;
   return [
     { label: menu.quota, icon: "database", onSelect: handlers.onQuota, testId: "workspace-quota" },
-    { label: menu.reset, icon: "lock", onSelect: handlers.onReset, testId: "workspace-reset" },
+    {
+      label: workspace.ownerActive ? menu.reset : menu.resetNoOwner,
+      icon: "lock",
+      onSelect: handlers.onReset,
+      disabled: !workspace.ownerActive,
+      testId: "workspace-reset",
+    },
     suspended
       ? {
           label: menu.unsuspend,
@@ -98,7 +104,6 @@ function Actions({ workspace, pending, ...handlers }: Omit<WorkspaceItemProps, "
         aria-disabled={busy || undefined}
         aria-label={busy ? undefined : COPY.archived.unarchiveLabel(workspace.name)}
         data-testid="workspace-unarchive"
-        className="max-md:w-full"
       >
         <Icon name="archiveRestore" className="size-5" />
         {busy ? COPY.archived.unarchiving : COPY.archived.unarchive}
