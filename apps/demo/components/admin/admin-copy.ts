@@ -367,7 +367,7 @@ export const ADMIN_COPY = {
       run: "Run sweep",
       /** In place of `run` while a run started here goes on with its dialog closed: reopens it. */
       seeProgress: "See progress",
-      /** In place of `run` once that run ended with its dialog closed: reopens it on the result. */
+      /** In place of `run` once that run finished with its dialog closed: reopens it on the result. */
       seeResult: "See result",
       /**
        * "Last run Nov 18, 2026, 04:00 UTC: Finished", in three parts so only

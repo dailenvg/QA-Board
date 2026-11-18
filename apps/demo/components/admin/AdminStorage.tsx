@@ -13,7 +13,15 @@ import { StatTile } from "./StatTile";
 import { StorageProjectList } from "./StorageProjectList";
 import { StorageWorkspaceList } from "./StorageWorkspaceList";
 import { SweepDialog } from "./SweepDialog";
-import { SweepTile, type SweepTileRun } from "./SweepTile";
+import { SweepTile } from "./SweepTile";
+import {
+  opensFreshSweep,
+  SWEEP_IDLE,
+  SWEEP_RUNNING,
+  sweepDialogClosed,
+  sweepRunEnded,
+  type SweepTileRun,
+} from "./sweep-tile-run";
 import { useOrphanCheck } from "./use-orphan-check";
 
 const COPY = ADMIN_COPY.storage;
@@ -27,8 +35,9 @@ const GROUP = staggerGroup();
  *
  * The dialog can be closed while the run goes on: the tile then says it's
  * running, and its button opens that same dialog again, on its progress or,
- * once it's ended, on its result. Closed on a result, the next opening asks
- * afresh.
+ * once it's finished, on its result. If it fails instead, the tile says why
+ * and its button asks afresh. Closed on a result, the next opening asks
+ * afresh too.
  */
 export function AdminStorage({ storage }: { storage: AdminStorageData }) {
   const router = useRouter();
@@ -36,7 +45,7 @@ export function AdminStorage({ storage }: { storage: AdminStorageData }) {
   const orphans = useOrphanCheck();
   const sweep = useDialogState<number>();
   const openings = useRef(0);
-  const [sweepRun, setSweepRun] = useState<SweepTileRun>("idle");
+  const [sweepRun, setSweepRun] = useState<SweepTileRun>(SWEEP_IDLE);
   // Read when a run ends, which may be long after the render that started it.
   const sweepOpen = useRef(false);
   useEffect(() => {
@@ -44,17 +53,17 @@ export function AdminStorage({ storage }: { storage: AdminStorageData }) {
   }, [sweep.open]);
 
   const openSweep = () => {
-    if (sweepRun === "idle") openings.current += 1;
+    if (opensFreshSweep(sweepRun)) openings.current += 1;
     sweep.show(openings.current);
   };
 
   const closeSweep = () => {
     sweep.close();
-    setSweepRun((now) => (now === "running" ? now : "idle"));
+    setSweepRun(sweepDialogClosed);
   };
 
-  const sweepRunning = (running: boolean) => {
-    setSweepRun(running ? "running" : sweepOpen.current ? "idle" : "ended");
+  const sweepRunning = (running: boolean, error: string | null = null) => {
+    setSweepRun(running ? SWEEP_RUNNING : sweepRunEnded(sweepOpen.current, error));
   };
 
   const swept = () => {

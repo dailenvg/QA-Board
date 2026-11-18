@@ -120,8 +120,11 @@ interface SweepDialogProps {
   onClose: () => void;
   /** The run finished: the page reads the server again. */
   onSwept: () => void;
-  /** A run started (true) or ended, however it ended (false), so the page can say so. */
-  onRunning: (running: boolean) => void;
+  /**
+   * A run started (true) or ended, however it ended (false, with why in words
+   * when it failed), so the page can say so.
+   */
+  onRunning: (running: boolean, error?: string) => void;
 }
 
 /**
@@ -151,11 +154,13 @@ export function SweepDialog({ open, onClose, onSwept, onRunning }: SweepDialogPr
     setPhase({ kind: "running", startedAt: Date.now() });
     onRunning(true);
     const outcome = await requestSweep();
-    onRunning(false);
     if (!outcome.ok) {
-      setPhase({ kind: "confirm", error: ADMIN_COPY.storage.errors[outcome.error] });
+      const error = ADMIN_COPY.storage.errors[outcome.error];
+      onRunning(false, error);
+      setPhase({ kind: "confirm", error });
       return;
     }
+    onRunning(false);
     setPhase({ kind: "done", report: outcome.value });
     onSwept();
   };
