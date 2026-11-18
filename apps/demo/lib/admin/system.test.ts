@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { twoWorkspaces } from "@/test/workspace-fixture";
-import { CRON_RUNS_SHOWN, CRON_SCHEDULE, loadAdminSystem } from "./system";
+import { CRON_SCHEDULE } from "../cron/schedule";
+import { CRON_RUNS_SHOWN, loadAdminSystem } from "./system";
 
 describe("the System page", () => {
   it("states the cleanup's schedule as vercel.json sets it", () => {

@@ -33,9 +33,37 @@ export type RateLimitBackend = "postgres" | "memory";
 /** What a limit counts by. */
 export type RateLimitScope = "address" | "email" | "account" | "link" | "workspace" | "member";
 
+export type RateLimitId =
+  | "signInEmail"
+  | "signInAddress"
+  | "resetEmails"
+  | "emailChanges"
+  | "linkPasswordLink"
+  | "linkPasswordAddress"
+  | "linkInvitesWorkspace"
+  | "linkInvitesMember"
+  | "memberInvites"
+  | "resetRequests"
+  | "join"
+  | "imageUploads"
+  | "capture"
+  | "shareCreate"
+  | "shareOwnerWrite"
+  | "shareOwnerRead"
+  | "clientRead"
+  | "clientComment"
+  | "clientEdit"
+  | "clientCapture"
+  | "clientUnlock"
+  | "card"
+  | "clickUpConnect"
+  | "clickUpSend"
+  | "clickUpRead"
+  | "pinpoint";
+
 export interface RateLimitEntry extends RateLimitConfig {
-  /** Its name in the panel's copy (`RATE_LIMIT_LABELS`). */
-  id: string;
+  /** Its name in the panel's copy. */
+  id: RateLimitId;
   per: RateLimitScope;
   backend: RateLimitBackend;
 }
@@ -43,13 +71,13 @@ export interface RateLimitEntry extends RateLimitConfig {
 type Env = Readonly<Record<string, string | undefined>>;
 
 const postgres = (
-  id: string,
+  id: RateLimitId,
   per: RateLimitScope,
   limit: number,
   windowMs: number,
 ): RateLimitEntry => ({ id, per, backend: "postgres", limit, windowMs });
 
-const memory = (id: string, per: RateLimitScope, config: RateLimitConfig): RateLimitEntry => ({
+const memory = (id: RateLimitId, per: RateLimitScope, config: RateLimitConfig): RateLimitEntry => ({
   id,
   per,
   backend: "memory",

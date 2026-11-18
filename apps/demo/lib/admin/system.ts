@@ -8,9 +8,6 @@ import { serviceStatuses, type ServiceStatus } from "./services";
  * cleanup's recent runs, and every rate limit. Read-only.
  */
 
-/** The cleanup's schedule, as `vercel.json` sets it (a test keeps them the same). */
-export const CRON_SCHEDULE = "0 4 * * *";
-
 /** How many runs the page lists. */
 export const CRON_RUNS_SHOWN = 20;
 
