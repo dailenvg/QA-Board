@@ -256,8 +256,10 @@ test("a workspace scheduled for deletion can't be archived, from the menu or the
   await row(page, workspace).scrollIntoViewIfNeeded();
   await row(page, workspace).getByTestId("workspace-menu").click();
   const archive = page.getByRole("menuitem", { name: "Can't archive: scheduled for deletion" });
+  // Playwright won't press an aria-disabled item; Enter on it does nothing, so no dialog opens.
   await expect(archive).toHaveAttribute("aria-disabled", "true");
-  await archive.click();
+  await archive.focus();
+  await page.keyboard.press("Enter");
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.keyboard.press("Escape");
   const refused = await page.request.put(`/api/admin/workspaces/${workspace.workspaceId}/archive`, {
