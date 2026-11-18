@@ -6,6 +6,7 @@ import type { Queryable } from "../share/migrate";
 import { logIn } from "./login";
 import {
   completePasswordReset,
+  createResetLink,
   isResetTokenUsable,
   MAX_RESETS_PER_HOUR,
   requestPasswordReset,
@@ -76,6 +77,37 @@ describe("password reset", () => {
     }
     expect(await request(db, "ana@acme.test", NOW + 10)).toEqual([]);
     expect(await request(db, "ana@acme.test", NOW + RESET_TTL_MS + 1)).toHaveLength(1);
+  });
+
+  it("counts only emailed links toward the cap, never the admin's", async () => {
+    const db = await migratedPglite();
+    const userId = await insertUser(db, "ana@acme.test");
+    for (let index = 0; index < MAX_RESETS_PER_HOUR; index += 1) {
+      expect(
+        await createResetLink(db, userId, { now: NOW + index, origin: ORIGIN }),
+      ).not.toBeNull();
+    }
+    // Three admin links in the hour: the owner's own requests still go out, up to the cap.
+    for (let index = 0; index < MAX_RESETS_PER_HOUR; index += 1) {
+      expect(await request(db, "ana@acme.test", NOW + 10 + index)).toHaveLength(1);
+    }
+    expect(await request(db, "ana@acme.test", NOW + 20)).toEqual([]);
+    // And the admin can still make one past it.
+    expect(await createResetLink(db, userId, { now: NOW + 30, origin: ORIGIN })).not.toBeNull();
+  });
+
+  it("keeps only the newest admin link working, and the emailed ones too", async () => {
+    const db = await migratedPglite();
+    const userId = await insertUser(db, "ana@acme.test");
+    const tokenOfLink = (link: { link: string } | null) => link?.link.split("/reset/")[1] ?? "";
+    const first = tokenOfLink(await createResetLink(db, userId, { now: NOW, origin: ORIGIN }));
+    const emailed = tokenOf((await request(db, "ana@acme.test", NOW + 1))[0]);
+    const second = tokenOfLink(await createResetLink(db, userId, { now: NOW + 2, origin: ORIGIN }));
+    expect(await isResetTokenUsable(db, first, NOW + 3)).toBe(false);
+    expect(await isResetTokenUsable(db, second, NOW + 3)).toBe(true);
+    expect(await isResetTokenUsable(db, emailed, NOW + 3)).toBe(true);
+    expect(await completePasswordReset(db, first, NEW_PASSWORD, NOW + 3)).toBe(false);
+    expect(await completePasswordReset(db, second, NEW_PASSWORD, NOW + 3)).toBe(true);
   });
 
   it("sets the password once, ends every session and spends the other links", async () => {

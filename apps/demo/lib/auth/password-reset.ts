@@ -6,7 +6,10 @@ import { findActiveUser } from "./users";
 
 /** A reset link works for one hour, once. */
 export const RESET_TTL_MS = 60 * 60 * 1000;
-/** At most this many links per account per hour; requests past it send nothing. */
+/**
+ * At most this many emailed links per account per hour; requests past it send
+ * nothing. Links the admin made (`createResetLink`) don't count.
+ */
 export const MAX_RESETS_PER_HOUR = 3;
 
 export interface ResetEmail {
@@ -38,16 +41,22 @@ async function clearOldLinks(db: Queryable, userId: string, now: number): Promis
 
 /**
  * Stores a new reset token for `userId`, usable once for `RESET_TTL_MS` from
- * `now`, and returns it: only its hash is kept. Null when the account is
- * deleted (or gone), so no link is made for it.
+ * `now`, and returns it: only its hash is kept. `byAdmin` marks a link the
+ * admin made (046), which the email cap doesn't count. Null when the account
+ * is deleted (or gone), so no link is made for it.
  */
-async function storeResetToken(db: Queryable, userId: string, now: number): Promise<string | null> {
+async function storeResetToken(
+  db: Queryable,
+  userId: string,
+  now: number,
+  byAdmin: boolean,
+): Promise<string | null> {
   const token = createSecret();
   const { rows } = await db.query(
-    `INSERT INTO password_resets (user_id, token_hash, created_at, expires_at)
-     SELECT id, $2, $3, $4 FROM users WHERE id = $1 AND deleted_at IS NULL
+    `INSERT INTO password_resets (user_id, token_hash, created_at, expires_at, by_admin)
+     SELECT id, $2, $3, $4, $5 FROM users WHERE id = $1 AND deleted_at IS NULL
      RETURNING id`,
-    [userId, hashSecret(token), new Date(now), new Date(now + RESET_TTL_MS)],
+    [userId, hashSecret(token), new Date(now), new Date(now + RESET_TTL_MS), byAdmin],
   );
   return rows.length === 1 ? token : null;
 }
@@ -66,12 +75,12 @@ export async function requestPasswordReset(
   if (!user) return;
   await clearOldLinks(db, user.id, now);
   const { rows } = await db.query<{ count: string | number }>(
-    "SELECT count(*) AS count FROM password_resets WHERE user_id = $1",
+    "SELECT count(*) AS count FROM password_resets WHERE user_id = $1 AND NOT by_admin",
     [user.id],
   );
   if (Number(rows[0]?.count ?? 0) >= MAX_RESETS_PER_HOUR) return;
 
-  const token = await storeResetToken(db, user.id, now);
+  const token = await storeResetToken(db, user.id, now, false);
   if (token) await send({ to: user.email, link: resetLinkOf(token, origin) });
 }
 
@@ -87,8 +96,10 @@ export interface ResetLink {
  * and returned instead of emailed: the admin passes it on. The same link as
  * an emailed one (one hour, once; `completePasswordReset` sets the password),
  * outside the hourly cap on emails, which guards an inbox the admin isn't
- * sending to. Null when the account is deleted. The caller shows it once and
- * never logs or records it.
+ * sending to, and never counted by it. Only the newest admin link works: the
+ * owner's earlier unused ones are voided (their emailed ones are kept). Null
+ * when the account is deleted. The caller shows it once and never logs or
+ * records it.
  */
 export async function createResetLink(
   db: Queryable,
@@ -96,7 +107,11 @@ export async function createResetLink(
   { now, origin }: { now: number; origin: URL },
 ): Promise<ResetLink | null> {
   await clearOldLinks(db, userId, now);
-  const token = await storeResetToken(db, userId, now);
+  await db.query(
+    "UPDATE password_resets SET used_at = $2 WHERE user_id = $1 AND by_admin AND used_at IS NULL",
+    [userId, new Date(now)],
+  );
+  const token = await storeResetToken(db, userId, now, true);
   return token ? { link: resetLinkOf(token, origin), expiresAt: now + RESET_TTL_MS } : null;
 }
 
