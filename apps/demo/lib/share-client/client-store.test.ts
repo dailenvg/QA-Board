@@ -187,6 +187,16 @@ describe("this browser's own comments (4.12)", () => {
     expect(toViewerData(store.getSnapshot()).data.comments[0]).not.toHaveProperty("mine");
   });
 
+  it("says whether a link that stopped working is gone or only paused", () => {
+    const gone = createClientStore(VIEW, anonymous());
+    gone.markGone();
+    expect(gone.getSnapshot()).toMatchObject({ gone: true, paused: false });
+    const paused = createClientStore(VIEW, anonymous());
+    paused.markGone(true);
+    expect(paused.getSnapshot()).toMatchObject({ gone: true, paused: true });
+    expect(paused.getServerSnapshot()).toMatchObject({ gone: false, paused: false });
+  });
+
   it("replaces a comment's words in place, and ignores one that's gone", () => {
     const store = createClientStore(VIEW, { authorName: null, names: namesInMemory() });
     store.replaceComment({ ...COMMENT, body: "New words", editedAt: 9 });

@@ -137,7 +137,7 @@ export function SharedReview({
   // countdown ends then too: it never promises more time than the deletion notice allows.
   const review = useReviewWindow(earliest(reviewEndsAt, expiresAt), state.reviewClosed);
 
-  if (state.gone) return <ShareUnavailable />;
+  if (state.gone) return <ShareUnavailable paused={state.paused} />;
   if (!isClient) return <ViewerSkeleton />;
   return (
     <BlobSourceContext value={blobs}>

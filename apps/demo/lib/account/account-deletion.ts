@@ -1,4 +1,4 @@
-import { findOwnWorkspace, type Membership } from "../auth/memberships";
+import { findOwnWorkspace, openWorkspace, type Membership } from "../auth/memberships";
 import type { SessionUser } from "../auth/users";
 import type { Database } from "../db/database";
 import type { Queryable } from "../share/migrate";
@@ -148,7 +148,7 @@ async function lockMembership(
   const { rows } = await tx.query<Pick<Membership, "name" | "role">>(
     `SELECT w.name, m.role FROM memberships AS m JOIN workspaces AS w ON w.id = m.workspace_id
      WHERE m.user_id = $1 AND m.workspace_id = $2
-       AND w.archived_at IS NULL AND w.delete_after IS NULL
+       AND ${openWorkspace("w")}
      FOR UPDATE OF w`,
     [userId, workspaceId],
   );

@@ -19,6 +19,8 @@ export type LoginResult =
   | { ok: false; reason: "invalid" }
   /** The right password, on an account removed from its workspace in the last 24 hours. */
   | { ok: false; reason: "removed" }
+  /** The right password, on an account whose only workspaces are closed, one suspended. */
+  | { ok: false; reason: "suspended" }
   | { ok: false; reason: "rate-limited"; retryAfterSeconds: number };
 
 /**
@@ -44,7 +46,9 @@ export async function recordLogin(db: Queryable, userId: string, now: number): P
  * claim then stays as a failure. The right password on an account removed
  * from its workspace less than 24 hours ago answers `removed`, with no
  * session, and keeps the claim too, so the limit also caps how often a
- * password can be confirmed that way (decision 20). A success releases it,
+ * password can be confirmed that way (decision 20). The right password on an
+ * account held by a suspension (`SignInCandidate.suspended`) answers
+ * `suspended` the same way: no session, the claim kept. A success releases it,
  * and says whether it was the user's first sign-in.
  */
 export async function logIn(
@@ -62,6 +66,7 @@ export async function logIn(
   const matches = await verifyPassword(attempt.password, candidate?.user.password_hash ?? null);
   if (!candidate || !matches) return { ok: false, reason: "invalid" };
   if (candidate.removed) return { ok: false, reason: "removed" };
+  if (candidate.suspended) return { ok: false, reason: "suspended" };
   const { user } = candidate;
 
   await releaseLoginClaim(db, key.email, claim.attemptId, now);

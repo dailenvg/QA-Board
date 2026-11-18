@@ -31,6 +31,11 @@ describe("findMembership", () => {
 
     await db.query("UPDATE workspaces SET archived_at = now()");
     expect(await findMembership(db, owner, workspaceId)).toBeNull();
+    // Suspended by the admin (046) closes it the same way.
+    await db.query("UPDATE workspaces SET archived_at = NULL, suspended_at = now()");
+    expect(await findMembership(db, owner, workspaceId)).toBeNull();
+    await db.query("UPDATE workspaces SET suspended_at = NULL");
+    expect(await findMembership(db, owner, workspaceId)).not.toBeNull();
   });
 
   it("carries the member's switches as they are now", async () => {
@@ -77,7 +82,9 @@ describe("findOwnWorkspace", () => {
     });
     expect(await findOwnWorkspace(db, admin)).toBeNull();
 
-    await db.query("UPDATE workspaces SET archived_at = now()");
+    await db.query("UPDATE workspaces SET suspended_at = now()");
+    expect(await findOwnWorkspace(db, owner)).toBeNull();
+    await db.query("UPDATE workspaces SET suspended_at = NULL, archived_at = now()");
     expect(await findOwnWorkspace(db, owner)).toBeNull();
   });
 });

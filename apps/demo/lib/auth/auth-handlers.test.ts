@@ -202,6 +202,45 @@ describe("login for an account removed from its workspace", () => {
   });
 });
 
+describe("signing in to a suspended workspace", () => {
+  /** `EMAIL`'s only workspace, suspended by the admin. */
+  async function suspended(): Promise<Database> {
+    const world = await membersWorld();
+    await addMember(world.db, world.workspaceId, undefined, EMAIL);
+    await world.db.query("UPDATE workspaces SET suspended_at = now() WHERE id = $1", [
+      world.workspaceId,
+    ]);
+    return world.db;
+  }
+
+  it("answers 403 suspended to the right password, with no session", async () => {
+    const deps = { db: Promise.resolve(await suspended()), now: NOW };
+    const response = await handleLogin(
+      jsonPost("/api/auth/login", { email: EMAIL, password: PASSWORD }),
+      deps,
+    );
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "suspended" });
+    expect(response.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("answers a wrong password as it always does, and sends a form post back with the code", async () => {
+    const db = await suspended();
+    const wrong = await handleLogin(
+      jsonPost("/api/auth/login", { email: EMAIL, password: "not the password" }),
+      { db: Promise.resolve(db), now: NOW },
+    );
+    expect(wrong.status).toBe(401);
+    expect(await wrong.json()).toEqual({ error: "invalid-credentials" });
+    const form = await handleLogin(
+      formPost("/api/auth/login", { email: EMAIL, password: PASSWORD }),
+      { db: Promise.resolve(db), now: NOW },
+    );
+    expect(location(form)).toBe("/login?error=suspended");
+    expect(form.headers.get("set-cookie")).toBeNull();
+  });
+});
+
 describe("reset request form posts (before hydration)", () => {
   function deps(db: Database, sent: ResetEmail[]) {
     const tasks: Array<() => Promise<void>> = [];

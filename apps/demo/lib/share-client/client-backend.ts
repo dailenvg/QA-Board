@@ -15,7 +15,7 @@ import {
 import { clientApi } from "./api";
 import { SHARED_PROJECT_ID, type ClientStore } from "./client-store";
 import type { ServerBlobs } from "./server-blobs";
-import { isPasswordRequired } from "./unlock";
+import { isPasswordRequired, isPaused } from "./unlock";
 
 const GONE = "This link no longer works. Ask the project owner for a new one.";
 const NOT_SENT: Record<number, string> = {
@@ -95,7 +95,7 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
   const refresh = async () => {
     const view = await api.view();
     if (view.ok) store.setView(view.value);
-    else if (view.status === 404) store.markGone();
+    else if (view.status === 404) store.markGone(isPaused(view));
   };
 
   const refused = (error: string, final: boolean): EditOutcome => ({ ok: false, error, final });
@@ -145,7 +145,7 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
         };
       }
       if (result.status === 404) {
-        store.markGone();
+        store.markGone(isPaused(result));
         return { ok: false, error: GONE };
       }
       if (isPasswordRequired(result)) {
@@ -218,7 +218,7 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
         };
       }
       if (result.status === 404) {
-        store.markGone();
+        store.markGone(isPaused(result));
         return { ok: false, message: GONE };
       }
       if (isPasswordRequired(result)) {

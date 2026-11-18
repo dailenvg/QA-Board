@@ -1,4 +1,4 @@
-import type { Membership } from "../../auth/memberships";
+import { openWorkspace, type Membership } from "../../auth/memberships";
 import { knownSwitches, type Access } from "../../auth/permissions";
 import type { Queryable } from "../../share/migrate";
 
@@ -40,8 +40,8 @@ interface WorkspaceRow {
 }
 
 /**
- * L4 for a members operation: the workspace `FOR SHARE`, while it's open (not
- * archived, not waiting to be deleted); null once it isn't. An account
+ * L4 for a members operation: the workspace `FOR SHARE`, while it's open
+ * (`openWorkspace`); null once it isn't. An account
  * deletion locks it `FOR UPDATE` itself (`account-deletion.ts`), so the two
  * wait for each other.
  */
@@ -51,7 +51,7 @@ export async function lockOpenWorkspace(
 ): Promise<OpenWorkspace | null> {
   const { rows } = await tx.query<WorkspaceRow>(
     `SELECT name, seat_limit, brand_color, from_email_name FROM workspaces
-     WHERE id = $1 AND archived_at IS NULL AND delete_after IS NULL
+     WHERE id = $1 AND ${openWorkspace("workspaces")}
      FOR SHARE`,
     [workspaceId],
   );

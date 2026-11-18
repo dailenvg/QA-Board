@@ -43,6 +43,7 @@ import commentsEditedAt from "../../migrations/042_comments_edited_at.sql";
 import seatLimit from "../../migrations/043_workspaces_seat_limit.sql";
 import workspaceInvites from "../../migrations/044_workspace_invites.sql";
 import clientCommentEdits from "../../migrations/045_client_comment_edits.sql";
+import suspendedAt from "../../migrations/046_workspaces_suspended_at.sql";
 
 /** The slice of `pg.Pool` the stores use (PGlite matches it in tests). */
 export interface Queryable {
@@ -96,6 +97,7 @@ export const MIGRATIONS: ReadonlyArray<{ id: string; sql: string }> = [
   { id: "043_workspaces_seat_limit", sql: seatLimit },
   { id: "044_workspace_invites", sql: workspaceInvites },
   { id: "045_client_comment_edits", sql: clientCommentEdits },
+  { id: "046_workspaces_suspended_at", sql: suspendedAt },
 ];
 
 type Migration = (typeof MIGRATIONS)[number];

@@ -59,24 +59,42 @@ const SHARE_COLUMNS =
  */
 const READ_COLUMNS = `${SHARE_COLUMNS}, password_hash, password_set_at, client_name, workspace_id`;
 
-/**
- * A share answers like a revoked one while its workspace project is in the
- * trash (migration 024) or archived (015), or its workspace is archived (009)
- * or waiting to be deleted (033), until it's restored or un-archived.
- * Anonymous shares have neither. A condition on `squint_shares`, for any query
- * that must agree with the share routes on which shares answer (the admin
- * panel's count of live links).
- */
-export const SHARE_ANSWERS = `NOT EXISTS (
+/** The share's workspace project is in the trash (024) or archived (015). */
+const PROJECT_CLOSED = `EXISTS (
   SELECT 1 FROM projects AS project
   WHERE project.id = squint_shares.project_id
     AND project.workspace_id = squint_shares.workspace_id
     AND (project.deleted_at IS NOT NULL OR project.archived_at IS NOT NULL)
-) AND NOT EXISTS (
+)`;
+
+/** The share's workspace is archived (009) or waiting to be deleted (033). */
+const WORKSPACE_CLOSED = `EXISTS (
   SELECT 1 FROM workspaces AS closed
   WHERE closed.id = squint_shares.workspace_id
     AND (closed.archived_at IS NOT NULL OR closed.delete_after IS NOT NULL)
 )`;
+
+/** The share's workspace is suspended by the Squint admin (046). */
+const WORKSPACE_SUSPENDED = `EXISTS (
+  SELECT 1 FROM workspaces AS suspended
+  WHERE suspended.id = squint_shares.workspace_id AND suspended.suspended_at IS NOT NULL
+)`;
+
+/**
+ * A share answers like a revoked one while its workspace project is in the
+ * trash or archived, or its workspace is archived, waiting to be deleted or
+ * suspended, until that's undone. Anonymous shares have none of these. A
+ * condition on `squint_shares`, for any query that must agree with the share
+ * routes on which shares answer (the admin panel's count of live links).
+ */
+export const SHARE_ANSWERS = `NOT ${PROJECT_CLOSED} AND NOT ${WORKSPACE_CLOSED} AND NOT ${WORKSPACE_SUSPENDED}`;
+
+/**
+ * A share that would answer but for its workspace's suspension: paused, so a
+ * guest is told the review isn't available right now rather than that the
+ * link is gone (`pausedByTokenHash`).
+ */
+const SHARE_PAUSED = `NOT ${PROJECT_CLOSED} AND NOT ${WORKSPACE_CLOSED} AND ${WORKSPACE_SUSPENDED}`;
 
 /**
  * The share's workspace and its logo row, when the logo is stored where a
@@ -240,6 +258,13 @@ export function createPostgresStore(db: Queryable): ShareStore {
     },
     byId: (id) => one("id", id),
     byTokenHash: (tokenHash) => one("token_hash", tokenHash),
+    async pausedByTokenHash(tokenHash) {
+      const { rows } = await db.query<ShareRow>(
+        `SELECT ${READ_COLUMNS} FROM squint_shares WHERE token_hash = $1 AND ${SHARE_PAUSED}`,
+        [tokenHash],
+      );
+      return rows[0] ? toRecord(rows[0]) : null;
+    },
     async exists(id) {
       const { rows } = await db.query("SELECT 1 FROM squint_shares WHERE id = $1", [id]);
       return rows.length === 1;

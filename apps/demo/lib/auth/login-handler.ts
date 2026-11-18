@@ -76,6 +76,8 @@ async function fromJson(request: NextRequest, deps: AuthRouteDeps): Promise<Resp
       return json({ error: "invalid-credentials" }, 401);
     case "removed":
       return json({ error: "removed" }, 403);
+    case "suspended":
+      return json({ error: "suspended" }, 403);
     case "not-configured":
       return json({ error: "not-configured" }, 503);
     case "storage":
@@ -115,6 +117,8 @@ async function fromForm(request: NextRequest, deps: AuthRouteDeps): Promise<Resp
       return back("invalid-credentials");
     case "removed":
       return back("removed");
+    case "suspended":
+      return back("suspended");
     case "not-configured":
       return back("not-configured");
     case "storage":
@@ -129,7 +133,8 @@ async function fromForm(request: NextRequest, deps: AuthRouteDeps): Promise<Resp
  * `next`: /admin for the admin); 401
  * `invalid-credentials` for a wrong password and an unknown email alike; 403
  * `removed` for the right password on an account removed from its workspace
- * in the last 24 hours (decision 20); 429
+ * in the last 24 hours (decision 20), and 403 `suspended` for the right
+ * password on an account whose workspaces are all closed, one suspended; 429
  * with `Retry-After` once rate-limited; 503 without a database. A form-encoded
  * post (before hydration) gets the same checks, answered with a 303.
  * Cross-site posts are refused either way.

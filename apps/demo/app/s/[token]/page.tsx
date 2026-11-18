@@ -2,6 +2,7 @@ import type { Metadata, ResolvingMetadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { ShareGate } from "@/components/share/ShareGate";
+import { ShareUnavailable } from "@/components/share/ShareUnavailable";
 import {
   invitationPreview,
   previewMetadata,
@@ -10,7 +11,12 @@ import {
 } from "@/lib/link-preview";
 import { reviewerNameOf } from "@/lib/share-client/reviewer-name";
 import { brandIconPath } from "@/lib/share/brand";
-import { guestBrand, invitationOf, openGuestShare } from "@/lib/share/guest-share";
+import {
+  guestBrand,
+  invitationOf,
+  isGuestSharePaused,
+  openGuestShare,
+} from "@/lib/share/guest-share";
 import type { ClientBrand } from "@/lib/share/types";
 
 export const dynamic = "force-dynamic";
@@ -80,7 +86,8 @@ export async function generateMetadata(
 
 /**
  * A client's shared review link. Unknown, revoked and expired tokens are a
- * plain 404; a password-protected link without a valid guest pass shows its
+ * plain 404; a link whose workspace is suspended says the review isn't
+ * available right now, and shows nothing of it; a password-protected link without a valid guest pass shows its
  * password screen, with the company's name and logo and the project's name,
  * and nothing else of the project. The reviewer's name for this link comes
  * from its cookie, so the page renders with it; it only fills in the name
@@ -90,7 +97,10 @@ export default async function SharedReviewPage({ params }: Props) {
   const { token } = await params;
   const cookies = await requestCookies();
   const guest = await openGuestShare(token, cookies);
-  if (!guest) notFound();
+  if (!guest) {
+    if (await isGuestSharePaused(token)) return <ShareUnavailable paused />;
+    notFound();
+  }
   const initial = guest.locked
     ? {
         locked: true as const,

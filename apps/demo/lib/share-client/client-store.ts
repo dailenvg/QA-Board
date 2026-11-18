@@ -11,8 +11,10 @@ export const SHARED_PROJECT_ID = "shared";
 export interface ClientState {
   view: ClientView;
   authorName: string | null;
-  /** The link stopped working while open (revoked). */
+  /** The link stopped working while open (revoked, or paused). */
   gone: boolean;
+  /** The link is paused, not gone: its workspace was suspended while it was open. */
+  paused: boolean;
   /**
    * The server refused an addition because the review window is over (whatever
    * this clock says), until a refresh brings a new deadline.
@@ -53,7 +55,8 @@ export interface ClientStore {
   setAuthorName: (name: string) => void;
   /** Without a name for this link, takes the one this browser kept for every link before. */
   carryOverAuthorName: () => void;
-  markGone: () => void;
+  /** The link stopped working; `paused` when the server said so (404 `paused`). */
+  markGone: (paused?: boolean) => void;
   markReviewClosed: () => void;
   markLocked: () => void;
 }
@@ -77,6 +80,7 @@ export function createClientStore(
     view: initial,
     authorName,
     gone: false,
+    paused: false,
     reviewClosed: false,
     locked: false,
     ownComments: new Set(),
@@ -131,7 +135,7 @@ export function createClientStore(
       const name = names.carryOver();
       if (name) set({ authorName: name });
     },
-    markGone: () => set({ gone: true }),
+    markGone: (paused = false) => set({ gone: true, paused }),
     markReviewClosed: () => set({ reviewClosed: true }),
     markLocked: () => set({ locked: true }),
   };

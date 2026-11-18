@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { VIEW } from "@/test/share-fixture";
 import {
   isPasswordRequired,
+  isPaused,
   retryAfterSeconds,
   retryMessage,
   secondsUntil,
@@ -71,6 +72,15 @@ describe("a password-required answer", () => {
     expect(isPasswordRequired({ ok: false, status: 401, error: "wrong-password" })).toBe(false);
     expect(isPasswordRequired({ ok: false, status: 404, error: "password-required" })).toBe(false);
     expect(isPasswordRequired({ ok: true, value: null })).toBe(false);
+  });
+});
+
+describe("a paused answer", () => {
+  it("is a 404 paused only: the link's workspace is suspended for now", () => {
+    expect(isPaused({ ok: false, status: 404, error: "paused" })).toBe(true);
+    expect(isPaused({ ok: false, status: 404, error: "not-found" })).toBe(false);
+    expect(isPaused({ ok: false, status: 500, error: "paused" })).toBe(false);
+    expect(isPaused({ ok: true, value: null })).toBe(false);
   });
 });
 

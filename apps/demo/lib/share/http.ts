@@ -43,6 +43,16 @@ export function notFound(): Response {
 }
 
 /**
+ * A client link whose workspace the Squint admin suspended: still a 404, as a
+ * link that doesn't open, but `paused`, so the guest's page says the review
+ * isn't available right now instead of that the link is gone. Nothing of the
+ * share comes with it.
+ */
+export function paused(): Response {
+  return json({ error: "paused" }, 404);
+}
+
+/**
  * A password-protected link asked for without a valid guest pass: 401
  * `password-required`, whatever was asked for, so nothing about the share
  * shows until its password is entered (`POST /api/s/<token>/unlock`).
