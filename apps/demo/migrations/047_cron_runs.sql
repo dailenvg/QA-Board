@@ -5,7 +5,7 @@
 -- claimed under an advisory lock before it starts: while a row started less than 2 minutes ago is
 -- still unfinished, another run is refused, so the admin's Run sweep and the schedule never
 -- overlap. An unfinished row older than that never blocks (a run stops within 60 seconds, so it
--- died first); the System page shows it as didn't finish.
+-- died first); the System page shows it as "Didn't finish".
 --
 -- `finished_at`, `done`, `failed` and `counts` stay null while the run goes on, then are set
 -- together: `done` is false when the time budget ran out or a step failed (the next run carries

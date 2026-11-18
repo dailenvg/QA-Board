@@ -76,14 +76,14 @@ const RATE_LIMIT_SCOPES: Record<RateLimitScope, string> = {
 export const STEP_LABELS = {
   shares: "Expired review links",
   blobs: "Review link files left behind",
-  passwordAttempts: "Wrong review link passwords",
+  passwordAttempts: "Wrong review link password tries",
   inviteSends: "Review link invitation records",
   memberInvites: "Ended workspace invites",
   memberInviteSends: "Workspace invite email records",
   trash: "Projects past 30 days in the trash",
   archived: "Archived projects past their date",
   accounts: "Deleted accounts past 30 days",
-  workspaceBlobs: "Workspace files nothing records",
+  workspaceBlobs: "Workspace files with no record",
   pins: "Pinpoint pins past 30 days",
 } as const satisfies Record<ExpiryStep, string>;
 
@@ -306,7 +306,7 @@ export const ADMIN_COPY = {
     summary: "Storage and cleanup",
     errors: {
       running:
-        "The cleanup is running already. Give it a minute, then check its last run on the System page.",
+        "The cleanup is already running. Give it a minute, then check its last run on the System page.",
       "signed-out": "You're signed out. Sign in again, then try once more.",
       "not-found": "You're no longer signed in as the admin. Reload the page.",
       offline: "Couldn't reach Squint. Check your connection and try again.",
@@ -329,7 +329,7 @@ export const ADMIN_COPY = {
       description:
         "The 10 biggest across every workspace. Projects in the trash count until they're deleted for good.",
       emptyTitle: "Nothing stored yet",
-      emptyBody: "Projects show up here once they hold uploads, snapshots or comment crops.",
+      emptyBody: "Projects show up here once they hold uploads, snapshots or comment screenshots.",
       /** "in Acme". */
       inWorkspace: (name: string) => `in ${name}`,
       trashed: "In the trash",
@@ -338,7 +338,7 @@ export const ADMIN_COPY = {
     orphans: {
       title: "Orphaned files",
       description:
-        "Files the daily cleanup would delete: left behind by a delete that failed, or by an upload that never finished. Checking lists Vercel Blob, which is billed, so it only runs when you ask.",
+        "Files left behind by a failed delete or an unfinished upload. The daily cleanup deletes them. A check runs only when you ask, since Vercel Blob charges for it.",
       check: "Check for orphans",
       checking: "Checking…",
       checkAgain: "Check again",
@@ -347,7 +347,7 @@ export const ADMIN_COPY = {
       categories: {
         shareFiles: "Review link files with no live link",
         workspaceRows: "File records whose project is gone",
-        unrecordedFiles: "Workspace, logo and photo files nothing records",
+        unrecordedFiles: "Workspace, logo and photo files with no record",
       },
       /** A category that doesn't apply: its files aren't kept in Vercel Blob on this deployment. */
       notApplicable: "Not in Vercel Blob here",
@@ -355,8 +355,7 @@ export const ADMIN_COPY = {
       tally: (files: number, bytes: string | null) =>
         bytes === null ? `${fileCount(files)}, size unknown` : `${fileCount(files)}, ${bytes}`,
       none: "None",
-      partial:
-        "The check ran out of time before it saw every file, so there may be more. Check again to look further.",
+      partial: "The check ran out of time before it saw every file, so there may be more.",
       /** "Checked Nov 18, 2026, 09:05 UTC". */
       checkedAt: (when: string) => `Checked ${when}`,
       failed: "Couldn't check just now. Nothing was deleted. Try again.",
@@ -370,15 +369,22 @@ export const ADMIN_COPY = {
       seeProgress: "See progress",
       /** In place of `run` once that run ended with its dialog closed: reopens it on the result. */
       seeResult: "See result",
-      /** "Last run Nov 18, 2026, 04:00 UTC: Finished". */
-      lastRun: (when: string, status: string) => `Last run ${when}: ${status}`,
+      /**
+       * "Last run Nov 18, 2026, 04:00 UTC: Finished", in three parts so only
+       * the date sits in a `<time>`: the label, the date, then the status.
+       */
+      lastRun: {
+        label: "Last run",
+        /** After the date: ": Finished". */
+        status: (status: string) => `: ${status}`,
+      },
       /** In place of the last run while a run started here goes on with its dialog closed. */
       runningNow: "Running now…",
       neverRun: "It hasn't run yet.",
       dialog: {
         title: "Run the daily cleanup now?",
         description:
-          "It runs everything the daily schedule runs, at once: expired review links, projects past their time in the trash or the archive, accounts past their 30 days, and orphaned files. Anything it deletes is gone for good.",
+          "It deletes everything that's due: expired review links, projects past their time in the trash or archive, deleted accounts past 30 days, and orphaned files. What it deletes is gone for good.",
         checking: "Counting orphaned files…",
         orphans: "Orphaned files it would delete",
         checkFailed: "Couldn't count orphaned files. You can still run the cleanup.",
@@ -392,10 +398,9 @@ export const ADMIN_COPY = {
         started: "Running the cleanup. It can take up to a minute.",
         /**
          * Under the progress bar while it runs, the time ticking each second:
-         * "Running for 12 s. It keeps going if you close this."
+         * "Running for 12 s. Closing this won't stop it."
          */
-        progress: (seconds: number | null) =>
-          `${runningFor(seconds)}. It keeps going if you close this.`,
+        progress: (seconds: number | null) => `${runningFor(seconds)}. Closing this won't stop it.`,
         done: "Done",
       },
       result: {
@@ -432,7 +437,7 @@ export const ADMIN_COPY = {
         cronSecret: { name: "Cron secret", what: "Lets Vercel Cron run the daily cleanup" },
         authUrl: {
           name: "Auth URL",
-          what: "Where sign-in emails link to. Without it, the site's own address",
+          what: "Where reset, email change and ClickUp links point. Without it, the site's own address",
         },
         clickUp: { name: "ClickUp", what: "Members connect their own ClickUp" },
         captureService: {
@@ -448,9 +453,9 @@ export const ADMIN_COPY = {
     },
     cron: {
       title: "Daily cleanup runs",
-      /** "Runs daily at 04:00 UTC. The latest 20, newest first. Times are in UTC." */
+      /** "Runs daily at 04:00 UTC. The latest 20 runs, newest first, with times in UTC." */
       description: (schedule: typeof CRON_SCHEDULE, shown: number) =>
-        `Runs ${SCHEDULE_LABELS[schedule]}. The latest ${shown}, newest first. Times are in UTC.`,
+        `Runs ${SCHEDULE_LABELS[schedule]}. The latest ${shown} runs, newest first, with times in UTC.`,
       columns: { trigger: "Started by", started: "Started", duration: "Took", status: "Status" },
       trigger: { schedule: "Schedule", admin: "Admin" } satisfies Record<CronTrigger, string>,
       status: {
@@ -462,14 +467,14 @@ export const ADMIN_COPY = {
       } satisfies Record<CronRunStatus, string>,
       /** Under a failed run's status: "Expired review links, pinpoint pins past 30 days". */
       failedSteps: (steps: readonly ExpiryStep[]) => stepNames(steps),
-      noDuration: "None",
+      noDuration: "Not finished",
       emptyTitle: "No runs yet",
-      emptyBody: "Runs show up here after the first one, by the schedule or Run sweep.",
+      emptyBody: "Runs show up here once the schedule or Run sweep starts one.",
     },
     rateLimits: {
       title: "Rate limits",
       description:
-        "Every limit Squint applies. Postgres limits hold across every server; in-memory ones count on each server instance on its own, so they're a brake rather than an exact cap.",
+        "Every limit Squint applies. Postgres limits hold across all servers. In-memory ones count per server instance, so they're a brake, not an exact cap.",
       backends: {
         postgres: "Postgres, across every server",
         memory: "In memory, per server instance",
@@ -618,7 +623,7 @@ export const ACTION_LABELS: Readonly<Record<string, string>> = {
   "admin.workspace_unsuspended": "Lifted workspace suspension",
   "admin.workspace_archived": "Archived workspace",
   "admin.workspace_unarchived": "Unarchived workspace",
-  "admin.sweep_run": "Ran the daily cleanup",
+  "admin.sweep_run": "Ran daily cleanup",
   "seed.user_created": "Created account during setup",
   "seed.workspace_created": "Created workspace during setup",
   "seed.owner_linked": "Made workspace owner during setup",

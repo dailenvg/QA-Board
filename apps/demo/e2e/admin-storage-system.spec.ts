@@ -131,8 +131,8 @@ test.describe("the admin", () => {
     await expect(result).toBeVisible({ timeout: 60_000 });
     await expect(result.getByTestId("sweep-outcome")).toHaveText("The cleanup finished.");
     await expect(
-      result.getByTestId("sweep-step").filter({ hasText: "Workspace files nothing records" }),
-    ).toHaveText(/Workspace files nothing records\s*\d+/);
+      result.getByTestId("sweep-step").filter({ hasText: "Workspace files with no record" }),
+    ).toHaveText(/Workspace files with no record\s*\d+/);
     await expect(dialog.getByTestId("sweep-done")).toBeFocused();
     expect(await blobRowExists(stored.workspaceId, orphan)).toBe(false);
     await expectAccessible(page, '[data-testid="sweep-dialog"]');
@@ -151,7 +151,7 @@ test.describe("the admin", () => {
     await page.goto("/admin/audit?action=admin.sweep_run");
     const entry = page.getByTestId("audit-entry").first();
     await expect(entry).toHaveAttribute("data-action", "admin.sweep_run");
-    await expect(entry).toContainText("Ran the daily cleanup");
+    await expect(entry).toContainText("Ran daily cleanup");
     await expect(entry.getByTestId("audit-actor")).toContainText(E2E_ADMIN.email);
   });
 

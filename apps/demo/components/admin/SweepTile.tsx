@@ -34,7 +34,7 @@ interface SweepTileProps {
  * The daily cleanup beside the Stored tile: when it runs, how its last run
  * went (UTC), and Run sweep. While a run started here goes on with its
  * dialog closed, it says so, and the button reopens the dialog. The line is
- * a live region, so that and the last run read again after it are announced.
+ * a live region, so screen readers hear that, then the last run once it's back.
  * Rises in with its group.
  */
 export function SweepTile({ lastRun, run, onRun }: SweepTileProps) {
@@ -58,12 +58,13 @@ export function SweepTile({ lastRun, run, onRun }: SweepTileProps) {
           {run === "running" ? (
             COPY.runningNow
           ) : lastRun ? (
-            <time dateTime={new Date(lastRun.startedAt).toISOString()}>
-              {COPY.lastRun(
-                utcDateTime(lastRun.startedAt),
-                ADMIN_COPY.system.cron.status[lastRun.status],
-              )}
-            </time>
+            <>
+              {COPY.lastRun.label}{" "}
+              <time dateTime={new Date(lastRun.startedAt).toISOString()}>
+                {utcDateTime(lastRun.startedAt)}
+              </time>
+              {COPY.lastRun.status(ADMIN_COPY.system.cron.status[lastRun.status])}
+            </>
           ) : (
             COPY.neverRun
           )}

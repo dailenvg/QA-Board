@@ -51,7 +51,7 @@ interface OrphanCheckCardProps {
  * The Storage page's orphan check: nothing until the admin asks (each check
  * lists Vercel Blob, which is billed), then the rows while it counts, then
  * what the next cleanup would delete, or why it couldn't tell, with the
- * button to check again. Each state slides in for the last.
+ * button to check again. Each state slides in, replacing the last.
  */
 export function OrphanCheckCard({ state, onCheck }: OrphanCheckCardProps) {
   const swap = useSwapVariants();
