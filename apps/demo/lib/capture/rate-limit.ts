@@ -2,11 +2,17 @@ import { parseIPv4, parseIPv6 } from "../frame-check/address";
 
 export type RateDecision = { ok: true } | { ok: false; retryAfterSeconds: number };
 
+/** At most `limit` per key in each `windowMs`. */
+export interface RateLimitConfig {
+  limit: number;
+  windowMs: number;
+}
+
 /**
  * Fixed-window limiter kept in memory, so on serverless it is per instance:
  * a brake on abuse, not an exact quota.
  */
-export function createRateLimiter({ limit, windowMs }: { limit: number; windowMs: number }) {
+export function createRateLimiter({ limit, windowMs }: RateLimitConfig) {
   const windows = new Map<string, { start: number; count: number }>();
 
   return function check(key: string, now: number): RateDecision {

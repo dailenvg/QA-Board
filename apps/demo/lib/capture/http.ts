@@ -1,5 +1,8 @@
 import type { CaptureErrorBody, CaptureErrorCode } from "./types";
 
+/** `POST /api/capture`'s brake, per address and server instance: each one starts Chromium. */
+export const CAPTURE_RATE_LIMIT = { limit: 10, windowMs: 60_000 } as const;
+
 const STATUS: Record<CaptureErrorCode, number> = {
   "invalid-request": 400,
   "private-host": 403,

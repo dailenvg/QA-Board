@@ -8,7 +8,9 @@ import { rateLimited } from "./with-account";
  * Uploads per user, per server instance: a brake on a script, well above
  * what someone trying a few pictures needs.
  */
-const UPLOADS = createRateLimiter({ limit: 10, windowMs: 60_000 });
+export const IMAGE_UPLOAD_RATE_LIMIT = { limit: 10, windowMs: 60_000 } as const;
+
+const UPLOADS = createRateLimiter(IMAGE_UPLOAD_RATE_LIMIT);
 
 const STATUS: Record<ImageRefusal, number> = {
   "too-large": 413,

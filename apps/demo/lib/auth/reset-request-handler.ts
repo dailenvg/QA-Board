@@ -16,7 +16,9 @@ export interface ResetRequestDeps extends AuthRouteDeps {
 }
 
 /** Per-IP brake, per instance; each account is also capped at 3 links an hour. */
-const limit = createRateLimiter({ limit: 10, windowMs: 60_000 });
+export const RESET_REQUEST_RATE_LIMIT = { limit: 10, windowMs: 60_000 } as const;
+
+const limit = createRateLimiter(RESET_REQUEST_RATE_LIMIT);
 
 type Outcome = { ok: true } | { ok: false; flag: ResetRequestFlag };
 
