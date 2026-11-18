@@ -177,6 +177,27 @@ describe("POST /api/admin/sweep", () => {
     expect(meta).toEqual([{ meta: { fields: [] }, actor_user_id: adminId }]);
   });
 
+  it("still answers the report when the audit entry can't be written, and logs only the error's kind", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    await db.query(`
+      CREATE FUNCTION refuse_sweep_audit() RETURNS trigger AS $$
+      BEGIN RAISE EXCEPTION 'secret admin@squint.test'; END;
+      $$ LANGUAGE plpgsql`);
+    await db.query(`
+      CREATE TRIGGER refuse_sweep_audit BEFORE INSERT ON audit_log
+      FOR EACH ROW WHEN (NEW.action = 'admin.sweep_run') EXECUTE FUNCTION refuse_sweep_audit()`);
+
+    const response = await call(sweep, { cookie: admin });
+
+    expect(response.status).toBe(200);
+    const { report } = (await response.json()) as { report: Record<string, unknown> };
+    expect(report).toMatchObject({ done: true });
+    const { rows: runs } = await db.query("SELECT trigger FROM cron_runs");
+    expect(runs).toEqual([{ trigger: "admin" }]);
+    expect(await adminEntries()).toEqual([]);
+    expect(errors.mock.calls).toEqual([["squint admin: auditing the sweep failed (error P0001)"]]);
+  });
+
   it("answers 409 running while another run is under way, and runs and records nothing", async () => {
     await db.query("INSERT INTO cron_runs (trigger, started_at) VALUES ('schedule', now())");
 
