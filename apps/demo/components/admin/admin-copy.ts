@@ -151,8 +151,6 @@ export const ADMIN_COPY = {
         "Locked, with everything kept. Archiving never schedules a deletion. Unarchive one to open it again as it was.",
       emptyTitle: "Nothing archived",
       emptyBody: "Archived workspaces show up here.",
-      /** "Archived Nov 7, 2026". */
-      on: (date: string) => `Archived ${date}`,
       unarchive: "Unarchive",
       unarchiving: "Unarchiving…",
       /** The button for screen readers: "Unarchive Acme". */

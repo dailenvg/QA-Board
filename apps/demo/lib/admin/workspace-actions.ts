@@ -134,9 +134,10 @@ export function unsuspendWorkspace(
 
 /**
  * Archives the workspace (decision 3): `archived_at` closes it
- * (`openWorkspace`, `SHARE_ANSWERS`) and keeps everything. Unlike an owner's
- * account deletion it schedules nothing: no cron touches an archived
- * workspace, and unarchiving opens it again as it was. A workspace its owner
+ * (`openWorkspace`, `SHARE_ANSWERS`). Unlike an owner's account deletion,
+ * nothing schedules it for deletion (its team's own trash and archived
+ * projects still purge on their dates), and unarchiving opens it again as
+ * it was. A workspace its owner
  * scheduled for deletion is refused (`deleting`): archiving it would promise
  * "no deletion is scheduled" over the owner's own request, which stands. The
  * reverse can't happen: an owner can only schedule deletion of an open

@@ -65,14 +65,6 @@ const SUSPENDED_ONLY = `users.role = 'company'
     WHERE m.user_id = users.id AND ${openWorkspace("w")}
   )`;
 
-/** `SUSPENDED_ONLY` for the account `userId`, on its own. */
-export async function isSuspendedOnly(db: Queryable, userId: string): Promise<boolean> {
-  const { rows } = await db.query(`SELECT 1 FROM users WHERE id = $1 AND ${SUSPENDED_ONLY}`, [
-    userId,
-  ]);
-  return rows.length === 1;
-}
-
 /**
  * In one lookup, so every email costs the same: a user who can sign in, or
  * else one removed from a workspace whose removal hasn't run its 24 hours
