@@ -63,3 +63,56 @@ export async function seedAuditTrail(byOwner: number): Promise<AuditTrail> {
   });
   return { workspaceId, byOwner, bySquint: 1 };
 }
+
+/** A workspace of the test's own, for the admin to act on, with its owner's sign-in. */
+export interface AdminTestWorkspace {
+  workspaceId: string;
+  name: string;
+  email: string;
+  password: string;
+}
+
+let workspaces = 0;
+
+/**
+ * A new workspace with an owner who can sign in, made straight in the e2e
+ * database as the seed script makes one. Each call makes another, so
+ * suspending or archiving it never touches what other specs use.
+ */
+export async function createAdminTestWorkspace(label: string): Promise<AdminTestWorkspace> {
+  workspaces += 1;
+  const tag = `${label}-${Date.now().toString(36)}-${workspaces}`.toLowerCase();
+  const account = {
+    email: `admin-test-${tag}@e2e.test`,
+    password: "e2e admin test password",
+    name: `Admin Test ${tag}`,
+  };
+  const passwordHash = await hashPassword(account.password);
+  return withClient(async (client) => {
+    const { rows: users } = await client.query<{ id: string }>(
+      "INSERT INTO users (email, password_hash, role) VALUES ($1, $2, 'company') RETURNING id",
+      [account.email, passwordHash],
+    );
+    const { rows: created } = await client.query<{ id: string }>(
+      "INSERT INTO workspaces (slug, name) VALUES ($1, $2) RETURNING id",
+      [`e2e-admin-${tag}`.replace(/[^a-z0-9-]/g, "-").slice(0, 48), account.name],
+    );
+    const workspaceId = created[0]?.id ?? "";
+    await client.query(
+      "INSERT INTO memberships (user_id, workspace_id, role) VALUES ($1, $2, 'owner')",
+      [users[0]?.id, workspaceId],
+    );
+    return { ...account, workspaceId };
+  });
+}
+
+/** The workspace's storage quota, in bytes. */
+export async function storageQuota(workspaceId: string): Promise<number> {
+  return withClient(async (client) => {
+    const { rows } = await client.query<{ bytes: string }>(
+      "SELECT storage_quota_bytes AS bytes FROM workspaces WHERE id = $1",
+      [workspaceId],
+    );
+    return Number(rows[0]?.bytes);
+  });
+}
