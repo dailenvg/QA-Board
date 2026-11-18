@@ -29,7 +29,7 @@ function BackendGroup({
             key={entry.id}
             order={index}
             testId="rate-limit"
-            className="flex flex-col gap-0.5 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-6"
+            className="flex flex-col gap-1 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-6"
           >
             <span className="min-w-0 text-body font-medium text-ink">{COPY.items[entry.id]}</span>
             <span className="text-meta text-ink-2 tabular-nums sm:text-right">
@@ -52,13 +52,13 @@ export function RateLimitList({ limits }: { limits: readonly RateLimitEntry[] })
       testId="system-rate-limits"
     >
       <div className="flex flex-col gap-6">
-        {BACKENDS.map((backend) => (
-          <BackendGroup
-            key={backend}
-            backend={backend}
-            limits={limits.filter((entry) => entry.backend === backend)}
-          />
-        ))}
+        {BACKENDS.map((backend) => {
+          const kept = limits.filter((entry) => entry.backend === backend);
+          // A backend with no limits gets no heading over an empty list.
+          return kept.length > 0 ? (
+            <BackendGroup key={backend} backend={backend} limits={kept} />
+          ) : null;
+        })}
       </div>
     </SettingsCard>
   );

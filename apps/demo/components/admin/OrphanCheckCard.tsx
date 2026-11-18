@@ -9,7 +9,7 @@ import { TileEmpty } from "../overview/bento/TileEmpty";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { ADMIN_COPY } from "./admin-copy";
-import { OrphanTallies, OrphanTalliesSkeleton } from "./OrphanTallies";
+import { OrphanTallies, OrphanTalliesSkeleton, orphanSummary } from "./OrphanTallies";
 import type { OrphanCheck } from "./use-orphan-check";
 
 const COPY = ADMIN_COPY.storage.orphans;
@@ -76,8 +76,12 @@ export function OrphanCheckCard({ state, onCheck }: OrphanCheckCardProps) {
           </motion.div>
         </AnimatePresence>
       </div>
+      {/*
+        Says it's checking, then what it found, as focus stays on the button. A failure is
+        read out by its own alert.
+      */}
       <p role="status" className="sr-only">
-        {checking ? COPY.checking : ""}
+        {checking ? COPY.checking : state.kind === "ready" ? orphanSummary(state.report) : ""}
       </p>
       <Button
         variant="secondary"

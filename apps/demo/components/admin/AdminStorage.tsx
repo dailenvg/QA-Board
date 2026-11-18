@@ -2,7 +2,7 @@
 
 import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
-import { useRef, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { formatBytes } from "@/lib/account/storage-level";
 import type { AdminStorage as AdminStorageData } from "@/lib/admin/storage";
 import { staggerGroup } from "@/lib/motion";
@@ -13,7 +13,7 @@ import { StatTile } from "./StatTile";
 import { StorageProjectList } from "./StorageProjectList";
 import { StorageWorkspaceList } from "./StorageWorkspaceList";
 import { SweepDialog } from "./SweepDialog";
-import { SweepTile } from "./SweepTile";
+import { SweepTile, type SweepTileRun } from "./SweepTile";
 import { useOrphanCheck } from "./use-orphan-check";
 
 const COPY = ADMIN_COPY.storage;
@@ -24,6 +24,11 @@ const GROUP = staggerGroup();
  * the orphan check; then the workspaces and projects storing the most. Run
  * sweep asks first, in its dialog; once it's run, the page reads the server
  * again, and an earlier orphan check, out of date now, is set aside.
+ *
+ * The dialog can be closed while the run goes on: the tile then says it's
+ * running, and its button opens that same dialog again, on its progress or,
+ * once it's ended, on its result. Closed on a result, the next opening asks
+ * afresh.
  */
 export function AdminStorage({ storage }: { storage: AdminStorageData }) {
   const router = useRouter();
@@ -31,10 +36,25 @@ export function AdminStorage({ storage }: { storage: AdminStorageData }) {
   const orphans = useOrphanCheck();
   const sweep = useDialogState<number>();
   const openings = useRef(0);
+  const [sweepRun, setSweepRun] = useState<SweepTileRun>("idle");
+  // Read when a run ends, which may be long after the render that started it.
+  const sweepOpen = useRef(false);
+  useEffect(() => {
+    sweepOpen.current = sweep.open;
+  }, [sweep.open]);
 
   const openSweep = () => {
-    openings.current += 1;
+    if (sweepRun === "idle") openings.current += 1;
     sweep.show(openings.current);
+  };
+
+  const closeSweep = () => {
+    sweep.close();
+    setSweepRun((now) => (now === "running" ? now : "idle"));
+  };
+
+  const sweepRunning = (running: boolean) => {
+    setSweepRun(running ? "running" : sweepOpen.current ? "idle" : "ended");
   };
 
   const swept = () => {
@@ -46,7 +66,7 @@ export function AdminStorage({ storage }: { storage: AdminStorageData }) {
     <div className="flex flex-col gap-6" data-testid="admin-storage">
       <section aria-labelledby="admin-storage-summary">
         <h2 id="admin-storage-summary" className="sr-only">
-          {COPY.total.label}
+          {COPY.summary}
         </h2>
         <motion.ul
           variants={GROUP}
@@ -61,14 +81,20 @@ export function AdminStorage({ storage }: { storage: AdminStorageData }) {
             icon="database"
             testId="storage-total"
           />
-          <SweepTile lastRun={storage.lastRun} onRun={openSweep} />
+          <SweepTile lastRun={storage.lastRun} run={sweepRun} onRun={openSweep} />
         </motion.ul>
       </section>
       <OrphanCheckCard state={orphans.state} onCheck={() => void orphans.check()} />
       <StorageWorkspaceList workspaces={storage.workspaces} />
       <StorageProjectList projects={storage.projects} />
       {sweep.payload !== null ? (
-        <SweepDialog key={sweep.payload} open={sweep.open} onClose={sweep.close} onSwept={swept} />
+        <SweepDialog
+          key={sweep.payload}
+          open={sweep.open}
+          onClose={closeSweep}
+          onSwept={swept}
+          onRunning={sweepRunning}
+        />
       ) : null}
     </div>
   );

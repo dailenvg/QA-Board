@@ -52,9 +52,11 @@ export function ServiceList({ services }: { services: readonly ServiceStatus[] }
               key={service.id}
               order={index}
               testId={`service-${service.id}`}
-              className="flex items-start justify-between gap-3 border-b border-line py-3"
+              // The badge under the words, as the workspace rows' status sits: beside them, a
+              // half-width column (from sm up) left the words barely 120px.
+              className="flex min-w-0 flex-col items-start gap-2 border-b border-line py-3"
             >
-              <div className="flex min-w-0 flex-col gap-0.5">
+              <div className="flex min-w-0 flex-col gap-1">
                 <h3 className="text-body font-semibold text-ink">{item.name}</h3>
                 <p className="text-meta text-pretty text-muted">
                   {item.what}

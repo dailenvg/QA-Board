@@ -11,17 +11,35 @@ import { ADMIN_COPY } from "./admin-copy";
 
 const COPY = ADMIN_COPY.storage.sweep;
 
+/**
+ * A run started here, whose dialog may be closed: none to show (`idle`),
+ * one going on, or one that ended while its dialog was closed.
+ */
+export type SweepTileRun = "idle" | "running" | "ended";
+
+const BUTTON = {
+  idle: { label: COPY.run, icon: "broom" },
+  running: { label: COPY.seeProgress, icon: "arrow" },
+  ended: { label: COPY.seeResult, icon: "arrow" },
+} as const;
+
 interface SweepTileProps {
   lastRun: CronRun | null;
+  run: SweepTileRun;
+  /** Run sweep's dialog: a fresh one, or, with a run to show, that run's. */
   onRun: () => void;
 }
 
 /**
  * The daily cleanup beside the Stored tile: when it runs, how its last run
- * went (UTC), and Run sweep. Rises in with its group.
+ * went (UTC), and Run sweep. While a run started here goes on with its
+ * dialog closed, it says so, and the button reopens the dialog. The line is
+ * a live region, so that and the last run read again after it are announced.
+ * Rises in with its group.
  */
-export function SweepTile({ lastRun, onRun }: SweepTileProps) {
+export function SweepTile({ lastRun, run, onRun }: SweepTileProps) {
   const variants = useRevealVariants();
+  const button = BUTTON[run];
   return (
     <motion.li
       variants={variants}
@@ -36,8 +54,10 @@ export function SweepTile({ lastRun, onRun }: SweepTileProps) {
       </div>
       <div className="flex flex-col gap-1 text-meta text-pretty">
         <p className="text-muted">{COPY.schedule(CRON_SCHEDULE)}</p>
-        <p className="text-ink-2" data-testid="sweep-last-run">
-          {lastRun ? (
+        <p role="status" className="text-ink-2" data-testid="sweep-last-run">
+          {run === "running" ? (
+            COPY.runningNow
+          ) : lastRun ? (
             <time dateTime={new Date(lastRun.startedAt).toISOString()}>
               {COPY.lastRun(
                 utcDateTime(lastRun.startedAt),
@@ -55,8 +75,8 @@ export function SweepTile({ lastRun, onRun }: SweepTileProps) {
         className="mt-auto self-start max-sm:self-stretch"
         data-testid="sweep-run"
       >
-        <Icon name="broom" className="size-5" />
-        {COPY.run}
+        <Icon name={button.icon} className="size-5" />
+        {button.label}
       </Button>
     </motion.li>
   );

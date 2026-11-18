@@ -40,6 +40,13 @@ export function runDuration(ms: number): string {
   return rest ? `${Math.floor(seconds / 60)} min ${rest} s` : `${seconds / 60} min`;
 }
 
+/** A run as it goes, by the whole seconds so far: "Starting", then "Running for 12 s". */
+function runningFor(seconds: number | null): string {
+  return seconds === null || seconds < 1
+    ? "Starting"
+    : `Running for ${runDuration(seconds * 1000)}`;
+}
+
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
@@ -295,6 +302,8 @@ export const ADMIN_COPY = {
   },
   storage: {
     loading: "Loading storage…",
+    /** The two tiles' section, for screen readers. */
+    summary: "Storage and cleanup",
     errors: {
       running:
         "The cleanup is running already. Give it a minute, then check its last run on the System page.",
@@ -357,8 +366,14 @@ export const ADMIN_COPY = {
       /** "Runs daily at 04:00 UTC." */
       schedule: (schedule: typeof CRON_SCHEDULE) => `Runs ${SCHEDULE_LABELS[schedule]}.`,
       run: "Run sweep",
+      /** In place of `run` while a run started here goes on with its dialog closed: reopens it. */
+      seeProgress: "See progress",
+      /** In place of `run` once that run ended with its dialog closed: reopens it on the result. */
+      seeResult: "See result",
       /** "Last run Nov 18, 2026, 04:00 UTC: Finished". */
       lastRun: (when: string, status: string) => `Last run ${when}: ${status}`,
+      /** In place of the last run while a run started here goes on with its dialog closed. */
+      runningNow: "Running now…",
       neverRun: "It hasn't run yet.",
       dialog: {
         title: "Run the daily cleanup now?",
@@ -369,8 +384,18 @@ export const ADMIN_COPY = {
         checkFailed: "Couldn't count orphaned files. You can still run the cleanup.",
         checkAgain: "Count again",
         cancel: "Cancel",
+        /** In place of `cancel` while it runs: closing doesn't stop it. */
+        close: "Close",
         confirm: "Run sweep",
         pending: "Running…",
+        /** Read out once as it starts (a polite live region). */
+        started: "Running the cleanup. It can take up to a minute.",
+        /**
+         * Under the progress bar while it runs, the time ticking each second:
+         * "Running for 12 s. It keeps going if you close this."
+         */
+        progress: (seconds: number | null) =>
+          `${runningFor(seconds)}. It keeps going if you close this.`,
         done: "Done",
       },
       result: {

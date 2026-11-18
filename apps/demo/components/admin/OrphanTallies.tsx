@@ -23,6 +23,19 @@ function tallyText(tally: OrphanTally | null): { text: string; quiet: boolean } 
 }
 
 /**
+ * What a check found in one line, for a live region to read out as it lands
+ * (the list itself appears silently): each category and its count, then, if
+ * it didn't see every file, that there may be more.
+ */
+export function orphanSummary(report: OrphanReport): string {
+  const lines: string[] = CATEGORIES.map(
+    (category) => `${COPY.categories[category]}: ${tallyText(report[category]).text}`,
+  );
+  if (!report.complete) lines.push(COPY.partial);
+  return lines.join(". ");
+}
+
+/**
  * What an orphan check found: each kind of orphaned file with its count and
  * bytes, whether the check got through every file, and when it ran.
  */

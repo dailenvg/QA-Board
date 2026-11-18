@@ -22,12 +22,13 @@ function Outcome({ report }: { report: ExpiryReport }) {
 
 /**
  * What a cleanup run did: how it ended, then each step that deleted
- * something with its count, or that nothing was due.
+ * something with its count, or that nothing was due. `id` lets Done, focused
+ * as it appears, be described by all of it, so screen readers hear the result.
  */
-export function SweepResult({ report }: { report: ExpiryReport }) {
+export function SweepResult({ report, id }: { report: ExpiryReport; id?: string }) {
   const deleted = EXPIRY_STEPS.filter((step) => (report[step] ?? 0) > 0);
   return (
-    <div className="flex flex-col gap-4" data-testid="sweep-result" data-done={report.done}>
+    <div id={id} className="flex flex-col gap-4" data-testid="sweep-result" data-done={report.done}>
       <Outcome report={report} />
       <section aria-labelledby="sweep-deleted" className="flex flex-col gap-2">
         <h3 id="sweep-deleted" className="text-body font-semibold">
