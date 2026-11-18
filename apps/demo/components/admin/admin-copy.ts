@@ -50,7 +50,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   seat_limit: "seat limit",
   storage_quota_bytes: "storage quota",
   suspended_at: "suspension",
-  archived_at: "archive",
+  archived_at: "archive status",
   brandColor: "brand color",
   senderName: "email sender name",
   reviewWindow: "review window",
@@ -107,7 +107,7 @@ export const ADMIN_COPY = {
   workspaces: {
     title: "Workspaces",
     description:
-      "Every workspace, its owner and how much it stores. Last activity is the latest project change, comment, or change by its people. Dates are in UTC.",
+      "Every workspace, its owner and how much it stores. Last activity is the latest project change, comment or change by its people. Dates are in UTC.",
     loading: "Loading the workspaces…",
     columns: {
       workspace: "Workspace",
@@ -135,7 +135,7 @@ export const ADMIN_COPY = {
       quota: "Edit storage quota",
       reset: "Reset owner password",
       /** In place of `reset`, unavailable, when the owner's account is deleted or there's none. */
-      resetNoOwner: "Can't reset: no active owner",
+      resetNoOwner: "Can't reset password: no active owner",
       suspend: "Suspend",
       unsuspend: "Lift suspension",
       archive: "Archive",
@@ -173,7 +173,7 @@ export const ADMIN_COPY = {
       title: "Reset the owner's password",
       /** Before the link is made. */
       description: (email: string) =>
-        `Make a link that lets ${email} set a new password. It's shown once, here, and works once within an hour. Nothing is emailed: send it to them yourself.`,
+        `Make a link that lets ${email} set a new password. It's shown only once, here. It expires in 1 hour and works only once. Nothing is emailed, so send it to them yourself.`,
       cancel: "Cancel",
       confirm: "Make reset link",
       pending: "Making link…",
@@ -188,9 +188,9 @@ export const ADMIN_COPY = {
     suspend: {
       title: (name: string) => `Suspend ${name}?`,
       points: [
-        "Its people can't open it. Anyone not in another workspace is signed out and can't sign in.",
-        "Its review links pause: clients see that the review isn't available right now, and can't comment.",
-        "Nothing is deleted. Lift the suspension to open everything again.",
+        "Its members can't open it. Anyone without another open workspace is signed out and can't sign in.",
+        "Its review links pause: clients see that the review isn't available right now and can't comment.",
+        "All its data is kept. Lift the suspension at any time to open everything again.",
       ],
       confirm: "Suspend workspace",
       pending: "Suspending…",
@@ -200,9 +200,9 @@ export const ADMIN_COPY = {
     archive: {
       title: (name: string) => `Archive ${name}?`,
       points: [
-        "Its people can't open it, and its review links stop working.",
+        "It's locked: its members can't open it, and its review links stop working.",
         "Nothing is deleted, and no deletion is scheduled.",
-        "Unarchive it from the Archived list to open it again as it was.",
+        "To undo it, unarchive it from the Archived list. It opens again as it was.",
       ],
       confirm: "Archive workspace",
       pending: "Archiving…",
@@ -210,8 +210,8 @@ export const ADMIN_COPY = {
       undone: (name: string) => `Unarchived ${name}.`,
     },
     errors: {
-      "not-found": "This workspace isn't there any more. Reload the page to see the list as it is.",
-      "no-owner": "Its owner's account is deleted, so there's no password to reset.",
+      "not-found": "This workspace isn't there any more. Reload the page to see the current list.",
+      "no-owner": "This workspace has no active owner, so there's no password to reset.",
       invalid: "Squint didn't accept that. Check it and try again.",
       "signed-out": "You're signed out. Sign in again, then try once more.",
       offline: "Couldn't reach Squint. Check your connection and try again.",
@@ -325,7 +325,7 @@ export const ACTION_LABELS: Readonly<Record<string, string>> = {
   "share.password_removed": "Removed review link password",
   "share.invites_sent": "Sent review link invitations",
   "admin.workspace_quota_changed": "Changed workspace storage quota",
-  "admin.owner_reset_link_created": "Made a password reset link for the owner",
+  "admin.owner_reset_link_created": "Made password reset link for owner",
   "admin.workspace_suspended": "Suspended workspace",
   "admin.workspace_unsuspended": "Lifted workspace suspension",
   "admin.workspace_archived": "Archived workspace",
