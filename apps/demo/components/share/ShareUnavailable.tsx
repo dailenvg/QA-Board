@@ -11,8 +11,8 @@ const COPY = {
     body: "The project owner may have revoked it, or the address is incomplete. Ask them for a new link. Links also stop working 30 days after the project was created.",
   },
   paused: {
-    title: "This review isn't available right now.",
-    body: "Comments can't be added for now. Try again later, or ask the person who sent you the link.",
+    title: "This review isn't available right now",
+    body: "Comments are paused for now. Try again later, or ask the person who sent you the link.",
   },
 } as const;
 

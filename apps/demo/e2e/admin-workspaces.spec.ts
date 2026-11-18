@@ -193,7 +193,7 @@ test("suspending stops the owner signing in and pauses the review link, until it
 
   await guest.goto(`/s/${token}`);
   await expect(
-    guest.getByRole("heading", { level: 1, name: "This review isn't available right now." }),
+    guest.getByRole("heading", { level: 1, name: "This review isn't available right now" }),
   ).toBeVisible();
   await expect(guest.getByTestId("share-unavailable")).toHaveAttribute("data-paused", "true");
   expect((await guest.request.get(`/api/s/${token}`)).status()).toBe(404);
