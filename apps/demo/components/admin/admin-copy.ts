@@ -139,6 +139,8 @@ export const ADMIN_COPY = {
       suspend: "Suspend",
       unsuspend: "Lift suspension",
       archive: "Archive",
+      /** In place of `archive`, unavailable, when the owner scheduled the workspace for deletion. */
+      archiveDeleting: "Can't archive: scheduled for deletion",
       working: "Working…",
     },
     emptyTitle: "No workspaces yet",
@@ -146,7 +148,7 @@ export const ADMIN_COPY = {
     archived: {
       title: "Archived",
       description:
-        "Locked, with everything kept and no deletion scheduled. Unarchive one to open it again as it was.",
+        "Locked, with everything kept. Archiving never schedules a deletion. Unarchive one to open it again as it was.",
       emptyTitle: "Nothing archived",
       emptyBody: "Archived workspaces show up here.",
       /** "Archived Nov 7, 2026". */
@@ -212,6 +214,8 @@ export const ADMIN_COPY = {
     errors: {
       "not-found": "This workspace isn't there any more. Reload the page to see the current list.",
       "no-owner": "This workspace has no active owner, so there's no password to reset.",
+      deleting:
+        "Its owner scheduled this workspace for deletion, so it can't be archived. Nothing changed.",
       invalid: "Squint didn't accept that. Check it and try again.",
       "signed-out": "You're signed out. Sign in again, then try once more.",
       offline: "Couldn't reach Squint. Check your connection and try again.",

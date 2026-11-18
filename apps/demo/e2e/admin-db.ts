@@ -116,3 +116,12 @@ export async function storageQuota(workspaceId: string): Promise<number> {
     return Number(rows[0]?.bytes);
   });
 }
+
+/** Schedules the workspace for deletion, as its owner deleting their account does (033). */
+export async function scheduleWorkspaceDeletion(workspaceId: string): Promise<void> {
+  await withClient((client) =>
+    client.query("UPDATE workspaces SET delete_after = now() + interval '30 days' WHERE id = $1", [
+      workspaceId,
+    ]),
+  );
+}

@@ -10,7 +10,7 @@ import {
 } from "@/test/workspace-fixture";
 import type { Queryable } from "../share/migrate";
 import { createProject, trashProject } from "../workspace/projects";
-import { loadAdminWorkspace, loadAdminWorkspaces } from "./workspaces";
+import { loadAdminWorkspace, loadAdminWorkspaces, resetOwnerEmail } from "./workspaces";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -147,6 +147,14 @@ describe("loadAdminWorkspaces", () => {
       { owner: true, ownerActive: false },
       { owner: false, ownerActive: false },
     ]);
+  });
+
+  it("offers a reset link only for an active owner's email", () => {
+    expect(resetOwnerEmail({ ownerEmail: "ana@acme.test", ownerActive: true })).toBe(
+      "ana@acme.test",
+    );
+    expect(resetOwnerEmail({ ownerEmail: "ana@acme.test", ownerActive: false })).toBeNull();
+    expect(resetOwnerEmail({ ownerEmail: null, ownerActive: false })).toBeNull();
   });
 
   it("reads one workspace by id, and nothing for an unknown one", async () => {

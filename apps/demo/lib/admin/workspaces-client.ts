@@ -12,6 +12,8 @@ export type AdminActionError =
   | "not-found"
   /** A reset link was asked for, but the owner's account is deleted. */
   | "no-owner"
+  /** Archive was asked for, but the owner scheduled the workspace for deletion. */
+  | "deleting"
   /** Refused as it was sent (a quota outside the bounds). */
   | "invalid"
   | "signed-out"
@@ -60,7 +62,8 @@ function errorOf(status: number, code: unknown): AdminActionError {
     case 404:
       return "not-found";
     case 409:
-      return code === "no-owner" ? "no-owner" : "failed";
+      if (code === "no-owner" || code === "deleting") return code;
+      return "failed";
     default:
       return "failed";
   }

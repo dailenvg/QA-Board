@@ -52,6 +52,16 @@ export interface AdminWorkspaces {
   archived: AdminWorkspace[];
 }
 
+/**
+ * Whom a reset link would be for: the owner's email while their account is
+ * active (`ownerActive`), else null, and no link can be made. Client-safe.
+ */
+export function resetOwnerEmail(
+  workspace: Pick<AdminWorkspace, "ownerEmail" | "ownerActive">,
+): string | null {
+  return workspace.ownerActive ? workspace.ownerEmail : null;
+}
+
 interface WorkspaceRow {
   id: string;
   name: string;

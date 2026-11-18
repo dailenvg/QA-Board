@@ -3,7 +3,7 @@
 import { motion, useReducedMotion } from "motion/react";
 import type { ReactNode } from "react";
 import { utcDate } from "@/lib/admin/utc-format";
-import type { AdminWorkspace } from "@/lib/admin/workspaces";
+import { resetOwnerEmail, type AdminWorkspace } from "@/lib/admin/workspaces";
 import { duration, instant, spring, useRevealVariants } from "@/lib/motion";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
@@ -58,13 +58,15 @@ function Cell({
 function menuItems(workspace: AdminWorkspace, handlers: WorkspaceHandlers): MenuItem[] {
   const menu = COPY.menu;
   const suspended = workspace.suspendedAt !== null;
+  const deleting = workspace.status === "deleting";
+  const resettable = resetOwnerEmail(workspace) !== null;
   return [
     { label: menu.quota, icon: "database", onSelect: handlers.onQuota, testId: "workspace-quota" },
     {
-      label: workspace.ownerActive ? menu.reset : menu.resetNoOwner,
+      label: resettable ? menu.reset : menu.resetNoOwner,
       icon: "lock",
       onSelect: handlers.onReset,
-      disabled: !workspace.ownerActive,
+      disabled: !resettable,
       testId: "workspace-reset",
     },
     suspended
@@ -83,10 +85,11 @@ function menuItems(workspace: AdminWorkspace, handlers: WorkspaceHandlers): Menu
           separatorBefore: true,
         },
     {
-      label: menu.archive,
+      label: deleting ? menu.archiveDeleting : menu.archive,
       icon: "archive",
       danger: true,
       onSelect: handlers.onArchive,
+      disabled: deleting,
       testId: "workspace-archive",
     },
   ];

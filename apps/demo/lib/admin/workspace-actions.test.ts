@@ -9,6 +9,7 @@ import {
   URL_PROJECT,
   type Seat,
 } from "@/test/workspace-fixture";
+import { scheduleAccountDeletion } from "../account/account-deletion";
 import { findMembership } from "../auth/memberships";
 import { logIn } from "../auth/login";
 import { completePasswordReset, isResetTokenUsable, RESET_TTL_MS } from "../auth/password-reset";
@@ -268,6 +269,48 @@ describe("archiveWorkspace and unarchiveWorkspace", () => {
       { action: "admin.workspace_archived", meta: { fields: ["archived_at"] } },
       { action: "admin.workspace_unarchived", meta: { fields: ["archived_at"] } },
     ]);
+  });
+
+  it("refuses a workspace its owner scheduled for deletion, and leaves that date alone", async () => {
+    const deleteAfter = new Date(NOW + 30 * 24 * 60 * 60 * 1000);
+    await w.db.query("UPDATE workspaces SET delete_after = $2 WHERE id = $1", [
+      w.a.workspaceId,
+      deleteAfter,
+    ]);
+    expect(await archiveWorkspace(w.db, target, NOW)).toEqual({ ok: false, reason: "deleting" });
+    const { rows } = await w.db.query<{ archived_at: Date | null; delete_after: Date | null }>(
+      "SELECT archived_at, delete_after FROM workspaces WHERE id = $1",
+      [w.a.workspaceId],
+    );
+    expect(rows[0]).toEqual({ archived_at: null, delete_after: deleteAfter });
+    expect(await adminEntries(w.db)).toEqual([]);
+  });
+
+  it("leaves an archived workspace's owner nothing to schedule for deletion", async () => {
+    await archiveWorkspace(w.db, target, NOW);
+    const { rows: owner } = await w.db.query<{ email: string }>(
+      "SELECT email FROM users WHERE id = $1",
+      [w.a.userId],
+    );
+    const user = {
+      id: w.a.userId,
+      email: owner[0]?.email ?? "",
+      name: null,
+      role: "company" as const,
+    };
+    expect(
+      await scheduleAccountDeletion(
+        w.db,
+        user,
+        { confirmText: "acme", currentPassword: PASSWORD, ip: "203.0.113.9" },
+        NOW,
+      ),
+    ).toEqual({ ok: false, reason: "not-found" });
+    const { rows } = await w.db.query<{ delete_after: Date | null }>(
+      "SELECT delete_after FROM workspaces WHERE id = $1",
+      [w.a.workspaceId],
+    );
+    expect(rows[0]?.delete_after).toBeNull();
   });
 
   it("records nothing when there's nothing to change, and refuses an unknown workspace", async () => {

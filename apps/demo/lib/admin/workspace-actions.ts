@@ -21,18 +21,22 @@ export interface AdminTarget {
 }
 
 export type AdminActionResult<T extends object = object> =
-  ({ ok: true } & T) | { ok: false; reason: "not-found" };
+  | ({ ok: true } & T)
+  | { ok: false; reason: "not-found" }
+  /** Archiving a workspace its owner scheduled for deletion (033): refused, see `archiveWorkspace`. */
+  | { ok: false; reason: "deleting" };
 
 interface LockedWorkspace {
   storage_quota_bytes: string | number;
   suspended_at: Date | null;
   archived_at: Date | null;
+  delete_after: Date | null;
 }
 
 /** The workspace's row, `FOR UPDATE`; null when there's none. */
 async function lockWorkspace(tx: Queryable, workspaceId: string): Promise<LockedWorkspace | null> {
   const { rows } = await tx.query<LockedWorkspace>(
-    `SELECT storage_quota_bytes, suspended_at, archived_at FROM workspaces
+    `SELECT storage_quota_bytes, suspended_at, archived_at, delete_after FROM workspaces
      WHERE id = $1 FOR UPDATE`,
     [workspaceId],
   );
@@ -132,7 +136,11 @@ export function unsuspendWorkspace(
  * Archives the workspace (decision 3): `archived_at` closes it
  * (`openWorkspace`, `SHARE_ANSWERS`) and keeps everything. Unlike an owner's
  * account deletion it schedules nothing: no cron touches an archived
- * workspace, and unarchiving opens it again as it was.
+ * workspace, and unarchiving opens it again as it was. A workspace its owner
+ * scheduled for deletion is refused (`deleting`): archiving it would promise
+ * "no deletion is scheduled" over the owner's own request, which stands. The
+ * reverse can't happen: an owner can only schedule deletion of an open
+ * workspace (`findOwnWorkspace`), checked again under this same row lock.
  */
 export function archiveWorkspace(
   db: Database,
@@ -143,6 +151,7 @@ export function archiveWorkspace(
     const workspace = await lockWorkspace(tx, target.workspaceId);
     if (!workspace) return { ok: false, reason: "not-found" };
     if (workspace.archived_at) return { ok: true };
+    if (workspace.delete_after) return { ok: false, reason: "deleting" };
     await tx.query("UPDATE workspaces SET archived_at = $2 WHERE id = $1", [
       target.workspaceId,
       toDate(now),

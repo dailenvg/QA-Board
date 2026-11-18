@@ -2,7 +2,12 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Browser, Locator, Page } from "@playwright/test";
 import { expect, test } from "./test";
 import { sessionCookie, signIn, SIGNED_OUT } from "./auth-fixtures";
-import { createAdminTestWorkspace, storageQuota, type AdminTestWorkspace } from "./admin-db";
+import {
+  createAdminTestWorkspace,
+  scheduleWorkspaceDeletion,
+  storageQuota,
+  type AdminTestWorkspace,
+} from "./admin-db";
 import { E2E_ADMIN } from "./e2e-env";
 import { browserAs, expectNoSideScroll } from "./members-fixtures";
 import { shareWorkspaceProject, skipReviewGuide } from "./squint-fixtures";
@@ -237,6 +242,57 @@ test("archiving moves a workspace to Archived, and Unarchive brings it back", as
   await expect(activeRow(page, workspace)).toBeVisible();
   await expect(toast(page, `Unarchived ${workspace.name}.`)).toBeVisible();
   await expect(activeRow(page, workspace).getByTestId("workspace-menu")).toBeFocused();
+});
+
+test("a workspace scheduled for deletion can't be archived, from the menu or the API", async ({
+  page,
+  baseURL,
+}, testInfo) => {
+  const workspace = await createAdminTestWorkspace(testInfo.project.name);
+  await scheduleWorkspaceDeletion(workspace.workspaceId);
+  await asAdmin(page, baseURL);
+  await openWorkspaces(page);
+  await expect(row(page, workspace)).toHaveAttribute("data-status", "deleting");
+  await row(page, workspace).scrollIntoViewIfNeeded();
+  await row(page, workspace).getByTestId("workspace-menu").click();
+  const archive = page.getByRole("menuitem", { name: "Can't archive: scheduled for deletion" });
+  await expect(archive).toHaveAttribute("aria-disabled", "true");
+  await archive.click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  const refused = await page.request.put(`/api/admin/workspaces/${workspace.workspaceId}/archive`, {
+    data: {},
+  });
+  expect(refused.status()).toBe(409);
+  expect(await refused.json()).toEqual({ error: "deleting" });
+  await page.reload();
+  await expect(activeRow(page, workspace)).toBeVisible();
+  await expect(archivedRow(page, workspace)).toHaveCount(0);
+});
+
+test("an archived workspace's owner can't schedule it for deletion", async ({
+  page,
+  browser,
+  baseURL,
+}, testInfo) => {
+  const workspace = await createAdminTestWorkspace(testInfo.project.name);
+  const owner = await browserAs(browser, workspace, baseURL);
+  await asAdmin(page, baseURL);
+  await openWorkspaces(page);
+  await choose(page, workspace, "Archive");
+  await page
+    .getByRole("dialog", { name: `Archive ${workspace.name}?` })
+    .getByRole("button", { name: "Archive workspace" })
+    .click();
+  await expect(archivedRow(page, workspace)).toBeVisible();
+
+  const deletion = await owner.request.delete("/api/account", {
+    data: { confirmText: workspace.name, currentPassword: workspace.password },
+  });
+  expect(deletion.status()).toBe(404);
+  await page.reload();
+  await expect(archivedRow(page, workspace)).toHaveAttribute("data-status", "active");
+  await owner.context().close();
 });
 
 test("reads at 375px without scrolling sideways, and passes axe", async ({

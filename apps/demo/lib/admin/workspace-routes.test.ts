@@ -196,6 +196,20 @@ describe("suspension and archive", () => {
   });
 });
 
+describe("PUT …/archive on a workspace scheduled for deletion", () => {
+  it("answers 409 deleting and archives nothing", async () => {
+    await db.query(
+      "UPDATE workspaces SET delete_after = now() + interval '30 days' WHERE id = $1",
+      [a.workspaceId],
+    );
+    const response = await call(endpoint("archive", "PUT"), a.workspaceId, { cookie: admin });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "deleting" });
+    const { rows } = await db.query("SELECT 1 FROM workspaces WHERE archived_at IS NOT NULL");
+    expect(rows).toEqual([]);
+  });
+});
+
 describe("a guest's review link while its workspace is suspended", () => {
   it("answers 404 paused to every guest route, with a generic preview, until it's lifted", async () => {
     // Made now, so its review window is open for the guest's comment.

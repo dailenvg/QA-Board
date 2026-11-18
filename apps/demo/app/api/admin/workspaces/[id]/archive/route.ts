@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 /**
  * `PUT {}`: the admin archives the workspace (`archiveWorkspace`): it closes
  * and keeps everything, with no deletion scheduled. Answers `{ workspace }`;
- * 404 for an unknown one.
+ * 404 for an unknown one; 409 `deleting` for one its owner scheduled for deletion.
  */
 export const PUT = withAdminWorkspace(noFieldsSchema, async ({ db, target, now }) =>
   workspaceAnswer(db, target, await archiveWorkspace(db, target, now)),

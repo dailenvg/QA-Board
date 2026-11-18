@@ -3,7 +3,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useId, useRef, useState } from "react";
 import { utcTime } from "@/lib/admin/utc-format";
-import type { AdminWorkspace } from "@/lib/admin/workspaces";
 import type { ResetLinkOutcome } from "@/lib/admin/workspaces-client";
 import { useSwapVariants } from "@/lib/motion";
 import { useTimedFlag } from "@/lib/use-timed-flag";
@@ -25,7 +24,8 @@ type Phase =
 
 interface ResetLinkDialogProps {
   open: boolean;
-  workspace: AdminWorkspace;
+  /** Whom the link is for: the owner's email (`resetOwnerEmail`). */
+  email: string;
   onCreate: () => Promise<ResetLinkOutcome>;
   onClose: () => void;
 }
@@ -35,10 +35,9 @@ interface ResetLinkDialogProps {
  * is and that nothing is emailed, then, once made, the link with Copy, shown
  * this once. Closing forgets it. Stays up while it's made.
  */
-export function ResetLinkDialog({ open, workspace, onCreate, onClose }: ResetLinkDialogProps) {
+export function ResetLinkDialog({ open, email, onCreate, onClose }: ResetLinkDialogProps) {
   const [phase, setPhase] = useState<Phase>({ kind: "confirm", making: false, error: null });
   const making = phase.kind === "confirm" && phase.making;
-  const email = workspace.ownerEmail ?? ADMIN_COPY.workspaces.noOwner;
   const swap = useSwapVariants();
   // The ready step's words (when it stops working, shown only this once) describe the link's
   // field too: focus lands there, so screen readers hear them with it, not only on the dialog.

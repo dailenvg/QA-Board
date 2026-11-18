@@ -1,7 +1,11 @@
 "use client";
 
 import { useRef } from "react";
-import type { AdminWorkspace, AdminWorkspaces as Workspaces } from "@/lib/admin/workspaces";
+import {
+  resetOwnerEmail,
+  type AdminWorkspace,
+  type AdminWorkspaces as Workspaces,
+} from "@/lib/admin/workspaces";
 import {
   createOwnerResetLink,
   setWorkspaceArchived,
@@ -37,7 +41,7 @@ export function AdminWorkspaces({ workspaces }: { workspaces: Workspaces }) {
   const openings = useRef(0);
   const focusMoved = useMovedRowFocus();
   const quota = useDialogState<Opened>();
-  const reset = useDialogState<Opened>();
+  const reset = useDialogState<Opened & { email: string }>();
   const confirm = useDialogState<Opened & { kind: ConfirmKind }>();
   const opened = (workspace: AdminWorkspace) => {
     openings.current += 1;
@@ -73,7 +77,11 @@ export function AdminWorkspaces({ workspaces }: { workspaces: Workspaces }) {
 
   const handlersFor = (workspace: AdminWorkspace) => ({
     onQuota: () => quota.show(opened(workspace)),
-    onReset: () => reset.show(opened(workspace)),
+    onReset: () => {
+      // Only offered for an active owner; nobody to make a link for otherwise.
+      const email = resetOwnerEmail(workspace);
+      if (email) reset.show({ ...opened(workspace), email });
+    },
     onSuspend: () => confirm.show({ ...opened(workspace), kind: "suspend" }),
     onUnsuspend: () => unsuspend(workspace),
     onArchive: () => confirm.show({ ...opened(workspace), kind: "archive" }),
@@ -144,7 +152,7 @@ export function AdminWorkspaces({ workspaces }: { workspaces: Workspaces }) {
         <ResetLinkDialog
           key={reset.payload.opening}
           open={reset.open}
-          workspace={reset.payload.workspace}
+          email={reset.payload.email}
           onCreate={createOwnerResetLink.bind(null, reset.payload.workspace.id)}
           onClose={reset.close}
         />
