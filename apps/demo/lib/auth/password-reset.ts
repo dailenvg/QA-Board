@@ -23,6 +23,35 @@ interface RequestOptions {
   send: SendResetEmail;
 }
 
+/** Where a reset token's link points: `/reset/<token>` on `origin`. */
+function resetLinkOf(token: string, origin: URL): string {
+  return new URL(`/reset/${token}`, origin).href;
+}
+
+/** Deletes the user's links older than an hour: they're spent either way. */
+async function clearOldLinks(db: Queryable, userId: string, now: number): Promise<void> {
+  await db.query("DELETE FROM password_resets WHERE user_id = $1 AND created_at <= $2", [
+    userId,
+    new Date(now - RESET_TTL_MS),
+  ]);
+}
+
+/**
+ * Stores a new reset token for `userId`, usable once for `RESET_TTL_MS` from
+ * `now`, and returns it: only its hash is kept. Null when the account is
+ * deleted (or gone), so no link is made for it.
+ */
+async function storeResetToken(db: Queryable, userId: string, now: number): Promise<string | null> {
+  const token = createSecret();
+  const { rows } = await db.query(
+    `INSERT INTO password_resets (user_id, token_hash, created_at, expires_at)
+     SELECT id, $2, $3, $4 FROM users WHERE id = $1 AND deleted_at IS NULL
+     RETURNING id`,
+    [userId, hashSecret(token), new Date(now), new Date(now + RESET_TTL_MS)],
+  );
+  return rows.length === 1 ? token : null;
+}
+
 /**
  * Emails a reset link when `email` belongs to an account that can sign in,
  * and nothing otherwise. The caller answers the same either way. Only the
@@ -35,25 +64,40 @@ export async function requestPasswordReset(
 ): Promise<void> {
   const user = await findActiveUser(db, normalizeEmail(email));
   if (!user) return;
-  const windowStart = new Date(now - RESET_TTL_MS);
-  // Links older than an hour are spent either way.
-  await db.query("DELETE FROM password_resets WHERE user_id = $1 AND created_at <= $2", [
-    user.id,
-    windowStart,
-  ]);
+  await clearOldLinks(db, user.id, now);
   const { rows } = await db.query<{ count: string | number }>(
     "SELECT count(*) AS count FROM password_resets WHERE user_id = $1",
     [user.id],
   );
   if (Number(rows[0]?.count ?? 0) >= MAX_RESETS_PER_HOUR) return;
 
-  const token = createSecret();
-  await db.query(
-    `INSERT INTO password_resets (user_id, token_hash, created_at, expires_at)
-     VALUES ($1, $2, $3, $4)`,
-    [user.id, hashSecret(token), new Date(now), new Date(now + RESET_TTL_MS)],
-  );
-  await send({ to: user.email, link: new URL(`/reset/${token}`, origin).href });
+  const token = await storeResetToken(db, user.id, now);
+  if (token) await send({ to: user.email, link: resetLinkOf(token, origin) });
+}
+
+/** A reset link made to be handed over, not emailed. */
+export interface ResetLink {
+  link: string;
+  /** When it stops working (epoch ms): `RESET_TTL_MS` after it was made. */
+  expiresAt: number;
+}
+
+/**
+ * A reset link for `userId`, made by the Squint admin for a workspace owner
+ * and returned instead of emailed: the admin passes it on. The same link as
+ * an emailed one (one hour, once; `completePasswordReset` sets the password),
+ * outside the hourly cap on emails, which guards an inbox the admin isn't
+ * sending to. Null when the account is deleted. The caller shows it once and
+ * never logs or records it.
+ */
+export async function createResetLink(
+  db: Queryable,
+  userId: string,
+  { now, origin }: { now: number; origin: URL },
+): Promise<ResetLink | null> {
+  await clearOldLinks(db, userId, now);
+  const token = await storeResetToken(db, userId, now);
+  return token ? { link: resetLinkOf(token, origin), expiresAt: now + RESET_TTL_MS } : null;
 }
 
 /** Whether a link can still set a password: known, unused, unexpired, its user not deleted. */
