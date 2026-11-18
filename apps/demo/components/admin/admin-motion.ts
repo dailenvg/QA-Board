@@ -4,6 +4,14 @@ import { duration, ease, rise, staggerStep } from "@/lib/motion";
 /** A list while it waits on the server: dimmed, but muted text keeps near 3:1. */
 export const PENDING_OPACITY = 0.7;
 
+/**
+ * `whileInView` for a list's rows inside a card that already revealed: once,
+ * as soon as any of the row shows. Not `revealViewport`'s -10% margin, which
+ * a page's last row, in the bottom tenth of the screen even scrolled all the
+ * way, would never reach.
+ */
+export const rowViewport = { once: true } as const;
+
 /** Rows past this many on screen at once rise in together, not one by one. */
 const STAGGERED = 8;
 

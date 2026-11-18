@@ -54,11 +54,9 @@ export function OrphanTallies({ report }: { report: OrphanReport }) {
           );
         })}
       </ul>
-      <FormAlert
-        message={report.complete ? null : COPY.partial}
-        tone="note"
-        testId="orphan-partial"
-      />
+      {report.complete ? null : (
+        <FormAlert message={COPY.partial} tone="note" testId="orphan-partial" />
+      )}
       <p className="text-meta text-muted">
         <time dateTime={new Date(report.checkedAt).toISOString()}>
           {COPY.checkedAt(utcDateTime(report.checkedAt))}
