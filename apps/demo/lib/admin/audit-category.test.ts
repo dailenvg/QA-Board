@@ -11,6 +11,7 @@ describe("auditCategory", () => {
     ["project.clickup_sent", "projects"],
     ["share.invites_sent", "reviewLinks"],
     ["admin.workspace_suspended", "admin"],
+    ["admin.sweep_run", "admin"],
     ["seed.user_created", "other"],
     ["toString.x", "other"],
     ["", "other"],

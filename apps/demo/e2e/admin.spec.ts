@@ -62,7 +62,13 @@ test.describe("the admin", () => {
       "aria-current",
       "page",
     );
-    await expect(nav.getByRole("link")).toHaveText(["Overview", "Workspaces", "Audit log"]);
+    await expect(nav.getByRole("link")).toHaveText([
+      "Overview",
+      "Workspaces",
+      "Storage",
+      "System",
+      "Audit log",
+    ]);
     // The seed made two workspaces with an owner each, and the admin.
     // Polled: the count ticks up from 0 as it comes on screen.
     await expect

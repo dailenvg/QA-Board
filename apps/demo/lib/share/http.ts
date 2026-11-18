@@ -1,5 +1,10 @@
 import type { z } from "zod";
-import { clientAddress, createRateLimiter, rateLimitAddress } from "../capture/rate-limit";
+import {
+  clientAddress,
+  createRateLimiter,
+  rateLimitAddress,
+  type RateLimitConfig,
+} from "../capture/rate-limit";
 import { SHARE_LIMITS } from "./schemas";
 import type { Failure } from "./service";
 
@@ -8,27 +13,31 @@ export { EDIT_KEY_HEADER, OWNER_KEY_HEADER } from "./http-headers";
 const NO_STORE = { "cache-control": "no-store" };
 
 /** Per-IP brakes, per server instance. */
-const LIMITS = {
-  create: createRateLimiter({ limit: 10, windowMs: 60_000 }),
-  ownerWrite: createRateLimiter({ limit: 300, windowMs: 60_000 }),
-  ownerRead: createRateLimiter({ limit: 600, windowMs: 60_000 }),
-  clientComment: createRateLimiter({ limit: 20, windowMs: 60_000 }),
+export const SHARE_RATE_LIMITS = {
+  create: { limit: 10, windowMs: 60_000 },
+  ownerWrite: { limit: 300, windowMs: 60_000 },
+  ownerRead: { limit: 600, windowMs: 60_000 },
+  clientComment: { limit: 20, windowMs: 60_000 },
   /** A client changing their own comments' words (4.12): as many as new comments. */
-  clientEdit: createRateLimiter({ limit: 20, windowMs: 60_000 }),
-  clientCapture: createRateLimiter({ limit: 6, windowMs: 60_000 }),
-  clientRead: createRateLimiter({ limit: 600, windowMs: 60_000 }),
+  clientEdit: { limit: 20, windowMs: 60_000 },
+  clientCapture: { limit: 6, windowMs: 60_000 },
+  clientRead: { limit: 600, windowMs: 60_000 },
   /** A brake before Postgres's own password limit (`password-attempts.ts`), which is the real one. */
-  clientUnlock: createRateLimiter({ limit: 30, windowMs: 60_000 }),
+  clientUnlock: { limit: 30, windowMs: 60_000 },
   /**
    * Per-link preview cards: each one is a full render. Over it, the generic card's bytes
    * (already rendered) answer instead, so an unfurl never breaks.
    */
-  card: createRateLimiter({ limit: 60, windowMs: 60_000 }),
+  card: { limit: 60, windowMs: 60_000 },
   /** Accepting a workspace invite: a brake only, since the link's 256-bit token is the gate. */
-  join: createRateLimiter({ limit: 20, windowMs: 60_000 }),
-};
+  join: { limit: 20, windowMs: 60_000 },
+} as const satisfies Record<string, RateLimitConfig>;
 
-export type LimitName = keyof typeof LIMITS;
+export type LimitName = keyof typeof SHARE_RATE_LIMITS;
+
+const LIMITS = Object.fromEntries(
+  Object.entries(SHARE_RATE_LIMITS).map(([name, config]) => [name, createRateLimiter(config)]),
+) as Record<LimitName, ReturnType<typeof createRateLimiter>>;
 
 /** Limits that count an IPv6 address per /64, as the password limit behind them does. */
 const PER_NETWORK: ReadonlySet<LimitName> = new Set(["clientUnlock"]);

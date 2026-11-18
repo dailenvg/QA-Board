@@ -11,6 +11,8 @@ import {
   type AuditParams,
 } from "./audit-query";
 import { loadAdminOverview, type AdminOverview } from "./overview";
+import { loadAdminStorage, type AdminStorage } from "./storage";
+import { loadAdminSystem, type AdminSystem } from "./system";
 import { loadAdminWorkspaces, type AdminWorkspaces } from "./workspaces";
 
 /**
@@ -66,4 +68,18 @@ export type AdminWorkspacesPage = AdminRead<{ workspaces: AdminWorkspaces }>;
 
 export function loadAdminWorkspacesPage(): Promise<AdminWorkspacesPage> {
   return readAsAdmin("workspaces", async (db) => ({ workspaces: await loadAdminWorkspaces(db) }));
+}
+
+export type AdminStoragePage = AdminRead<{ storage: AdminStorage }>;
+
+export function loadAdminStoragePage(): Promise<AdminStoragePage> {
+  return readAsAdmin("storage", async (db) => ({
+    storage: await loadAdminStorage(db, Date.now()),
+  }));
+}
+
+export type AdminSystemPage = AdminRead<{ system: AdminSystem }>;
+
+export function loadAdminSystemPage(): Promise<AdminSystemPage> {
+  return readAsAdmin("system", async (db) => ({ system: await loadAdminSystem(db, Date.now()) }));
 }

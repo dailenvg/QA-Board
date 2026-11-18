@@ -73,7 +73,12 @@ export function vercelBlobDriver(token: string): ClientUploadDriver & BlobWriter
       const { list } = await sdk();
       const page = await list({ prefix, token, ...(cursor ? { cursor } : {}) });
       return {
-        files: page.blobs.map(({ url, pathname, uploadedAt }) => ({ url, pathname, uploadedAt })),
+        files: page.blobs.map(({ url, pathname, uploadedAt, size }) => ({
+          url,
+          pathname,
+          uploadedAt,
+          size,
+        })),
         hasMore: page.hasMore,
         ...(page.cursor ? { cursor: page.cursor } : {}),
       };

@@ -35,7 +35,9 @@ export type ClickUpConnectOutcome =
  * check tokens in bulk. Picking among several ClickUp workspaces takes two.
  * Per server instance, like the other in-memory brakes.
  */
-const attempts = createRateLimiter({ limit: 20, windowMs: 10 * 60 * 1000 });
+export const CLICKUP_CONNECT_RATE_LIMIT = { limit: 20, windowMs: 10 * 60 * 1000 } as const;
+
+const attempts = createRateLimiter(CLICKUP_CONNECT_RATE_LIMIT);
 
 /** Counts one connect attempt by `userId`; over the budget, how long until the next. */
 export function claimClickUpAttempt(userId: string, now: number): RateDecision {

@@ -125,3 +125,83 @@ export async function scheduleWorkspaceDeletion(workspaceId: string): Promise<vo
     ]),
   );
 }
+
+/** A test workspace with one project storing `bytes`, for the Storage page's lists. */
+export interface StoredWorkspace extends AdminTestWorkspace {
+  projectId: string;
+  projectName: string;
+}
+
+/**
+ * A new workspace (`createAdminTestWorkspace`) with a project holding one
+ * file row of `bytes` (recorded size; the bytes themselves a placeholder).
+ */
+export async function seedStoredWorkspace(label: string, bytes: number): Promise<StoredWorkspace> {
+  const workspace = await createAdminTestWorkspace(label);
+  const projectId = `admin-storage-${randomUUID()}`;
+  const projectName = `Stored ${label} ${projectId.slice(-6)}`;
+  await withClient(async (client) => {
+    await client.query(
+      "INSERT INTO folders (workspace_id, id, parent_id, name) VALUES ($1, 'stored', NULL, 'Stored')",
+      [workspace.workspaceId],
+    );
+    await client.query(
+      `INSERT INTO projects (id, workspace_id, folder_id, name, source)
+       VALUES ($1, $2, 'stored', $3, '{"kind":"url","url":"https://example.com/"}'::jsonb)`,
+      [projectId, workspace.workspaceId, projectName],
+    );
+    await client.query(
+      `INSERT INTO workspace_blobs (workspace_id, key, project_id, content_type, size, bytes)
+       VALUES ($1, $2, $3, 'image/png', $4, '\\x00'::bytea)`,
+      [
+        workspace.workspaceId,
+        `ws/${workspace.workspaceId}/project/${projectId}/page/p1`,
+        projectId,
+        bytes,
+      ],
+    );
+  });
+  return { ...workspace, projectId, projectName };
+}
+
+/**
+ * A file row in `workspaceId` whose project is gone, as a failed purge leaves
+ * one: what the orphan check counts and the sweep deletes. Returns its key.
+ */
+export async function seedOrphanRow(workspaceId: string): Promise<string> {
+  const key = `ws/${workspaceId}/project/gone-${randomUUID()}/page/p1`;
+  await withClient((client) =>
+    client.query(
+      `INSERT INTO workspace_blobs (workspace_id, key, project_id, content_type, size, bytes)
+       VALUES ($1, $2, NULL, 'image/png', 2048, '\\x00'::bytea)`,
+      [workspaceId, key],
+    ),
+  );
+  return key;
+}
+
+/** Whether the file row at `key` is still there. */
+export async function blobRowExists(workspaceId: string, key: string): Promise<boolean> {
+  return withClient(async (client) => {
+    const { rows } = await client.query(
+      "SELECT 1 FROM workspace_blobs WHERE workspace_id = $1 AND key = $2",
+      [workspaceId, key],
+    );
+    return rows.length === 1;
+  });
+}
+
+/**
+ * A finished scheduled run of the daily cleanup, `secondsAgo` seconds ago,
+ * whose `failed` steps failed: what the System page lists.
+ */
+export async function seedFailedCronRun(failed: string[], secondsAgo: number): Promise<void> {
+  await withClient((client) =>
+    client.query(
+      `INSERT INTO cron_runs (trigger, started_at, finished_at, done, failed, counts)
+       VALUES ('schedule', now() - make_interval(secs => $1), now() - make_interval(secs => $1 - 3),
+         false, true, $2::jsonb)`,
+      [secondsAgo, JSON.stringify({ steps: {}, failed })],
+    ),
+  );
+}

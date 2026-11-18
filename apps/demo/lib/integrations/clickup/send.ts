@@ -47,10 +47,19 @@ const CLICKUP_RETRY_SECONDS = 60;
 const MULTIPLIER = Math.max(1, Number(process.env.CLICKUP_RATE_LIMIT_MULTIPLIER) || 1);
 
 /** Sends per member: each is a message in someone's ClickUp. Per server instance. */
-const sends = createRateLimiter({ limit: 20 * MULTIPLIER, windowMs: 10 * 60 * 1000 });
+export const CLICKUP_SEND_RATE_LIMIT = { limit: 20, windowMs: 10 * 60 * 1000 } as const;
 
 /** List reads per member (channels and people together): each one asks ClickUp. */
-const reads = createRateLimiter({ limit: 60 * MULTIPLIER, windowMs: 10 * 60 * 1000 });
+export const CLICKUP_READ_RATE_LIMIT = { limit: 60, windowMs: 10 * 60 * 1000 } as const;
+
+const sends = createRateLimiter({
+  ...CLICKUP_SEND_RATE_LIMIT,
+  limit: CLICKUP_SEND_RATE_LIMIT.limit * MULTIPLIER,
+});
+const reads = createRateLimiter({
+  ...CLICKUP_READ_RATE_LIMIT,
+  limit: CLICKUP_READ_RATE_LIMIT.limit * MULTIPLIER,
+});
 
 export interface ClickUpServices {
   apiUrl: string;

@@ -174,16 +174,20 @@ export async function deleteBlob(
 }
 
 /**
- * Rows of project files whose project is gone (`project_id` set to null by
- * 019's foreign key), oldest first: what the cron deletes, files first.
+ * A row of a project file whose project is gone (`project_id` set to null by
+ * 019's foreign key): what the cron deletes, files first. A logo's row has no
+ * project either, and never matches.
  */
+const ORPHANED_ROW = "project_id IS NULL AND key LIKE 'ws/%/project/%'";
+
+/** `ORPHANED_ROW`s, oldest first. */
 export async function orphanedBlobRows(
   db: Queryable,
   limit: number,
 ): Promise<Array<{ workspaceId: string; path: string; location: BlobLocation }>> {
   const { rows } = await db.query<BlobRow & { workspace_id: string }>(
     `SELECT workspace_id, key, content_type, size, bytes, blob_url FROM workspace_blobs
-     WHERE project_id IS NULL AND key LIKE 'ws/%/project/%'
+     WHERE ${ORPHANED_ROW}
      ORDER BY created_at LIMIT $1`,
     [limit],
   );
@@ -192,6 +196,15 @@ export async function orphanedBlobRows(
     path: row.key,
     location: toLocation(row),
   }));
+}
+
+/** How many `ORPHANED_ROW`s there are, and their bytes: the admin's dry run, deleting nothing. */
+export async function orphanedBlobTotals(db: Queryable): Promise<{ files: number; bytes: number }> {
+  const { rows } = await db.query<{ files: number; bytes: string | number }>(
+    `SELECT count(*)::int AS files, coalesce(sum(size), 0) AS bytes FROM workspace_blobs
+     WHERE ${ORPHANED_ROW}`,
+  );
+  return { files: rows[0]?.files ?? 0, bytes: Number(rows[0]?.bytes ?? 0) };
 }
 
 export async function deleteBlobRows(

@@ -59,13 +59,22 @@ export type ShareAction =
  * is the actor, with the workspace's id. A new reset link targets the owner
  * it's for (never the link or its token); the rest target the workspace.
  */
-export type AdminAction =
+export type AdminWorkspaceAction =
   | "admin.workspace_quota_changed"
   | "admin.owner_reset_link_created"
   | "admin.workspace_suspended"
   | "admin.workspace_unsuspended"
   | "admin.workspace_archived"
   | "admin.workspace_unarchived";
+
+/**
+ * What the Squint admin does to Squint as a whole: running the daily cleanup
+ * from the Storage page. No workspace and no target; its counts are in
+ * `cron_runs`, not the log.
+ */
+export type AdminSystemAction = "admin.sweep_run";
+
+export type AdminAction = AdminWorkspaceAction | AdminSystemAction;
 
 /** What `project.clickup_sent` keeps: the ClickUp workspace and channel ids, and whether it was assigned. */
 export interface ClickUpSentMeta {
@@ -87,7 +96,8 @@ export interface AuditEntry {
     | ProjectAction
     | ShareAction
     | AdminAction;
-  target: { type: "user" | "workspace" | "project" | "invite"; id: string };
+  /** What it was done to; null for the admin's actions on Squint as a whole. */
+  target: { type: "user" | "workspace" | "project" | "invite"; id: string } | null;
   /** The fields that changed: never a value, an email, a hash or a token. */
   fields: readonly string[];
   /**
@@ -116,8 +126,8 @@ export async function audit(db: Queryable, entry: AuditEntry, now: number): Prom
       entry.actorUserId,
       entry.workspaceId ?? null,
       entry.action,
-      entry.target.type,
-      entry.target.id,
+      entry.target?.type ?? null,
+      entry.target?.id ?? null,
       JSON.stringify({ fields: entry.fields, ...entry.meta }),
       new Date(now),
     ],
@@ -164,10 +174,24 @@ export async function auditWorkspace(
 export async function auditAdmin(
   db: Queryable,
   { adminId, workspaceId }: { adminId: string; workspaceId: string },
-  action: Exclude<AdminAction, "admin.owner_reset_link_created">,
+  action: Exclude<AdminWorkspaceAction, "admin.owner_reset_link_created">,
   fields: readonly string[],
   now: number,
 ): Promise<void> {
   const target = { type: "workspace", id: workspaceId } as const;
   await audit(db, { actorUserId: adminId, workspaceId, action, target, fields }, now);
+}
+
+/**
+ * Records what the Squint admin did to Squint as a whole: no workspace, no
+ * target, and `fields` names only.
+ */
+export async function auditAdminSystem(
+  db: Queryable,
+  adminId: string,
+  action: AdminSystemAction,
+  fields: readonly string[],
+  now: number,
+): Promise<void> {
+  await audit(db, { actorUserId: adminId, action, target: null, fields }, now);
 }

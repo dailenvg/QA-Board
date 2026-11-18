@@ -1,6 +1,12 @@
 import type { AuditCategory } from "@/lib/admin/audit-category";
 import { MAX_QUOTA_GB, MIN_QUOTA_GB } from "@/lib/admin/quota";
+import type { RateLimitBackend, RateLimitId, RateLimitScope } from "@/lib/admin/rate-limits";
+import type { ServiceId } from "@/lib/admin/services";
+import type { StorageActionError } from "@/lib/admin/storage-client";
 import type { AdminActionError } from "@/lib/admin/workspaces-client";
+import type { CronRunStatus } from "@/lib/cron/cron-runs";
+import type { CronTrigger, ExpiryStep } from "@/lib/cron/expiry-steps";
+import type { CRON_SCHEDULE } from "@/lib/cron/schedule";
 import type { MemberSwitch } from "@/lib/auth/permissions";
 import { REVIEW_WINDOW_LABELS, type ReviewWindowChoice } from "@/lib/share/review-window";
 import { MEMBERS_COPY } from "../account/members-copy";
@@ -19,6 +25,79 @@ function switchNames(switches: readonly MemberSwitch[]): string {
 export function entryCount(n: number): string {
   return `${number.format(n)} ${n === 1 ? "entry" : "entries"}`;
 }
+
+/** "1 file", "1,204 files". */
+export function fileCount(n: number): string {
+  return `${number.format(n)} ${n === 1 ? "file" : "files"}`;
+}
+
+/** A run's length: "Under 1 s", "12 s", "1 min 5 s". */
+export function runDuration(ms: number): string {
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 1) return "Under 1 s";
+  if (seconds < 60) return `${seconds} s`;
+  const rest = seconds % 60;
+  return rest ? `${Math.floor(seconds / 60)} min ${rest} s` : `${seconds / 60} min`;
+}
+
+/** A run as it goes, by the whole seconds so far: "Starting", then "Running for 12 s". */
+function runningFor(seconds: number | null): string {
+  return seconds === null || seconds < 1
+    ? "Starting"
+    : `Running for ${runDuration(seconds * 1000)}`;
+}
+
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+
+/** A limit's window: "minute", "15 minutes", "hour", "day". */
+function windowLabel(ms: number): string {
+  const [size, unit] =
+    ms % DAY_MS === 0
+      ? [ms / DAY_MS, "day"]
+      : ms % HOUR_MS === 0
+        ? [ms / HOUR_MS, "hour"]
+        : [ms / MINUTE_MS, "minute"];
+  return size === 1 ? unit : `${number.format(size)} ${unit}s`;
+}
+
+/** What a rate limit counts by, after "per". */
+const RATE_LIMIT_SCOPES: Record<RateLimitScope, string> = {
+  address: "IP address",
+  email: "email address",
+  account: "account",
+  link: "review link",
+  workspace: "workspace",
+  member: "member",
+};
+
+/** Each cleanup step in plain words, as what it deletes. */
+export const STEP_LABELS = {
+  shares: "Expired review links",
+  blobs: "Review link files left behind",
+  passwordAttempts: "Wrong review link password tries",
+  inviteSends: "Review link invitation records",
+  memberInvites: "Ended workspace invites",
+  memberInviteSends: "Workspace invite email records",
+  trash: "Projects past 30 days in the trash",
+  archived: "Archived projects past their date",
+  accounts: "Deleted accounts past 30 days",
+  workspaceBlobs: "Workspace files with no record",
+  pins: "Pinpoint pins past 30 days",
+} as const satisfies Record<ExpiryStep, string>;
+
+/** Steps by name, in plain words: "expired review links, pinpoint pins past 30 days". */
+function stepNames(steps: readonly ExpiryStep[]): string {
+  return steps
+    .map((step, index) => (index ? STEP_LABELS[step].toLowerCase() : STEP_LABELS[step]))
+    .join(", ");
+}
+
+/** The cleanup's schedule in words, by the cron expression `vercel.json` sets. */
+const SCHEDULE_LABELS: Record<typeof CRON_SCHEDULE, string> = {
+  "0 4 * * *": "daily at 04:00 UTC",
+};
 
 /**
  * Each field name the app records, in plain words; a name not listed here
@@ -221,6 +300,218 @@ export const ADMIN_COPY = {
     } satisfies Record<AdminActionError, string>,
     retry: "Try again",
   },
+  storage: {
+    loading: "Loading storage…",
+    /** The two tiles' section, for screen readers. */
+    summary: "Storage and cleanup",
+    errors: {
+      running:
+        "The cleanup is already running. Give it a minute, then check its last run on the System page.",
+      "signed-out": "You're signed out. Sign in again, then try once more.",
+      "not-found": "You're no longer signed in as the admin. Reload the page.",
+      offline: "Couldn't reach Squint. Check your connection and try again.",
+      failed: "Something went wrong on Squint's side. Try again.",
+    } satisfies Record<StorageActionError, string>,
+    total: {
+      label: "Stored",
+      /** "1,204 files across every workspace". */
+      note: (files: number) => `${fileCount(files)} across every workspace`,
+    },
+    workspaces: {
+      title: "Workspaces storing the most",
+      description: "The 10 biggest, against their storage quota.",
+      emptyTitle: "Nothing stored yet",
+      emptyBody: "Workspaces show up here once they store files.",
+      owner: "Owner",
+    },
+    projects: {
+      title: "Projects storing the most",
+      description:
+        "The 10 biggest across every workspace. Projects in the trash count until they're deleted for good.",
+      emptyTitle: "Nothing stored yet",
+      emptyBody: "Projects show up here once they hold uploads, snapshots or comment screenshots.",
+      /** "in Acme". */
+      inWorkspace: (name: string) => `in ${name}`,
+      trashed: "In the trash",
+      size: "Size",
+    },
+    orphans: {
+      title: "Orphaned files",
+      description:
+        "Files left behind by a failed delete or an unfinished upload. The daily cleanup deletes them. A check runs only when you ask, since Vercel Blob charges for it.",
+      check: "Check for orphans",
+      checking: "Checking…",
+      checkAgain: "Check again",
+      idleTitle: "Not checked yet",
+      idleBody: "Check to count what the next cleanup would delete. Nothing is deleted.",
+      categories: {
+        shareFiles: "Review link files with no live link",
+        workspaceRows: "File records whose project is gone",
+        unrecordedFiles: "Workspace, logo and photo files with no record",
+      },
+      /** A category that doesn't apply: its files aren't kept in Vercel Blob on this deployment. */
+      notApplicable: "Not in Vercel Blob here",
+      /** "3 files, 1.2 MB". */
+      tally: (files: number, bytes: string | null) =>
+        bytes === null ? `${fileCount(files)}, size unknown` : `${fileCount(files)}, ${bytes}`,
+      none: "None",
+      partial: "The check ran out of time before it saw every file, so there may be more.",
+      /** "Checked Nov 18, 2026, 09:05 UTC". */
+      checkedAt: (when: string) => `Checked ${when}`,
+      failed: "Couldn't check just now. Nothing was deleted. Try again.",
+    },
+    sweep: {
+      title: "Daily cleanup",
+      /** "Runs daily at 04:00 UTC." */
+      schedule: (schedule: typeof CRON_SCHEDULE) => `Runs ${SCHEDULE_LABELS[schedule]}.`,
+      run: "Run sweep",
+      /** In place of `run` while a run started here goes on with its dialog closed: reopens it. */
+      seeProgress: "See progress",
+      /** In place of `run` once that run finished with its dialog closed: reopens it on the result. */
+      seeResult: "See result",
+      /**
+       * "Last run Nov 18, 2026, 04:00 UTC: Finished", in three parts so only
+       * the date sits in a `<time>`: the label, the date, then the status.
+       */
+      lastRun: {
+        label: "Last run",
+        /** After the date: ": Finished". */
+        status: (status: string) => `: ${status}`,
+      },
+      /** In place of the last run while a run started here goes on with its dialog closed. */
+      runningNow: "Running now…",
+      neverRun: "It hasn't run yet.",
+      dialog: {
+        title: "Run the daily cleanup now?",
+        description:
+          "It deletes everything that's due: expired review links, projects past their time in the trash or archive, deleted accounts past 30 days, and orphaned files. What it deletes is gone for good.",
+        checking: "Counting orphaned files…",
+        orphans: "Orphaned files it would delete",
+        checkFailed: "Couldn't count orphaned files. You can still run the cleanup.",
+        checkAgain: "Count again",
+        cancel: "Cancel",
+        /** In place of `cancel` while it runs: closing doesn't stop it. */
+        close: "Close",
+        confirm: "Run sweep",
+        pending: "Running…",
+        /** Read out once as it starts (a polite live region). */
+        started: "Running the cleanup. It can take up to a minute.",
+        /**
+         * Under the progress bar while it runs, the time ticking each second:
+         * "Running for 12 s. Closing this won't stop it."
+         */
+        progress: (seconds: number | null) => `${runningFor(seconds)}. Closing this won't stop it.`,
+        done: "Done",
+      },
+      result: {
+        finished: "The cleanup finished.",
+        partial: "The cleanup ran out of time. The next run carries on where it stopped.",
+        /** "Some steps failed: expired review links, pinpoint pins past 30 days. The next run tries them again." */
+        failed: (steps: readonly ExpiryStep[]) =>
+          `Some steps failed: ${stepNames(steps)}. The next run tries them again.`,
+        deleted: "Deleted",
+        nothing: "Nothing was due.",
+        /** A step's count: "2". */
+        count: (n: number) => number.format(n),
+      },
+    },
+  },
+  system: {
+    loading: "Loading the system summary…",
+    services: {
+      title: "Services",
+      description: "Whether each one is set up on this deployment. Values are never shown here.",
+      configured: "Configured",
+      notConfigured: "Not configured",
+      optional: "Optional",
+      items: {
+        database: { name: "Database", what: "Postgres, for accounts, workspaces and review links" },
+        blob: { name: "Blob storage", what: "Vercel Blob, for uploads, snapshots and photos" },
+        resendKey: { name: "Email sending", what: "The Resend API key" },
+        emailFrom: { name: "Email sender", what: "The address emails come from" },
+        authSecret: {
+          name: "Auth secret",
+          what: "Seals review link secrets, guest passes and ClickUp tokens",
+        },
+        projectAuthKey: { name: "Project auth key", what: "Reserved for a later milestone" },
+        cronSecret: { name: "Cron secret", what: "Lets Vercel Cron run the daily cleanup" },
+        authUrl: {
+          name: "Auth URL",
+          what: "Where reset, email change and ClickUp links point. Without it, the site's own address",
+        },
+        clickUp: { name: "ClickUp", what: "Members connect their own ClickUp" },
+        captureService: {
+          name: "Capture service",
+          what: "An outside service for website captures. Without it, this server captures",
+        },
+        pinpointGitHub: { name: "Pinpoint GitHub storage", what: "Keeps widget pins in GitHub" },
+        pinpointReviewToken: {
+          name: "Pinpoint review token",
+          what: "Turns on the review link page",
+        },
+      } satisfies Record<ServiceId, { name: string; what: string }>,
+    },
+    cron: {
+      title: "Daily cleanup runs",
+      /** "Runs daily at 04:00 UTC. The latest 20 runs, newest first, with times in UTC." */
+      description: (schedule: typeof CRON_SCHEDULE, shown: number) =>
+        `Runs ${SCHEDULE_LABELS[schedule]}. The latest ${shown} runs, newest first, with times in UTC.`,
+      columns: { trigger: "Started by", started: "Started", duration: "Took", status: "Status" },
+      trigger: { schedule: "Schedule", admin: "Admin" } satisfies Record<CronTrigger, string>,
+      status: {
+        finished: "Finished",
+        partial: "Partly done",
+        failed: "Failed steps",
+        running: "Running",
+        abandoned: "Didn't finish",
+      } satisfies Record<CronRunStatus, string>,
+      /** Under a failed run's status: "Expired review links, pinpoint pins past 30 days". */
+      failedSteps: (steps: readonly ExpiryStep[]) => stepNames(steps),
+      noDuration: "Not finished",
+      emptyTitle: "No runs yet",
+      emptyBody: "Runs show up here once the schedule or Run sweep starts one.",
+    },
+    rateLimits: {
+      title: "Rate limits",
+      description:
+        "Every limit Squint applies. Postgres limits hold across all servers. In-memory ones count per server instance, so they're a brake, not an exact cap.",
+      backends: {
+        postgres: "Postgres, across every server",
+        memory: "In memory, per server instance",
+      } satisfies Record<RateLimitBackend, string>,
+      /** "5 per 15 minutes, per email address". */
+      rule: (limit: number, windowMs: number, per: RateLimitScope) =>
+        `${number.format(limit)} per ${windowLabel(windowMs)}, per ${RATE_LIMIT_SCOPES[per]}`,
+      items: {
+        signInEmail: "Failed sign-ins",
+        signInAddress: "Failed sign-ins",
+        resetEmails: "Password reset emails",
+        emailChanges: "Email change requests",
+        linkPasswordLink: "Wrong review link passwords",
+        linkPasswordAddress: "Wrong review link passwords",
+        linkInvitesWorkspace: "Review link invitation emails",
+        linkInvitesMember: "Review link invitation emails",
+        memberInvites: "Workspace invite emails",
+        resetRequests: "Password reset requests",
+        join: "Accepting workspace invites",
+        imageUploads: "Photo and logo uploads",
+        capture: "Website captures",
+        shareCreate: "New review links",
+        shareOwnerWrite: "Review link changes by its owner",
+        shareOwnerRead: "Review link reads by its owner",
+        clientRead: "Client reads of a review link",
+        clientComment: "Client comments",
+        clientEdit: "Client comment edits",
+        clientCapture: "Client website captures",
+        clientUnlock: "Review link password tries",
+        card: "Link preview cards",
+        clickUpConnect: "ClickUp connect attempts",
+        clickUpSend: "Sends to ClickUp",
+        clickUpRead: "ClickUp list reads",
+        pinpoint: "Pinpoint widget pins",
+      } satisfies Record<RateLimitId, string>,
+    },
+  },
   categories: {
     account: "Accounts",
     workspace: "Workspaces",
@@ -332,6 +623,7 @@ export const ACTION_LABELS: Readonly<Record<string, string>> = {
   "admin.workspace_unsuspended": "Lifted workspace suspension",
   "admin.workspace_archived": "Archived workspace",
   "admin.workspace_unarchived": "Unarchived workspace",
+  "admin.sweep_run": "Ran daily cleanup",
   "seed.user_created": "Created account during setup",
   "seed.workspace_created": "Created workspace during setup",
   "seed.owner_linked": "Made workspace owner during setup",

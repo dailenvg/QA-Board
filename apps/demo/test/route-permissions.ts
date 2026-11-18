@@ -16,8 +16,9 @@ import type { Permission } from "@/lib/auth/permissions";
  * - `guest`: a review link's token (`asClient`).
  * - `public`: anyone (each route checks its own token or limit, if any).
  * - `cron-secret`: the cron's bearer secret.
- * - `admin`: the Squint admin only (`withAdminWorkspace`): 401 signed out,
- *   404 for anyone else (`workspace-routes.test.ts`).
+ * - `admin`: the Squint admin only (`withAdminWorkspace`, `withAdmin`): 401
+ *   signed out, 404 for anyone else (`workspace-routes.test.ts`,
+ *   `storage-routes.test.ts`).
  */
 export type RouteAccess =
   | { kind: "permission"; permission: Permission }
@@ -117,6 +118,9 @@ export const ROUTE_PERMISSIONS: Record<string, Record<string, RouteAccess>> = {
   "/api/admin/workspaces/:id/reset-link": { POST: ADMIN },
   "/api/admin/workspaces/:id/suspension": { PUT: ADMIN, DELETE: ADMIN },
   "/api/admin/workspaces/:id/archive": { PUT: ADMIN, DELETE: ADMIN },
+  // The Storage page's orphan check and Run sweep (`withAdmin`).
+  "/api/admin/storage/orphans": { POST: ADMIN },
+  "/api/admin/sweep": { POST: ADMIN },
 
   // A share's owner (A5). Revoking a workspace's link also needs the review-links switch.
   "/api/shares": { POST: SIGNED_IN },

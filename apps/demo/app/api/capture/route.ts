@@ -1,7 +1,7 @@
 import { apiSession } from "@/lib/auth/guards";
 import { capture } from "@/lib/capture/capture";
 import { CaptureError } from "@/lib/capture/capture-error";
-import { captureFailure } from "@/lib/capture/http";
+import { CAPTURE_RATE_LIMIT, captureFailure } from "@/lib/capture/http";
 import { parseCaptureInput } from "@/lib/capture/input";
 import { clientAddress, createRateLimiter } from "@/lib/capture/rate-limit";
 import { CAPTURE_HEADERS } from "@/lib/capture/types";
@@ -14,7 +14,7 @@ export const maxDuration = 60;
 const MAX_BODY_CHARS = 4096;
 const NO_STORE = { "cache-control": "no-store" };
 
-const limit = createRateLimiter({ limit: 10, windowMs: 60_000 });
+const limit = createRateLimiter(CAPTURE_RATE_LIMIT);
 
 async function readBody(request: Request): Promise<unknown> {
   const text = await request.text();

@@ -1,4 +1,9 @@
-import { sweepOrphanBlobs, type SweepResult } from "./orphan-blobs";
+import {
+  countOrphanBlobs,
+  sweepOrphanBlobs,
+  type OrphanScan,
+  type SweepResult,
+} from "./orphan-blobs";
 import type { BlobLocation } from "./types";
 
 /** Where image bytes go: inline in the share store, or Vercel Blob. */
@@ -23,6 +28,12 @@ export interface BlobBackend {
     isLive: (shareId: string) => Promise<boolean>,
     deadline: number,
   ): Promise<SweepResult>;
+  /** What `sweep` would delete, counted, deleting nothing: the admin's dry run. */
+  scan?(
+    before: number,
+    isLive: (shareId: string) => Promise<boolean>,
+    deadline: number,
+  ): Promise<OrphanScan>;
 }
 
 /** Bytes live in the store itself (Postgres `bytea`, or memory). */
@@ -39,6 +50,11 @@ export const inlineBackend: BlobBackend = {
  */
 export function vercelBackend(token: string): BlobBackend {
   const sdk = () => import("@vercel/blob");
+  /** One page of every share's files (`squint/`). */
+  const listShareFiles = async (cursor?: string) => {
+    const { list } = await sdk();
+    return list({ prefix: "squint/", token, ...(cursor ? { cursor } : {}) });
+  };
   return {
     async save(shareId, key, bytes, contentType, signal) {
       const { put } = await sdk();
@@ -68,13 +84,10 @@ export function vercelBackend(token: string): BlobBackend {
       await del(urls, { token }).catch(() => undefined);
     },
     async sweep(before, isLive, deadline) {
-      const { del, list } = await sdk();
-      const api = {
-        list: (cursor?: string) =>
-          list({ prefix: "squint/", token, ...(cursor ? { cursor } : {}) }),
-        del: (urls: string[]) => del(urls, { token }),
-      };
+      const { del } = await sdk();
+      const api = { list: listShareFiles, del: (urls: string[]) => del(urls, { token }) };
       return sweepOrphanBlobs(api, before, isLive, deadline);
     },
+    scan: (before, isLive, deadline) => countOrphanBlobs(listShareFiles, before, isLive, deadline),
   };
 }
