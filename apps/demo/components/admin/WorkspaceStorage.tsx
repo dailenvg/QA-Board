@@ -32,11 +32,7 @@ export function WorkspaceStorage({ usedBytes, quotaBytes }: WorkspaceStorageProp
   const labelId = useId();
   const over = usedBytes > quotaBytes;
   return (
-    <div
-      className="flex min-w-0 flex-col gap-1.5"
-      data-testid="workspace-storage"
-      data-level={level}
-    >
+    <div className="flex min-w-0 flex-col gap-2" data-testid="workspace-storage" data-level={level}>
       <p id={labelId} className="text-meta text-muted tabular-nums wrap-anywhere">
         <span className="font-semibold text-ink">{formatBytes(usedBytes)}</span>{" "}
         {COPY.ofQuota(formatBytes(quotaBytes))}

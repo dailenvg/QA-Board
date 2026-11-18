@@ -48,7 +48,7 @@ function Cell({
   className?: string;
 }) {
   return (
-    <div className={`flex min-w-0 flex-col gap-0.5 ${className}`}>
+    <div className={`flex min-w-0 flex-col gap-1 ${className}`}>
       <p className="text-label text-muted md:sr-only">{label}</p>
       <div className="min-w-0 text-body text-ink">{children}</div>
     </div>
@@ -148,9 +148,12 @@ export function WorkspaceItem({ workspace, order, pending, ...handlers }: Worksp
       >
         <div className="flex items-start gap-3 md:contents">
           <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
+            {/*
+              Wraps rather than truncates: a title tooltip never reaches touch or keyboard,
+              and names are at most 80 characters.
+            */}
             <h3
-              className="max-w-full truncate text-nav font-semibold text-ink"
-              title={workspace.name}
+              className="max-w-full text-nav font-semibold text-ink wrap-break-word"
               data-testid="workspace-name"
             >
               {workspace.name}

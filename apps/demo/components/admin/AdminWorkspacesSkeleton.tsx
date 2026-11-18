@@ -13,18 +13,27 @@ function CardSkeleton({ rows }: { rows: number }) {
           <Skeleton className="h-3 w-full max-w-md" />
         </div>
       </div>
+      {/* Laid out as `WorkspaceItem` is: on phones the name beside its menu, then the values. */}
       <div className="flex flex-col divide-y divide-line">
         {Array.from({ length: rows }, (_, index) => (
-          <div key={index} className={`flex flex-col gap-3 py-4 ${WORKSPACE_GRID}`}>
-            <div className="flex flex-col gap-2">
-              <Skeleton className="h-4 w-40 max-w-full" />
-              <Skeleton className="h-3 w-48 max-w-full" />
+          <div
+            key={index}
+            className={`flex flex-col gap-3 py-4 first:pt-0 last:pb-0 md:py-3 ${WORKSPACE_GRID}`}
+          >
+            <div className="flex items-start gap-3 md:contents">
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
+                <Skeleton className="h-4 w-40 max-w-full" />
+                <Skeleton className="h-3 w-48 max-w-full" />
+                <Skeleton className="h-6 w-20 rounded-pin" />
+              </div>
+              <Skeleton className="size-11 shrink-0 rounded-pill md:order-last md:justify-self-end" />
             </div>
-            <Skeleton className="h-4 w-8 max-md:hidden" />
-            <Skeleton className="h-4 w-8 max-md:hidden" />
-            <Skeleton className="h-3 w-full" />
-            <Skeleton className="h-3 w-24" />
-            <Skeleton className="size-11 shrink-0 rounded-pill max-md:hidden" />
+            <div className="grid grid-cols-2 gap-3 md:contents">
+              <Skeleton className="h-4 w-8" />
+              <Skeleton className="h-4 w-8" />
+              <Skeleton className="col-span-2 h-3 w-full" />
+              <Skeleton className="col-span-2 h-3 w-24" />
+            </div>
           </div>
         ))}
       </div>
