@@ -10,6 +10,7 @@ describe("auditCategory", () => {
     ["member.invited", "people"],
     ["project.clickup_sent", "projects"],
     ["share.invites_sent", "reviewLinks"],
+    ["admin.workspace_suspended", "admin"],
     ["seed.user_created", "other"],
     ["toString.x", "other"],
     ["", "other"],

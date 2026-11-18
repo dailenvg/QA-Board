@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { utcDateTime, utcDay } from "./utc-format";
+import { utcDate, utcDateTime, utcDay, utcTime } from "./utc-format";
 
 describe("utc-format", () => {
   it("spells out dates and times in UTC, whatever the local zone", () => {
@@ -7,5 +7,7 @@ describe("utc-format", () => {
     expect(utcDay(at)).toBe("Nov 7");
     expect(utcDateTime(at)).toBe("Nov 7, 2026, 09:05 UTC");
     expect(utcDateTime(Date.UTC(2026, 0, 31, 23, 59))).toBe("Jan 31, 2026, 23:59 UTC");
+    expect(utcDate(at)).toBe("Nov 7, 2026");
+    expect(utcTime(at)).toBe("09:05 UTC");
   });
 });

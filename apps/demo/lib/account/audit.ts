@@ -54,6 +54,19 @@ export type ProjectAction = "project.deleted" | "project.clickup_sent";
 export type ShareAction =
   "share.settings_changed" | "share.password_set" | "share.password_removed" | "share.invites_sent";
 
+/**
+ * What the Squint admin does to a workspace from the admin panel: the admin
+ * is the actor, with the workspace's id. A new reset link targets the owner
+ * it's for (never the link or its token); the rest target the workspace.
+ */
+export type AdminAction =
+  | "admin.workspace_quota_changed"
+  | "admin.owner_reset_link_created"
+  | "admin.workspace_suspended"
+  | "admin.workspace_unsuspended"
+  | "admin.workspace_archived"
+  | "admin.workspace_unarchived";
+
 /** What `project.clickup_sent` keeps: the ClickUp workspace and channel ids, and whether it was assigned. */
 export interface ClickUpSentMeta {
   clickUpTeamId: string;
@@ -72,7 +85,8 @@ export interface AuditEntry {
     | MembershipAction
     | MemberInviteAction
     | ProjectAction
-    | ShareAction;
+    | ShareAction
+    | AdminAction;
   target: { type: "user" | "workspace" | "project" | "invite"; id: string };
   /** The fields that changed: never a value, an email, a hash or a token. */
   fields: readonly string[];
@@ -141,4 +155,19 @@ export async function auditWorkspace(
 ): Promise<void> {
   const target = { type: "workspace", id: workspaceId } as const;
   await audit(db, { actorUserId: userId, workspaceId, action, target, fields }, now);
+}
+
+/**
+ * Records what the Squint admin did to a workspace from the admin panel.
+ * As with `auditAccount`, `meta` names the fields only, never their values.
+ */
+export async function auditAdmin(
+  db: Queryable,
+  { adminId, workspaceId }: { adminId: string; workspaceId: string },
+  action: Exclude<AdminAction, "admin.owner_reset_link_created">,
+  fields: readonly string[],
+  now: number,
+): Promise<void> {
+  const target = { type: "workspace", id: workspaceId } as const;
+  await audit(db, { actorUserId: adminId, workspaceId, action, target, fields }, now);
 }

@@ -26,8 +26,12 @@ type Body = "json" | "bytes";
 
 const WRITES = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
-/** A write from another site, or with a body type a plain form could send: refused before any work. */
-function refuseWrite(request: Request, body: Body): Response | null {
+/**
+ * A write from another site (403), or with a body type a plain form could
+ * send (415): refused before any work. Null for reads and for a same-site
+ * write of the right type. The admin routes refuse the same way (`withAdmin`).
+ */
+export function refuseWrite(request: Request, body: Body = "json"): Response | null {
   if (!WRITES.has(request.method)) return null;
   if (isCrossSite(request)) return crossSiteRefusal();
   const typed = body === "json" ? isJsonRequest(request) : isBytesRequest(request);

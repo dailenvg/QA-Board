@@ -16,11 +16,13 @@ import type { Permission } from "@/lib/auth/permissions";
  * - `guest`: a review link's token (`asClient`).
  * - `public`: anyone (each route checks its own token or limit, if any).
  * - `cron-secret`: the cron's bearer secret.
+ * - `admin`: the Squint admin only (`withAdminWorkspace`): 401 signed out,
+ *   404 for anyone else (`workspace-routes.test.ts`).
  */
 export type RouteAccess =
   | { kind: "permission"; permission: Permission }
   | { kind: "owner-key+member"; permission?: Permission }
-  | { kind: "self" | "signed-in" | "guest" | "public" | "cron-secret" };
+  | { kind: "self" | "signed-in" | "guest" | "public" | "cron-secret" | "admin" };
 
 const may = (permission: Permission): RouteAccess => ({ kind: "permission", permission });
 const READ = may("workspace.read");
@@ -30,6 +32,7 @@ const SIGNED_IN: RouteAccess = { kind: "signed-in" };
 const GUEST: RouteAccess = { kind: "guest" };
 const PUBLIC: RouteAccess = { kind: "public" };
 const OWNER_KEY: RouteAccess = { kind: "owner-key+member" };
+const ADMIN: RouteAccess = { kind: "admin" };
 
 export const ROUTE_PERMISSIONS: Record<string, Record<string, RouteAccess>> = {
   // The workspace (`withMember`).
@@ -108,6 +111,12 @@ export const ROUTE_PERMISSIONS: Record<string, Record<string, RouteAccess>> = {
   "/api/account/sessions": { DELETE: SELF },
   "/api/account/avatar": { GET: SELF, PUT: SELF, DELETE: SELF },
   "/api/account/integrations/clickup": { POST: SELF, DELETE: SELF },
+
+  // The admin panel's workspace actions.
+  "/api/admin/workspaces/:id/quota": { PUT: ADMIN },
+  "/api/admin/workspaces/:id/reset-link": { POST: ADMIN },
+  "/api/admin/workspaces/:id/suspension": { PUT: ADMIN, DELETE: ADMIN },
+  "/api/admin/workspaces/:id/archive": { PUT: ADMIN, DELETE: ADMIN },
 
   // A share's owner (A5). Revoking a workspace's link also needs the review-links switch.
   "/api/shares": { POST: SIGNED_IN },

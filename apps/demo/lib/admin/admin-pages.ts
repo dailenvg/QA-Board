@@ -11,6 +11,7 @@ import {
   type AuditParams,
 } from "./audit-query";
 import { loadAdminOverview, type AdminOverview } from "./overview";
+import { loadAdminWorkspaces, type AdminWorkspaces } from "./workspaces";
 
 /**
  * What the admin pages read on the server. Each one checks the session is the
@@ -59,4 +60,10 @@ export function loadAuditLogPage(search: SearchParams): Promise<AuditLogPage> {
     ]);
     return { params, page, options };
   });
+}
+
+export type AdminWorkspacesPage = AdminRead<{ workspaces: AdminWorkspaces }>;
+
+export function loadAdminWorkspacesPage(): Promise<AdminWorkspacesPage> {
+  return readAsAdmin("workspaces", async (db) => ({ workspaces: await loadAdminWorkspaces(db) }));
 }

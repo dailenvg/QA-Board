@@ -72,6 +72,20 @@ export async function apiAccount(request: Request): Promise<ApiAccount> {
   return session ? { ok: true, ...session } : { ok: false, response: unauthenticated() };
 }
 
+/**
+ * For the admin panel's route handlers: `apiAccount` for the Squint admin
+ * only. Signed out is a JSON 401; anyone else signed in gets a JSON 404, as
+ * if the route didn't exist (`requireAdmin`'s answer for pages).
+ */
+export async function apiAdmin(request: Request): Promise<ApiAccount> {
+  const account = await apiAccount(request);
+  if (!account.ok || account.user.role === "admin") return account;
+  return {
+    ok: false,
+    response: Response.json({ error: "not-found" }, { status: 404, headers: NO_STORE }),
+  };
+}
+
 /** `apiAccount`'s user alone. */
 export async function apiSignedIn(
   request: Request,

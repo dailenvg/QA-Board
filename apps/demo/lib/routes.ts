@@ -82,9 +82,17 @@ export function isAccountPath(pathname: string): boolean {
   return pathname === ACCOUNT_HREF || pathname.startsWith(`${ACCOUNT_HREF}/`);
 }
 
-/** The admin panel, for the Squint admin only: its Overview, and the audit log. */
+/** The admin panel, for the Squint admin only: its Overview, workspaces and audit log. */
 export const ADMIN_HREF = "/admin";
+export const ADMIN_WORKSPACES_HREF = "/admin/workspaces";
 export const ADMIN_AUDIT_HREF = "/admin/audit";
+
+/** What the admin can do to a workspace, by its route under `/api/admin/workspaces/<id>/`. */
+export type AdminWorkspaceRoute = "quota" | "reset-link" | "suspension" | "archive";
+
+export function adminWorkspaceApi(workspaceId: string, route: AdminWorkspaceRoute): string {
+  return `/api/admin/workspaces/${encodeURIComponent(workspaceId)}/${route}`;
+}
 
 /** Whether `pathname` is in the admin panel. */
 export function isAdminPath(pathname: string): boolean {
