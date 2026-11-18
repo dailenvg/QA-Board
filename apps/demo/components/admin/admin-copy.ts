@@ -332,6 +332,7 @@ export const ACTION_LABELS: Readonly<Record<string, string>> = {
   "admin.workspace_unsuspended": "Lifted workspace suspension",
   "admin.workspace_archived": "Archived workspace",
   "admin.workspace_unarchived": "Unarchived workspace",
+  "admin.sweep_run": "Ran the daily cleanup",
   "seed.user_created": "Created account during setup",
   "seed.workspace_created": "Created workspace during setup",
   "seed.owner_linked": "Made workspace owner during setup",
