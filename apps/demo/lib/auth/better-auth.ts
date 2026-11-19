@@ -33,7 +33,8 @@ function createAuth(db: Database) {
   return betterAuth({
     appName: "Squint",
     baseURL: origin.origin,
-    secret: authSecret(),
+    // As a list, so a BETTER_AUTH_SECRETS in the environment can't stand in for Squint's key.
+    secrets: [{ version: 0, value: authSecret() }],
     // Built from a database already connected and migrated: the pool is only opened on first use.
     database: {
       dialect: new PostgresDialect({ pool: () => Promise.resolve(databasePool(db)) }),

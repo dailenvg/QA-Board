@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { insertUser, NOW, PASSWORD } from "@/test/accounts-fixture";
 import { addMember, membersWorld, removeMember } from "@/test/members-fixture";
 import { migratedPglite } from "@/test/pglite";
@@ -122,6 +122,28 @@ describe("Better Auth on Squint's tables", () => {
       [[ben.user.id, world.owner.user.id]],
     );
     expect(rows).toEqual([]);
+  });
+});
+
+describe("Better Auth's secret", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("is Squint's derived key, whatever BETTER_AUTH_SECRETS says", async () => {
+    vi.stubEnv("BETTER_AUTH_SECRETS", `1:${"z".repeat(64)}`);
+    const db = await migratedPglite();
+    await insertUser(db, EMAIL);
+    expect((await authFor(db).$context).secret).toBe(authSecret());
+    const { headers, response } = await authFor(db).api.signInEmail({
+      body: { email: EMAIL, password: PASSWORD },
+      returnHeaders: true,
+    });
+    const value = decodeURIComponent(
+      /^squint_session=([^;]+);/.exec(headers.get("set-cookie") ?? "")?.[1] ?? "",
+    );
+    expect(value).toBe(signSessionToken(response.token, authSecret()));
+    expect((await findSessionUser(db, cookieOf(value)))?.email).toBe(EMAIL);
   });
 });
 
