@@ -4,6 +4,7 @@ import { seat, twoWorkspaces, type Seat } from "@/test/workspace-fixture";
 import { database, type Database } from "../db/database";
 import { apiAccount, apiMember, getSession } from "./guards";
 import { sessionTokenOf } from "./session-cookie";
+import { signSessionToken } from "./session-token";
 
 const holder = vi.hoisted(() => ({
   db: null as Database | null,
@@ -104,6 +105,16 @@ describe("guards without a session cookie", () => {
     expect(database).not.toHaveBeenCalled();
   });
 
+  it("leave it alone for a cookie whose signature isn't the server's", async () => {
+    const forged = signSessionToken("a".repeat(32), "not the server's key");
+    holder.token = forged;
+    expect(await getSession()).toBeNull();
+    const cookie = `squint_session=${encodeURIComponent(forged)}`;
+    expect((await apiAccount(request(cookie))).ok).toBe(false);
+    expect((await apiMember(request(cookie), a.workspaceId)).ok).toBe(false);
+    expect(database).not.toHaveBeenCalled();
+  });
+
   it("read the session once there is a cookie", async () => {
     holder.token = sessionTokenOf(a.cookie) ?? undefined;
     expect((await getSession())?.id).toBe(a.userId);
@@ -117,5 +128,10 @@ describe("sessionTokenOf", () => {
     expect(sessionTokenOf("squint_sessionx=abc")).toBeNull();
     expect(sessionTokenOf(null)).toBeNull();
     expect(sessionTokenOf("squint_session=")).toBeNull();
+  });
+
+  it("decodes the value, as Next reads cookies", () => {
+    expect(sessionTokenOf("squint_session=abc.d%2Be%2Ff%3D")).toBe("abc.d+e/f=");
+    expect(sessionTokenOf("squint_session=100%")).toBe("100%");
   });
 });

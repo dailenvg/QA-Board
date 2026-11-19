@@ -132,8 +132,8 @@ describe("password reset", () => {
     expect(
       await logIn(db, { email: "ana@acme.test", password: NEW_PASSWORD, ip }, NOW + 4),
     ).toMatchObject({ ok: true });
-    const { rows } = await db.query<{ action: string }>("SELECT action FROM audit_log");
-    expect(rows).toEqual([{ action: "user.password_reset" }]);
+    const { rows } = await db.query<{ action: string }>("SELECT action FROM audit_log ORDER BY id");
+    expect(rows).toEqual([{ action: "user.password_reset" }, { action: "user.signed_in" }]);
   });
 
   it("refuses expired and made-up links", async () => {

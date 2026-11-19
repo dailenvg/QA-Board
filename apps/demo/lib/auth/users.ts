@@ -19,8 +19,21 @@ export interface UserRow {
   password_hash: string;
 }
 
-export function toSessionUser({ id, email, name, role }: UserRow): SessionUser {
-  return { id, email, name, role };
+/** The fields of Better Auth's user (`lib/auth/better-auth.ts`) a session reads. */
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string | null;
+  role: string;
+  deletedAt?: Date | null;
+}
+
+const ROLES: readonly string[] = ["admin", "company"] satisfies UserRole[];
+
+/** Who Better Auth's user is signed in as; null for a deleted user, or a role Squint doesn't know. */
+export function sessionUserOf({ id, email, name, role, deletedAt }: AuthUser): SessionUser | null {
+  if (deletedAt || !ROLES.includes(role)) return null;
+  return { id, email, name: name ?? null, role: role as UserRole };
 }
 
 /** A user who can sign in (not deleted), by normalized email; null when there's none. */
@@ -31,24 +44,6 @@ export async function findActiveUser(db: Queryable, email: string): Promise<User
     [email],
   );
   return rows[0] ?? null;
-}
-
-/** Who a sign-in with this email checks the password of, and whether they were removed. */
-export interface SignInCandidate {
-  user: UserRow;
-  /**
-   * Removed from their workspace by its owner (or a member with the people
-   * switch) less than 24 hours ago: they can't sign in, but the right
-   * password gets told why (decision 20).
-   */
-  removed: boolean;
-  /**
-   * A company account whose every workspace is closed, at least one of them
-   * suspended by the Squint admin (046): they can't sign in until it's lifted,
-   * and the right password gets told so. Anyone with another open workspace
-   * signs in as usual (and only opens that one); the admin never is.
-   */
-  suspended: boolean;
 }
 
 /**
@@ -66,27 +61,29 @@ const SUSPENDED_ONLY = `users.role = 'company'
   )`;
 
 /**
- * In one lookup, so every email costs the same: a user who can sign in, or
- * else one removed from a workspace whose removal hasn't run its 24 hours
- * (`removed_from` is set only by a removal; `delete_after` still ahead). An
- * account deleted by its own user, or removed longer ago, is no one. Whether
- * it's held by a suspension comes with it. Null when there's none.
+ * Why `userId`, whose password was just confirmed, can't have a session; null
+ * when they can. `removed`: removed from a workspace less than 24 hours ago
+ * (`removed_from` is set only by a removal; `delete_after` still ahead), told
+ * so (decision 20). `suspended`: every workspace closed, one of them
+ * suspended by the Squint admin (046). `gone`: deleted by its own user, or
+ * removed longer ago (or no such user), answered as a wrong password.
  */
-export async function findSignInCandidate(
+export type SignInHold = "removed" | "suspended" | "gone";
+
+export async function signInHold(
   db: Queryable,
-  email: string,
+  userId: string,
   now: number,
-): Promise<SignInCandidate | null> {
-  const { rows } = await db.query<UserRow & { removed: boolean; suspended: boolean }>(
-    `SELECT id, email, name, role, password_hash, deleted_at IS NOT NULL AS removed,
+): Promise<SignInHold | null> {
+  const { rows } = await db.query<{ deleted: boolean; removed: boolean; suspended: boolean }>(
+    `SELECT deleted_at IS NOT NULL AS deleted,
+       (removed_from IS NOT NULL AND delete_after > $2) AS removed,
        (${SUSPENDED_ONLY}) AS suspended
-     FROM users
-     WHERE email = $1
-       AND (deleted_at IS NULL OR (removed_from IS NOT NULL AND delete_after > $2))`,
-    [email, new Date(now)],
+     FROM users WHERE id = $1`,
+    [userId, new Date(now)],
   );
   const row = rows[0];
-  if (!row) return null;
-  const { removed, suspended, ...user } = row;
-  return { user, removed, suspended };
+  if (!row) return "gone";
+  if (row.deleted) return row.removed ? "removed" : "gone";
+  return row.suspended ? "suspended" : null;
 }
