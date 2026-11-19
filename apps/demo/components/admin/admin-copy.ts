@@ -585,6 +585,8 @@ export const TARGET_LABELS: Readonly<Record<string, string>> = {
 
 /** Each action in plain words; an action not listed here shows as recorded. */
 export const ACTION_LABELS: Readonly<Record<string, string>> = {
+  "user.signed_in": "Signed in",
+  "user.signed_out": "Signed out",
   "user.name_changed": "Changed name",
   "user.password_changed": "Changed password",
   "user.password_reset": "Reset password by email",
