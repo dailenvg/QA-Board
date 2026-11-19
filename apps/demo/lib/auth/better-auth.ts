@@ -70,11 +70,12 @@ function createAuth(db: Database) {
     telemetry: { enabled: false },
     rateLimit: { enabled: false },
     logger: { level: "error", log: logAuthError },
-    // What `resetPassword` reads: Squint's own length rules (the forms' source of truth, counted
-    // the same way), the hash, and what a reset ends.
+    // Off: sign-in and sign-up through Better Auth stay refused (Squint checks passwords itself,
+    // in `signInWithPassword`). The rest is what `resetPassword` reads: Squint's own length rules
+    // (the forms' source of truth, counted the same way), the hash, and what a reset ends. The
+    // verifier goes with the hash, so nothing in Better Auth checks Argon2 with its own scrypt.
     emailAndPassword: {
-      enabled: true,
-      disableSignUp: true,
+      enabled: false,
       minPasswordLength: PASSWORD_MIN_LENGTH,
       maxPasswordLength: PASSWORD_MAX_LENGTH,
       password: {
