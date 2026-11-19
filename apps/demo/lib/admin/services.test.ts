@@ -57,6 +57,11 @@ describe("serviceStatuses", () => {
     });
   });
 
+  it("takes BETTER_AUTH_URL for the auth URL, but only AUTH_SECRET seals anything", () => {
+    const env = { BETTER_AUTH_URL: "https://squint.example", BETTER_AUTH_SECRET: "secret" };
+    expect(configured(env)).toMatchObject({ authUrl: true, authSecret: false });
+  });
+
   it("marks only the services Squint works without as optional", () => {
     const optional = serviceStatuses({})
       .filter((status) => status.optional)

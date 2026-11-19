@@ -41,10 +41,12 @@ export function serviceStatuses(env: Env = process.env): ServiceStatus[] {
     blob: isSet(env, "BLOB_READ_WRITE_TOKEN"),
     resendKey: isSet(env, "RESEND_API_KEY"),
     emailFrom: isSet(env, "EMAIL_FROM"),
+    // Not BETTER_AUTH_SECRET: that one signs sessions only, and what this row seals needs AUTH_SECRET.
     authSecret: isSet(env, "AUTH_SECRET"),
     projectAuthKey: isSet(env, "PROJECT_AUTH_KEY"),
     cronSecret: isSet(env, "CRON_SECRET"),
-    authUrl: isSet(env, "AUTH_URL"),
+    // `authOrigin` reads either.
+    authUrl: isSet(env, "BETTER_AUTH_URL") || isSet(env, "AUTH_URL"),
     clickUp: clickUpApiUrl(env) !== null,
     captureService: isSet(env, "SQUINT_CAPTURE_URL"),
     pinpointGitHub: isSet(env, "GITHUB_TOKEN") && isSet(env, "GITHUB_REPO"),
