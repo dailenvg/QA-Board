@@ -8,7 +8,7 @@ import { describeError, LoggableError } from "./http";
 import { hashPassword, verifyPassword } from "./password";
 import { isLocalHttp, SESSION_COOKIE, SESSION_TTL_MS } from "./session-cookie";
 import { atSignInTime, holdSessions } from "./sign-in-hold";
-import { sessionUserOf, type SessionUser } from "./users";
+import { findSignInAccount, sessionUserOf, type SessionUser } from "./users";
 
 /**
  * Better Auth, on Squint's own tables (048): `users`, `sessions`, and the
@@ -161,21 +161,33 @@ export async function endSession(db: Database, cookie: string): Promise<SessionU
 }
 
 /**
- * Checks `email` and `password` and starts a session, at `now` for the sign-in
- * hold. The session's token, unsigned, and its user; throws Better Auth's
- * error otherwise (a wrong password, a hold, a storage failure).
+ * Checks `email` (normalized) and `password` and starts a session, at `now`
+ * for the sign-in hold. The password is checked here, as before Better Auth,
+ * so every email Squint accepts can sign in (Better Auth's own sign-in
+ * refuses some, such as `jürgen@firma.de`); an unknown email is checked
+ * against the dummy hash, so it takes as long as a wrong password. Better
+ * Auth then starts the session, running the hold (`holdSessions`), which
+ * throws for an account that can't sign in. The session's token, unsigned,
+ * and its user; null for a wrong email or password.
  */
 export async function signInWithPassword(
   db: Database,
   credentials: { email: string; password: string },
   caller: { ip: string; userAgent?: string | null },
   now: number,
-): Promise<{ token: string; user: SessionUser }> {
-  const result = await atSignInTime(now, () =>
-    authFor(db).api.signInEmail({ body: credentials, headers: callerHeaders(caller) }),
+): Promise<{ token: string; user: SessionUser } | null> {
+  const account = await findSignInAccount(db, credentials.email);
+  const matches = await verifyPassword(credentials.password, account?.passwordHash ?? null);
+  if (!account || !matches) return null;
+  const { internalAdapter } = await authFor(db).$context;
+  const session = await atSignInTime(now, () =>
+    internalAdapter.createSession(account.id, false, {
+      ipAddress: caller.ip,
+      userAgent: caller.userAgent ?? "",
+    }),
   );
   // The hold lets no deleted user through, and `users.role` allows only Squint's roles.
-  const user = sessionUserOf(result.user);
-  if (!user) throw new LoggableError("signed in as a user with no session");
-  return { token: result.token, user };
+  const user = sessionUserOf(account);
+  if (!session || !user) throw new LoggableError("signed in with no session or user");
+  return { token: session.token, user };
 }

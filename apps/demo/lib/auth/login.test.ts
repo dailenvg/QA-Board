@@ -97,7 +97,7 @@ describe("logIn", () => {
     expect(entries).toEqual([]);
   });
 
-  it("answers invalid for a malformed email or an over-long password, as Better Auth refuses them", async () => {
+  it("answers invalid for a malformed email or an over-long password", async () => {
     const db = await migratedPglite();
     await insertUser(db, "ana@acme.test");
     for (const attempt of [
@@ -110,6 +110,25 @@ describe("logIn", () => {
       });
     }
   });
+
+  // Squint's own email rule is looser than Better Auth's sign-in, which refuses these.
+  it.each(["jürgen@firma.de", "ops&billing@acme.com", "a@b.c"])(
+    "signs in %s, whose email Squint accepted, and counts its wrong passwords",
+    async (email) => {
+      const db = await migratedPglite();
+      const userId = await insertUser(db, email);
+      expect(await logIn(db, { email, password: "wrong password", ip: IP }, NOW)).toEqual({
+        ok: false,
+        reason: "invalid",
+      });
+      const { rows: failures } = await db.query("SELECT email FROM login_attempts");
+      expect(failures).toEqual([{ email }]);
+      const result = await logIn(db, { email, password: PASSWORD, ip: IP }, NOW + 1000);
+      expect(result).toMatchObject({ ok: true, user: { id: userId, email } });
+      const cookie = result.ok ? (authCookieHeader(result.token, authSecret()) ?? "") : "";
+      expect((await findSessionUser(db, cookie))?.id).toBe(userId);
+    },
+  );
 
   it("locks an email after 5 failures for 15 minutes, right password or not", async () => {
     const db = await migratedPglite();

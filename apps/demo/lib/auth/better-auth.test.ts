@@ -105,9 +105,7 @@ describe("Better Auth on Squint's tables", () => {
     await removeMember(world.db, ben.user.id, world.workspaceId, NOW);
     const signIn = (email: string, password: string) =>
       signInWithPassword(world.db, { email, password }, CALLER, NOW);
-    await expect(signIn("ben@acme.test", "wrong password")).rejects.toMatchObject({
-      body: { code: "INVALID_EMAIL_OR_PASSWORD" },
-    });
+    expect(await signIn("ben@acme.test", "wrong password")).toBeNull();
     await expect(signIn("ben@acme.test", PASSWORD)).rejects.toMatchObject({
       statusCode: 403,
       body: { code: "SQUINT_SIGN_IN_REMOVED" },
@@ -115,9 +113,7 @@ describe("Better Auth on Squint's tables", () => {
     await world.db.query("UPDATE workspaces SET suspended_at = now() WHERE id = $1", [
       world.workspaceId,
     ]);
-    await expect(signIn(world.owner.user.email, "wrong password")).rejects.toMatchObject({
-      body: { code: "INVALID_EMAIL_OR_PASSWORD" },
-    });
+    expect(await signIn(world.owner.user.email, "wrong password")).toBeNull();
     await expect(signIn(world.owner.user.email, PASSWORD)).rejects.toMatchObject({
       body: { code: "SQUINT_SIGN_IN_SUSPENDED" },
     });
@@ -158,7 +154,8 @@ describe("Better Auth's own words", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const db = await migratedPglite();
     await insertUser(db, EMAIL);
-    await db.query("DROP VIEW auth_accounts");
+    // The password checks out; Better Auth's insert of the session fails.
+    await db.query("ALTER TABLE sessions DROP COLUMN user_agent");
     const response = await login(db, { email: EMAIL, password: PASSWORD });
     expect(response.status).toBe(500);
     const text = await response.text();

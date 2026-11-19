@@ -46,6 +46,28 @@ export async function findActiveUser(db: Queryable, email: string): Promise<User
   return rows[0] ?? null;
 }
 
+/** Whose password a sign-in checks: their row, deleted or not, and their hash. */
+export interface SignInAccount extends AuthUser {
+  passwordHash: string;
+}
+
+/**
+ * The account a sign-in with this (normalized) email checks the password of,
+ * deleted or not (the sign-in hold decides who may have a session), or null.
+ * Any email Squint stores can be looked up: no format check here.
+ */
+export async function findSignInAccount(
+  db: Queryable,
+  email: string,
+): Promise<SignInAccount | null> {
+  const { rows } = await db.query<SignInAccount>(
+    `SELECT id, email, name, role, deleted_at AS "deletedAt", password_hash AS "passwordHash"
+     FROM users WHERE email = $1`,
+    [email],
+  );
+  return rows[0] ?? null;
+}
+
 /**
  * The account belongs to a suspended workspace and to no open one. A
  * condition on `users`; never true for the admin, who belongs to none.

@@ -1,4 +1,3 @@
-import { isAPIError } from "better-auth/api";
 import { auditAccount } from "../account/audit";
 import type { Database } from "../db/database";
 import type { Queryable } from "../share/migrate";
@@ -31,27 +30,11 @@ export type LoginResult =
 
 type Refusal = Extract<LoginResult, { reason: "invalid" | "removed" | "suspended" }>;
 
-/**
- * Better Auth's answers that mean "wrong email or password": no such account
- * (or a malformed email) and a wrong or over-long password. Each is the same
- * `invalid`, so none says which emails have accounts.
- */
-const INVALID_CODES = new Set([
-  "INVALID_EMAIL_OR_PASSWORD",
-  "INVALID_EMAIL",
-  "PASSWORD_TOO_LONG",
-  "PASSWORD_TOO_SHORT",
-]);
-
-/** The refusal Better Auth's `error` means, or null for a failure (storage, a bug) to throw on. */
+/** The refusal a sign-in hold's `error` means, or null for a failure (storage, a bug) to throw on. */
 function refusalOf(error: unknown): Refusal | null {
   const hold = holdOf(error);
   if (hold === "removed" || hold === "suspended") return { ok: false, reason: hold };
-  if (hold === "gone") return { ok: false, reason: "invalid" };
-  const code = isAPIError(error) ? (error.body as { code?: unknown } | undefined)?.code : null;
-  return typeof code === "string" && INVALID_CODES.has(code)
-    ? { ok: false, reason: "invalid" }
-    : null;
+  return hold === "gone" ? { ok: false, reason: "invalid" } : null;
 }
 
 /**
@@ -80,13 +63,13 @@ async function clearExpiredSessions(db: Queryable, userId: string, now: number):
 /**
  * Signs in with email and password. The attempt is claimed against the rate
  * limit first, atomically, so parallel requests can't slip past it (even a
- * right password waits out the limit). Better Auth then checks the password:
- * an unknown email and a wrong password take the same work (it hashes the
- * password given) and give the same answer, `invalid`; the claim then stays
- * as a failure. The right password on an account removed from its workspace
- * less than 24 hours ago answers `removed`, with no session (the sign-in
- * hold), and keeps the claim too, so the limit also caps how often a password
- * can be confirmed that way (decision 20). The right password on an account
+ * right password waits out the limit). An unknown email and a wrong password
+ * take the same work (the dummy hash) and give the same answer, `invalid`;
+ * the claim then stays as a failure. Better Auth starts the session. The
+ * right password on an account removed from its workspace less than 24 hours
+ * ago answers `removed`, with no session (the sign-in hold), and keeps the
+ * claim too, so the limit also caps how often a password can be confirmed
+ * that way (decision 20). The right password on an account
  * held by a suspension answers `suspended` the same way: no session, the
  * claim kept. A success releases it, is written to the audit log, and says
  * whether it was the user's first sign-in.
@@ -115,6 +98,7 @@ export async function logIn(
     if (refusal) return refusal;
     throw error;
   }
+  if (!session) return { ok: false, reason: "invalid" };
   const { token, user } = session;
 
   await releaseLoginClaim(db, key.email, claim.attemptId, now);
