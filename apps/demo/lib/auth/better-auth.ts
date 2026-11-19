@@ -1,6 +1,5 @@
 import { betterAuth } from "better-auth";
 import { PostgresDialect } from "kysely";
-import { voidEmailChanges } from "../account/email-change";
 import type { Database } from "../db/database";
 import { databasePool } from "../db/database-pool";
 import { authSecret } from "./auth-secret";
@@ -8,7 +7,7 @@ import { authOrigin } from "./auth-url";
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "./field-rules";
 import { describeError, LoggableError } from "./http";
 import { hashPassword, verifyPassword } from "./password";
-import { storedIdentifier, voidResetLinks } from "./reset-links";
+import { storedIdentifier } from "./reset-links";
 import { isLocalHttp, SESSION_COOKIE, SESSION_TTL_MS } from "./session-cookie";
 import { signSessionToken } from "./session-token";
 import { atSignInTime, holdSessions } from "./sign-in-hold";
@@ -36,22 +35,18 @@ function logAuthError(_level: string, message: string, ...args: unknown[]): void
 }
 
 /**
- * What follows a reset Better Auth made (`resetPassword`, which used the link
- * up, ended every session and set the password in one transaction): the
- * user's other reset links and pending email changes are voided (one asked
- * for with the old password can't take the account afterwards), and the
- * audit log records it, as before Better Auth.
+ * The audit entry for a reset Better Auth made (`resetPassword`, which used
+ * the link up, ended every session and set the password in one transaction),
+ * the same row as before Better Auth. The user's other links and pending
+ * email changes are voided before it (`completePasswordReset`), the only way
+ * Squint resets a password.
  */
-async function afterPasswordReset(db: Database, userId: string): Promise<void> {
-  await db.transaction(async (tx) => {
-    await voidResetLinks(tx, userId);
-    await voidEmailChanges(tx, userId, Date.now());
-    await tx.query(
-      `INSERT INTO audit_log (actor_user_id, action, target_type, target_id)
-       VALUES ($1, 'user.password_reset', 'user', $2)`,
-      [userId, userId],
-    );
-  });
+async function auditPasswordReset(db: Database, userId: string): Promise<void> {
+  await db.query(
+    `INSERT INTO audit_log (actor_user_id, action, target_type, target_id)
+     VALUES ($1, 'user.password_reset', 'user', $2)`,
+    [userId, userId],
+  );
 }
 
 function createAuth(db: Database) {
@@ -83,7 +78,7 @@ function createAuth(db: Database) {
         verify: ({ hash, password }) => verifyPassword(password, hash),
       },
       revokeSessionsOnPasswordReset: true,
-      onPasswordReset: ({ user }) => afterPasswordReset(db, user.id),
+      onPasswordReset: ({ user }) => auditPasswordReset(db, user.id),
     },
     user: {
       modelName: "users",

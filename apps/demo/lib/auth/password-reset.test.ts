@@ -8,6 +8,7 @@ import { hashSecret } from "../share/tokens";
 import { authFor } from "./better-auth";
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "./field-rules";
 import { logIn } from "./login";
+import { verifyPassword } from "./password";
 import {
   completePasswordReset,
   createResetLink,
@@ -49,6 +50,37 @@ function tokenOf(email: { link: string } | null | undefined): string {
   const token = email?.link.split("/reset/")[1];
   if (!token) throw new Error("no link");
   return token;
+}
+
+/**
+ * Ana with a session, a pending email change and two emailed links; `token`
+ * is the one she uses, `other` the spare.
+ */
+async function anaMidReset() {
+  const db = await migratedPglite();
+  const userId = await insertUser(db, "ana@acme.test");
+  const session = await insertSession(db, userId, NOW);
+  await db.query(
+    `INSERT INTO email_changes (user_id, new_email, token_hash, expires_at)
+     VALUES ($1, 'ana@new.test', $2, $3)`,
+    [userId, "c".repeat(64), new Date(NOW + RESET_TTL_MS)],
+  );
+  const token = tokenOf((await request(db, "ana@acme.test"))[0]);
+  const other = tokenOf((await request(db, "ana@acme.test"))[0]);
+  return { db, userId, session, token, other };
+}
+
+async function pendingEmailChanges(db: Database): Promise<number> {
+  const { rows } = await db.query("SELECT 1 FROM email_changes WHERE used_at IS NULL");
+  return rows.length;
+}
+
+async function hasPassword(db: Database, userId: string, password: string): Promise<boolean> {
+  const { rows } = await db.query<{ password_hash: string }>(
+    "SELECT password_hash FROM users WHERE id = $1",
+    [userId],
+  );
+  return verifyPassword(password, rows[0]?.password_hash ?? null);
 }
 
 async function signsInWith(db: Database, email: string, password: string, now: number) {
@@ -228,6 +260,51 @@ describe("password reset", () => {
       ).rejects.toMatchObject({ body: { code: "INVALID_TOKEN" } });
     }
     expect(await isResetTokenUsable(db, token, NOW)).toBe(true);
+  });
+
+  it("voids nothing for a link it can't use: expired, made up, or its user deleted", async () => {
+    const { db, userId, token, other } = await anaMidReset();
+    expect(await completePasswordReset(db, token, NEW_PASSWORD, NOW + RESET_TTL_MS)).toBe(false);
+    expect(await completePasswordReset(db, "x".repeat(43), NEW_PASSWORD, NOW)).toBe(false);
+    expect(await isResetTokenUsable(db, other, NOW)).toBe(true);
+    expect(await pendingEmailChanges(db)).toBe(1);
+    await db.query("UPDATE users SET deleted_at = now() WHERE id = $1", [userId]);
+    expect(await completePasswordReset(db, token, NEW_PASSWORD, NOW)).toBe(false);
+    const { rows } = await db.query("SELECT 1 FROM verifications");
+    expect(rows).toHaveLength(2);
+    expect(await pendingEmailChanges(db)).toBe(1);
+  });
+
+  it("has voided the other links and email changes even if the audit after the reset fails", async () => {
+    const { db, userId, session, token, other } = await anaMidReset();
+    await db.query("ALTER TABLE audit_log RENAME TO audit_log_away");
+    await expect(completePasswordReset(db, token, NEW_PASSWORD, NOW)).rejects.toThrow();
+    // Better Auth's transaction committed: the password is set and every session ended.
+    expect(await hasPassword(db, userId, NEW_PASSWORD)).toBe(true);
+    expect(await readSession(db, session, NOW)).toBeNull();
+    // And nothing from before the reset outlives it.
+    expect(await isResetTokenUsable(db, other, NOW)).toBe(false);
+    expect(await pendingEmailChanges(db)).toBe(0);
+    const { rows } = await db.query("SELECT 1 FROM verifications");
+    expect(rows).toEqual([]);
+  });
+
+  it("keeps the link for a retry when Better Auth's reset fails, its spares already voided", async () => {
+    const { db, userId, session, token, other } = await anaMidReset();
+    // Better Auth can't read the password it's to replace: its transaction rolls back.
+    await db.query("ALTER VIEW auth_accounts RENAME TO auth_accounts_away");
+    await expect(completePasswordReset(db, token, NEW_PASSWORD, NOW)).rejects.toThrow();
+    expect(await hasPassword(db, userId, PASSWORD)).toBe(true);
+    expect(await readSession(db, session, NOW)).not.toBeNull();
+    expect(await isResetTokenUsable(db, token, NOW)).toBe(true);
+    // Voided before the reset: only Ana's own spare link and email change, which is acceptable.
+    expect(await isResetTokenUsable(db, other, NOW)).toBe(false);
+    expect(await pendingEmailChanges(db)).toBe(0);
+
+    await db.query("ALTER VIEW auth_accounts_away RENAME TO auth_accounts");
+    expect(await completePasswordReset(db, token, NEW_PASSWORD, NOW)).toBe(true);
+    expect(await hasPassword(db, userId, NEW_PASSWORD)).toBe(true);
+    expect(await readSession(db, session, NOW)).toBeNull();
   });
 
   it("works for every email Squint accepts, whatever Better Auth's own check says", async () => {

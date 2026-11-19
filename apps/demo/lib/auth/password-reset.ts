@@ -1,4 +1,5 @@
 import { isAPIError } from "better-auth/api";
+import { voidEmailChanges } from "../account/email-change";
 import type { Database } from "../db/database";
 import type { Queryable } from "../share/migrate";
 import { createSecret, isSecretShape } from "../share/tokens";
@@ -140,12 +141,45 @@ function isUnusableLink(error: unknown): boolean {
 }
 
 /**
- * Sets the password through a reset link. Better Auth's `resetPassword`, in
- * one transaction, uses the link up, ends every session of the user (so a
- * stolen session dies with the old password) and sets the password; then
- * (`onPasswordReset`) their other links and pending email changes are voided
- * and the audit log records it. False when the link can't be used. Only a
- * well-formed token reaches Better Auth.
+ * Readies a reset with `token`, in one transaction: once its link is known to
+ * be open (unexpired, its user not deleted; locked against another use at
+ * once), the user's other reset links and pending email changes are voided,
+ * so none outlives the reset (one asked for with the old password can't take
+ * the account afterwards). The user's id; null, voiding nothing, when the
+ * link can't be used, so a bad token never touches anyone's links.
+ */
+async function voidAllButLink(db: Database, token: string, now: number): Promise<string | null> {
+  if (!isSecretShape(token)) return null;
+  const stored = storedResetIdentifier(token);
+  return db.transaction(async (tx) => {
+    const { rows } = await tx.query<{ user_id: string }>(
+      `SELECT u.id AS user_id FROM verifications AS v JOIN users AS u ON u.id::text = v.value
+       WHERE v.identifier = $1 AND v.expires_at > $2 AND u.deleted_at IS NULL
+       FOR UPDATE OF v`,
+      [stored, new Date(now)],
+    );
+    const userId = rows[0]?.user_id;
+    if (!userId) return null;
+    await tx.query(
+      `DELETE FROM verifications
+       WHERE value = $1 AND ${isResetLink("identifier")} AND identifier <> $2`,
+      [userId, stored],
+    );
+    await voidEmailChanges(tx, userId, now);
+    return userId;
+  });
+}
+
+/**
+ * Sets the password through a reset link. First (`voidAllButLink`) the
+ * user's other links and pending email changes are voided; then Better
+ * Auth's `resetPassword`, in one transaction, uses the link up, ends every
+ * session of the user (so a stolen session dies with the old password) and
+ * sets the password, and (`onPasswordReset`) the audit log records it. If
+ * the reset then fails, the voiding stands: it only took the user's own
+ * spare links and email changes, and this link still works for a retry.
+ * False when the link can't be used. Only a well-formed token reaches
+ * Better Auth.
  */
 export async function completePasswordReset(
   db: Database,
@@ -153,7 +187,7 @@ export async function completePasswordReset(
   password: string,
   now: number,
 ): Promise<boolean> {
-  if (!(await isResetTokenUsable(db, token, now))) return false;
+  if (!(await voidAllButLink(db, token, now))) return false;
   try {
     await authFor(db).api.resetPassword({ body: { token, newPassword: password } });
     return true;
