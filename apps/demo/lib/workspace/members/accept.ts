@@ -390,8 +390,9 @@ export async function acceptInvite(
     return step;
   });
   if (!result.ok) return result;
+  // The old avatar's files go first, so a failure starting the session can't orphan them.
+  await discardQuietly("avatar", services.blobs, result.files);
   // Once the accept has committed: Better Auth reads the account it made or brought back.
   const sessionToken = result.signIn ? await startSession(db, result.userId, now) : null;
-  await discardQuietly("avatar", services.blobs, result.files);
   return { ok: true, workspaceId: invite.workspace_id, sessionToken };
 }
