@@ -1,5 +1,6 @@
 import { startSession } from "../auth/better-auth";
 import { hashPassword } from "../auth/password";
+import { voidResetLinks } from "../auth/reset-links";
 import type { SessionUser } from "../auth/users";
 import type { Database } from "../db/database";
 import { auditAccount } from "./audit";
@@ -38,10 +39,7 @@ export async function changePassword(
   await db.transaction(async (tx) => {
     await tx.query("UPDATE users SET password_hash = $2 WHERE id = $1", [user.id, passwordHash]);
     await tx.query("DELETE FROM sessions WHERE user_id = $1", [user.id]);
-    await tx.query(
-      "UPDATE password_resets SET used_at = $2 WHERE user_id = $1 AND used_at IS NULL",
-      [user.id, new Date(now)],
-    );
+    await voidResetLinks(tx, user.id);
     await voidEmailChanges(tx, user.id, now);
     await auditAccount(tx, user.id, "user.password_changed", ["password"], now);
   });

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { insertUser, NOW } from "@/test/accounts-fixture";
 import { migratedPglite } from "@/test/pglite";
 import { insertSession, readSession } from "@/test/sessions-fixture";
+import { createResetLink } from "../auth/password-reset";
 import type { Database } from "../db/database";
 import {
   confirmEmailChange,
@@ -105,11 +106,7 @@ describe("confirming an email change", () => {
   it("moves the account, ends its sessions, voids its links, and records it without values", async () => {
     const { db, userId, request } = await setup();
     const session = await insertSession(db, userId, NOW);
-    await db.query(
-      `INSERT INTO password_resets (user_id, token_hash, expires_at)
-       VALUES ($1, $2, $3)`,
-      [userId, "b".repeat(64), new Date(NOW + 1000)],
-    );
+    await createResetLink(db, userId, { now: NOW, origin: new URL("https://squint.test") });
     const other = await request("other@acme.test");
     const token = await request("new@acme.test");
 
@@ -120,7 +117,7 @@ describe("confirming an email change", () => {
     });
     expect(await emailOf(db, userId)).toBe("new@acme.test");
     expect(await readSession(db, session, NOW + 1000)).toBeNull();
-    const { rows: resets } = await db.query("SELECT 1 FROM password_resets WHERE used_at IS NULL");
+    const { rows: resets } = await db.query("SELECT 1 FROM verifications");
     expect(resets).toEqual([]);
     // The other pending link is spent with it.
     expect(await isEmailChangeUsable(db, other, NOW + 1000)).toBe(false);

@@ -16,10 +16,11 @@ import { readSession } from "@/test/sessions-fixture";
 import { PNG, TEST_AUTH_SECRET } from "@/test/workspace-fixture";
 import { logIn } from "../auth/login";
 import { findMembership, findOwnWorkspace } from "../auth/memberships";
-import { isResetTokenUsable, requestPasswordReset } from "../auth/password-reset";
+import { createResetLink, isResetTokenUsable, requestPasswordReset } from "../auth/password-reset";
+import { storedResetIdentifier } from "../auth/reset-links";
 import type { SessionUser } from "../auth/users";
 import { createPostgresStore } from "../share/postgres-store";
-import { createSecret, hashSecret } from "../share/tokens";
+import { createSecret } from "../share/tokens";
 import { clientShare } from "../share/service";
 import { acceptInvite } from "../workspace/members/accept";
 import { createInvites } from "../workspace/members/create-invites";
@@ -123,6 +124,7 @@ describe("scheduleAccountDeletion", () => {
        VALUES ($1, repeat('a', 64), now() + interval '1 hour')`,
       [owner.id],
     );
+    await createResetLink(db, owner.id, { now: NOW, origin: new URL("https://squint.test") });
     await db.query(
       `INSERT INTO email_changes (user_id, new_email, token_hash, expires_at)
        VALUES ($1, 'new@acme.test', repeat('b', 64), now() + interval '1 hour')`,
@@ -144,6 +146,7 @@ describe("scheduleAccountDeletion", () => {
     for (const table of ["sessions", "password_resets", "email_changes"]) {
       expect(await countRows(db, table, "user_id", owner.id)).toBe(0);
     }
+    expect(await countRows(db, "verifications", "value", owner.id)).toBe(0);
     // Everything a restore needs stays as it was.
     expect(after).toMatchObject({
       email: before?.email,
@@ -270,9 +273,8 @@ describe("while a deletion is scheduled", () => {
     // A link that somehow outlived the deletion still can't set a password.
     const token = createSecret();
     await db.query(
-      `INSERT INTO password_resets (user_id, token_hash, expires_at)
-       VALUES ($1, $2, $3)`,
-      [owner.id, hashSecret(token), new Date(NOW + DAY_MS)],
+      "INSERT INTO verifications (identifier, value, expires_at) VALUES ($1, $2, $3)",
+      [storedResetIdentifier(token), owner.id, new Date(NOW + DAY_MS)],
     );
     expect(await isResetTokenUsable(db, token, NOW)).toBe(false);
   });

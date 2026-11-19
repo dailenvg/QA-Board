@@ -1,23 +1,29 @@
 import { betterAuth } from "better-auth";
 import { PostgresDialect } from "kysely";
+import { voidEmailChanges } from "../account/email-change";
 import type { Database } from "../db/database";
 import { databasePool } from "../db/database-pool";
 import { authSecret } from "./auth-secret";
 import { authOrigin } from "./auth-url";
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "./field-rules";
 import { describeError, LoggableError } from "./http";
 import { hashPassword, verifyPassword } from "./password";
+import { storedIdentifier, voidResetLinks } from "./reset-links";
 import { isLocalHttp, SESSION_COOKIE, SESSION_TTL_MS } from "./session-cookie";
 import { signSessionToken } from "./session-token";
 import { atSignInTime, holdSessions } from "./sign-in-hold";
 import { findSignInAccount, sessionUserOf, type SessionUser } from "./users";
 
 /**
- * Better Auth, on Squint's own tables (048): `users`, `sessions`, and the
- * `auth_accounts` view over `users.password_hash`. Only ever called through
- * `auth.api` with headers built here: no HTTP handler is mounted, so it adds
- * no public routes, and Better Auth's own messages never reach a response.
+ * Better Auth, on Squint's own tables (048, 049): `users`, `sessions`, the
+ * `auth_accounts` view over `users.password_hash`, and `verifications` for
+ * reset links. Only ever called through `auth.api` or its internal adapter,
+ * with headers built here: no HTTP handler is mounted, so it adds no public
+ * routes, and Better Auth's own messages never reach a response.
  * Never call it inside a `db.transaction`: it queries on its own, and would
- * wait on rows that transaction holds.
+ * wait on rows that transaction holds. Its own transactions (a reset) must
+ * run no hook that queries `db` either: that would wait on a second
+ * connection while holding the first.
  */
 
 /** Sessions slide to 30 days from their last use, written at most once a day. */
@@ -27,6 +33,25 @@ const SESSION_UPDATE_AGE_S = 24 * 60 * 60;
 function logAuthError(_level: string, message: string, ...args: unknown[]): void {
   const kinds = args.map(describeError).join(", ");
   console.error(`squint auth: ${message}${kinds ? ` (${kinds})` : ""}`);
+}
+
+/**
+ * What follows a reset Better Auth made (`resetPassword`, which used the link
+ * up, ended every session and set the password in one transaction): the
+ * user's other reset links and pending email changes are voided (one asked
+ * for with the old password can't take the account afterwards), and the
+ * audit log records it, as before Better Auth.
+ */
+async function afterPasswordReset(db: Database, userId: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    await voidResetLinks(tx, userId);
+    await voidEmailChanges(tx, userId, Date.now());
+    await tx.query(
+      `INSERT INTO audit_log (actor_user_id, action, target_type, target_id)
+       VALUES ($1, 'user.password_reset', 'user', $2)`,
+      [userId, userId],
+    );
+  });
 }
 
 function createAuth(db: Database) {
@@ -45,15 +70,19 @@ function createAuth(db: Database) {
     telemetry: { enabled: false },
     rateLimit: { enabled: false },
     logger: { level: "error", log: logAuthError },
+    // What `resetPassword` reads: Squint's own length rules (the forms' source of truth, counted
+    // the same way), the hash, and what a reset ends.
     emailAndPassword: {
       enabled: true,
       disableSignUp: true,
-      minPasswordLength: 12,
-      maxPasswordLength: 256,
+      minPasswordLength: PASSWORD_MIN_LENGTH,
+      maxPasswordLength: PASSWORD_MAX_LENGTH,
       password: {
         hash: hashPassword,
         verify: ({ hash, password }) => verifyPassword(password, hash),
       },
+      revokeSessionsOnPasswordReset: true,
+      onPasswordReset: ({ user }) => afterPasswordReset(db, user.id),
     },
     user: {
       modelName: "users",
@@ -80,6 +109,11 @@ function createAuth(db: Database) {
         ipAddress: "ip_address",
         userAgent: "user_agent",
       },
+    },
+    verification: {
+      modelName: "verifications",
+      fields: { expiresAt: "expires_at", createdAt: "created_at", updatedAt: "updated_at" },
+      storeIdentifier: { hash: (identifier) => Promise.resolve(storedIdentifier(identifier)) },
     },
     account: {
       modelName: "auth_accounts",

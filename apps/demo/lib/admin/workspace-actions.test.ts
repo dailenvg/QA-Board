@@ -377,7 +377,7 @@ describe("createOwnerResetLink", () => {
         { now: NOW, origin: ORIGIN },
       ),
     ).toEqual({ ok: false, reason: "not-found" });
-    const { rows } = await w.db.query("SELECT 1 FROM password_resets");
+    const { rows } = await w.db.query("SELECT 1 FROM verifications");
     expect(rows).toEqual([]);
     expect(await adminEntries(w.db)).toEqual([]);
   });

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { insertUser, NOW, PASSWORD } from "@/test/accounts-fixture";
 import { migratedPglite } from "@/test/pglite";
 import { insertSession } from "@/test/sessions-fixture";
@@ -83,6 +83,12 @@ describe("securing the account uses up pending email changes", () => {
   });
 
   it("a password reset from an emailed link", async () => {
+    // Better Auth checks the link's hour against the clock: the clock reads `LATER`.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(LATER);
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     const seeded = await setup();
     let resetLink = "";
     await requestPasswordReset(seeded.db, EMAIL, {

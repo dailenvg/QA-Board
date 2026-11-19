@@ -1,4 +1,5 @@
 import { findOwnWorkspace, openWorkspace, type Membership } from "../auth/memberships";
+import { voidResetLinks } from "../auth/reset-links";
 import type { SessionUser } from "../auth/users";
 import type { Database } from "../db/database";
 import type { Queryable } from "../share/migrate";
@@ -155,7 +156,11 @@ async function lockMembership(
   return rows[0] ?? null;
 }
 
-/** Where an account's ways back in live: its sessions, reset links and email changes. */
+/**
+ * An account's ways back in, as the audit log names them: its sessions, reset
+ * links and email changes. Reset links live in `verifications` (049);
+ * `password_resets` keeps its name here, and its rows from before go too.
+ */
 export const SIGN_IN_TABLES = ["sessions", "password_resets", "email_changes"] as const;
 
 /** Ends every way back into `userId`'s account: shared by deleting it and removing it (4.5). */
@@ -163,6 +168,7 @@ export async function endSignIns(tx: Queryable, userId: string): Promise<void> {
   for (const table of SIGN_IN_TABLES) {
     await tx.query(`DELETE FROM ${table} WHERE user_id = $1`, [userId]);
   }
+  await voidResetLinks(tx, userId);
 }
 
 /**

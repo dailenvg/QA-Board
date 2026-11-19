@@ -41,6 +41,7 @@ export async function resetSpareAccount(): Promise<void> {
     for (const table of ["sessions", "email_changes", "password_resets"]) {
       await client.query(`DELETE FROM ${table} WHERE user_id = ${SPARE_ID}`);
     }
+    await client.query(`DELETE FROM verifications WHERE value = ${SPARE_ID}::text`);
     await client.query("DELETE FROM login_attempts WHERE email = ANY($1)", [
       [E2E_SPARE.email, current],
     ]);
