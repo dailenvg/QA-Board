@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { insertUser, NOW } from "@/test/accounts-fixture";
 import { migratedPglite } from "@/test/pglite";
-import { readSession } from "@/test/sessions-fixture";
-import { createSession } from "../auth/sessions";
+import { insertSession, readSession } from "@/test/sessions-fixture";
 import type { Database } from "../db/database";
 import {
   confirmEmailChange,
@@ -105,7 +104,7 @@ describe("requesting an email change", () => {
 describe("confirming an email change", () => {
   it("moves the account, ends its sessions, voids its links, and records it without values", async () => {
     const { db, userId, request } = await setup();
-    const session = await createSession(db, userId, NOW);
+    const session = await insertSession(db, userId, NOW);
     await db.query(
       `INSERT INTO password_resets (user_id, token_hash, expires_at)
        VALUES ($1, $2, $3)`,
@@ -172,7 +171,7 @@ describe("confirming an email change", () => {
 
   it("fails cleanly when another account took the address first, changing nothing", async () => {
     const { db, userId, request } = await setup();
-    const session = await createSession(db, userId, NOW);
+    const session = await insertSession(db, userId, NOW);
     const token = await request("new@acme.test");
     // Between the request and the confirm, someone else gets the address.
     const bo = await insertUser(db, "bo@acme.test");

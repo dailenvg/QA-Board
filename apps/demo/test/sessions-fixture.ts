@@ -1,6 +1,29 @@
+import { SESSION_TTL_MS } from "@/lib/auth/session-cookie";
 import type { SessionUser } from "@/lib/auth/users";
 import type { Queryable } from "@/lib/share/migrate";
-import { hashSecret, isSecretShape } from "@/lib/share/tokens";
+import { createSecret, hashSecret, isSecretShape } from "@/lib/share/tokens";
+
+/**
+ * Sessions written and read straight in `sessions`, for tests whose subject
+ * isn't how a session starts. The app starts and reads them through Better
+ * Auth (`lib/auth/better-auth.ts`).
+ */
+
+/**
+ * A session for `userId` until 30 days after `now`, as Squint wrote them
+ * before Better Auth (its sha256 stored, the cookie the token itself; the app
+ * reads it through the legacy bridge, `lib/auth/session-token.ts`, as
+ * `e2e/auth-fixtures.ts`'s `sessionCookie` does). Returns the cookie's value.
+ */
+export async function insertSession(db: Queryable, userId: string, now: number): Promise<string> {
+  const token = createSecret();
+  await db.query("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ($1, $2, $3)", [
+    hashSecret(token),
+    userId,
+    new Date(now + SESSION_TTL_MS),
+  ]);
+  return token;
+}
 
 /**
  * Who a session cookie's value is signed in as at `now`, read straight from

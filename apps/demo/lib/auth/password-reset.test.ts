@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { insertUser, NOW, PASSWORD } from "@/test/accounts-fixture";
 import { addMember, membersWorld, removeMember } from "@/test/members-fixture";
 import { migratedPglite } from "@/test/pglite";
-import { readSession } from "@/test/sessions-fixture";
+import { insertSession, readSession } from "@/test/sessions-fixture";
 import type { Queryable } from "../share/migrate";
 import { logIn } from "./login";
 import {
@@ -14,7 +14,6 @@ import {
   RESET_TTL_MS,
   type ResetEmail,
 } from "./password-reset";
-import { createSession } from "./sessions";
 
 const ORIGIN = new URL("https://squint.test");
 const NEW_PASSWORD = "a brand new password";
@@ -114,7 +113,7 @@ describe("password reset", () => {
   it("sets the password once, ends every session and spends the other links", async () => {
     const db = await migratedPglite();
     const userId = await insertUser(db, "ana@acme.test");
-    const session = await createSession(db, userId, NOW);
+    const session = await insertSession(db, userId, NOW);
     const [first] = await request(db, "ana@acme.test");
     const [second] = await request(db, "ana@acme.test");
 

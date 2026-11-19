@@ -4,7 +4,7 @@ import * as sweepRoute from "@/app/api/admin/sweep/route";
 import type * as DatabaseModule from "@/lib/db/database";
 import { insertUser } from "@/test/accounts-fixture";
 import { addFolder, NOW, twoWorkspaces, URL_PROJECT, type Seat } from "@/test/workspace-fixture";
-import { createSession } from "../auth/sessions";
+import { insertSession } from "@/test/sessions-fixture";
 import type { Database } from "../db/database";
 import { inlineBackend } from "../share/blob-backend";
 import { createPostgresStore } from "../share/postgres-store";
@@ -76,7 +76,7 @@ beforeEach(async () => {
   a = world.a;
   holder.db = db;
   adminId = await insertUser(db, "admin@squint.test", "admin");
-  admin = `squint_session=${await createSession(db, adminId, Date.now())}`;
+  admin = `squint_session=${await insertSession(db, adminId, Date.now())}`;
   (globalThis as { squintShares?: Promise<ShareServices> }).squintShares = Promise.resolve({
     store: createPostgresStore(db),
     blobs: inlineBackend,

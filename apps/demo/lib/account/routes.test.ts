@@ -4,8 +4,7 @@ import type * as DatabaseModule from "@/lib/db/database";
 import { ACCOUNT_ENDPOINTS, ACCOUNT_WRITE_ENDPOINTS, callAccount } from "@/test/account-routes";
 import { insertUser, PASSWORD } from "@/test/accounts-fixture";
 import { migratedPglite } from "@/test/pglite";
-import { readSession } from "@/test/sessions-fixture";
-import { createSession } from "../auth/sessions";
+import { insertSession, readSession } from "@/test/sessions-fixture";
 import type { Database } from "../db/database";
 import type { EmailChangeLink } from "./email-change";
 
@@ -67,7 +66,7 @@ beforeEach(async () => {
   db = await migratedPglite();
   holder.db = db;
   userId = await insertUser(db, EMAIL);
-  cookie = `squint_session=${await createSession(db, userId, Date.now())}`;
+  cookie = `squint_session=${await insertSession(db, userId, Date.now())}`;
 });
 
 describe("every account route", () => {
@@ -144,19 +143,20 @@ describe("PATCH /api/account/profile", () => {
 
 describe("POST /api/account/password", () => {
   it("changes the password, signs out the other browsers and gives this one a new cookie", async () => {
-    const other = await createSession(db, userId, Date.now());
+    const other = await insertSession(db, userId, Date.now());
     const response = await callAccount("POST", "/api/account/password", {
       cookie,
       body: { currentPassword: PASSWORD, newPassword: NEW_PASSWORD },
     });
     expect(response.status).toBe(200);
-    const fresh = /^squint_session=([A-Za-z0-9_-]{43});/.exec(
+    // Better Auth's token, signed: `<32 characters>.<base64 HMAC>`, URL-encoded.
+    const fresh = /^squint_session=([A-Za-z0-9]{32}\.[A-Za-z0-9%]{44,});/.exec(
       response.headers.get("set-cookie") ?? "",
     )?.[1];
     expect(fresh).toBeDefined();
     expect(await readSession(db, other, Date.now())).toBeNull();
     expect(await readSession(db, cookie.split("=")[1] ?? "", Date.now())).toBeNull();
-    expect(await readSession(db, fresh ?? "", Date.now())).not.toBeNull();
+    expect(await readSession(db, decodeURIComponent(fresh ?? ""), Date.now())).not.toBeNull();
   });
 
   it("answers a wrong current password with 422, and the budget with 429", async () => {
@@ -232,9 +232,9 @@ describe("POST /api/account/email", () => {
 
 describe("DELETE /api/account/sessions", () => {
   it("deletes every session of the user, this browser's included, and clears its cookie", async () => {
-    await createSession(db, userId, Date.now());
+    await insertSession(db, userId, Date.now());
     const other = await insertUser(db, "bo@acme.test");
-    await createSession(db, other, Date.now());
+    await insertSession(db, other, Date.now());
     expect(await sessionCount(userId)).toBe(2);
     const response = await callAccount("DELETE", "/api/account/sessions", { cookie });
     expect(response.status).toBe(200);

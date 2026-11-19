@@ -1,8 +1,8 @@
 import { DEFAULT_SWITCHES, type MemberSwitch } from "@/lib/auth/permissions";
-import { createSession } from "@/lib/auth/sessions";
 import type { Database } from "@/lib/db/database";
 import type { Queryable } from "@/lib/share/migrate";
 import type { ProjectCreate } from "@/lib/workspace/schemas";
+import { insertSession } from "@/test/sessions-fixture";
 import { migratedPglite } from "./pglite";
 
 /** 2026-11-02T12:00:00Z: real epoch ms, as `Date.now()` gives. */
@@ -37,7 +37,7 @@ export async function seat(db: Queryable, slug: string): Promise<Seat> {
     userId,
     workspaceId,
   ]);
-  const token = await createSession(db, userId, Date.now());
+  const token = await insertSession(db, userId, Date.now());
   return { workspaceId, userId, cookie: `squint_session=${token}` };
 }
 
@@ -64,7 +64,7 @@ export async function memberSeat(
      VALUES ($1, $2, 'member', $3::text[])`,
     [userId, workspaceId, [...permissions]],
   );
-  const token = await createSession(db, userId, Date.now());
+  const token = await insertSession(db, userId, Date.now());
   return { workspaceId, userId, cookie: `squint_session=${token}` };
 }
 

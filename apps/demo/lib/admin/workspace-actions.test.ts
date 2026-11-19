@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { insertUser, PASSWORD } from "@/test/accounts-fixture";
 import { STATE } from "@/test/share-fixture";
-import { readSession } from "@/test/sessions-fixture";
+import { insertSession, readSession } from "@/test/sessions-fixture";
 import {
   addFolder,
   NOW,
@@ -14,7 +14,6 @@ import { scheduleAccountDeletion } from "../account/account-deletion";
 import { findMembership } from "../auth/memberships";
 import { logIn } from "../auth/login";
 import { completePasswordReset, isResetTokenUsable, RESET_TTL_MS } from "../auth/password-reset";
-import { createSession } from "../auth/sessions";
 import type { Database } from "../db/database";
 import { inlineBackend } from "../share/blob-backend";
 import { createPostgresStore } from "../share/postgres-store";
@@ -60,7 +59,7 @@ async function join(db: Database, userId: string, workspaceId: string) {
 async function person(db: Database, email: string, ...workspaceIds: string[]) {
   const id = await insertUser(db, email);
   for (const workspaceId of workspaceIds) await join(db, id, workspaceId);
-  return { id, email, token: await createSession(db, id, Date.now()) };
+  return { id, email, token: await insertSession(db, id, Date.now()) };
 }
 
 async function world(): Promise<World> {
@@ -71,7 +70,7 @@ async function world(): Promise<World> {
     a,
     b,
     adminId,
-    adminToken: await createSession(db, adminId, Date.now()),
+    adminToken: await insertSession(db, adminId, Date.now()),
     both: await person(db, "both@acme.test", a.workspaceId, b.workspaceId),
     member: await person(db, "member@acme.test", a.workspaceId),
   };

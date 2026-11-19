@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { insertUser, NOW, PASSWORD } from "@/test/accounts-fixture";
 import { migratedPglite } from "@/test/pglite";
+import { insertSession } from "@/test/sessions-fixture";
 import { completePasswordReset, requestPasswordReset } from "../auth/password-reset";
-import { createSession } from "../auth/sessions";
 import type { Database } from "../db/database";
 import { MAX_EMAIL_CHANGES_PER_HOUR, requestEmailChange } from "./email-change";
 import { handleEmailChangeConfirm } from "./email-change-confirm-handler";
@@ -102,7 +102,7 @@ describe("securing the account uses up pending email changes", () => {
 
   it("log out everywhere", async () => {
     const seeded = await setup();
-    await createSession(seeded.db, seeded.userId, NOW);
+    await insertSession(seeded.db, seeded.userId, NOW);
     await logOutEverywhere(seeded.db, seeded.userId, LATER);
     await expectLinkSpent(seeded);
     const { rows } = await seeded.db.query("SELECT 1 FROM sessions");

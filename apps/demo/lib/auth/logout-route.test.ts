@@ -4,9 +4,8 @@ import { POST } from "@/app/api/auth/logout/route";
 import type * as DatabaseModule from "@/lib/db/database";
 import { insertUser } from "@/test/accounts-fixture";
 import { migratedPglite } from "@/test/pglite";
-import { readSession } from "@/test/sessions-fixture";
+import { insertSession, readSession } from "@/test/sessions-fixture";
 import { database, type Database } from "../db/database";
-import { createSession } from "./sessions";
 
 const holder = vi.hoisted(() => ({ db: null as Database | null }));
 
@@ -34,7 +33,7 @@ beforeEach(async () => {
   db = await migratedPglite();
   holder.db = db;
   userId = await insertUser(db, "ana@acme.test");
-  token = await createSession(db, userId, Date.now());
+  token = await insertSession(db, userId, Date.now());
   vi.mocked(database).mockClear();
 });
 

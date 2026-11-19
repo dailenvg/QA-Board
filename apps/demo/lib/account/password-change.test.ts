@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { insertUser, NOW, PASSWORD } from "@/test/accounts-fixture";
 import { migratedPglite } from "@/test/pglite";
-import { readSession } from "@/test/sessions-fixture";
+import { insertSession, readSession } from "@/test/sessions-fixture";
 import { verifyPassword } from "../auth/password";
 import { MAX_FAILURES_PER_EMAIL } from "../auth/rate-limit";
-import { createSession } from "../auth/sessions";
 import type { SessionUser } from "../auth/users";
 import type { Database } from "../db/database";
 import { changePassword } from "./password-change";
@@ -70,8 +69,8 @@ describe("changing the password", () => {
 
   it("rotates the sessions on success: a new one for this browser, none elsewhere", async () => {
     const { db, user } = await setup();
-    const laptop = await createSession(db, user.id, NOW);
-    const phone = await createSession(db, user.id, NOW);
+    const laptop = await insertSession(db, user.id, NOW);
+    const phone = await insertSession(db, user.id, NOW);
     await db.query(
       "INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES ($1, $2, $3)",
       [user.id, "c".repeat(64), new Date(NOW + 1000)],

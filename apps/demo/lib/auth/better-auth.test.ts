@@ -6,7 +6,13 @@ import { migratedPglite } from "@/test/pglite";
 import type { Database } from "../db/database";
 import { createSecret, hashSecret } from "../share/tokens";
 import { authSecret } from "./auth-secret";
-import { authFor, endSession, findSessionUser, signInWithPassword } from "./better-auth";
+import {
+  authFor,
+  endSession,
+  findSessionUser,
+  signInWithPassword,
+  startSession,
+} from "./better-auth";
 import { handleLogin } from "./login-handler";
 import { SESSION_TTL_MS } from "./session-cookie";
 import { authCookieHeader, signSessionToken } from "./session-token";
@@ -57,6 +63,20 @@ describe("Better Auth on Squint's tables", () => {
       name: null,
       role: "company",
     });
+  });
+
+  it("keeps no browser or address it wasn't told: null, not empty", async () => {
+    const db = await migratedPglite();
+    const userId = await insertUser(db, EMAIL);
+    await startSession(db, userId, NOW);
+    await signInWithPassword(db, { email: EMAIL, password: PASSWORD }, CALLER, NOW);
+    const { rows } = await db.query(
+      "SELECT ip_address, user_agent FROM sessions ORDER BY ip_address NULLS FIRST",
+    );
+    expect(rows).toEqual([
+      { ip_address: null, user_agent: null },
+      { ip_address: CALLER.ip, user_agent: null },
+    ]);
   });
 
   it("reads a session from before Better Auth by its legacy cookie, and slides it", async () => {

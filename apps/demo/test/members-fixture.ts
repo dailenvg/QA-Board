@@ -1,5 +1,4 @@
 import type { MemberSwitch } from "@/lib/auth/permissions";
-import { createSession } from "@/lib/auth/sessions";
 import type { SessionUser } from "@/lib/auth/users";
 import type { Database } from "@/lib/db/database";
 import type { BlobLocation } from "@/lib/share/types";
@@ -8,6 +7,7 @@ import { createInvites, type InviteResult } from "@/lib/workspace/members/create
 import type { MemberInviteBatch } from "@/lib/workspace/members/invite-email";
 import type { InviteDeps } from "@/lib/workspace/members/invites";
 import { removeMember as removeFromWorkspace } from "@/lib/workspace/members/remove-member";
+import { insertSession } from "@/test/sessions-fixture";
 import { insertUser } from "./accounts-fixture";
 import { migratedPglite } from "./pglite";
 import { TEST_AUTH_SECRET } from "./workspace-fixture";
@@ -61,7 +61,7 @@ export async function person(
 ): Promise<Person> {
   const id = await insertUser(db, email);
   if (name) await db.query("UPDATE users SET name = $2 WHERE id = $1", [id, name]);
-  const token = await createSession(db, id, Date.now());
+  const token = await insertSession(db, id, Date.now());
   return { user: { id, email, name, role: "company" }, cookie: `squint_session=${token}` };
 }
 
