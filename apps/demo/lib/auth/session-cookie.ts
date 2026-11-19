@@ -32,11 +32,20 @@ export function sessionCookieOptions(url: URL) {
   } as const;
 }
 
-/** The session token in a `Cookie` header, or null. */
+/** `value` URL-decoded, as Next reads cookies; as it is when it doesn't decode. */
+function decodeCookieValue(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+/** The session cookie's value in a `Cookie` header, decoded, or null. */
 export function sessionTokenOf(cookieHeader: string | null): string | null {
   for (const pair of cookieHeader?.split(";") ?? []) {
     const [name, ...value] = pair.trim().split("=");
-    if (name === SESSION_COOKIE) return value.join("=") || null;
+    if (name === SESSION_COOKIE) return decodeCookieValue(value.join("=")) || null;
   }
   return null;
 }

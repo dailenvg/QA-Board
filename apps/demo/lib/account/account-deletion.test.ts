@@ -12,11 +12,11 @@ import {
   type DeletionWorld,
 } from "@/test/deletion-fixture";
 import { deps, discardLog, removeMember as removeFromWorkspace } from "@/test/members-fixture";
+import { readSession } from "@/test/sessions-fixture";
 import { PNG, TEST_AUTH_SECRET } from "@/test/workspace-fixture";
 import { logIn } from "../auth/login";
 import { findMembership, findOwnWorkspace } from "../auth/memberships";
 import { isResetTokenUsable, requestPasswordReset } from "../auth/password-reset";
-import { readSession } from "../auth/sessions";
 import type { SessionUser } from "../auth/users";
 import { createPostgresStore } from "../share/postgres-store";
 import { createSecret, hashSecret } from "../share/tokens";
@@ -325,6 +325,7 @@ describe("restoreAccount", () => {
         actor_user_id: world.other.userId,
         workspace_id: workspaceId,
       },
+      { action: "user.signed_in", actor_user_id: owner.id, workspace_id: null },
     ]);
   });
 
@@ -380,6 +381,7 @@ describe("restoreAccount", () => {
       { action: "workspace.created", actor_user_id: actor, workspace_id: newWorkspaceId },
       { action: "membership.added", actor_user_id: actor, workspace_id: newWorkspaceId },
       { action: "membership.removed", actor_user_id: actor, workspace_id: workspaceId },
+      { action: "user.signed_in", actor_user_id: member.id, workspace_id: null },
     ]);
 
     // Again: nothing left to restore, so no second workspace and no more entries.

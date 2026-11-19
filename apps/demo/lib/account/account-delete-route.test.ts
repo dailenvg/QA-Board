@@ -11,7 +11,8 @@ import {
   WORKSPACE_NAME,
   type DeletionWorld,
 } from "@/test/deletion-fixture";
-import { createSession, readSession } from "../auth/sessions";
+import { readSession } from "@/test/sessions-fixture";
+import { createSession } from "../auth/sessions";
 import { MAX_FAILURES_PER_EMAIL } from "../auth/rate-limit";
 import type { Database } from "../db/database";
 import type { DeletionNotice } from "./account-email";

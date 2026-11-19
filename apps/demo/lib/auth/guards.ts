@@ -2,31 +2,36 @@ import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { database, type Database } from "../db/database";
+import { authSecret } from "./auth-secret";
 import { findMembership, type Membership } from "./memberships";
 import { loginHref, PATH_HEADER } from "./next-path";
 import { SESSION_COOKIE, sessionTokenOf } from "./session-cookie";
-import { readSession } from "./sessions";
+import { authCookieHeader } from "./session-token";
 import type { SessionUser } from "./users";
 
 /**
  * Server-side checks for pages, layouts and server actions. Middleware only
- * looks for the cookie; these read the session from Postgres. One lookup per
- * request (React `cache`).
+ * looks for the cookie; these read the session from Postgres, through Better
+ * Auth. One lookup per request (React `cache`).
  */
 
 /**
- * The session behind `token` and the database it was read from, or null
- * without a token, a database or a live session. Without a token the database
- * isn't touched: a signed-out page must not start a connect it won't wait for.
+ * The session behind a session cookie's value and the database it was read
+ * from, or null without a usable cookie, a database or a live session.
+ * Without one neither the database nor Better Auth is touched (not even
+ * loaded): a signed-out page must not start a connect it won't wait for, and
+ * a forged signature never costs a query.
  */
 async function sessionOf(
-  token: string | null | undefined,
+  value: string | null | undefined,
 ): Promise<{ db: Database; user: SessionUser } | null> {
-  if (!token) return null;
+  if (!value) return null;
+  const cookie = authCookieHeader(value, authSecret());
+  if (!cookie) return null;
   const pending = database();
   if (!pending) return null;
-  const db = await pending;
-  const user = await readSession(db, token, Date.now());
+  const [db, { findSessionUser }] = await Promise.all([pending, import("./better-auth")]);
+  const user = await findSessionUser(db, cookie);
   return user && { db, user };
 }
 

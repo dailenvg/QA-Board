@@ -34,7 +34,7 @@ describe.each(databases)("047_cron_runs on %s", (_name, make) => {
     const db = await make();
     expect(await migrate(db, UP_TO_046)).toHaveLength(46);
     expect(UP_TO_046.at(-1)?.id).toBe("046_workspaces_suspended_at");
-    expect(await migrate(db)).toEqual(["047_cron_runs"]);
+    expect(await migrate(db, MIGRATIONS.slice(0, 47))).toEqual(["047_cron_runs"]);
     await db.query(CRON_RUNS?.sql ?? "");
     const { rows } = await db.query("SELECT 1 FROM cron_runs");
     expect(rows).toEqual([]);

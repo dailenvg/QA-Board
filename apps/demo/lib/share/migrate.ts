@@ -45,6 +45,7 @@ import workspaceInvites from "../../migrations/044_workspace_invites.sql";
 import clientCommentEdits from "../../migrations/045_client_comment_edits.sql";
 import suspendedAt from "../../migrations/046_workspaces_suspended_at.sql";
 import cronRuns from "../../migrations/047_cron_runs.sql";
+import betterAuthCore from "../../migrations/048_better_auth_core.sql";
 
 /** The slice of `pg.Pool` the stores use (PGlite matches it in tests). */
 export interface Queryable {
@@ -100,6 +101,7 @@ export const MIGRATIONS: ReadonlyArray<{ id: string; sql: string }> = [
   { id: "045_client_comment_edits", sql: clientCommentEdits },
   { id: "046_workspaces_suspended_at", sql: suspendedAt },
   { id: "047_cron_runs", sql: cronRuns },
+  { id: "048_better_auth_core", sql: betterAuthCore },
 ];
 
 type Migration = (typeof MIGRATIONS)[number];

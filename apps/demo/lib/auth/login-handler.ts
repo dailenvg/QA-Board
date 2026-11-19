@@ -35,7 +35,11 @@ async function attempt(
 ): Promise<Attempt> {
   if (!db) return { ok: false, reason: "not-configured" };
   try {
-    return await logIn(await db, { ...credentials, ip: clientAddress(request.headers) }, now);
+    const caller = {
+      ip: clientAddress(request.headers),
+      userAgent: request.headers.get("user-agent"),
+    };
+    return await logIn(await db, { ...credentials, ...caller }, now);
   } catch (error) {
     console.error(`squint auth: storage failed (${describeError(error)})`);
     return { ok: false, reason: "storage" };

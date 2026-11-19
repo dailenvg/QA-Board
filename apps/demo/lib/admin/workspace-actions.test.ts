@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { insertUser, PASSWORD } from "@/test/accounts-fixture";
 import { STATE } from "@/test/share-fixture";
+import { readSession } from "@/test/sessions-fixture";
 import {
   addFolder,
   NOW,
@@ -13,7 +14,7 @@ import { scheduleAccountDeletion } from "../account/account-deletion";
 import { findMembership } from "../auth/memberships";
 import { logIn } from "../auth/login";
 import { completePasswordReset, isResetTokenUsable, RESET_TTL_MS } from "../auth/password-reset";
-import { createSession, readSession } from "../auth/sessions";
+import { createSession } from "../auth/sessions";
 import type { Database } from "../db/database";
 import { inlineBackend } from "../share/blob-backend";
 import { createPostgresStore } from "../share/postgres-store";

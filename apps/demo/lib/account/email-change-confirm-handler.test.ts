@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { insertUser, NOW } from "@/test/accounts-fixture";
 import { migratedPglite } from "@/test/pglite";
-import { createSession, readSession } from "../auth/sessions";
+import { readSession } from "@/test/sessions-fixture";
+import { createSession } from "../auth/sessions";
 import type { Database } from "../db/database";
 import { requestEmailChange } from "./email-change";
 import { EMAIL_CHANGED_HREF } from "../routes";

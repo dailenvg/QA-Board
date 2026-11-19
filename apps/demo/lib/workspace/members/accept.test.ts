@@ -13,11 +13,11 @@ import {
   type MembersWorld,
   type Person,
 } from "@/test/members-fixture";
+import { readSession } from "@/test/sessions-fixture";
 import { ACCOUNT_DELETION_GRACE_MS, REMOVAL_GRACE_MS } from "../../account/account-deletion";
 import { tombstoneEmail } from "../../account/account-purge";
 import { findOwnWorkspace } from "../../auth/memberships";
 import { verifyPassword } from "../../auth/password";
-import { readSession } from "../../auth/sessions";
 import { toDate } from "../times";
 import { acceptInvite, type Joiner } from "./accept";
 import { INVITE_TTL_MS } from "./invites";

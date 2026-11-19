@@ -14,7 +14,7 @@ import {
   type MembersWorld,
   type Person,
 } from "@/test/members-fixture";
-import { readSession } from "../../auth/sessions";
+import { readSession } from "@/test/sessions-fixture";
 import { SESSION_COOKIE } from "../../auth/session-cookie";
 import type { Database } from "../../db/database";
 import { MAX_INVITE_EMAILS } from "./invite-sends";

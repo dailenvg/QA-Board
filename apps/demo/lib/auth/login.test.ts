@@ -5,8 +5,10 @@ import { migratedPglite } from "@/test/pglite";
 import { REMOVAL_GRACE_MS } from "../account/account-deletion";
 import type { Database } from "../db/database";
 import { logIn } from "./login";
+import { authSecret } from "./auth-secret";
+import { findSessionUser } from "./better-auth";
 import { LOGIN_WINDOW_MS, MAX_FAILURES_PER_EMAIL, MAX_FAILURES_PER_IP } from "./rate-limit";
-import { readSession } from "./sessions";
+import { authCookieHeader } from "./session-token";
 
 const IP = "203.0.113.9";
 
@@ -22,9 +24,46 @@ describe("logIn", () => {
       name: null,
       role: "company",
     });
-    expect(await readSession(db, result.token, NOW)).toEqual(result.user);
+    const cookie = authCookieHeader(result.token, authSecret()) ?? "";
+    expect(await findSessionUser(db, cookie)).toEqual(result.user);
     const { rows } = await db.query<{ last_login_at: Date }>("SELECT last_login_at FROM users");
     expect(new Date(rows[0]?.last_login_at ?? 0).getTime()).toBe(NOW);
+  });
+
+  it("keeps the browser and address with the session, and writes the sign-in to the audit log", async () => {
+    const db = await migratedPglite();
+    const userId = await insertUser(db, "ana@acme.test");
+    const attempt = { email: "ana@acme.test", password: PASSWORD, ip: IP, userAgent: "Safari" };
+    expect(await logIn(db, attempt, NOW)).toMatchObject({ ok: true });
+    const { rows: sessions } = await db.query("SELECT ip_address, user_agent FROM sessions");
+    expect(sessions).toEqual([{ ip_address: IP, user_agent: "Safari" }]);
+    const { rows: entries } = await db.query<Record<string, unknown>>(
+      "SELECT actor_user_id, action, target_type, target_id, meta, at FROM audit_log",
+    );
+    expect(entries).toEqual([
+      {
+        actor_user_id: userId,
+        action: "user.signed_in",
+        target_type: "user",
+        target_id: userId,
+        meta: { fields: [] },
+        at: new Date(NOW),
+      },
+    ]);
+  });
+
+  it("clears the user's expired sessions as a new one starts", async () => {
+    const db = await migratedPglite();
+    const userId = await insertUser(db, "ana@acme.test");
+    await db.query(
+      "INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ('expired', $1, $2)",
+      [userId, new Date(NOW - 1)],
+    );
+    expect(
+      await logIn(db, { email: "ana@acme.test", password: PASSWORD, ip: IP }, NOW),
+    ).toMatchObject({ ok: true });
+    const { rows } = await db.query("SELECT 1 FROM sessions WHERE token_hash = 'expired'");
+    expect(rows).toEqual([]);
   });
 
   it("says whether it's the user's first sign-in", async () => {
@@ -54,7 +93,42 @@ describe("logIn", () => {
     }
     const { rows } = await db.query("SELECT 1 FROM sessions WHERE user_id = $1", [userId]);
     expect(rows).toEqual([]);
+    const { rows: entries } = await db.query("SELECT 1 FROM audit_log");
+    expect(entries).toEqual([]);
   });
+
+  it("answers invalid for a malformed email or an over-long password", async () => {
+    const db = await migratedPglite();
+    await insertUser(db, "ana@acme.test");
+    for (const attempt of [
+      { email: "not an email", password: PASSWORD },
+      { email: "ana@acme.test", password: "x".repeat(257) },
+    ]) {
+      expect(await logIn(db, { ...attempt, ip: IP }, NOW)).toEqual({
+        ok: false,
+        reason: "invalid",
+      });
+    }
+  });
+
+  // Squint's own email rule is looser than Better Auth's sign-in, which refuses these.
+  it.each(["jürgen@firma.de", "ops&billing@acme.com", "a@b.c"])(
+    "signs in %s, whose email Squint accepted, and counts its wrong passwords",
+    async (email) => {
+      const db = await migratedPglite();
+      const userId = await insertUser(db, email);
+      expect(await logIn(db, { email, password: "wrong password", ip: IP }, NOW)).toEqual({
+        ok: false,
+        reason: "invalid",
+      });
+      const { rows: failures } = await db.query("SELECT email FROM login_attempts");
+      expect(failures).toEqual([{ email }]);
+      const result = await logIn(db, { email, password: PASSWORD, ip: IP }, NOW + 1000);
+      expect(result).toMatchObject({ ok: true, user: { id: userId, email } });
+      const cookie = result.ok ? (authCookieHeader(result.token, authSecret()) ?? "") : "";
+      expect((await findSessionUser(db, cookie))?.id).toBe(userId);
+    },
+  );
 
   it("locks an email after 5 failures for 15 minutes, right password or not", async () => {
     const db = await migratedPglite();

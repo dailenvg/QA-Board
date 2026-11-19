@@ -4,7 +4,8 @@ import type * as DatabaseModule from "@/lib/db/database";
 import { ACCOUNT_ENDPOINTS, ACCOUNT_WRITE_ENDPOINTS, callAccount } from "@/test/account-routes";
 import { insertUser, PASSWORD } from "@/test/accounts-fixture";
 import { migratedPglite } from "@/test/pglite";
-import { createSession, readSession } from "../auth/sessions";
+import { readSession } from "@/test/sessions-fixture";
+import { createSession } from "../auth/sessions";
 import type { Database } from "../db/database";
 import type { EmailChangeLink } from "./email-change";
 

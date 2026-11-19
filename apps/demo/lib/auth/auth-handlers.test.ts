@@ -64,7 +64,10 @@ describe("login form posts (before hydration)", () => {
       { db: Promise.resolve(db), now: NOW },
     );
     expect(location(response)).toBe("/f/abc?welcome=first");
-    expect(response.headers.get("set-cookie")).toMatch(/^squint_session=[A-Za-z0-9_-]{43};/);
+    // Better Auth's token, signed: `<32 characters>.<base64 HMAC>`, URL-encoded.
+    expect(response.headers.get("set-cookie")).toMatch(
+      /^squint_session=[A-Za-z0-9]{32}\.[A-Za-z0-9%]{44,};/,
+    );
     expect(response.headers.get("set-cookie")).toMatch(/HttpOnly/i);
     expectNoCredentials(response, PASSWORD, EMAIL);
   });

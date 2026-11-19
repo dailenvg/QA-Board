@@ -4,6 +4,8 @@ import type { ReviewWindowChoice } from "../share/review-window";
 
 /** What the account settings record in the audit log. */
 export type AccountAction =
+  | "user.signed_in"
+  | "user.signed_out"
   | "user.name_changed"
   | "user.password_changed"
   | "user.email_change_requested"
