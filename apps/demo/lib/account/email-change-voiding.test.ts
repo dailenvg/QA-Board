@@ -115,6 +115,25 @@ describe("securing the account uses up pending email changes", () => {
     expect(rows).toEqual([]);
   });
 
+  it("log out everywhere is all or nothing: a failed audit keeps every session and the link", async () => {
+    const seeded = await setup();
+    await insertSession(seeded.db, seeded.userId, NOW);
+    await seeded.db.query("ALTER TABLE audit_log RENAME TO audit_log_away");
+    await expect(logOutEverywhere(seeded.db, seeded.userId, LATER)).rejects.toThrow();
+    const { rows: sessions } = await seeded.db.query("SELECT 1 FROM sessions");
+    expect(sessions).toHaveLength(1);
+    const { rows: pending } = await seeded.db.query(
+      "SELECT 1 FROM email_changes WHERE used_at IS NULL",
+    );
+    expect(pending).toHaveLength(1);
+    // Tried again once the storage is back, it ends them both.
+    await seeded.db.query("ALTER TABLE audit_log_away RENAME TO audit_log");
+    await logOutEverywhere(seeded.db, seeded.userId, LATER);
+    await expectLinkSpent(seeded);
+    const { rows } = await seeded.db.query("SELECT 1 FROM sessions");
+    expect(rows).toEqual([]);
+  });
+
   it("still counts the used-up links toward the hourly cap", async () => {
     const { db, userId } = await setup();
     await logOutEverywhere(db, userId, LATER);

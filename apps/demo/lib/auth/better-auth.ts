@@ -226,12 +226,6 @@ export async function startSession(
   return signSessionToken(session.token, authSecret());
 }
 
-/** Ends every session of `userId` ("log out everywhere"). Never inside a `db.transaction`. */
-export async function endUserSessions(db: Database, userId: string): Promise<void> {
-  const { internalAdapter } = await authFor(db).$context;
-  await internalAdapter.deleteUserSessions(userId);
-}
-
 /**
  * Checks `email` (normalized) and `password` and starts a session, at `now`
  * for the sign-in hold. The password is checked here, as before Better Auth,
