@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { insertUser, NOW, PASSWORD } from "@/test/accounts-fixture";
 import { migratedPglite } from "@/test/pglite";
+import { readSession } from "@/test/sessions-fixture";
 import { verifyPassword } from "../auth/password";
 import { MAX_FAILURES_PER_EMAIL } from "../auth/rate-limit";
-import { createSession, readSession } from "../auth/sessions";
+import { createSession } from "../auth/sessions";
 import type { SessionUser } from "../auth/users";
 import type { Database } from "../db/database";
 import { changePassword } from "./password-change";

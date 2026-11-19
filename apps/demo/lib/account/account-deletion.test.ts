@@ -12,11 +12,11 @@ import {
   type DeletionWorld,
 } from "@/test/deletion-fixture";
 import { deps, discardLog, removeMember as removeFromWorkspace } from "@/test/members-fixture";
+import { readSession } from "@/test/sessions-fixture";
 import { PNG, TEST_AUTH_SECRET } from "@/test/workspace-fixture";
 import { logIn } from "../auth/login";
 import { findMembership, findOwnWorkspace } from "../auth/memberships";
 import { isResetTokenUsable, requestPasswordReset } from "../auth/password-reset";
-import { readSession } from "../auth/sessions";
 import type { SessionUser } from "../auth/users";
 import { createPostgresStore } from "../share/postgres-store";
 import { createSecret, hashSecret } from "../share/tokens";

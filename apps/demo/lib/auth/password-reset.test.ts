@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { insertUser, NOW, PASSWORD } from "@/test/accounts-fixture";
 import { addMember, membersWorld, removeMember } from "@/test/members-fixture";
 import { migratedPglite } from "@/test/pglite";
+import { readSession } from "@/test/sessions-fixture";
 import type { Queryable } from "../share/migrate";
 import { logIn } from "./login";
 import {
@@ -13,7 +14,7 @@ import {
   RESET_TTL_MS,
   type ResetEmail,
 } from "./password-reset";
-import { createSession, readSession } from "./sessions";
+import { createSession } from "./sessions";
 
 const ORIGIN = new URL("https://squint.test");
 const NEW_PASSWORD = "a brand new password";
