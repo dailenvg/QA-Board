@@ -82,6 +82,9 @@ const SUSPENDED_ONLY = `users.role = 'company'
     WHERE m.user_id = users.id AND ${openWorkspace("w")}
   )`;
 
+/** Why someone whose password was just confirmed can't have a session (`signInHold`). */
+export type SignInHold = "removed" | "suspended" | "gone";
+
 /**
  * Why `userId`, whose password was just confirmed, can't have a session; null
  * when they can. `removed`: removed from a workspace less than 24 hours ago
@@ -90,8 +93,6 @@ const SUSPENDED_ONLY = `users.role = 'company'
  * suspended by the Squint admin (046). `gone`: deleted by its own user, or
  * removed longer ago (or no such user), answered as a wrong password.
  */
-export type SignInHold = "removed" | "suspended" | "gone";
-
 export async function signInHold(
   db: Queryable,
   userId: string,

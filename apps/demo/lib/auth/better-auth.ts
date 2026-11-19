@@ -107,7 +107,7 @@ function createAuth(db: Database) {
   });
 }
 
-export type Auth = ReturnType<typeof createAuth>;
+type Auth = ReturnType<typeof createAuth>;
 
 const instances = new WeakMap<Database, Auth>();
 
