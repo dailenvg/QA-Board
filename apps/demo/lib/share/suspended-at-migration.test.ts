@@ -4,6 +4,7 @@ import { adaptPglite } from "@/test/pglite";
 import { MIGRATIONS, migrate } from "./migrate";
 
 const UP_TO_045 = MIGRATIONS.slice(0, 45);
+const UP_TO_046 = MIGRATIONS.slice(0, 46);
 const ADMIN_ACTIONS = MIGRATIONS.find(({ id }) => id === "046_workspaces_suspended_at");
 
 describe("046_workspaces_suspended_at", () => {
@@ -18,7 +19,7 @@ describe("046_workspaces_suspended_at", () => {
       `INSERT INTO password_resets (user_id, token_hash, expires_at)
        SELECT id, repeat('a', 64), now() + interval '1 hour' FROM users`,
     );
-    expect(await migrate(db)).toContain("046_workspaces_suspended_at");
+    expect(await migrate(db, UP_TO_046)).toEqual(["046_workspaces_suspended_at"]);
     await db.query(ADMIN_ACTIONS?.sql ?? "");
     const { rows: workspaces } = await db.query<{ suspended_at: Date | null }>(
       "SELECT suspended_at FROM workspaces",
