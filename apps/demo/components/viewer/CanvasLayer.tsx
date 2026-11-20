@@ -99,7 +99,7 @@ export function CanvasLayer({
       <AnimatePresence>{draft ? null : popover}</AnimatePresence>
       <AnimatePresence>
         {draft ? (
-          <div key="composer" className="pointer-events-auto">
+          <div key="composer">
             <Composer
               draft={draft}
               authorName={authorName}

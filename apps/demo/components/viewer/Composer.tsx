@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "motion/react";
+import { motion, useIsPresent } from "motion/react";
 import { useId, useState, type FormEvent, type KeyboardEvent, type Ref } from "react";
 import { usePopVariants } from "@/lib/motion";
 import { useMediaQuery } from "@/lib/use-media-query";
@@ -46,6 +46,7 @@ export function Composer({
 }: ComposerProps) {
   const docked = !useMediaQuery("(min-width: 640px)");
   const variants = usePopVariants();
+  const present = useIsPresent();
   const [author, setAuthor] = useState(draft.author ?? authorName ?? "");
   const [editingName, setEditingName] = useState(!authorName);
   const [error, setError] = useState<{ field: "name" | "body"; message: string } | null>(null);
@@ -105,7 +106,7 @@ export function Composer({
           ? undefined
           : { left: `${draft.x}%`, top: `${draft.y}%`, translate: placement(draft) }
       }
-      className={`z-40 rounded-card bg-panel p-4 shadow-pop ring-1 ring-line ${
+      className={`z-40 rounded-card bg-panel ${present ? "pointer-events-auto" : "pointer-events-none"} p-4 shadow-pop ring-1 ring-line ${
         docked
           ? "fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))]"
           : "absolute w-76"

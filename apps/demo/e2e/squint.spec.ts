@@ -153,6 +153,26 @@ test("an image project accepts a keyboard-placed pin and shows Comments in on th
   await expect(page.getByTestId("dashboard-empty")).toBeVisible();
 });
 
+test("a click right after Escape closes the composer lands on the canvas", async ({ page }) => {
+  await openFolder(page);
+  await createImageProject(page, "escape-click.png");
+  await dropPin(page, { x: 120, y: 90 });
+  const overlay = page.getByTestId("comment-overlay");
+  await page.keyboard.press("Escape");
+
+  // The composer is still fading out here and covers this point. A raw mouse click, unlike
+  // locator.click(), doesn't wait for it to get out of the way.
+  const box = await overlay.boundingBox();
+  if (!box) throw new Error("no canvas");
+  await page.mouse.click(box.x + 260, box.y + 120);
+
+  // The new pin lands at the clicked point, not where the first one was (the docked composer on
+  // a phone doesn't move with it).
+  await expect
+    .poll(async () => (await page.getByLabel("New comment position").boundingBox())?.x ?? 0)
+    .toBeGreaterThan(box.x + 200);
+});
+
 test("a site that refuses framing offers a screenshot instead", async ({ page }) => {
   await mockFrameCheck(page, {
     verdict: "blocked",
