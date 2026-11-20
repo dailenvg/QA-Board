@@ -247,6 +247,8 @@ export function NewProjectForm({
         onChange={(value) => {
           setFolderId(value);
           setNewFolderError(null);
+          // Picking "New folder" again shows a fresh field, which is untouched until typed in.
+          newFolderEdited.current = false;
         }}
         newName={newFolderName}
         onNewName={(value) => {
