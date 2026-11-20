@@ -48,6 +48,7 @@ import cronRuns from "../../migrations/047_cron_runs.sql";
 import betterAuthCore from "../../migrations/048_better_auth_core.sql";
 import authVerifications from "../../migrations/049_auth_verifications.sql";
 import authOrganizations from "../../migrations/050_auth_organizations.sql";
+import dropPasswordResets from "../../migrations/051_drop_password_resets.sql";
 
 /** The slice of `pg.Pool` the stores use (PGlite matches it in tests). */
 export interface Queryable {
@@ -106,6 +107,7 @@ export const MIGRATIONS: ReadonlyArray<{ id: string; sql: string }> = [
   { id: "048_better_auth_core", sql: betterAuthCore },
   { id: "049_auth_verifications", sql: authVerifications },
   { id: "050_auth_organizations", sql: authOrganizations },
+  { id: "051_drop_password_resets", sql: dropPasswordResets },
 ];
 
 type Migration = (typeof MIGRATIONS)[number];
