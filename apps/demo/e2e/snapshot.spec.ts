@@ -75,6 +75,12 @@ test("a website comment pins to a snapshot, scrolls with it and keeps a screensh
   await showComments(page);
   const crop = onlyCommentCard(page).getByTestId("comment-crop");
   await expect(crop.locator("img")).toBeVisible();
+  // The 3:2 thumbnail frames the part of the crop around the pin, so the crop overflows it.
+  const thumb = await crop.boundingBox();
+  const whole = await crop.getByTestId("comment-crop-frame").boundingBox();
+  if (!thumb || !whole) throw new Error("The thumbnail isn't on screen");
+  expect(thumb.width / thumb.height).toBeCloseTo(1.5, 1);
+  expect(whole.width).toBeGreaterThan(thumb.width);
   await crop.click();
   const dialog = page.getByTestId("crop-dialog");
   await expect(dialog.getByRole("img", { name: "The area around pin 1" })).toBeVisible();

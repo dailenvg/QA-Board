@@ -43,7 +43,7 @@ import { ExportMenu } from "./ExportMenu";
 import { PageFilter, type PageScope } from "./PageFilter";
 import { PageStrip } from "./PageStrip";
 import { PinPopover } from "./PinPopover";
-import { commentSurfaceKey, placementOf, surfaceKey } from "./surface";
+import { commentSurfaceKey, pinInSurface, placementOf, surfaceKey } from "./surface";
 import { useCommentActions } from "./use-comment-actions";
 import { useViewerDraft } from "./use-viewer-draft";
 import { useViewerPage } from "./use-viewer-page";
@@ -214,6 +214,13 @@ export function ViewerView({
       ),
     [comments, website, source.kind, snapshots, breakpoint, latestOf],
   );
+  /** Pins in surface px, so each card's thumbnail can centre on its own. */
+  const cropPins = useMemo(() => {
+    const projectPages = pagesOf(project);
+    return new Map(
+      comments.map((comment) => [comment.id, pinInSurface(comment, snapshots, projectPages)]),
+    );
+  }, [comments, snapshots, project]);
   const counts = countComments(comments);
   const listedCounts = countComments(listed);
   const breakpointCounts = useMemo(
@@ -537,6 +544,7 @@ export function ViewerView({
       }
       pageNumbers={pageNumbers}
       breakpoints={listedBreakpoints}
+      cropPins={cropPins}
       canModerate={owner}
       moderator={moderator}
       reviewOpen={!locked}

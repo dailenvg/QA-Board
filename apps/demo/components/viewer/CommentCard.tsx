@@ -42,6 +42,8 @@ interface CommentCardProps extends CommentCardActions {
   pageNumber: number | null;
   /** The breakpoint it's on, while the list shows every breakpoint's comments. */
   breakpoint: Breakpoint | null;
+  /** The pin in surface px, which the crop's thumbnail centres on; null shows the whole crop. */
+  cropPin: { x: number; y: number } | null;
   /**
    * The workspace's viewer: shows Resolve/Reopen (anyone in the workspace),
    * and marks client comments. Off on a shared link, whose guest only gets
@@ -82,6 +84,7 @@ export function CommentCard({
   placement,
   pageNumber,
   breakpoint,
+  cropPin,
   canModerate,
   canEdit,
   canDelete,
@@ -293,7 +296,9 @@ export function CommentCard({
         )}
       </AnimatePresence>
 
-      {editing || !comment.crop ? null : <CommentCropThumb crop={comment.crop} number={number} />}
+      {editing || !comment.crop ? null : (
+        <CommentCropThumb crop={comment.crop} pin={cropPin} number={number} />
+      )}
 
       {editing || !actions ? null : (
         // `relative` lifts the actions above the select button's card-wide ::after.

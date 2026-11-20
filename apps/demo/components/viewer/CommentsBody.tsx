@@ -37,6 +37,8 @@ interface CommentsBodyProps extends CommentCardActions {
   pageNumbers?: ReadonlyMap<string, number>;
   /** Breakpoints by comment id, while the list shows every breakpoint's: each card says its own. */
   breakpoints?: ReadonlyMap<string, Breakpoint>;
+  /** Pins in surface px by comment id (`pinInSurface`), for the crop thumbnails. */
+  cropPins: ReadonlyMap<string, { x: number; y: number } | null>;
 }
 
 function emptyCopy(tab: CommentTab, total: number, scope: string | undefined) {
@@ -105,6 +107,7 @@ export function CommentsBody({
   scope,
   pageNumbers,
   breakpoints,
+  cropPins,
   ...actions
 }: CommentsBodyProps) {
   const variants = useRevealVariants();
@@ -146,6 +149,7 @@ export function CommentsBody({
                 placement={placements.get(comment.id) ?? null}
                 pageNumber={(comment.pageId && pageNumbers?.get(comment.pageId)) || null}
                 breakpoint={breakpoints?.get(comment.id) ?? null}
+                cropPin={cropPins.get(comment.id) ?? null}
                 canModerate={canModerate}
                 canEdit={rights.edit}
                 canDelete={rights.delete !== null}
