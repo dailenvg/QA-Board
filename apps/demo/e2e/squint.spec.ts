@@ -173,6 +173,29 @@ test("a click right after Escape closes the composer lands on the canvas", async
     .toBeGreaterThan(box.x + 200);
 });
 
+test("the crosshair shows after a keyboard post but not after a mouse post", async ({ page }) => {
+  await openFolder(page);
+  await createImageProject(page, "crosshair.png");
+  const crosshair = page.getByTestId("crosshair");
+
+  const composer = await dropPin(page);
+  await composer.getByLabel("Your name").fill("Leo");
+  await composer.getByLabel("Comment", { exact: true }).fill("Mouse post.");
+  await composer.getByRole("button", { name: "Post" }).click();
+  await expect(composer).toHaveCount(0);
+  await expect(page.getByTestId("comment-overlay")).toBeFocused();
+  await expect(crosshair).toHaveCount(0);
+
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Enter");
+  const second = page.getByTestId("composer");
+  await second.getByLabel("Comment", { exact: true }).fill("Keyboard post.");
+  await second.getByLabel("Comment", { exact: true }).press("Enter");
+  await expect(second).toHaveCount(0);
+  await expect(page.getByTestId("comment-overlay")).toBeFocused();
+  await expect(crosshair).toBeVisible();
+});
+
 test("a site that refuses framing offers a screenshot instead", async ({ page }) => {
   await mockFrameCheck(page, {
     verdict: "blocked",
