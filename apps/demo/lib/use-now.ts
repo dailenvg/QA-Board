@@ -10,8 +10,8 @@ function subscribe(onChange: () => void): () => void {
   // Ticks on the minute, when the clock's minute changes, so a countdown changes at the same moment the clock does.
   const tick = () => {
     now = Date.now();
-    onChange();
     timer = window.setTimeout(tick, MINUTE - (now % MINUTE));
+    onChange();
   };
   timer = window.setTimeout(tick, MINUTE - (now % MINUTE));
   return () => window.clearTimeout(timer);

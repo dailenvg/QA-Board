@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence } from "motion/react";
-import type { ReactNode, Ref } from "react";
+import type { ReactNode, Ref, RefObject } from "react";
 import type { Comment } from "@/lib/store/types";
 import { CommentOverlay } from "./CommentOverlay";
 import { Composer } from "./Composer";
@@ -21,7 +21,7 @@ interface CanvasLayerProps {
   popover: ReactNode;
   draft: Draft | null;
   authorName: string | null;
-  composerRef: Ref<HTMLTextAreaElement>;
+  composerRef: RefObject<HTMLTextAreaElement | null>;
   overlayRef: Ref<HTMLDivElement>;
   onSelect: (id: string) => void;
   onPlace: (point: PinPoint) => void;
@@ -99,7 +99,9 @@ export function CanvasLayer({
       <AnimatePresence>{draft ? null : popover}</AnimatePresence>
       <AnimatePresence>
         {draft ? (
-          <div key="composer">
+          // Keyed by the draft: a click while the last composer fades out mounts a fresh one
+          // (its own state and focus) instead of reviving the leaving one. A retry keeps the draft.
+          <div key={draft.commentId}>
             <Composer
               draft={draft}
               authorName={authorName}
