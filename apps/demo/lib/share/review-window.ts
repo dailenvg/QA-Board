@@ -58,12 +58,15 @@ export interface TimeLeft {
 }
 
 /**
- * What's left until `endsAt`, in whole days, hours and minutes, rounded up to
- * the minute so it never reads zero while time remains. Null once it's over.
+ * What's left until `endsAt`, in whole days, hours and minutes, counted to the
+ * minute `endsAt` is shown in: a clock shows the end without its seconds, so
+ * "until 4:30 PM" and the minutes left must count to 4:30. Never reads zero
+ * while time remains (the last partial minute is "1m"). Null once it's over.
  */
 export function timeLeft(endsAt: number, now: number): TimeLeft | null {
   if (now >= endsAt) return null;
-  const total = Math.ceil((endsAt - now) / MINUTE);
+  const shownEnd = Math.floor(endsAt / MINUTE) * MINUTE;
+  const total = Math.max(1, Math.ceil((shownEnd - now) / MINUTE));
   return {
     days: Math.floor(total / 1440),
     hours: Math.floor((total % 1440) / 60),

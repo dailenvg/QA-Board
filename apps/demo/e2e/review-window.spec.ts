@@ -18,6 +18,13 @@ const EMBEDDABLE = (baseURL: string | undefined) => ({
   status: 200,
 });
 
+/** "1 day, 2 hours and 5 minutes" as the chip writes it: "1d 2h 5m" (zero units kept). */
+function chipForm(spoken: string): string {
+  const count = (unit: string) => spoken.match(new RegExp(`(\\d+) ${unit}`))?.[1] ?? "0";
+  const [days, hours, minutes] = [count("day"), count("hour"), count("minute")];
+  return Number(days) ? `${days}d ${hours}h ${minutes}m` : `${hours}h ${minutes}m`;
+}
+
 /** A signed-out browser of its own on the link, past the review guide. */
 async function openAsGuest(browser: Browser, link: string, baseURL: string | undefined) {
   const context = await browser.newContext({ storageState: SIGNED_OUT });
@@ -79,6 +86,19 @@ test("a link set to 24 hours says so, and No limit takes the guest's countdown a
 
   const { context, guest } = await openAsGuest(browser, link, baseURL);
   await expect(guest.getByTestId("review-countdown")).toContainText(/(1d 0h 0m|23h \d+m) left/);
+
+  // Owner and guest count down the same minutes.
+  await expect
+    .poll(async () => {
+      const owner = (await dialog.getByTestId("review-window").textContent()) ?? "";
+      const chip =
+        (await guest
+          .getByTestId("review-countdown")
+          .locator('span[aria-hidden="true"]')
+          .textContent()) ?? "";
+      return `${chipForm(owner)} left` === chip.trim();
+    })
+    .toBe(true);
 
   // No limit: the owner's dialog and the server say so, and the guest's countdown goes.
   const saved = windowSaved(page);
