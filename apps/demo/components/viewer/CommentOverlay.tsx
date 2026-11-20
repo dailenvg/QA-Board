@@ -41,7 +41,7 @@ function visibleCentre(node: HTMLElement): PinPoint {
  */
 export function CommentOverlay({ onPlace, onExit, ref }: CommentOverlayProps) {
   const [cursor, setCursor] = useState<PinPoint | null>(null);
-  // The crosshair is for keyboard use: focus a click or a mouse-driven post hands back doesn't show it.
+  // The crosshair is for keyboard use. It stays hidden when focus comes back from a click or a mouse-driven post.
   const [keyboardFocus, setKeyboardFocus] = useState(false);
   const helpId = useId();
 

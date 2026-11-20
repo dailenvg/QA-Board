@@ -7,7 +7,7 @@ function subscribe(onChange: () => void): () => void {
   // React re-reads the snapshot after subscribing, so a stale time refreshes on mount.
   now = Date.now();
   let timer = 0;
-  // Ticks on the minute, when the clock's minute changes, so a countdown steps in step with it.
+  // Ticks on the minute, when the clock's minute changes, so a countdown changes at the same moment the clock does.
   const tick = () => {
     now = Date.now();
     onChange();

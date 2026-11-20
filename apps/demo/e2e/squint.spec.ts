@@ -153,7 +153,7 @@ test("an image project accepts a keyboard-placed pin and shows Comments in on th
   await expect(page.getByTestId("dashboard-empty")).toBeVisible();
 });
 
-test("a click right after Escape closes the composer lands on the canvas", async ({ page }) => {
+test("once Escape closes the composer, an immediate click lands on the canvas", async ({ page }) => {
   await openFolder(page);
   await createImageProject(page, "escape-click.png");
   await dropPin(page, { x: 120, y: 90 });
