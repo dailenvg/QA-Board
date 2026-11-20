@@ -6,7 +6,7 @@ import { insertUser } from "@/test/accounts-fixture";
 import { jpegHeader, pngHeader, webpLossy } from "@/test/image-headers";
 import { seat, type Seat } from "@/test/workspace-fixture";
 import { migratedPglite } from "@/test/pglite";
-import { createSession } from "../auth/sessions";
+import { insertSession } from "@/test/sessions-fixture";
 import type { Database } from "../db/database";
 import { findMembership } from "../auth/memberships";
 import type { BlobLocation } from "../share/types";
@@ -107,7 +107,7 @@ async function member(): Promise<string> {
     "INSERT INTO memberships (user_id, workspace_id, role) VALUES ($1, $2, 'member')",
     [userId, a.workspaceId],
   );
-  return `squint_session=${await createSession(db, userId, Date.now())}`;
+  return `squint_session=${await insertSession(db, userId, Date.now())}`;
 }
 
 describe("PATCH /api/account/workspace", () => {
@@ -177,7 +177,7 @@ describe("PATCH /api/account/workspace", () => {
 
   it("answers 404 for an account in no workspace, and 403 for a member who isn't the owner", async () => {
     const admin = await insertUser(db, "admin@squint.test", "admin");
-    const adminCookie = `squint_session=${await createSession(db, admin, Date.now())}`;
+    const adminCookie = `squint_session=${await insertSession(db, admin, Date.now())}`;
     const none = await callAccount("PATCH", "/api/account/workspace", {
       cookie: adminCookie,
       body: settings,
@@ -347,7 +347,7 @@ describe("GET /api/account/workspace/icon", () => {
     // Another workspace's owner gets their own, at another version.
     expect(await iconVersion(b)).not.toBe(version);
     const admin = await insertUser(db, "admin@squint.test", "admin");
-    const adminCookie = `squint_session=${await createSession(db, admin, Date.now())}`;
+    const adminCookie = `squint_session=${await insertSession(db, admin, Date.now())}`;
     expect((await icon(adminCookie, version)).status).toBe(404);
   });
 

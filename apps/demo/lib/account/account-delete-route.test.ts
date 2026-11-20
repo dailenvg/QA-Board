@@ -11,8 +11,7 @@ import {
   WORKSPACE_NAME,
   type DeletionWorld,
 } from "@/test/deletion-fixture";
-import { readSession } from "@/test/sessions-fixture";
-import { createSession } from "../auth/sessions";
+import { insertSession, readSession } from "@/test/sessions-fixture";
 import { MAX_FAILURES_PER_EMAIL } from "../auth/rate-limit";
 import type { Database } from "../db/database";
 import type { DeletionNotice } from "./account-email";
@@ -69,7 +68,7 @@ async function deletedAt(userId: string): Promise<Date | null> {
 describe("DELETE /api/account", () => {
   it("schedules the deletion, ends every session, clears the cookie and mails a notice after", async () => {
     const { db, owner } = world;
-    const elsewhere = await createSession(db, owner.id, Date.now());
+    const elsewhere = await insertSession(db, owner.id, Date.now());
     const response = await deleteAccount({
       confirmText: WORKSPACE_NAME,
       currentPassword: PASSWORD,
@@ -101,7 +100,7 @@ describe("DELETE /api/account", () => {
 
   it("refuses the admin's account with a 403 and no password check", async () => {
     const adminId = await insertUser(world.db, "admin@squint.test", "admin");
-    const cookie = `squint_session=${await createSession(world.db, adminId, Date.now())}`;
+    const cookie = `squint_session=${await insertSession(world.db, adminId, Date.now())}`;
     const response = await deleteAccount(
       { confirmText: "anything", currentPassword: PASSWORD },
       cookie,

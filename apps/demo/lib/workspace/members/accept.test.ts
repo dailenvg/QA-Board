@@ -203,6 +203,21 @@ describe("acceptInvite: an address that has an account", () => {
 });
 
 describe("acceptInvite: an account removed from here, invited back", () => {
+  it("still discards the old avatar when starting the session fails after the accept", async () => {
+    const cleo = await addMember(world.db, world.workspaceId, undefined, "cleo@x.test");
+    await giveAvatar(world.db, cleo.user.id);
+    await removeMember(world.db, cleo.user.id, world.workspaceId, NOW);
+    const token = await invite("cleo@x.test");
+    // Better Auth's insert of the session fails, once the accept has committed.
+    await world.db.query("ALTER TABLE sessions DROP COLUMN user_agent");
+    const log = discardLog();
+    await expect(
+      accept(token, asNew("Cleo Again"), NOW + REMOVAL_GRACE_MS - 1000, log),
+    ).rejects.toThrow();
+    expect(await userRow("cleo@x.test")).toMatchObject({ deleted_at: null, avatar_blob_key: null });
+    expect(log.discarded).toEqual([{ kind: "vercel", url: AVATAR_URL }]);
+  });
+
   it("revives it within 24 hours: the same id, new name and password, no avatar, no removal", async () => {
     const cleo = await addMember(
       world.db,

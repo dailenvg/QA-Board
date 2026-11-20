@@ -7,6 +7,7 @@ import * as suspensionRoute from "@/app/api/admin/workspaces/[id]/suspension/rou
 import { insertUser } from "@/test/accounts-fixture";
 import { routeFetch } from "@/test/route-fetch";
 import { STATE } from "@/test/share-fixture";
+import { insertSession } from "@/test/sessions-fixture";
 import {
   addFolder,
   TEST_AUTH_SECRET,
@@ -14,7 +15,6 @@ import {
   URL_PROJECT,
   type Seat,
 } from "@/test/workspace-fixture";
-import { createSession } from "../auth/sessions";
 import type { Database } from "../db/database";
 import { inlineBackend } from "../share/blob-backend";
 import { invitationCard } from "../share/guest-share";
@@ -90,7 +90,7 @@ beforeEach(async () => {
   a = world.a;
   holder.db = db;
   const adminId = await insertUser(db, "admin@squint.test", "admin");
-  admin = `squint_session=${await createSession(db, adminId, Date.now())}`;
+  admin = `squint_session=${await insertSession(db, adminId, Date.now())}`;
   (globalThis as { squintShares?: Promise<ShareServices> }).squintShares = Promise.resolve({
     store: createPostgresStore(db),
     blobs: inlineBackend,

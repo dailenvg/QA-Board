@@ -5,7 +5,7 @@ import { insertUser } from "@/test/accounts-fixture";
 import { migratedPglite } from "@/test/pglite";
 import { addProjectBlob, storedWorkspace } from "@/test/storage-fixture";
 import { addFolder, NOW, seat, URL_PROJECT, type Seat } from "@/test/workspace-fixture";
-import { createSession } from "../auth/sessions";
+import { insertSession } from "@/test/sessions-fixture";
 import type { Database } from "../db/database";
 import { createProject } from "../workspace/projects";
 import { storageReportSchema } from "./schemas";
@@ -40,7 +40,7 @@ async function signedIn(email: string, workspaceId?: string): Promise<string> {
       [userId, workspaceId],
     );
   }
-  return `squint_session=${await createSession(db, userId, Date.now())}`;
+  return `squint_session=${await insertSession(db, userId, Date.now())}`;
 }
 
 describe("GET /api/account/storage", () => {

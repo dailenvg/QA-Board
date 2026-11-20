@@ -18,7 +18,8 @@ export const SIGNED_OUT = { cookies: [], origins: [] };
 
 /**
  * A usable password reset link for `email`, written straight into the e2e
- * database (the e2e server sends no email). Returns the link's path.
+ * database (the e2e server sends no email) as Better Auth stores one: only
+ * the token's sha256, behind `sha256:reset-password:`. Returns the link's path.
  */
 export async function createResetLink(email: string): Promise<string> {
   const token = randomBytes(32).toString("base64url");
@@ -26,9 +27,9 @@ export async function createResetLink(email: string): Promise<string> {
   await client.connect();
   try {
     await client.query(
-      `INSERT INTO password_resets (user_id, token_hash, expires_at)
-       SELECT id, $1, now() + interval '1 hour' FROM users WHERE email = $2`,
-      [createHash("sha256").update(token).digest("hex"), email],
+      `INSERT INTO verifications (identifier, value, expires_at)
+       SELECT $1, id::text, now() + interval '1 hour' FROM users WHERE email = $2`,
+      [`sha256:reset-password:${createHash("sha256").update(token).digest("hex")}`, email],
     );
   } finally {
     await client.end();

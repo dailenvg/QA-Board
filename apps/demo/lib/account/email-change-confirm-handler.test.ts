@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { insertUser, NOW } from "@/test/accounts-fixture";
 import { migratedPglite } from "@/test/pglite";
-import { readSession } from "@/test/sessions-fixture";
-import { createSession } from "../auth/sessions";
+import { insertSession, readSession } from "@/test/sessions-fixture";
 import type { Database } from "../db/database";
 import { requestEmailChange } from "./email-change";
 import { EMAIL_CHANGED_HREF } from "../routes";
@@ -120,7 +119,7 @@ describe("confirming an email change from its link", () => {
 
   it("answers a form posted before hydration with a 303, never ending a session it shouldn't", async () => {
     const { db, userId, token, deps } = await setup();
-    const session = await createSession(db, userId, NOW);
+    const session = await insertSession(db, userId, NOW);
     const done = await handleEmailChangeConfirm(formPost(token), deps);
     expect(done.status).toBe(303);
     expect(done.headers.get("location")).toBe(EMAIL_CHANGED_HREF);

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { insertUser, NOW, PASSWORD } from "@/test/accounts-fixture";
 import { migratedPglite } from "@/test/pglite";
-import { readSession } from "@/test/sessions-fixture";
+import { insertSession, readSession } from "@/test/sessions-fixture";
 import { verifyPassword } from "../auth/password";
+import { createResetLink } from "../auth/password-reset";
 import { MAX_FAILURES_PER_EMAIL } from "../auth/rate-limit";
-import { createSession } from "../auth/sessions";
 import type { SessionUser } from "../auth/users";
 import type { Database } from "../db/database";
 import { changePassword } from "./password-change";
@@ -70,12 +70,9 @@ describe("changing the password", () => {
 
   it("rotates the sessions on success: a new one for this browser, none elsewhere", async () => {
     const { db, user } = await setup();
-    const laptop = await createSession(db, user.id, NOW);
-    const phone = await createSession(db, user.id, NOW);
-    await db.query(
-      "INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES ($1, $2, $3)",
-      [user.id, "c".repeat(64), new Date(NOW + 1000)],
-    );
+    const laptop = await insertSession(db, user.id, NOW);
+    const phone = await insertSession(db, user.id, NOW);
+    await createResetLink(db, user.id, { now: NOW, origin: new URL("https://squint.test") });
     const result = await changePassword(
       db,
       user,
@@ -89,7 +86,7 @@ describe("changing the password", () => {
     expect(await verifyPassword(NEW_PASSWORD, await storedHash(db, user.id))).toBe(true);
     // The claim is released, and a reset link mailed before the change can't undo it.
     expect(await attempts(db)).toEqual([]);
-    const { rows } = await db.query("SELECT 1 FROM password_resets WHERE used_at IS NULL");
+    const { rows } = await db.query("SELECT 1 FROM verifications");
     expect(rows).toEqual([]);
     const { rows: audit } = await db.query("SELECT action, meta FROM audit_log");
     expect(audit).toEqual([{ action: "user.password_changed", meta: { fields: ["password"] } }]);

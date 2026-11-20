@@ -4,7 +4,7 @@ import { insertUser } from "@/test/accounts-fixture";
 import { migratedPglite } from "@/test/pglite";
 import { seat, TEST_AUTH_SECRET, type Seat } from "@/test/workspace-fixture";
 import { call } from "@/test/workspace-routes";
-import { createSession } from "../../auth/sessions";
+import { insertSession } from "@/test/sessions-fixture";
 import type { Database } from "../../db/database";
 import { sealSecret } from "../../workspace/sealed-secrets";
 import { escapeMarkdown } from "./message";
@@ -392,7 +392,7 @@ describe("POST /api/w/<id>/projects/<id>/clickup", () => {
       [userId, b.workspaceId],
     );
     await connect({ userId, workspaceId: b.workspaceId });
-    const cookie = `squint_session=${await createSession(db, userId, Date.now())}`;
+    const cookie = `squint_session=${await insertSession(db, userId, Date.now())}`;
     const theirs = await call("POST", `/api/w/${b.workspaceId}/projects/p2/clickup`, {
       cookie,
       body: { channelId: "c-1" },
@@ -446,7 +446,7 @@ describe("a token copied from the workspace connection (040)", () => {
        VALUES ($1, $2, $3, 'Acme Design', '81', 'Ana Ruiz', $4, 'workspace')`,
       [userId, a.workspaceId, TEAM, sealed],
     );
-    const cookie = `squint_session=${await createSession(db, userId, Date.now())}`;
+    const cookie = `squint_session=${await insertSession(db, userId, Date.now())}`;
     const response = await call("GET", `/api/w/${a.workspaceId}/clickup/channels`, { cookie });
     expect(response.status).toBe(422);
     expect(await response.json()).toEqual({ error: "reconnect" });

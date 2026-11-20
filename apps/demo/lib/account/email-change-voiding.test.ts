@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { insertUser, NOW, PASSWORD } from "@/test/accounts-fixture";
 import { migratedPglite } from "@/test/pglite";
+import { insertSession } from "@/test/sessions-fixture";
 import { completePasswordReset, requestPasswordReset } from "../auth/password-reset";
-import { createSession } from "../auth/sessions";
 import type { Database } from "../db/database";
 import { MAX_EMAIL_CHANGES_PER_HOUR, requestEmailChange } from "./email-change";
 import { handleEmailChangeConfirm } from "./email-change-confirm-handler";
@@ -83,6 +83,12 @@ describe("securing the account uses up pending email changes", () => {
   });
 
   it("a password reset from an emailed link", async () => {
+    // Better Auth checks the link's hour against the clock: the clock reads `LATER`.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(LATER);
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     const seeded = await setup();
     let resetLink = "";
     await requestPasswordReset(seeded.db, EMAIL, {
@@ -102,7 +108,26 @@ describe("securing the account uses up pending email changes", () => {
 
   it("log out everywhere", async () => {
     const seeded = await setup();
-    await createSession(seeded.db, seeded.userId, NOW);
+    await insertSession(seeded.db, seeded.userId, NOW);
+    await logOutEverywhere(seeded.db, seeded.userId, LATER);
+    await expectLinkSpent(seeded);
+    const { rows } = await seeded.db.query("SELECT 1 FROM sessions");
+    expect(rows).toEqual([]);
+  });
+
+  it("log out everywhere is all or nothing: a failed audit keeps every session and the link", async () => {
+    const seeded = await setup();
+    await insertSession(seeded.db, seeded.userId, NOW);
+    await seeded.db.query("ALTER TABLE audit_log RENAME TO audit_log_away");
+    await expect(logOutEverywhere(seeded.db, seeded.userId, LATER)).rejects.toThrow();
+    const { rows: sessions } = await seeded.db.query("SELECT 1 FROM sessions");
+    expect(sessions).toHaveLength(1);
+    const { rows: pending } = await seeded.db.query(
+      "SELECT 1 FROM email_changes WHERE used_at IS NULL",
+    );
+    expect(pending).toHaveLength(1);
+    // Tried again once the storage is back, it ends them both.
+    await seeded.db.query("ALTER TABLE audit_log_away RENAME TO audit_log");
     await logOutEverywhere(seeded.db, seeded.userId, LATER);
     await expectLinkSpent(seeded);
     const { rows } = await seeded.db.query("SELECT 1 FROM sessions");

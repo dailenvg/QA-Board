@@ -1,11 +1,9 @@
 import { auditAccount } from "../account/audit";
 import type { Database } from "../db/database";
 import type { Queryable } from "../share/migrate";
-import { authSecret } from "./auth-secret";
 import { signInWithPassword } from "./better-auth";
 import { normalizeEmail } from "./field-rules";
 import { claimLoginAttempt, releaseLoginClaim } from "./rate-limit";
-import { signSessionToken } from "./session-token";
 import { holdOf } from "./sign-in-hold";
 import type { SessionUser } from "./users";
 
@@ -105,5 +103,5 @@ export async function logIn(
   const first = await recordLogin(db, user.id, now);
   await clearExpiredSessions(db, user.id, now);
   await auditAccount(db, user.id, "user.signed_in", [], now);
-  return { ok: true, token: signSessionToken(token, authSecret()), user, first };
+  return { ok: true, token, user, first };
 }

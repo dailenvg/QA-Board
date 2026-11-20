@@ -1,11 +1,11 @@
 import { NextRequest } from "next/server";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { insertUser, NOW, PASSWORD } from "@/test/accounts-fixture";
 import { addMember, membersWorld, removeMember } from "@/test/members-fixture";
 import { migratedPglite } from "@/test/pglite";
 import type { Database } from "../db/database";
 import { handleLogin } from "./login-handler";
-import { RESET_TTL_MS, type ResetEmail } from "./password-reset";
+import { requestPasswordReset, RESET_TTL_MS, type ResetEmail } from "./password-reset";
 import { handleResetComplete } from "./reset-complete-handler";
 import { handleResetRequest } from "./reset-request-handler";
 
@@ -295,10 +295,18 @@ describe("reset request form posts (before hydration)", () => {
 });
 
 describe("reset complete form posts (before hydration)", () => {
+  // Better Auth checks a link's hour against the clock: the clock reads `NOW`.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   /** A real reset link's token for `EMAIL`. */
   async function linkToken(db: Database): Promise<string> {
     const sent: ResetEmail[] = [];
-    const { requestPasswordReset } = await import("./password-reset");
     await requestPasswordReset(db, EMAIL, {
       now: NOW,
       origin: new URL("https://squint.test"),
@@ -367,5 +375,84 @@ describe("JSON reset routes", () => {
       { db: Promise.resolve(db), now: NOW },
     );
     expect(expired.status).toBe(410);
+  });
+
+  it("reset every email Squint accepts, which Better Auth's own check would refuse", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const db = await migratedPglite();
+    for (const email of ["jürgen@firma.de", "ops&billing@acme.com"]) {
+      await insertUser(db, email);
+      const tasks: Array<() => Promise<void>> = [];
+      const sent: ResetEmail[] = [];
+      const accepted = await handleResetRequest(jsonPost("/api/auth/reset", { email }), {
+        db: Promise.resolve(db),
+        now: NOW,
+        origin: new URL("https://squint.test"),
+        send: (message) => {
+          sent.push(message);
+          return Promise.resolve();
+        },
+        defer: (task) => tasks.push(task),
+      });
+      expect(accepted.status).toBe(202);
+      for (const task of tasks) await task();
+      expect(sent.map(({ to }) => to)).toEqual([email]);
+      const token = sent[0]?.link.split("/reset/")[1] ?? "";
+      const done = await handleResetComplete(
+        jsonPost("/api/auth/reset/complete", { token, password: NEW_PASSWORD }),
+        { db: Promise.resolve(db), now: NOW },
+      );
+      expect(await done.json()).toEqual({ ok: true });
+      const signedIn = await handleLogin(
+        jsonPost("/api/auth/login", { email, password: NEW_PASSWORD }),
+        { db: Promise.resolve(db), now: NOW },
+      );
+      expect(signedIn.status).toBe(200);
+    }
+  });
+
+  it("set the password with Squint's answers alone, a failure inside Better Auth included", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    onTestFinished(() => {
+      vi.useRealTimers();
+      error.mockRestore();
+    });
+    const db = await setup();
+    const complete = (token: string) =>
+      handleResetComplete(jsonPost("/api/auth/reset/complete", { token, password: NEW_PASSWORD }), {
+        db: Promise.resolve(db),
+        now: NOW,
+      });
+    const links: string[] = [];
+    for (let index = 0; index < 2; index += 1) {
+      await requestPasswordReset(db, EMAIL, {
+        now: NOW,
+        origin: new URL("https://squint.test"),
+        send: (email) => {
+          links.push(email.link.split("/reset/")[1] ?? "");
+          return Promise.resolve();
+        },
+      });
+    }
+    // Better Auth can't read the password it's to replace: its transaction fails.
+    await db.query("ALTER VIEW auth_accounts RENAME TO auth_accounts_away");
+    const failed = await complete(links[0] ?? "");
+    expect(failed.status).toBe(500);
+    expect(await failed.text()).toBe(JSON.stringify({ error: "storage" }));
+    expect(error.mock.calls.flat().map(String).join("\n")).toContain("squint auth:");
+
+    await db.query("ALTER VIEW auth_accounts_away RENAME TO auth_accounts");
+    const done = await complete(links[0] ?? "");
+    expect(done.status).toBe(200);
+    expect(await done.json()).toEqual({ ok: true });
+    const spent = await complete(links[1] ?? "");
+    expect(spent.status).toBe(410);
+    expect(await spent.json()).toEqual({ error: "expired" });
   });
 });

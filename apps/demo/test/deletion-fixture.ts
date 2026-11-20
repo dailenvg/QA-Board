@@ -1,5 +1,4 @@
 import { scheduleAccountDeletion } from "@/lib/account/account-deletion";
-import { createSession } from "@/lib/auth/sessions";
 import type { SessionUser } from "@/lib/auth/users";
 import type { Database } from "@/lib/db/database";
 import { inlineBackend } from "@/lib/share/blob-backend";
@@ -9,6 +8,7 @@ import { createShare, type CreatedShare } from "@/lib/share/service";
 import { createProject } from "@/lib/workspace/projects";
 import { attachShare } from "@/lib/workspace/share-links";
 import { storeInline } from "@/lib/workspace/uploads";
+import { insertSession } from "@/test/sessions-fixture";
 import { insertUser, PASSWORD } from "./accounts-fixture";
 import { migratedPglite } from "./pglite";
 import { seedLogo } from "./brand-fixture";
@@ -129,7 +129,7 @@ export async function deletionWorld(): Promise<DeletionWorld> {
   await seedLogo(db, workspaceId, PNG);
   await addAvatar(db, ownerId);
   const share = await addShare(db, workspaceId);
-  const token = await createSession(db, ownerId, Date.now());
+  const token = await insertSession(db, ownerId, Date.now());
   return {
     db,
     owner: { id: ownerId, email: OWNER_EMAIL, name: null, role: "company" },

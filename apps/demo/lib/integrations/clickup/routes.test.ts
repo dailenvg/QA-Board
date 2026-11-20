@@ -4,7 +4,7 @@ import { callAccount } from "@/test/account-routes";
 import { insertUser } from "@/test/accounts-fixture";
 import { migratedPglite } from "@/test/pglite";
 import { seat, TEST_AUTH_SECRET, type Seat } from "@/test/workspace-fixture";
-import { createSession } from "../../auth/sessions";
+import { insertSession } from "@/test/sessions-fixture";
 import type { Database } from "../../db/database";
 import { openSecret, sealSecret } from "../../workspace/sealed-secrets";
 import { clickUpTokenContext, legacyClickUpTokenContext } from "./connections";
@@ -106,7 +106,7 @@ async function member(): Promise<{ userId: string; cookie: string }> {
     "INSERT INTO memberships (user_id, workspace_id, role) VALUES ($1, $2, 'member')",
     [userId, a.workspaceId],
   );
-  return { userId, cookie: `squint_session=${await createSession(db, userId, Date.now())}` };
+  return { userId, cookie: `squint_session=${await insertSession(db, userId, Date.now())}` };
 }
 
 /** `actor`'s connection as 039 kept it, before 040: one per workspace, sealed to the workspace. */
@@ -253,7 +253,7 @@ describe("POST /api/account/integrations/clickup", () => {
 
   it("answers 404 to an account in no workspace, and never asks ClickUp", async () => {
     const loner = await insertUser(db, "loner@nowhere.test");
-    const cookie = `squint_session=${await createSession(db, loner, Date.now())}`;
+    const cookie = `squint_session=${await insertSession(db, loner, Date.now())}`;
     const response = await connect(cookie, { token: TOKEN });
     expect(response.status).toBe(404);
     expect(clickUpCalls).toEqual([]);

@@ -12,6 +12,7 @@ import {
   restoreAccount,
   scheduleAccountDeletion,
 } from "../../account/account-deletion";
+import { createResetLink } from "../../auth/password-reset";
 import type { Queryable } from "../../share/migrate";
 import { toDate } from "../times";
 import { removeMember, type RemoveOutcome } from "./remove-member";
@@ -77,6 +78,10 @@ describe("removeMember (4.5)", () => {
        VALUES ($1, repeat('a', 64), $2)`,
       [ben.user.id, toDate(NOW + 3_600_000)],
     );
+    await createResetLink(world.db, ben.user.id, {
+      now: NOW,
+      origin: new URL("https://squint.test"),
+    });
     expect(await remove(world.owner, ben)).toEqual({ ok: true });
     expect(await switchesOf(world.db, ben.user.id, world.workspaceId)).toBeNull();
     expect(await account(ben.user.id)).toEqual({
@@ -93,6 +98,10 @@ describe("removeMember (4.5)", () => {
     ]) {
       expect(await count(table, ben.user.id), table).toBe(0);
     }
+    const { rows: links } = await world.db.query("SELECT 1 FROM verifications WHERE value = $1", [
+      ben.user.id,
+    ]);
+    expect(links).toEqual([]);
     const { rows: legacy } = await world.db.query(
       "SELECT 1 FROM workspace_clickup_connections WHERE workspace_id = $1",
       [world.workspaceId],

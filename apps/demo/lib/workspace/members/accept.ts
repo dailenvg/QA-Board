@@ -1,8 +1,8 @@
 import { audit } from "../../account/audit";
 import { scrubAccount } from "../../account/account-purge";
+import { startSession } from "../../auth/better-auth";
 import { hashPassword } from "../../auth/password";
 import { knownSwitches, type MemberSwitch } from "../../auth/permissions";
-import { createSession } from "../../auth/sessions";
 import type { SessionUser } from "../../auth/users";
 import type { Database } from "../../db/database";
 import type { Queryable } from "../../share/migrate";
@@ -387,11 +387,12 @@ export async function acceptInvite(
       "session" in path
         ? await acceptSignedIn(tx, held.locked, path.session, now)
         : await acceptNew(tx, held.locked, path, now);
-    if (!step.ok) return step;
-    const sessionToken = step.signIn ? await createSession(tx, step.userId, now) : null;
-    return { ...step, sessionToken };
+    return step;
   });
   if (!result.ok) return result;
+  // The old avatar's files go first, so a failure starting the session can't orphan them.
   await discardQuietly("avatar", services.blobs, result.files);
-  return { ok: true, workspaceId: invite.workspace_id, sessionToken: result.sessionToken };
+  // Once the accept has committed: Better Auth reads the account it made or brought back.
+  const sessionToken = result.signIn ? await startSession(db, result.userId, now) : null;
+  return { ok: true, workspaceId: invite.workspace_id, sessionToken };
 }

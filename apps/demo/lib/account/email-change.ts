@@ -1,3 +1,4 @@
+import { voidResetLinks } from "../auth/reset-links";
 import type { Database } from "../db/database";
 import type { Queryable } from "../share/migrate";
 import { createSecret, hashSecret, isSecretShape } from "../share/tokens";
@@ -140,14 +141,10 @@ async function applyChange(tx: Queryable, token: string, now: number): Promise<E
   const change = rows[0];
   if (!change) return { ok: false, reason: "expired" };
   if (await isTaken(tx, change.new_email, change.user_id)) return { ok: false, reason: "taken" };
-  const at = new Date(now);
   await tx.query("UPDATE users SET email = $2 WHERE id = $1", [change.user_id, change.new_email]);
   // This link, and every other one the user still had pending.
   await voidEmailChanges(tx, change.user_id, now);
-  await tx.query("UPDATE password_resets SET used_at = $2 WHERE user_id = $1 AND used_at IS NULL", [
-    change.user_id,
-    at,
-  ]);
+  await voidResetLinks(tx, change.user_id);
   await tx.query("DELETE FROM sessions WHERE user_id = $1", [change.user_id]);
   await auditAccount(tx, change.user_id, "user.email_changed", ["email"], now);
   return { ok: true, oldEmail: change.old_email };
