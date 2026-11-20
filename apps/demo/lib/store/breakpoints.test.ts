@@ -5,6 +5,8 @@ import {
   BREAKPOINT_WIDTH,
   breakpointOf,
   breakpointOfComment,
+  commentsAtBreakpoint,
+  spansBreakpoints,
 } from "./breakpoints";
 import type { Comment, Snapshot } from "./types";
 
@@ -18,8 +20,8 @@ const snapshot = (id: string, width: number): Snapshot => ({
   sourceUrl: "https://example.com/",
 });
 
-const comment = (snapshotId?: string, status: Comment["status"] = "active"): Comment => ({
-  id: "c",
+const comment = (snapshotId?: string, status: Comment["status"] = "active", id = "c"): Comment => ({
+  id,
   projectId: "p",
   x: 1,
   y: 1,
@@ -73,5 +75,42 @@ describe("activeByBreakpoint", () => {
     ]);
     const comments = [comment("wide"), comment(), comment("pad"), comment("pad", "resolved")];
     expect(activeByBreakpoint(comments, snapshots)).toEqual({ desktop: 2, tablet: 1, mobile: 0 });
+  });
+});
+
+describe("commentsAtBreakpoint", () => {
+  const snapshots = new Map([
+    ["wide", snapshot("wide", 1440)],
+    ["phone", snapshot("phone", 390)],
+  ]);
+  const comments = [
+    comment("wide", "active", "a"),
+    comment("phone", "active", "b"),
+    comment(undefined, "resolved", "c"),
+    comment("phone", "resolved", "d"),
+  ];
+  const ids = (list: readonly Comment[]) => list.map((entry) => entry.id);
+
+  it("keeps each breakpoint's comments, open and resolved, in their order", () => {
+    expect(ids(commentsAtBreakpoint(comments, snapshots, "desktop"))).toEqual(["a", "c"]);
+    expect(ids(commentsAtBreakpoint(comments, snapshots, "mobile"))).toEqual(["b", "d"]);
+    expect(commentsAtBreakpoint(comments, snapshots, "tablet")).toEqual([]);
+  });
+});
+
+describe("spansBreakpoints", () => {
+  const snapshots = new Map([
+    ["wide", snapshot("wide", 1440)],
+    ["phone", snapshot("phone", 390)],
+  ]);
+
+  it("is false with no comments, or all of them at one breakpoint", () => {
+    expect(spansBreakpoints([], snapshots)).toBe(false);
+    // A frame-anchored comment and one on a missing snapshot are both Desktop's.
+    expect(spansBreakpoints([comment("wide"), comment(), comment("gone")], snapshots)).toBe(false);
+  });
+
+  it("is true once comments sit at two breakpoints, resolved ones included", () => {
+    expect(spansBreakpoints([comment("wide"), comment("phone", "resolved")], snapshots)).toBe(true);
   });
 });

@@ -54,6 +54,7 @@ function card(
       number: 1,
       placement: null,
       pageNumber: null,
+      breakpoint: null,
       canModerate: viewer.team,
       canEdit: rights.edit,
       canDelete: rights.delete !== null,

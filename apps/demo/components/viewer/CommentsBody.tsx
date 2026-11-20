@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useState, type RefObject } from "react";
 import { staggerGroup, useRevealVariants } from "@/lib/motion";
+import type { Breakpoint } from "@/lib/store/breakpoints";
 import type { Comment } from "@/lib/store/types";
 import { StateArt } from "../ui/line-art/StateArt";
 import { CommentCard, type CommentCardActions } from "./CommentCard";
@@ -34,6 +35,8 @@ interface CommentsBodyProps extends CommentCardActions {
   scope?: string;
   /** Page numbers by page id, on projects with several pages: each card says its page. */
   pageNumbers?: ReadonlyMap<string, number>;
+  /** Breakpoints by comment id, while the list shows every breakpoint's: each card says its own. */
+  breakpoints?: ReadonlyMap<string, Breakpoint>;
 }
 
 function emptyCopy(tab: CommentTab, total: number, scope: string | undefined) {
@@ -101,6 +104,7 @@ export function CommentsBody({
   listRef,
   scope,
   pageNumbers,
+  breakpoints,
   ...actions
 }: CommentsBodyProps) {
   const variants = useRevealVariants();
@@ -141,6 +145,7 @@ export function CommentsBody({
                 number={numbers.get(comment.id) ?? 0}
                 placement={placements.get(comment.id) ?? null}
                 pageNumber={(comment.pageId && pageNumbers?.get(comment.pageId)) || null}
+                breakpoint={breakpoints?.get(comment.id) ?? null}
                 canModerate={canModerate}
                 canEdit={rights.edit}
                 canDelete={rights.delete !== null}

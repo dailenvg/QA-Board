@@ -1,6 +1,6 @@
 "use client";
 
-import { BREAKPOINT_WIDTH, type Breakpoint } from "@/lib/store/breakpoints";
+import { BREAKPOINTS, BREAKPOINT_WIDTH, type Breakpoint } from "@/lib/store/breakpoints";
 import type { IconName } from "../ui/Icon";
 import { SegmentedControl } from "../ui/SegmentedControl";
 
@@ -18,11 +18,19 @@ export const BREAKPOINT_LABEL: Record<Breakpoint, string> = {
   mobile: "Mobile",
 };
 
-const OPTIONS: ReadonlyArray<{ value: Breakpoint; label: string; icon: IconName }> = [
-  { value: "desktop", label: BREAKPOINT_LABEL.desktop, icon: "monitor" },
-  { value: "tablet", label: BREAKPOINT_LABEL.tablet, icon: "tablet" },
-  { value: "mobile", label: BREAKPOINT_LABEL.mobile, icon: "smartphone" },
-];
+/** Each breakpoint's icon, on the switch and on cards that name their breakpoint. */
+export const BREAKPOINT_ICON: Record<Breakpoint, IconName> = {
+  desktop: "monitor",
+  tablet: "tablet",
+  mobile: "smartphone",
+};
+
+const OPTIONS: ReadonlyArray<{ value: Breakpoint; label: string; icon: IconName }> =
+  BREAKPOINTS.map((value) => ({
+    value,
+    label: BREAKPOINT_LABEL[value],
+    icon: BREAKPOINT_ICON[value],
+  }));
 
 /**
  * Which device width a website is reviewed at, with each one's active

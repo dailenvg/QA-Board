@@ -4,10 +4,12 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useId, useRef, useState } from "react";
 import { instant, spring, useRevealVariants, useSwapVariants } from "@/lib/motion";
 import { absoluteTime, relativeTime } from "@/lib/relative-time";
+import type { Breakpoint } from "@/lib/store/breakpoints";
 import type { Comment } from "@/lib/store/types";
 import type { EditOutcome, EditRefusal } from "@/lib/viewer-backend/backend";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
+import { BREAKPOINT_ICON, BREAKPOINT_LABEL } from "./BreakpointSwitch";
 import { ClientMark } from "./ClientMark";
 import { CommentAuthorAvatar } from "./CommentAuthorAvatar";
 import { CommentBadge } from "./CommentBadge";
@@ -38,6 +40,8 @@ interface CommentCardProps extends CommentCardActions {
   placement: Placement | null;
   /** The page it's on, on projects with several pages. */
   pageNumber: number | null;
+  /** The breakpoint it's on, while the list shows every breakpoint's comments. */
+  breakpoint: Breakpoint | null;
   /**
    * The workspace's viewer: shows Resolve/Reopen (anyone in the workspace),
    * and marks client comments. Off on a shared link, whose guest only gets
@@ -77,6 +81,7 @@ export function CommentCard({
   number,
   placement,
   pageNumber,
+  breakpoint,
   canModerate,
   canEdit,
   canDelete,
@@ -101,11 +106,13 @@ export function CommentCard({
   const noteId = useId();
   const placementId = useId();
   const pageId = useId();
+  const breakpointId = useId();
   const described = [
     bodyId,
     comment.editedAt ? editedId : null,
     resolvedNote ? noteId : null,
     pageNumber ? pageId : null,
+    breakpoint ? breakpointId : null,
     placement ? placementId : null,
   ]
     .filter(Boolean)
@@ -268,6 +275,17 @@ export function CommentCard({
               >
                 <Icon name="image" className="size-3.5" />
                 Page {pageNumber}
+              </p>
+            ) : null}
+            {breakpoint ? (
+              <p
+                id={breakpointId}
+                data-testid="comment-breakpoint"
+                // The page chip's twin: websites never have several pages, so they never meet.
+                className="mt-2 inline-flex items-center gap-2 rounded-pill bg-seg px-3 py-1 text-label font-semibold text-ink-2"
+              >
+                <Icon name={BREAKPOINT_ICON[breakpoint]} className="size-3.5" />
+                {BREAKPOINT_LABEL[breakpoint]}
               </p>
             ) : null}
             {placement ? <PlacementChip id={placementId} placement={placement} now={now} /> : null}
