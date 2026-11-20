@@ -156,12 +156,15 @@ async function lockMembership(
   return rows[0] ?? null;
 }
 
+/** The tables of an account's sessions and email changes, by `user_id`. */
+const SIGN_IN_TABLES = ["sessions", "email_changes"] as const;
+
 /**
  * An account's ways back in, as the audit log names them: its sessions, reset
- * links and email changes. Reset links live in `verifications` (049);
- * `password_resets` keeps its name here, and its rows from before go too.
+ * links and email changes. Reset links live in `verifications` (049), but the
+ * log keeps calling them `password_resets`, as its older entries do.
  */
-export const SIGN_IN_TABLES = ["sessions", "password_resets", "email_changes"] as const;
+export const SIGN_IN_FIELDS = ["sessions", "password_resets", "email_changes"] as const;
 
 /** Ends every way back into `userId`'s account: shared by deleting it and removing it (4.5). */
 export async function endSignIns(tx: Queryable, userId: string): Promise<void> {
@@ -241,7 +244,7 @@ async function schedule(
   );
   await endSignIns(tx, user.id);
   const target = { type: "user", id: user.id } as const;
-  const fields = ["deleted_at", "delete_after", ...SIGN_IN_TABLES];
+  const fields = ["deleted_at", "delete_after", ...SIGN_IN_FIELDS];
   await audit(tx, { actorUserId: user.id, action: "user.deletion_scheduled", target, fields }, now);
   if (owns) {
     await tx.query("UPDATE workspaces SET delete_after = $2 WHERE id = $1", [

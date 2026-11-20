@@ -1,4 +1,4 @@
-import { endSignIns, REMOVAL_GRACE_MS, SIGN_IN_TABLES } from "../../account/account-deletion";
+import { endSignIns, REMOVAL_GRACE_MS, SIGN_IN_FIELDS } from "../../account/account-deletion";
 import { audit } from "../../account/audit";
 import type { MembershipRole } from "../../auth/memberships";
 import { can, knownSwitches } from "../../auth/permissions";
@@ -93,7 +93,7 @@ export function removeMember(
           "delete_after",
           "removed_from",
           "removed_permissions",
-          ...SIGN_IN_TABLES,
+          ...SIGN_IN_FIELDS,
         ],
       },
       now,

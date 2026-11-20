@@ -3,7 +3,7 @@ import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { twoWorkspaces } from "@/test/workspace-fixture";
-import { SIGN_IN_TABLES } from "../account/account-deletion";
+import { SIGN_IN_FIELDS } from "../account/account-deletion";
 import { updateWorkspaceSettings } from "../account/workspace-settings";
 import { auditDetails } from "./audit-details";
 
@@ -85,7 +85,7 @@ describe("the field names the app records", () => {
   const LIB = fileURLToPath(new URL("..", import.meta.url));
 
   /** Spreads of named lists inside a `fields` array, as their names. */
-  const NAMED_LISTS: Readonly<Record<string, readonly string[]>> = { SIGN_IN_TABLES };
+  const NAMED_LISTS: Readonly<Record<string, readonly string[]>> = { SIGN_IN_FIELDS };
 
   function sources(dir: string): string[] {
     return readdirSync(dir).flatMap((name) => {

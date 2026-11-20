@@ -73,15 +73,11 @@ async function count(table: string, userId: string) {
 describe("removeMember (4.5)", () => {
   it("takes them out at once and deletes the account in 24 hours, remembering their switches", async () => {
     await connectClickUp(world.db, ben, world.workspaceId);
-    await world.db.query(
-      `INSERT INTO password_resets (user_id, token_hash, expires_at)
-       VALUES ($1, repeat('a', 64), $2)`,
-      [ben.user.id, toDate(NOW + 3_600_000)],
-    );
-    await createResetLink(world.db, ben.user.id, {
+    const link = await createResetLink(world.db, ben.user.id, {
       now: NOW,
       origin: new URL("https://squint.test"),
     });
+    expect(link).not.toBeNull();
     expect(await remove(world.owner, ben)).toEqual({ ok: true });
     expect(await switchesOf(world.db, ben.user.id, world.workspaceId)).toBeNull();
     expect(await account(ben.user.id)).toEqual({
@@ -90,12 +86,7 @@ describe("removeMember (4.5)", () => {
       removed_from: world.workspaceId,
       removed_permissions: ["review_links", "import"],
     });
-    for (const table of [
-      "sessions",
-      "password_resets",
-      "email_changes",
-      "user_clickup_connections",
-    ]) {
+    for (const table of ["sessions", "email_changes", "user_clickup_connections"]) {
       expect(await count(table, ben.user.id), table).toBe(0);
     }
     const { rows: links } = await world.db.query("SELECT 1 FROM verifications WHERE value = $1", [

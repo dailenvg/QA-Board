@@ -119,17 +119,13 @@ async function workspaceRow(id: string) {
 describe("scheduleAccountDeletion", () => {
   it("schedules an owner's account and workspace 30 days out, signing out and voiding links only", async () => {
     const { db, owner, workspaceId } = world;
-    await db.query(
-      `INSERT INTO password_resets (user_id, token_hash, expires_at)
-       VALUES ($1, repeat('a', 64), now() + interval '1 hour')`,
-      [owner.id],
-    );
     await createResetLink(db, owner.id, { now: NOW, origin: new URL("https://squint.test") });
     await db.query(
       `INSERT INTO email_changes (user_id, new_email, token_hash, expires_at)
        VALUES ($1, 'new@acme.test', repeat('b', 64), now() + interval '1 hour')`,
       [owner.id],
     );
+    expect(await countRows(db, "verifications", "value", owner.id)).toBe(1);
     const before = await userRow(owner.id);
 
     const result = await remove(owner, `  ${WORKSPACE_NAME} `);
@@ -143,7 +139,7 @@ describe("scheduleAccountDeletion", () => {
     expect(after?.deleted_at && new Date(after.deleted_at).getTime()).toBe(NOW);
     expect(after?.delete_after && new Date(after.delete_after).getTime()).toBe(deleteAfter);
     expect(await workspaceDeleteAfter(workspaceId)).toBe(deleteAfter);
-    for (const table of ["sessions", "password_resets", "email_changes"]) {
+    for (const table of ["sessions", "email_changes"]) {
       expect(await countRows(db, table, "user_id", owner.id)).toBe(0);
     }
     expect(await countRows(db, "verifications", "value", owner.id)).toBe(0);
