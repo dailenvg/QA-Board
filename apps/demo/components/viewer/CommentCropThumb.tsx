@@ -44,7 +44,9 @@ export function CommentCropThumb({ crop, pin, number }: CommentCropThumbProps) {
         aria-busy={ready ? undefined : true}
         onClick={() => setOpen(true)}
         {...(reduce || !ready ? {} : press)}
-        className="relative block aspect-3/2 w-full overflow-hidden rounded-tile bg-tile ring-1 ring-line transition-shadow hover:ring-line-strong active:ring-line-strong disabled:cursor-wait"
+        // 3:2 so the pin's window fills the box; capped at 320px so the full-width sheet on
+        // tablets doesn't turn it into a ~470px-tall picture. The panel and phones sit under it.
+        className="relative block aspect-3/2 w-full max-w-80 overflow-hidden rounded-tile bg-tile ring-1 ring-line transition-shadow hover:ring-line-strong active:ring-line-strong disabled:cursor-wait"
       >
         {ready ? (
           <>

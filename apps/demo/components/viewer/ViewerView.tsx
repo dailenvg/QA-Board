@@ -524,6 +524,9 @@ export function ViewerView({
   // below it rather than under it (WCAG 2.4.11).
   const scrollInset = surface.kind === "snapshot" ? "scroll-pt-28" : "";
 
+  /** How many comments the list holds, for the scope filters' live region. */
+  const listedSummary = listed.length === 1 ? "1 comment" : `${listed.length} comments`;
+
   const commentsBody = (
     <CommentsBody
       comments={listed}
@@ -664,11 +667,16 @@ export function ViewerView({
                 breakpoint={breakpoint}
               />
             ) : null}
-            {/* Like "n projects shown" on folder pages: what "This page" leaves in the list. */}
+            {/*
+             * Like "n projects shown" on folder pages: what "This page", or the one breakpoint,
+             * leaves in the list. The "All" options leave nothing out, so they stay quiet.
+             */}
             <p aria-live="polite" className="sr-only">
               {severalPages && pageScope === "page"
-                ? `${listed.length === 1 ? "1 comment" : `${listed.length} comments`} on page ${pages.number}`
-                : ""}
+                ? `${listedSummary} on page ${pages.number}`
+                : severalBreakpoints && breakpointScope === "breakpoint"
+                  ? `${listedSummary} on ${BREAKPOINT_LABEL[breakpoint]}`
+                  : ""}
             </p>
             {commentsBody}
           </div>

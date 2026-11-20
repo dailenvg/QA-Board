@@ -199,6 +199,8 @@ test("All breakpoints lists every breakpoint's comments, and a card switches to 
     "aria-pressed",
     "true",
   );
+  // Switching breakpoints leaves focus on the card that was chosen.
+  await expect(desktopCard.getByRole("button", { name: /Comment 1 by Ana/ })).toBeFocused();
   // The list keeps showing every breakpoint, and the other option names the new one.
   await expect(cards).toHaveCount(2);
   await expect(one).toHaveText("Desktop");
