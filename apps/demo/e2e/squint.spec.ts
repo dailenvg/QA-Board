@@ -153,6 +153,59 @@ test("an image project accepts a keyboard-placed pin and shows Comments in on th
   await expect(page.getByTestId("dashboard-empty")).toBeVisible();
 });
 
+test("once Escape closes the composer, an immediate click lands on the canvas", async ({
+  page,
+}) => {
+  await openFolder(page);
+  await createImageProject(page, "escape-click.png");
+  const first = await dropPin(page, { x: 120, y: 90 });
+  const overlay = page.getByTestId("comment-overlay");
+  // An error left in the first composer must not carry over to the next one.
+  await first.getByLabel("Your name").fill("Leo");
+  await first.getByLabel("Comment", { exact: true }).press("Enter");
+  await expect(first.getByText("Write a comment first.")).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  // The composer is still fading out here and covers this point. A raw mouse click, unlike
+  // locator.click(), doesn't wait for it to get out of the way.
+  const box = await overlay.boundingBox();
+  if (!box) throw new Error("no canvas");
+  await page.mouse.click(box.x + 260, box.y + 120);
+
+  // The new pin lands at the clicked point, not where the first one was (the docked composer on
+  // a phone doesn't move with it).
+  await expect
+    .poll(async () => (await page.getByLabel("New comment position").boundingBox())?.x ?? 0)
+    .toBeGreaterThan(box.x + 200);
+
+  const next = page.getByTestId("composer");
+  await expect(next.getByText("Write a comment first.")).toHaveCount(0);
+  await expect(next.locator(":focus")).toHaveCount(1);
+});
+
+test("the crosshair shows after a keyboard post but not after a mouse post", async ({ page }) => {
+  await openFolder(page);
+  await createImageProject(page, "crosshair.png");
+  const crosshair = page.getByTestId("crosshair");
+
+  const composer = await dropPin(page);
+  await composer.getByLabel("Your name").fill("Leo");
+  await composer.getByLabel("Comment", { exact: true }).fill("Mouse post.");
+  await composer.getByRole("button", { name: "Post" }).click();
+  await expect(composer).toHaveCount(0);
+  await expect(page.getByTestId("comment-overlay")).toBeFocused();
+  await expect(crosshair).toHaveCount(0);
+
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Enter");
+  const second = page.getByTestId("composer");
+  await second.getByLabel("Comment", { exact: true }).fill("Keyboard post.");
+  await second.getByLabel("Comment", { exact: true }).press("Enter");
+  await expect(second).toHaveCount(0);
+  await expect(page.getByTestId("comment-overlay")).toBeFocused();
+  await expect(crosshair).toBeVisible();
+});
+
 test("a site that refuses framing offers a screenshot instead", async ({ page }) => {
   await mockFrameCheck(page, {
     verdict: "blocked",

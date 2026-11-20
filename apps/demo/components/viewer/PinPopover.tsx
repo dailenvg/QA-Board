@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "motion/react";
+import { motion, useIsPresent } from "motion/react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { usePopVariants } from "@/lib/motion";
 import { absoluteTime, relativeTime } from "@/lib/relative-time";
@@ -114,6 +114,7 @@ export function PinPopover({
 }: PinPopoverProps) {
   const docked = !useMediaQuery("(min-width: 640px)");
   const variants = usePopVariants();
+  const present = useIsPresent();
   const ref = useRef<HTMLDivElement>(null);
   const [side, setSide] = useState<Side>(() => guess(comment));
   const titleId = useId();
@@ -209,7 +210,7 @@ export function PinPopover({
               transformOrigin: origin,
             }
       }
-      className={`pointer-events-auto z-40 flex flex-col gap-2 rounded-card bg-panel p-4 pt-2 shadow-pop ring-1 ring-line focus:outline-none ${
+      className={`${present ? "pointer-events-auto" : "pointer-events-none"} z-40 flex flex-col gap-2 rounded-card bg-panel p-4 pt-2 shadow-pop ring-1 ring-line focus:outline-none ${
         docked
           ? "fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))]"
           : "absolute w-76"

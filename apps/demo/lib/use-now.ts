@@ -6,11 +6,15 @@ let now = 0;
 function subscribe(onChange: () => void): () => void {
   // React re-reads the snapshot after subscribing, so a stale time refreshes on mount.
   now = Date.now();
-  const timer = window.setInterval(() => {
+  let timer = 0;
+  // Ticks on the minute, when the clock's minute changes, so a countdown changes at the same moment the clock does.
+  const tick = () => {
     now = Date.now();
+    timer = window.setTimeout(tick, MINUTE - (now % MINUTE));
     onChange();
-  }, MINUTE);
-  return () => window.clearInterval(timer);
+  };
+  timer = window.setTimeout(tick, MINUTE - (now % MINUTE));
+  return () => window.clearTimeout(timer);
 }
 
 function getSnapshot(): number {
@@ -18,7 +22,7 @@ function getSnapshot(): number {
   return now;
 }
 
-/** Current time, refreshed every minute, for relative timestamps. 0 on the server. */
+/** Current time, refreshed as each minute starts, for relative timestamps. 0 on the server. */
 export function useNow(): number {
   return useSyncExternalStore(subscribe, getSnapshot, () => 0);
 }

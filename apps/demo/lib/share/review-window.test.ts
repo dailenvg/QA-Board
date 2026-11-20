@@ -22,6 +22,13 @@ describe("review window", () => {
     expect(reviewClosed(endsAt, 1_000 + hours * HOUR)).toBe(true);
   });
 
+  it("counts the minutes left to the minute the end is shown in, whatever the seconds", () => {
+    const end = 10 * HOUR + 30 * MINUTE + 45_000;
+    expect(timeLeft(end, 10_000)).toEqual({ days: 0, hours: 10, minutes: 30 });
+    expect(timeLeft(end, MINUTE)).toEqual({ days: 0, hours: 10, minutes: 29 });
+    expect(timeLeft(end, end - 5_000)).toEqual({ days: 0, hours: 0, minutes: 1 });
+  });
+
   it("never closes without a limit", () => {
     expect(reviewDeadline(1_000, null)).toBeNull();
     expect(reviewClosed(null, Number.MAX_SAFE_INTEGER)).toBe(false);

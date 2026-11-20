@@ -1,7 +1,14 @@
 "use client";
 
-import { motion } from "motion/react";
-import { useId, useState, type FormEvent, type KeyboardEvent, type Ref } from "react";
+import { motion, useIsPresent } from "motion/react";
+import {
+  useCallback,
+  useId,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+  type RefObject,
+} from "react";
 import { usePopVariants } from "@/lib/motion";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { SHARE_LIMITS } from "@/lib/share/limits";
@@ -14,7 +21,7 @@ import type { Draft } from "./types";
 interface ComposerProps {
   draft: Draft;
   authorName: string | null;
-  textareaRef: Ref<HTMLTextAreaElement>;
+  textareaRef: RefObject<HTMLTextAreaElement | null>;
   onChange: (body: string) => void;
   /** The name as it's typed, so it stays with the draft. */
   onAuthorChange: (author: string) => void;
@@ -46,6 +53,17 @@ export function Composer({
 }: ComposerProps) {
   const docked = !useMediaQuery("(min-width: 640px)");
   const variants = usePopVariants();
+  const present = useIsPresent();
+  // A composer fading out can outlive the next one's mount: it only clears the ref if it still holds its own.
+  const attachTextarea = useCallback(
+    (node: HTMLTextAreaElement | null) => {
+      textareaRef.current = node;
+      return () => {
+        if (textareaRef.current === node) textareaRef.current = null;
+      };
+    },
+    [textareaRef],
+  );
   const [author, setAuthor] = useState(draft.author ?? authorName ?? "");
   const [editingName, setEditingName] = useState(!authorName);
   const [error, setError] = useState<{ field: "name" | "body"; message: string } | null>(null);
@@ -105,7 +123,7 @@ export function Composer({
           ? undefined
           : { left: `${draft.x}%`, top: `${draft.y}%`, translate: placement(draft) }
       }
-      className={`z-40 rounded-card bg-panel p-4 shadow-pop ring-1 ring-line ${
+      className={`z-40 rounded-card bg-panel ${present ? "pointer-events-auto" : "pointer-events-none"} p-4 shadow-pop ring-1 ring-line ${
         docked
           ? "fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))]"
           : "absolute w-76"
@@ -161,7 +179,7 @@ export function Composer({
           </label>
           <textarea
             id={bodyId}
-            ref={textareaRef}
+            ref={attachTextarea}
             value={draft.body}
             rows={3}
             maxLength={SHARE_LIMITS.body}

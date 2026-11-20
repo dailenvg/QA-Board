@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState, type KeyboardEvent, type MouseEvent, type Ref } from "react";
+import { lastInputWasKeyboard } from "@/lib/last-input";
 import type { PinPoint } from "./types";
 
 interface CommentOverlayProps {
@@ -40,6 +41,8 @@ function visibleCentre(node: HTMLElement): PinPoint {
  */
 export function CommentOverlay({ onPlace, onExit, ref }: CommentOverlayProps) {
   const [cursor, setCursor] = useState<PinPoint | null>(null);
+  // The crosshair is for keyboard use. It stays hidden when focus comes back from a click or a mouse-driven post.
+  const [keyboardFocus, setKeyboardFocus] = useState(false);
   const helpId = useId();
 
   const onClick = (event: MouseEvent<HTMLDivElement>) => {
@@ -52,6 +55,7 @@ export function CommentOverlay({ onPlace, onExit, ref }: CommentOverlayProps) {
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    setKeyboardFocus(true);
     const step = event.shiftKey ? BIG_STEP : STEP;
     const current = cursor ?? visibleCentre(event.currentTarget);
     const moves: Record<string, PinPoint> = {
@@ -86,9 +90,13 @@ export function CommentOverlay({ onPlace, onExit, ref }: CommentOverlayProps) {
       onFocus={(event) => {
         const node = event.currentTarget;
         setCursor((value) => value ?? visibleCentre(node));
+        setKeyboardFocus(lastInputWasKeyboard());
       }}
-      onBlur={() => setCursor(null)}
-      className="group/overlay absolute inset-0 z-[5] cursor-crosshair focus-visible:outline-none"
+      onBlur={() => {
+        setCursor(null);
+        setKeyboardFocus(false);
+      }}
+      className="absolute inset-0 z-[5] cursor-crosshair focus-visible:outline-none"
     >
       <span id={helpId} className="sr-only">
         Click or tap anywhere to add a comment. With a keyboard, use the arrow keys to move the
@@ -99,13 +107,13 @@ export function CommentOverlay({ onPlace, onExit, ref }: CommentOverlayProps) {
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 rounded-[inherit] ring-2 ring-brand/60 ring-inset"
       />
-      {cursor ? (
+      {cursor && keyboardFocus ? (
         <span
           aria-hidden="true"
           data-testid="crosshair"
           style={{ left: `${cursor.x}%`, top: `${cursor.y}%` }}
           // The white halo keeps the crosshair visible on dark and cobalt content too.
-          className="pointer-events-none absolute hidden size-8 -translate-x-1/2 -translate-y-1/2 rounded-pill border-2 border-pin-focus bg-brand-soft ring-2 ring-pin-halo group-focus-visible/overlay:block"
+          className="pointer-events-none absolute size-8 -translate-x-1/2 -translate-y-1/2 rounded-pill border-2 border-pin-focus bg-brand-soft ring-2 ring-pin-halo"
         >
           <span className="absolute top-1/2 left-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-pill bg-pin-focus ring-2 ring-pin-halo" />
         </span>

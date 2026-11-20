@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, type FormEvent } from "react";
+import { useId, useRef, useState, type FormEvent } from "react";
 import { createFolder } from "@/lib/store/actions";
 import type { Folder, Project } from "@/lib/store/types";
 import { baseName, displayHost, normalizeUrl } from "@/lib/url";
@@ -66,6 +66,9 @@ export function NewProjectForm({
   const [folderId, setFolderId] = useState(defaultFolderId);
   const [newFolderName, setNewFolderName] = useState("");
   const [newFolderError, setNewFolderError] = useState<string | null>(null);
+  // The folder field is focused for the user and then handed on to the address field, which blurs it
+  // untouched. Only a field the user has typed in is judged when it loses focus.
+  const newFolderEdited = useRef(false);
   const [formError, setFormError] = useState<string | null>(null);
   const { progress, create } = useCreateProjects();
   const nameId = useId();
@@ -244,14 +247,18 @@ export function NewProjectForm({
         onChange={(value) => {
           setFolderId(value);
           setNewFolderError(null);
+          // Picking "New folder" again counts the field as untouched until the user types in it.
+          newFolderEdited.current = false;
         }}
         newName={newFolderName}
         onNewName={(value) => {
+          newFolderEdited.current = true;
           setNewFolderName(value);
           setNewFolderError(null);
         }}
         onNewNameBlur={() => {
-          if (!newFolderName.trim()) setNewFolderError("Name the new folder.");
+          if (newFolderEdited.current && !newFolderName.trim())
+            setNewFolderError("Name the new folder.");
         }}
         newNameError={newFolderError}
       />
