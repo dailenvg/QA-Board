@@ -123,6 +123,29 @@ describe("Better Auth's transactions and the pool", () => {
     expect(db.strays).toEqual([]);
   });
 
+  it("are never queried around by the organization plugin: members, roles, seats", async () => {
+    const { db, world } = await guardedWorld();
+    const auth = authFor(db);
+    const headers = new Headers({
+      cookie: authCookieHeader(world.owner.cookie.split("=")[1], authSecret()) ?? "",
+    });
+    const query = { organizationId: world.workspaceId };
+    expect((await auth.api.listMembers({ headers, query })).total).toBe(1);
+    const allowed = await auth.api.hasPermission({
+      headers,
+      body: { ...query, permissions: { members: ["permissions"] } },
+    });
+    expect(allowed.success).toBe(true);
+    await db.query("UPDATE workspaces SET seat_limit = 1 WHERE id = $1", [world.workspaceId]);
+    await expect(
+      auth.api.addMember({
+        body: { ...query, userId: world.other.owner.user.id, role: "member" },
+      }),
+    ).rejects.toThrow();
+
+    expect(db.strays).toEqual([]);
+  });
+
   it("would be caught querying around: Better Auth's changePassword starts a session inside one", async () => {
     const { db, world } = await guardedWorld();
     const cookie = authCookieHeader(world.owner.cookie.split("=")[1], authSecret()) ?? "";
