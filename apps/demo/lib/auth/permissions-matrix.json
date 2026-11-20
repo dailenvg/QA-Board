@@ -1,0 +1,675 @@
+{
+  "permissions": [
+    "workspace.read",
+    "workspace.write",
+    "links.manage",
+    "projects.trash",
+    "workspace.import",
+    "members.manage",
+    "workspace.manage",
+    "members.permissions",
+    "comment.moderate"
+  ],
+  "cases": [
+    {
+      "role": "owner",
+      "permissions": [],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": true,
+        "members.permissions": true,
+        "comment.moderate": true
+      }
+    },
+    {
+      "role": "owner",
+      "permissions": ["review_links"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": true,
+        "members.permissions": true,
+        "comment.moderate": true
+      }
+    },
+    {
+      "role": "owner",
+      "permissions": ["trash"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": true,
+        "members.permissions": true,
+        "comment.moderate": true
+      }
+    },
+    {
+      "role": "owner",
+      "permissions": ["review_links", "trash"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": true,
+        "members.permissions": true,
+        "comment.moderate": true
+      }
+    },
+    {
+      "role": "owner",
+      "permissions": ["import"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": true,
+        "members.permissions": true,
+        "comment.moderate": true
+      }
+    },
+    {
+      "role": "owner",
+      "permissions": ["review_links", "import"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": true,
+        "members.permissions": true,
+        "comment.moderate": true
+      }
+    },
+    {
+      "role": "owner",
+      "permissions": ["trash", "import"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": true,
+        "members.permissions": true,
+        "comment.moderate": true
+      }
+    },
+    {
+      "role": "owner",
+      "permissions": ["review_links", "trash", "import"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": true,
+        "members.permissions": true,
+        "comment.moderate": true
+      }
+    },
+    {
+      "role": "owner",
+      "permissions": ["people"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": true,
+        "members.permissions": true,
+        "comment.moderate": true
+      }
+    },
+    {
+      "role": "owner",
+      "permissions": ["review_links", "people"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": true,
+        "members.permissions": true,
+        "comment.moderate": true
+      }
+    },
+    {
+      "role": "owner",
+      "permissions": ["trash", "people"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": true,
+        "members.permissions": true,
+        "comment.moderate": true
+      }
+    },
+    {
+      "role": "owner",
+      "permissions": ["review_links", "trash", "people"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": true,
+        "members.permissions": true,
+        "comment.moderate": true
+      }
+    },
+    {
+      "role": "owner",
+      "permissions": ["import", "people"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": true,
+        "members.permissions": true,
+        "comment.moderate": true
+      }
+    },
+    {
+      "role": "owner",
+      "permissions": ["review_links", "import", "people"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": true,
+        "members.permissions": true,
+        "comment.moderate": true
+      }
+    },
+    {
+      "role": "owner",
+      "permissions": ["trash", "import", "people"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": true,
+        "members.permissions": true,
+        "comment.moderate": true
+      }
+    },
+    {
+      "role": "owner",
+      "permissions": ["review_links", "trash", "import", "people"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": true,
+        "members.permissions": true,
+        "comment.moderate": true
+      }
+    },
+    {
+      "role": "owner",
+      "permissions": ["owner"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": true,
+        "members.permissions": true,
+        "comment.moderate": true
+      }
+    },
+    {
+      "role": "owner",
+      "permissions": ["member"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": true,
+        "members.permissions": true,
+        "comment.moderate": true
+      }
+    },
+    {
+      "role": "owner",
+      "permissions": ["admin"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": true,
+        "members.permissions": true,
+        "comment.moderate": true
+      }
+    },
+    {
+      "role": "owner",
+      "permissions": ["__proto__"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": true,
+        "members.permissions": true,
+        "comment.moderate": true
+      }
+    },
+    {
+      "role": "owner",
+      "permissions": ["constructor"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": true,
+        "members.permissions": true,
+        "comment.moderate": true
+      }
+    },
+    {
+      "role": "owner",
+      "permissions": ["owner", "people"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": true,
+        "members.permissions": true,
+        "comment.moderate": true
+      }
+    },
+    {
+      "role": "member",
+      "permissions": [],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": false,
+        "projects.trash": false,
+        "workspace.import": false,
+        "members.manage": false,
+        "workspace.manage": false,
+        "members.permissions": false,
+        "comment.moderate": false
+      }
+    },
+    {
+      "role": "member",
+      "permissions": ["review_links"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": false,
+        "workspace.import": false,
+        "members.manage": false,
+        "workspace.manage": false,
+        "members.permissions": false,
+        "comment.moderate": false
+      }
+    },
+    {
+      "role": "member",
+      "permissions": ["trash"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": false,
+        "projects.trash": true,
+        "workspace.import": false,
+        "members.manage": false,
+        "workspace.manage": false,
+        "members.permissions": false,
+        "comment.moderate": false
+      }
+    },
+    {
+      "role": "member",
+      "permissions": ["review_links", "trash"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": false,
+        "members.manage": false,
+        "workspace.manage": false,
+        "members.permissions": false,
+        "comment.moderate": false
+      }
+    },
+    {
+      "role": "member",
+      "permissions": ["import"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": false,
+        "projects.trash": false,
+        "workspace.import": true,
+        "members.manage": false,
+        "workspace.manage": false,
+        "members.permissions": false,
+        "comment.moderate": false
+      }
+    },
+    {
+      "role": "member",
+      "permissions": ["review_links", "import"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": false,
+        "workspace.import": true,
+        "members.manage": false,
+        "workspace.manage": false,
+        "members.permissions": false,
+        "comment.moderate": false
+      }
+    },
+    {
+      "role": "member",
+      "permissions": ["trash", "import"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": false,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": false,
+        "workspace.manage": false,
+        "members.permissions": false,
+        "comment.moderate": false
+      }
+    },
+    {
+      "role": "member",
+      "permissions": ["review_links", "trash", "import"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": false,
+        "workspace.manage": false,
+        "members.permissions": false,
+        "comment.moderate": false
+      }
+    },
+    {
+      "role": "member",
+      "permissions": ["people"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": false,
+        "projects.trash": false,
+        "workspace.import": false,
+        "members.manage": true,
+        "workspace.manage": false,
+        "members.permissions": false,
+        "comment.moderate": false
+      }
+    },
+    {
+      "role": "member",
+      "permissions": ["review_links", "people"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": false,
+        "workspace.import": false,
+        "members.manage": true,
+        "workspace.manage": false,
+        "members.permissions": false,
+        "comment.moderate": false
+      }
+    },
+    {
+      "role": "member",
+      "permissions": ["trash", "people"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": false,
+        "projects.trash": true,
+        "workspace.import": false,
+        "members.manage": true,
+        "workspace.manage": false,
+        "members.permissions": false,
+        "comment.moderate": false
+      }
+    },
+    {
+      "role": "member",
+      "permissions": ["review_links", "trash", "people"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": false,
+        "members.manage": true,
+        "workspace.manage": false,
+        "members.permissions": false,
+        "comment.moderate": false
+      }
+    },
+    {
+      "role": "member",
+      "permissions": ["import", "people"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": false,
+        "projects.trash": false,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": false,
+        "members.permissions": false,
+        "comment.moderate": false
+      }
+    },
+    {
+      "role": "member",
+      "permissions": ["review_links", "import", "people"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": false,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": false,
+        "members.permissions": false,
+        "comment.moderate": false
+      }
+    },
+    {
+      "role": "member",
+      "permissions": ["trash", "import", "people"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": false,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": false,
+        "members.permissions": false,
+        "comment.moderate": false
+      }
+    },
+    {
+      "role": "member",
+      "permissions": ["review_links", "trash", "import", "people"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": true,
+        "projects.trash": true,
+        "workspace.import": true,
+        "members.manage": true,
+        "workspace.manage": false,
+        "members.permissions": false,
+        "comment.moderate": false
+      }
+    },
+    {
+      "role": "member",
+      "permissions": ["owner"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": false,
+        "projects.trash": false,
+        "workspace.import": false,
+        "members.manage": false,
+        "workspace.manage": false,
+        "members.permissions": false,
+        "comment.moderate": false
+      }
+    },
+    {
+      "role": "member",
+      "permissions": ["member"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": false,
+        "projects.trash": false,
+        "workspace.import": false,
+        "members.manage": false,
+        "workspace.manage": false,
+        "members.permissions": false,
+        "comment.moderate": false
+      }
+    },
+    {
+      "role": "member",
+      "permissions": ["admin"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": false,
+        "projects.trash": false,
+        "workspace.import": false,
+        "members.manage": false,
+        "workspace.manage": false,
+        "members.permissions": false,
+        "comment.moderate": false
+      }
+    },
+    {
+      "role": "member",
+      "permissions": ["__proto__"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": false,
+        "projects.trash": false,
+        "workspace.import": false,
+        "members.manage": false,
+        "workspace.manage": false,
+        "members.permissions": false,
+        "comment.moderate": false
+      }
+    },
+    {
+      "role": "member",
+      "permissions": ["constructor"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": false,
+        "projects.trash": false,
+        "workspace.import": false,
+        "members.manage": false,
+        "workspace.manage": false,
+        "members.permissions": false,
+        "comment.moderate": false
+      }
+    },
+    {
+      "role": "member",
+      "permissions": ["owner", "people"],
+      "allowed": {
+        "workspace.read": true,
+        "workspace.write": true,
+        "links.manage": false,
+        "projects.trash": false,
+        "workspace.import": false,
+        "members.manage": true,
+        "workspace.manage": false,
+        "members.permissions": false,
+        "comment.moderate": false
+      }
+    }
+  ]
+}

@@ -11,6 +11,7 @@ import {
   type Permission,
   type SwitchPermission,
 } from "./permissions";
+import MATRIX from "./permissions-matrix.json";
 
 const EVERY_MEMBER: Permission[] = ["workspace.read", "workspace.write"];
 const OWNER_ONLY: Permission[] = ["workspace.manage", "members.permissions", "comment.moderate"];
@@ -48,6 +49,34 @@ describe("can", () => {
       "projects.trash",
       "workspace.import",
     ]);
+  });
+});
+
+/**
+ * `can`'s every answer, captured from its implementation before Better Auth's
+ * access control (origin/main 84b3167): both roles, each of the 16 sets of
+ * switches, every permission; and switch lists holding values no row should
+ * (a role's name), which must never read as that role.
+ */
+describe("can, against its answers from before Better Auth", () => {
+  const subsets = MATRIX.cases.filter(({ permissions }) =>
+    permissions.every((value) => (MEMBER_SWITCHES as readonly string[]).includes(value)),
+  );
+
+  it("covers both roles, all 16 sets of switches and every permission", () => {
+    expect([...MATRIX.permissions].sort()).toEqual([...ALL].sort());
+    for (const role of ["owner", "member"]) {
+      const sets = subsets.filter((entry) => entry.role === role);
+      expect(new Set(sets.map(({ permissions }) => permissions.join())).size).toBe(16);
+    }
+  });
+
+  it.each(MATRIX.cases)("answers as before for $role with [$permissions]", (entry) => {
+    const access = { role: entry.role, permissions: entry.permissions } as Access;
+    const answers = Object.fromEntries(
+      ALL.map((permission) => [permission, can(access, permission)]),
+    );
+    expect(answers).toEqual(entry.allowed);
   });
 });
 

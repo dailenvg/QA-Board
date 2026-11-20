@@ -6,6 +6,7 @@ import { authSecret } from "./auth-secret";
 import { authOrigin } from "./auth-url";
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "./field-rules";
 import { describeError, LoggableError } from "./http";
+import { organizationPlugin } from "./organization-plugin";
 import { hashPassword, verifyPassword } from "./password";
 import { storedIdentifier } from "./reset-links";
 import { isLocalHttp, SESSION_COOKIE, SESSION_TTL_MS } from "./session-cookie";
@@ -14,11 +15,12 @@ import { atSignInTime, holdSessions } from "./sign-in-hold";
 import { findSignInAccount, sessionUserOf, type SessionUser } from "./users";
 
 /**
- * Better Auth, on Squint's own tables (048, 049): `users`, `sessions`, the
- * `auth_accounts` view over `users.password_hash`, and `verifications` for
- * reset links. Only ever called through `auth.api` or its internal adapter,
- * with headers built here: no HTTP handler is mounted, so it adds no public
- * routes, and Better Auth's own messages never reach a response.
+ * Better Auth, on Squint's own tables (048, 049, 050): `users`, `sessions`,
+ * the `auth_accounts` view over `users.password_hash`, `verifications` for
+ * reset links, and `workspaces` and `memberships` for the organization plugin
+ * (`organizationPlugin`). Only ever called through `auth.api` or its internal
+ * adapter, with headers built here: no HTTP handler is mounted, so it adds no
+ * public routes, and Better Auth's own messages never reach a response.
  * Never call it inside a `db.transaction`: it queries on its own, and would
  * wait on rows that transaction holds. Its own transactions (a reset) must
  * run no hook that queries `db` either: that would wait on a second
@@ -135,6 +137,7 @@ function createAuth(db: Database) {
       defaultCookieAttributes: { secure: !isLocalHttp(origin), sameSite: "lax", httpOnly: true },
     },
     databaseHooks: { session: { create: { before: holdSessions(db) } } },
+    plugins: [organizationPlugin()],
   });
 }
 

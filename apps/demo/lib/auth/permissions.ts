@@ -1,9 +1,11 @@
+import { authorize, type AccessRequest, type AccessRole } from "./access-control";
 import type { MembershipRole } from "./memberships";
 
 /**
  * What a member may do in their workspace: one guard for the server (route
  * wrappers) and the browser (which hides what the server would refuse), so
- * the two never drift. Pure, so the browser bundle can import it.
+ * the two never drift. Checked by Better Auth's access control
+ * (`access-control.ts`). Pure, so the browser bundle can import it.
  */
 
 /** The owner's switches for one member (migration 041's values). */
@@ -56,16 +58,35 @@ export function isOwnerOnly(permission: Permission): boolean {
   return OWNER_ONLY.has(permission);
 }
 
+/** What each permission asks of a member's roles. */
+const REQUEST_FOR: Readonly<Record<Permission, AccessRequest>> = {
+  "workspace.read": { workspace: ["read"] },
+  "workspace.write": { workspace: ["write"] },
+  "workspace.manage": { workspace: ["manage"] },
+  "workspace.import": { import: ["run"] },
+  "links.manage": { links: ["manage"] },
+  "projects.trash": { projects: ["trash"] },
+  "members.manage": { members: ["manage"] },
+  "members.permissions": { members: ["permissions"] },
+  "comment.moderate": { comment: ["moderate"] },
+};
+
 /**
- * Whether `access` allows `permission`. The owner may do everything. A member
- * may read and write the workspace, and do what each switch that's on allows;
- * never what only the owner may.
+ * The roles `access` holds: its membership's (any but the owner's is a
+ * member's) and one per switch that's on. Only switches 041 knows count, so
+ * a stray value in a row (a role's name) never reads as a role.
+ */
+function rolesOf(access: Access): AccessRole[] {
+  return [access.role === "owner" ? "owner" : "member", ...knownSwitches(access.permissions)];
+}
+
+/**
+ * Whether `access` allows `permission`: whether any of its roles does. The
+ * owner may do everything. A member may read and write the workspace, and do
+ * what each switch that's on allows; never what only the owner may.
  */
 export function can(access: Access, permission: Permission): boolean {
-  if (access.role === "owner") return true;
-  if (isOwnerOnly(permission)) return false;
-  if (isSwitchPermission(permission)) return access.permissions.includes(SWITCH_FOR[permission]);
-  return true;
+  return authorize(rolesOf(access), REQUEST_FOR[permission]);
 }
 
 /** What a route needs unless it names more: reading on a GET or HEAD, writing otherwise. */
