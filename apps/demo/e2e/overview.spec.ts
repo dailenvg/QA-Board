@@ -109,6 +109,8 @@ test("New project with no folders asks to name the first folder, then files the 
   await expect(dialog.getByRole("combobox", { name: "Folder", exact: true })).toHaveText(
     "New folder…",
   );
+  await expect(dialog.getByLabel("Website address")).toBeFocused();
+  await expect(dialog.getByText("Name the new folder.")).toHaveCount(0);
   await dialog.getByLabel("Website address").fill("example.com");
   await dialog.getByTestId("create-project").click();
   await expect(dialog.getByText("Name the new folder.")).toBeVisible();
