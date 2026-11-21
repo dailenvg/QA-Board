@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { useFrameCheck, type FrameCheckState } from "@/lib/frame-check/use-frame-check";
+import type { FrameCheck, FrameCheckState } from "@/lib/frame-check/use-frame-check";
 import { Skeleton } from "../ui/Skeleton";
 import { FrameFallback } from "./FrameFallback";
 import { FrameView } from "./FrameView";
@@ -9,6 +9,8 @@ import type { ScreenshotHandler } from "./types";
 
 interface UrlStageProps {
   url: string;
+  /** The site's frame check, made by the viewer (it also picks the mode the viewer opens in). */
+  frame: FrameCheck;
   projectName: string;
   overlay: ReactNode;
   onScreenshot: ScreenshotHandler | null;
@@ -30,22 +32,22 @@ function decide(check: FrameCheckState, forced: boolean): Decision {
 }
 
 /**
- * Live website canvas for Browse mode. Asks /api/frame-check first; refusals
+ * Live website canvas for Browse mode. Waits for the frame check; refusals
  * and dead hosts get a fallback with a screenshot upload, everything else
  * loads in the iframe. Only older pins (from before snapshots) are drawn
  * here, on the visible frame, since a cross-origin page's scroll can't be read.
  */
 export function UrlStage({
   url,
+  frame,
   projectName,
   overlay,
   onScreenshot,
   commentMode,
   frameWidth,
 }: UrlStageProps) {
-  const [attempt, setAttempt] = useState(0);
   const [forced, setForced] = useState(false);
-  const decision = decide(useFrameCheck(url, attempt), forced);
+  const decision = decide(frame.state, forced);
 
   return (
     <div
@@ -67,7 +69,7 @@ export function UrlStage({
       ) : null}
       {decision === "load" ? (
         <FrameView
-          key={attempt}
+          key={frame.attempt}
           url={url}
           title={`Preview of ${projectName}`}
           overlay={overlay}
@@ -80,9 +82,7 @@ export function UrlStage({
           reason={decision}
           url={url}
           onScreenshot={onScreenshot}
-          onRetry={
-            decision === "blocked" ? () => setAttempt((value) => value + 1) : () => setForced(true)
-          }
+          onRetry={decision === "blocked" ? frame.recheck : () => setForced(true)}
         />
       ) : null}
     </div>

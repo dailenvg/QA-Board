@@ -15,7 +15,8 @@ interface ViewerTopBarProps {
   /** A way back (owner) or the logo (shared link). */
   leading: ReactNode;
   status: ProjectStatus;
-  mode: ViewerMode;
+  /** Null while the mode the viewer opens in is still being worked out: neither is selected. */
+  mode: ViewerMode | null;
   onMode: (mode: ViewerMode) => void;
   /** The live site behind this project, opened in a new tab. */
   originalUrl: string | null;

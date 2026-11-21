@@ -31,6 +31,7 @@ import { DELETION_EXPLANATION, deletionWhen } from "../ui/deletion-when";
 import type { MenuHandle } from "../ui/Menu";
 import { useToast } from "../ui/ToastProvider";
 import { useViewerBackend, type PendingCrop } from "@/lib/viewer-backend/backend";
+import { useFrameCheck } from "@/lib/frame-check/use-frame-check";
 import { can } from "@/lib/auth/permissions";
 import { useWorkspaceAccess } from "@/lib/workspace-client/use-workspace-access";
 import { BreakpointFilter, type BreakpointScope } from "./BreakpointFilter";
@@ -41,6 +42,7 @@ import { CommentsPanel } from "./CommentsPanel";
 import { commentRights } from "./comment-rights";
 import { DeleteOthersCommentDialog } from "./DeleteOthersCommentDialog";
 import { ExportMenu } from "./ExportMenu";
+import { openingMode } from "./opening-mode";
 import { PageFilter, type PageScope } from "./PageFilter";
 import { PageStrip } from "./PageStrip";
 import { PinPopover } from "./PinPopover";
@@ -124,8 +126,12 @@ export function ViewerView({
   const pages = useViewerPage(project, draft?.pageId ?? null, () => canvasAreaRef.current);
   const [pageScope, setPageScope] = useState<PageScope>("all");
   const [breakpointScope, setBreakpointScope] = useState<BreakpointScope>("breakpoint");
+  const { source } = project;
+  const website = source.kind === "url";
+  const locked = Boolean(commentLocked);
+  const frame = useFrameCheck(website ? source.url : null);
   const view = useViewerSurface(project, data, pages, {
-    mode: draft ? "comment" : "browse",
+    mode: openingMode({ website, draft: Boolean(draft), locked, frame: frame.state }),
     snapshotId: draft?.snapshotId ?? null,
   });
   const [tab, setTab] = useState<CommentTab>("active");
@@ -155,8 +161,6 @@ export function ViewerView({
   const focusCanvasPending = useRef(false);
 
   const { mode, surface, breakpoint, snapshots, latestOf } = view;
-  const { source } = project;
-  const website = source.kind === "url";
   const stageKey = surfaceKey(surface);
   const comments = useMemo(() => commentsFor(data, project.id), [data, project.id]);
   const numbers = useMemo(() => pinNumbers(comments), [comments]);
@@ -248,6 +252,14 @@ export function ViewerView({
     setOpenId(null);
     view.setMode(next);
   };
+  /**
+   * A mode picked by the person (toolbar, C, Escape, Browse buttons). Entering Comment focuses
+   * the canvas, even when picked before the opening mode was known.
+   */
+  const chooseMode = (next: ViewerMode) => {
+    if (next !== mode) focusCanvasPending.current = next === "comment";
+    setMode(next);
+  };
   const setBreakpoint = (next: Breakpoint) => {
     setOpenId(null);
     view.setBreakpoint(next);
@@ -258,25 +270,35 @@ export function ViewerView({
   };
 
   // Locking ends Comment mode, unless a draft is open: its text stays on screen to copy.
-  const locked = Boolean(commentLocked);
   const [wasLocked, setWasLocked] = useState(locked);
   if (wasLocked !== locked) {
     setWasLocked(locked);
     if (locked && !draft) setMode("browse");
   }
 
-  useShortcut("c", () => setMode(mode === "comment" ? "browse" : "comment"), !locked);
+  useShortcut("c", () => chooseMode(mode === "comment" ? "browse" : "comment"), !locked);
   // The open popover takes Escape first.
-  useShortcut("escape", () => setMode("browse"), mode === "comment" && !stageDraft && !openComment);
+  useShortcut(
+    "escape",
+    () => chooseMode("browse"),
+    mode === "comment" && !stageDraft && !openComment,
+  );
 
   /** After the composer closes, keyboard users carry on from the canvas instead of the page top. */
   const returnFocusToCanvas = () => overlayRef.current?.focus({ preventScroll: true });
 
   // Entering Comment mode (toolbar or C) puts focus on the canvas, so the arrow keys and
   // Enter place a pin right away. A snapshot may still be loading, so this waits for it.
+  // A mode decided after the frame check leaves focus where it is: someone may be tabbing
+  // through the top bar by then.
+  const decidedLate = useRef(!view.modeDecided);
   useEffect(() => {
+    if (decidedLate.current && view.modeDecided) {
+      decidedLate.current = false;
+      return;
+    }
     focusCanvasPending.current = mode === "comment";
-  }, [mode]);
+  }, [mode, view.modeDecided]);
   useEffect(() => {
     if (!focusCanvasPending.current || !overlayRef.current) return;
     focusCanvasPending.current = false;
@@ -526,7 +548,7 @@ export function ViewerView({
       overlayRef={overlayRef}
       onSelect={(id) => select(id, "pin")}
       onPlace={place}
-      onExitComment={() => setMode("browse")}
+      onExitComment={() => chooseMode("browse")}
       onDraftChange={(body) => setDraft((current) => (current ? { ...current, body } : current))}
       onDraftAuthorChange={(author) =>
         setDraft((current) => (current ? { ...current, author } : current))
@@ -594,8 +616,8 @@ export function ViewerView({
         project={project}
         leading={leading}
         status={deriveStatus(counts)}
-        mode={mode}
-        onMode={setMode}
+        mode={view.modeDecided ? mode : null}
+        onMode={chooseMode}
         commentLocked={commentLocked}
         accentRule={accentRule}
         titleFirst={!owner}
@@ -661,6 +683,7 @@ export function ViewerView({
               project={project}
               surface={surface}
               latest={view.latest}
+              frame={frame}
               overlay={overlay}
               imageRef={imageRef}
               onReady={() => setStageVersion((value) => value + 1)}
@@ -668,7 +691,7 @@ export function ViewerView({
               onCapture={view.capture.capture}
               frameWidth={website && breakpoint !== "desktop" ? BREAKPOINT_WIDTH[breakpoint] : null}
               onShowLatest={view.showLatest}
-              onBrowse={() => setMode("browse")}
+              onBrowse={() => chooseMode("browse")}
               onScreenshot={owner ? saveScreenshot : null}
             />
           </main>

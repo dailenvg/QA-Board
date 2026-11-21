@@ -30,7 +30,8 @@ export interface SegmentOption<T extends string> {
 
 interface SegmentedControlProps<T extends string> {
   options: ReadonlyArray<SegmentOption<T>>;
-  value: T;
+  /** Null selects nothing yet, such as a choice that's still being worked out. */
+  value: T | null;
   onChange: (value: T) => void;
   label: string;
   /** Ids of text that explains the group (a hint, an error), read when focus enters it. */

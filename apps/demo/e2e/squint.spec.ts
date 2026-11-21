@@ -206,7 +206,7 @@ test("the crosshair shows after a keyboard post but not after a mouse post", asy
   await expect(crosshair).toBeVisible();
 });
 
-test("a site that refuses framing offers a screenshot instead", async ({ page }) => {
+test("Browse on a site that refuses framing offers a screenshot instead", async ({ page }) => {
   await mockFrameCheck(page, {
     verdict: "blocked",
     reason: "x-frame-options",
@@ -214,6 +214,9 @@ test("a site that refuses framing offers a screenshot instead", async ({ page })
   });
   await openFolder(page);
   await createUrlProject(page, "blocked.example", "Blocked site");
+  // It opens on its snapshot in Comment mode; Browse is a click away.
+  await expect(page.getByTestId("canvas-area")).toHaveAttribute("data-mode", "comment");
+  await page.getByTestId("mode-browse").click();
 
   const fallback = page.getByTestId("frame-fallback");
   await expect(fallback).toContainText("This site can't be shown here");
