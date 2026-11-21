@@ -1,6 +1,12 @@
 import { cropBlobKey, snapshotBlobKey } from "../blob-store/keys";
 import { pageBlobKey } from "../share/keys";
-import type { ClientView, SharedComment, SharedSnapshot, SharedSource } from "../share/types";
+import type {
+  ClientComment,
+  ClientView,
+  SharedComment,
+  SharedSnapshot,
+  SharedSource,
+} from "../share/types";
 import type { Comment, Project, ProjectSource, Snapshot, SquintData } from "../store/types";
 import type { EditKeyMemory } from "./edit-keys";
 import type { ReviewerNameMemory } from "./reviewer-name";
@@ -44,7 +50,7 @@ export interface ClientStore {
    * A comment the server accepted (ignored if a refresh already brought it),
    * with the key that lets this browser edit it, when the answer carried one.
    */
-  addComment: (comment: SharedComment, editKey?: string) => void;
+  addComment: (comment: ClientComment, editKey?: string) => void;
   /** A comment the server changed (the client's own edit), in place; ignored when it's gone. */
   replaceComment: (comment: SharedComment) => void;
   /** Reads which comments are this browser's own (`ownComments`) from storage. */
@@ -142,7 +148,7 @@ export function createClientStore(
 }
 
 /** A shared comment in the viewer's shape: `mine` when this browser posted it (`ownComments`). */
-function toComment(comment: SharedComment, own: ReadonlySet<string>): Comment {
+function toComment(comment: ClientComment, own: ReadonlySet<string>): Comment {
   const { crop, ...rest } = comment;
   return {
     ...rest,

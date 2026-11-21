@@ -119,6 +119,8 @@ describe("owner push and pull", () => {
       status: "active",
       createdAt: 200,
       updatedAt: 200,
+      // Posted without a crop: the guest reads it as waiting on its screenshot.
+      screenshotPending: true,
     });
     expect(await pullChanges(services.store, share, first.cursor)).toEqual({
       snapshots: [],
@@ -226,6 +228,32 @@ describe("uploads in parts", () => {
 });
 
 describe("client writes", () => {
+  it("marks a client's comment posted without its screenshot for guests, and no other", async () => {
+    const { services, share } = await shared();
+    const { crop: _crop, ...bare } = COMMENT;
+    const ownerWithout = { ...bare, id: "o-bare" };
+    await pushState(services, share, { ...STATE, comments: [COMMENT, ownerWithout] }, 0, 150);
+    const rect = { x: 0, y: 0, width: 10, height: 10 };
+    await addClientComment(
+      services,
+      share,
+      { ...clientComment("k-crop"), crop: { rect } },
+      PNG,
+      200,
+    );
+    await addClientComment(services, share, clientComment("k-bare"), null, 200);
+    const view = await clientView(services.store, share, GUEST_TOKEN);
+    expect(view.comments.map((c) => [c.id, c.screenshotPending ?? false])).toEqual([
+      ["c-1", false],
+      ["o-bare", false],
+      ["k-crop", false],
+      ["k-bare", true],
+    ]);
+    // Read, never stored: the owner's pull and the manifest see the comment as posted.
+    const pulled = await pullChanges(services.store, share, 0);
+    expect(pulled.comments.find((c) => c.id === "k-bare")).not.toHaveProperty("screenshotPending");
+  });
+
   it("stores the crop before the row: a full share refuses it for real, every time", async () => {
     const { services, share } = await shared();
     const many = Array.from({ length: 5 }, (_, index) => ({ ...SNAPSHOT, id: `f${index}` }));

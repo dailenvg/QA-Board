@@ -76,6 +76,12 @@ export interface ClientComment extends SharedComment {
   authorAvatar?: string;
   /** Written by someone on the company's team; missing on a client's. */
   team?: true;
+  /**
+   * A client's comment posted without its screenshot (every try to render or
+   * upload it failed). Read from the comment itself, a client's with no crop;
+   * there's no way to add one later.
+   */
+  screenshotPending?: true;
 }
 
 /** A team member's avatar on one link: their key and its version there (`share-people.ts`). */

@@ -18,6 +18,8 @@ import { CommentEdited } from "./CommentEdited";
 import { CommentEditor, EMPTY_CLIENT_EDIT } from "./CommentEditor";
 import { CommentTeamNote } from "./CommentTeamNote";
 import { PlacementChip } from "./PlacementChip";
+import { isScreenshotPending } from "./screenshot-pending";
+import { ScreenshotPending } from "./ScreenshotPending";
 import type { Placement } from "./surface";
 
 export interface CommentCardActions {
@@ -296,9 +298,11 @@ export function CommentCard({
         )}
       </AnimatePresence>
 
-      {editing || !comment.crop ? null : (
+      {editing ? null : comment.crop ? (
         <CommentCropThumb crop={comment.crop} pin={cropPin} number={number} />
-      )}
+      ) : isScreenshotPending(comment) ? (
+        <ScreenshotPending />
+      ) : null}
 
       {editing || !actions ? null : (
         // `relative` lifts the actions above the select button's card-wide ::after.
