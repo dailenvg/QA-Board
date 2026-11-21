@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import type { FrameCheckResult } from "../lib/frame-check/types";
+import { snapshotPng } from "./sample-snapshot";
 import { expect, test } from "./test";
 import {
   createImageProject,
@@ -7,6 +8,7 @@ import {
   mockCapture,
   mockFrameCheck,
   openFolder,
+  SNAPSHOT_HEIGHT,
 } from "./squint-fixtures";
 
 const BLOCKED: FrameCheckResult = {
@@ -29,11 +31,9 @@ function modeOption(page: Page, mode: "browse" | "comment") {
 
 /** What screen readers hear when a site that refuses framing opens on its snapshot. */
 function openedOnSnapshot(page: Page) {
-  return page
-    .getByRole("status")
-    .filter({
-      hasText: "This site can't be shown here, so it opened on a snapshot in Comment mode.",
-    });
+  return page.getByRole("status").filter({
+    hasText: "This site can't be shown here, so it opened on a snapshot in Comment mode.",
+  });
 }
 
 /** Every mode remembered in this browser. */
@@ -126,4 +126,53 @@ test("creating a website project starts its snapshot, and opening it joins that 
   await openFolder(page);
   await createImageProject(page, "no-capture.png");
   expect(captures()).toBe(1);
+});
+
+test("a website project deleted before its first snapshot lands never uploads it", async ({
+  page,
+  baseURL,
+}) => {
+  await mockFrameCheck(page, {
+    verdict: "embeddable",
+    finalUrl: `${baseURL}/sandbox`,
+    status: 200,
+  });
+  // The snapshot answers only once the project is deleted.
+  let release!: () => void;
+  const deleted = new Promise<void>((resolve) => (release = resolve));
+  await page.unroute("**/api/capture");
+  await page.route("**/api/capture", async (route) => {
+    await deleted;
+    const { width } = route.request().postDataJSON() as { width: number };
+    await route.fulfill({
+      contentType: "image/png",
+      headers: { "x-capture-width": String(width), "x-capture-height": String(SNAPSHOT_HEIGHT) },
+      body: snapshotPng(width, SNAPSHOT_HEIGHT),
+    });
+  });
+  const uploads: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "PUT" && request.url().includes("/blobs/")) {
+      uploads.push(request.url());
+    }
+  });
+  await openFolder(page);
+  const landed = page.waitForResponse("**/api/capture");
+  await createUrlProject(page, `${baseURL}/sandbox`, "Gone soon");
+
+  await page.getByRole("link", { name: "Back to My projects" }).click();
+  const card = page.getByTestId("project-card").filter({ hasText: "Gone soon" });
+  await card.getByTestId("project-menu").click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  await page
+    .getByRole("dialog", { name: "Delete Gone soon?" })
+    .getByRole("button", { name: "Delete project" })
+    .click();
+  await expect(card).toHaveCount(0);
+
+  release();
+  await landed;
+  // Nothing to wait for when nothing happens: give the browser a moment to have tried.
+  await page.waitForTimeout(1_000);
+  expect(uploads).toEqual([]);
 });

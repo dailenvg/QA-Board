@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   addComment: vi.fn(),
   addSnapshot: vi.fn(),
   attachCrop: vi.fn(),
+  emitSquiggy: vi.fn(),
+  hasProject: vi.fn(),
   requestCapture: vi.fn(),
   storeWorkspaceBlob: vi.fn(),
 }));
@@ -18,6 +20,7 @@ vi.mock("../store/actions", () => ({
   attachCrop: mocks.attachCrop,
   deleteComment: vi.fn(),
   editComment: vi.fn(),
+  hasProject: mocks.hasProject,
   replaceWithImage: vi.fn(),
   restoreComment: vi.fn(),
   setAuthorName: vi.fn(),
@@ -27,6 +30,7 @@ vi.mock("../workspace-client/blob-upload", () => ({
   storeWorkspaceBlob: mocks.storeWorkspaceBlob,
 }));
 vi.mock("../capture/request-capture", () => ({ requestCapture: mocks.requestCapture }));
+vi.mock("../squiggy/events", () => ({ emitSquiggy: mocks.emitSquiggy }));
 
 const { captureNewWebsite, serverBackend } = await import("./server-backend");
 
@@ -83,6 +87,7 @@ describe("a new website project's first snapshot", () => {
   }
 
   beforeEach(() => {
+    mocks.hasProject.mockReturnValue(true);
     mocks.storeWorkspaceBlob.mockResolvedValue({ ok: true });
     mocks.addSnapshot.mockImplementation((snapshot: object) => ({ ok: true, value: snapshot }));
   });
@@ -135,6 +140,34 @@ describe("a new website project's first snapshot", () => {
     expect(await joined).toEqual({ ok: false, message: CAPTURE_MESSAGES.timeout });
   });
 
+  it("isn't uploaded once the project is deleted, and says nothing", async () => {
+    const answer = slowCapture();
+    captureNewWebsite("p-deleted", URL);
+    mocks.hasProject.mockReturnValue(false);
+    answer();
+    await vi.runAllTimersAsync();
+    expect(mocks.storeWorkspaceBlob).not.toHaveBeenCalled();
+    expect(mocks.addSnapshot).not.toHaveBeenCalled();
+    expect(mocks.emitSquiggy).not.toHaveBeenCalled();
+  });
+
+  it("says nothing when the server no longer has the project", async () => {
+    mocks.requestCapture.mockResolvedValue(captured);
+    mocks.storeWorkspaceBlob.mockResolvedValue({ ok: false, status: 404, error: "not-found" });
+    captureNewWebsite("p-gone", URL);
+    await vi.runAllTimersAsync();
+    expect(mocks.storeWorkspaceBlob).toHaveBeenCalledTimes(1);
+    expect(mocks.emitSquiggy).not.toHaveBeenCalled();
+  });
+
+  it("still tells Squiggy when its upload really fails", async () => {
+    mocks.requestCapture.mockResolvedValue(captured);
+    mocks.storeWorkspaceBlob.mockResolvedValue({ ok: false, status: 503, error: "failed" });
+    captureNewWebsite("p-flaky", URL);
+    await vi.runAllTimersAsync();
+    expect(mocks.emitSquiggy).toHaveBeenCalledWith({ type: "save-failed" });
+  });
+
   it("is forgotten once it fails, so opening the project captures again", async () => {
     const answer = slowCapture();
     captureNewWebsite("p-failed", URL);
@@ -150,5 +183,27 @@ describe("a new website project's first snapshot", () => {
     );
     expect(retry).toMatchObject({ ok: true });
     expect(mocks.requestCapture).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("a snapshot taken in the viewer", () => {
+  it("tells Squiggy when its upload fails, even for a project the server no longer has", async () => {
+    mocks.requestCapture.mockResolvedValue({
+      ok: true,
+      blob: new Blob(["jpeg"], { type: "image/jpeg" }),
+      width: 1440,
+      height: 2400,
+      scale: 1,
+    });
+    mocks.storeWorkspaceBlob.mockResolvedValue({ ok: false, status: 404, error: "not-found" });
+    const outcome = await serverBackend.captureSnapshot(
+      "p-viewer",
+      "https://acme.example/",
+      1440,
+      new AbortController().signal,
+    );
+    expect(outcome).toEqual({ ok: false, message: CAPTURE_MESSAGES.storage });
+    expect(mocks.emitSquiggy).toHaveBeenCalledWith({ type: "save-failed" });
+    expect(mocks.hasProject).not.toHaveBeenCalled();
   });
 });

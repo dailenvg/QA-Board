@@ -13,6 +13,7 @@ import {
   attachCrop,
   deleteComment,
   editComment,
+  hasProject,
   replaceWithImage,
   restoreComment,
   setAuthorName,
@@ -39,20 +40,31 @@ async function saveCrop(projectId: string, commentId: string, crop: ReadyCrop): 
   }
 }
 
-/** Captures server-side, uploads the image to the workspace, then records the snapshot. */
+/** A new project's first snapshot, once the project was deleted: nothing to keep, nothing failed. */
+const PROJECT_GONE: CaptureOutcome = { ok: false, message: CAPTURE_MESSAGES.failed };
+
+/**
+ * Captures server-side, uploads the image to the workspace, then records the
+ * snapshot. A `background` capture (`captureNewWebsite`) skips the upload once
+ * its project is gone, and a project the server no longer has (404) isn't a
+ * failed save either.
+ */
 async function captureSnapshot(
   projectId: string,
   url: string,
   width: number,
   signal: AbortSignal,
+  background = false,
 ): Promise<CaptureOutcome | null> {
   const result = await requestCapture(url, width, signal);
   if (signal.aborted) return null;
   if (!result.ok) return { ok: false, message: CAPTURE_MESSAGES[result.failure] };
+  if (background && !hasProject(projectId)) return PROJECT_GONE;
   const id = newId();
   const blobKey = snapshotBlobKey(id);
   const uploaded = await storeWorkspaceBlob(projectId, blobKey, result.blob);
   if (!uploaded.ok) {
+    if (background && uploaded.status === 404) return PROJECT_GONE;
     emitSquiggy({ type: "save-failed" });
     return { ok: false, message: CAPTURE_MESSAGES.storage };
   }
@@ -87,7 +99,7 @@ export function captureNewWebsite(projectId: string, url: string): void {
   const timer = setTimeout(() => controller.abort(), CLIENT_CAPTURE_TIMEOUT_MS);
   // Only its timer aborts it, so an aborted capture took too long (as a viewer waiting on it says).
   const capture = async (): Promise<CaptureOutcome> =>
-    (await captureSnapshot(projectId, url, FIRST_WIDTH, controller.signal)) ?? {
+    (await captureSnapshot(projectId, url, FIRST_WIDTH, controller.signal, true)) ?? {
       ok: false,
       message: CAPTURE_MESSAGES.timeout,
     };
