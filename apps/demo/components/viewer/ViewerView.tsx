@@ -31,6 +31,7 @@ import { DELETION_EXPLANATION, deletionWhen } from "../ui/deletion-when";
 import type { MenuHandle } from "../ui/Menu";
 import { useToast } from "../ui/ToastProvider";
 import { useViewerBackend, type PendingCrop } from "@/lib/viewer-backend/backend";
+import { useFrameCheck } from "@/lib/frame-check/use-frame-check";
 import { can } from "@/lib/auth/permissions";
 import { useWorkspaceAccess } from "@/lib/workspace-client/use-workspace-access";
 import { BreakpointFilter, type BreakpointScope } from "./BreakpointFilter";
@@ -41,6 +42,8 @@ import { CommentsPanel } from "./CommentsPanel";
 import { commentRights } from "./comment-rights";
 import { DeleteOthersCommentDialog } from "./DeleteOthersCommentDialog";
 import { ExportMenu } from "./ExportMenu";
+import { rememberedMode, rememberMode } from "./mode-memory";
+import { openingMode } from "./opening-mode";
 import { PageFilter, type PageScope } from "./PageFilter";
 import { PageStrip } from "./PageStrip";
 import { PinPopover } from "./PinPopover";
@@ -74,6 +77,8 @@ interface ViewerViewProps {
   panelNote?: string;
   /** Keeps an unsent draft across reloads (shared links), and warns before leaving it. */
   draftStorage?: DraftStorage;
+  /** Where the mode last picked is remembered in this browser: the project, or a shared link. */
+  modeScope: string;
   /** Why new comments are off, such as a shared link's closed review window. Reading still works. */
   commentLocked?: string;
   /** When this project is deleted (epoch ms); a notice shows under the top bar for its last 5 days. */
@@ -105,6 +110,7 @@ export function ViewerView({
   panelNotice,
   panelNote,
   draftStorage,
+  modeScope,
   commentLocked,
   expiresAt,
   accentRule,
@@ -124,8 +130,19 @@ export function ViewerView({
   const pages = useViewerPage(project, draft?.pageId ?? null, () => canvasAreaRef.current);
   const [pageScope, setPageScope] = useState<PageScope>("all");
   const [breakpointScope, setBreakpointScope] = useState<BreakpointScope>("breakpoint");
+  const { source } = project;
+  const website = source.kind === "url";
+  const locked = Boolean(commentLocked);
+  const frame = useFrameCheck(website ? source.url : null);
+  const [remembered] = useState(() => rememberedMode(modeScope));
   const view = useViewerSurface(project, data, pages, {
-    mode: draft ? "comment" : "browse",
+    mode: openingMode({
+      website,
+      draft: Boolean(draft),
+      locked,
+      remembered,
+      frame: frame.state,
+    }),
     snapshotId: draft?.snapshotId ?? null,
   });
   const [tab, setTab] = useState<CommentTab>("active");
@@ -155,8 +172,19 @@ export function ViewerView({
   const focusCanvasPending = useRef(false);
 
   const { mode, surface, breakpoint, snapshots, latestOf } = view;
-  const { source } = project;
-  const website = source.kind === "url";
+  // Screen readers heard the frame check start ("Checking whether…"), so they hear how it ended
+  // when it put the viewer in Comment mode: the toggle changed on its own and focus stays put.
+  // Decided at that moment only, so a mode picked during the wait (or later) says nothing.
+  const [wasDecided, setWasDecided] = useState(view.modeDecided);
+  const [openedOnSnapshot, setOpenedOnSnapshot] = useState(false);
+  if (!wasDecided && view.modeDecided) {
+    setWasDecided(true);
+    setOpenedOnSnapshot(
+      mode === "comment" &&
+        frame.state.status === "done" &&
+        frame.state.result.verdict === "blocked",
+    );
+  }
   const stageKey = surfaceKey(surface);
   const comments = useMemo(() => commentsFor(data, project.id), [data, project.id]);
   const numbers = useMemo(() => pinNumbers(comments), [comments]);
@@ -248,6 +276,16 @@ export function ViewerView({
     setOpenId(null);
     view.setMode(next);
   };
+  /**
+   * A mode picked by the person (toolbar, C, Escape, Browse buttons), remembered for next
+   * time; a mode the viewer opened in or was put in isn't. Entering Comment focuses the
+   * canvas, even when picked before the opening mode was known.
+   */
+  const chooseMode = (next: ViewerMode) => {
+    if (next !== mode) focusCanvasPending.current = next === "comment";
+    setMode(next);
+    rememberMode(modeScope, next);
+  };
   const setBreakpoint = (next: Breakpoint) => {
     setOpenId(null);
     view.setBreakpoint(next);
@@ -258,25 +296,39 @@ export function ViewerView({
   };
 
   // Locking ends Comment mode, unless a draft is open: its text stays on screen to copy.
-  const locked = Boolean(commentLocked);
   const [wasLocked, setWasLocked] = useState(locked);
   if (wasLocked !== locked) {
     setWasLocked(locked);
     if (locked && !draft) setMode("browse");
   }
 
-  useShortcut("c", () => setMode(mode === "comment" ? "browse" : "comment"), !locked);
+  useShortcut("c", () => chooseMode(mode === "comment" ? "browse" : "comment"), !locked);
   // The open popover takes Escape first.
-  useShortcut("escape", () => setMode("browse"), mode === "comment" && !stageDraft && !openComment);
+  useShortcut(
+    "escape",
+    () => chooseMode("browse"),
+    mode === "comment" && !stageDraft && !openComment,
+  );
 
   /** After the composer closes, keyboard users carry on from the canvas instead of the page top. */
   const returnFocusToCanvas = () => overlayRef.current?.focus({ preventScroll: true });
 
   // Entering Comment mode (toolbar or C) puts focus on the canvas, so the arrow keys and
   // Enter place a pin right away. A snapshot may still be loading, so this waits for it.
+  // The mode the viewer opens in leaves focus where the page puts it (a remembered Comment,
+  // a site that refuses framing), unless it reopened a draft; one picked meanwhile is
+  // `chooseMode`'s to focus.
+  const [openedOnDraft] = useState(Boolean(draft));
+  /** The mode this effect last acted on; null until the opening mode is known. */
+  const focusedFor = useRef<ViewerMode | null>(null);
   useEffect(() => {
+    if (!view.modeDecided) return;
+    const previous = focusedFor.current;
+    focusedFor.current = mode;
+    // Unchanged (an effect run twice in development) or the opening mode: nothing to do.
+    if (previous === mode || (previous === null && !openedOnDraft)) return;
     focusCanvasPending.current = mode === "comment";
-  }, [mode]);
+  }, [mode, view.modeDecided, openedOnDraft]);
   useEffect(() => {
     if (!focusCanvasPending.current || !overlayRef.current) return;
     focusCanvasPending.current = false;
@@ -526,7 +578,7 @@ export function ViewerView({
       overlayRef={overlayRef}
       onSelect={(id) => select(id, "pin")}
       onPlace={place}
-      onExitComment={() => setMode("browse")}
+      onExitComment={() => chooseMode("browse")}
       onDraftChange={(body) => setDraft((current) => (current ? { ...current, body } : current))}
       onDraftAuthorChange={(author) =>
         setDraft((current) => (current ? { ...current, author } : current))
@@ -594,8 +646,8 @@ export function ViewerView({
         project={project}
         leading={leading}
         status={deriveStatus(counts)}
-        mode={mode}
-        onMode={setMode}
+        mode={view.modeDecided ? mode : null}
+        onMode={chooseMode}
         commentLocked={commentLocked}
         accentRule={accentRule}
         titleFirst={!owner}
@@ -621,6 +673,12 @@ export function ViewerView({
           </>
         }
       />
+      {/* Empty until then, so the sentence is announced when it arrives (and only once). */}
+      <p role="status" className="sr-only">
+        {openedOnSnapshot
+          ? "This site can't be shown here, so it opened on a snapshot in Comment mode."
+          : ""}
+      </p>
       <AnimatePresence>
         {notice}
         {deletion ? (
@@ -661,6 +719,7 @@ export function ViewerView({
               project={project}
               surface={surface}
               latest={view.latest}
+              frame={frame}
               overlay={overlay}
               imageRef={imageRef}
               onReady={() => setStageVersion((value) => value + 1)}
@@ -668,7 +727,7 @@ export function ViewerView({
               onCapture={view.capture.capture}
               frameWidth={website && breakpoint !== "desktop" ? BREAKPOINT_WIDTH[breakpoint] : null}
               onShowLatest={view.showLatest}
-              onBrowse={() => setMode("browse")}
+              onBrowse={() => chooseMode("browse")}
               onScreenshot={owner ? saveScreenshot : null}
             />
           </main>

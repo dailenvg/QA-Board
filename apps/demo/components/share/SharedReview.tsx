@@ -148,6 +148,8 @@ export function SharedReview({
             <ViewerView
               data={data}
               project={project}
+              // Every shared link's project has the same id here, so each link keeps its own.
+              modeScope={`share:${token}`}
               leading={<BrandLockup token={token} brand={brand} />}
               accentRule={brand.color !== null}
               actions={

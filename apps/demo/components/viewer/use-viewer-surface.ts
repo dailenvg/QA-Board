@@ -26,11 +26,17 @@ export function useViewerSurface(
   project: Project,
   data: SquintData,
   pages: ViewerPage,
-  /** Where to start, such as a restored draft's snapshot (and so its breakpoint). */
-  initial: { mode: ViewerMode; snapshotId: string | null },
+  /**
+   * Where to start, such as a restored draft's snapshot (and so its breakpoint). A null mode
+   * isn't known yet (`openingMode`): the stage stays as Browse while it waits, `modeDecided`
+   * false, and the first known one is taken unless a mode was chosen meanwhile.
+   */
+  initial: { mode: ViewerMode | null; snapshotId: string | null },
 ) {
   const kind = project.source.kind;
-  const [mode, setModeState] = useState<ViewerMode>(initial.mode);
+  const [decided, setDecided] = useState<ViewerMode | null>(initial.mode);
+  if (decided === null && initial.mode !== null) setDecided(initial.mode);
+  const mode = decided ?? "browse";
   const [viewedId, setViewedId] = useState<string | null>(initial.snapshotId);
   // Showing another page puts that page on the stage, not an earlier snapshot.
   const [stagedPageId, setStagedPageId] = useState(pages.page?.id);
@@ -74,7 +80,7 @@ export function useViewerSurface(
 
   const setMode = useCallback(
     (next: ViewerMode) => {
-      setModeState(next);
+      setDecided(next);
       if (next === "browse" && kind === "url") setViewedId(null);
     },
     [kind],
@@ -94,7 +100,7 @@ export function useViewerSurface(
     const at = kind === "url" ? breakpointOfComment(comment, snapshots) : breakpoint;
     const target = surfaceTargetOf(comment, kind, snapshots, latestOf(at)?.id ?? null);
     if (!target) return;
-    if (target.mode) setModeState(target.mode);
+    if (target.mode) setDecided(target.mode);
     if (target.pageId) pages.selectPage(target.pageId);
     setBreakpointState(at);
     setViewedId(target.viewedSnapshotId);
@@ -102,6 +108,7 @@ export function useViewerSurface(
 
   return {
     mode,
+    modeDecided: decided !== null,
     setMode,
     breakpoint,
     setBreakpoint,

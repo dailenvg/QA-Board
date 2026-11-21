@@ -5,6 +5,7 @@ import type { ReactNode, Ref } from "react";
 import { duration, ease } from "@/lib/motion";
 import { findPage, pagesOf } from "@/lib/store/pages";
 import type { CaptureState } from "@/lib/capture/use-capture";
+import type { FrameCheck } from "@/lib/frame-check/use-frame-check";
 import type { Project, Snapshot } from "@/lib/store/types";
 import { ImageStage } from "./ImageStage";
 import { SnapshotStage } from "./SnapshotStage";
@@ -16,6 +17,8 @@ interface ViewerStageProps {
   project: Project;
   surface: Surface;
   latest: Snapshot | null;
+  /** A website's frame check, for the live frame's stage. */
+  frame: FrameCheck;
   overlay: ReactNode;
   imageRef: Ref<HTMLImageElement>;
   /** An image surface finished loading, so its pins are on screen. */
@@ -44,6 +47,7 @@ export function ViewerStage({
   project,
   surface,
   latest,
+  frame,
   overlay,
   imageRef,
   onReady,
@@ -101,6 +105,7 @@ export function ViewerStage({
     <>
       <UrlStage
         url={source.url}
+        frame={frame}
         projectName={project.name}
         overlay={surface.kind === "frame" ? overlay : null}
         onScreenshot={onScreenshot}

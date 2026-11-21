@@ -233,6 +233,9 @@ function findProject(id: string): Project | null {
     : null;
 }
 
+/** Whether the workspace still holds the project (it may have been deleted meanwhile). */
+export const hasProject = (id: string): boolean => findProject(id) !== null;
+
 /**
  * `source` with `page` showing `image`, already stored under `blobKey`, one
  * revision on, so a share uploads it again.

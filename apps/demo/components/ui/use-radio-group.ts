@@ -15,7 +15,7 @@ const STEPS: Record<string, number> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: 
  */
 export function useRadioGroup<T extends string>(
   options: ReadonlyArray<RadioOption<T>>,
-  value: T,
+  value: T | null,
   onChange: (value: T) => void,
 ) {
   const buttons = useRef<Array<HTMLButtonElement | null>>([]);

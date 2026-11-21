@@ -216,6 +216,8 @@ test("live-frame pins stay on the screenshot's page after a reload", async ({ pa
     },
     "/p/site",
   );
+  // Live-frame pins are drawn in Browse; the site opens in Comment mode, since it refuses framing.
+  await page.getByTestId("mode-browse").click();
   await page
     .getByTestId("frame-fallback")
     .getByTestId("screenshot-input")

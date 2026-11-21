@@ -35,6 +35,7 @@ export function Viewer({ projectId, sender }: { projectId: string; sender: strin
         key={project.id}
         data={state.data}
         project={project}
+        modeScope={project.id}
         leading={<FolderBackLink folder={folder} />}
         actions={
           archived ? null : (

@@ -46,7 +46,8 @@ test("a website comment pins to a snapshot, scrolls with it and keeps a screensh
   page,
   baseURL,
 }) => {
-  const captures = await mockCapture(page, { delayMs: 400 });
+  // Slow enough that the snapshot started on creating the project is still on its way.
+  const captures = await mockCapture(page, { delayMs: 2_000 });
   await sandboxProject(page, baseURL, "Snapshot review");
   await expect(page.getByTestId("preview-frame")).toBeVisible();
 
@@ -107,15 +108,16 @@ test("each breakpoint keeps its own snapshot and comments, and a pin opens its c
   baseURL,
 }) => {
   const captures = await mockCapture(page);
-  await sandboxProject(page, baseURL, "Breakpoint review");
   const captureWidth = async (action: () => Promise<void>) => {
     const request = page.waitForRequest("**/api/capture");
     await action();
     return ((await request).postDataJSON() as { width: number }).width;
   };
 
-  // Desktop is the default, captured at its fixed width whatever the window's size.
-  expect(await captureWidth(() => page.getByTestId("mode-comment").click())).toBe(1440);
+  // Desktop is the default, captured at its fixed width whatever the window's size, as
+  // soon as the project is created.
+  expect(await captureWidth(() => sandboxProject(page, baseURL, "Breakpoint review"))).toBe(1440);
+  await page.getByTestId("mode-comment").click();
   await expect(snapshotImage(page)).toBeVisible();
   await postComment(page, "Desktop hero.", { x: 120, y: 90 }, "Ana");
   const pin = page.getByRole("button", { name: "Comment 1 by Ana", exact: true });

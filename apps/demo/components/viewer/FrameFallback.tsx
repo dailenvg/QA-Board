@@ -27,7 +27,7 @@ function copyFor(reason: FallbackReason, host: string, canUpload: boolean) {
       return {
         title: "This site can't be shown here",
         body: canUpload
-          ? `${host} tells browsers not to display it inside other sites. Upload a screenshot to review it in Squint, or open it in a new tab.`
+          ? `${host} tells browsers not to display it inside other sites. Switch to Comment mode to comment on a snapshot, upload a screenshot or open it in a new tab.`
           : `${host} tells browsers not to display it inside other sites. Switch to Comment mode to comment on a snapshot, or open it in a new tab.`,
         retry: "Check again",
       };

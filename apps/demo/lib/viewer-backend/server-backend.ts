@@ -1,14 +1,19 @@
 import { cropBlobKey, snapshotBlobKey } from "../blob-store/keys";
+import { captureKey, createInFlight, unlessAborted } from "../capture/in-flight";
 import { CAPTURE_MESSAGES } from "../capture/messages";
+import { clampWidth } from "../capture/types";
+import { CLIENT_CAPTURE_TIMEOUT_MS } from "../capture/use-capture";
 import { CROP_ATTEMPTS, cropBackoff, wait } from "../crop/crop-retry";
 import { requestCapture } from "../capture/request-capture";
 import { emitSquiggy } from "../squiggy/events";
+import { BREAKPOINT_WIDTH } from "../store/breakpoints";
 import {
   addComment,
   addSnapshot,
   attachCrop,
   deleteComment,
   editComment,
+  hasProject,
   replaceWithImage,
   restoreComment,
   setAuthorName,
@@ -35,20 +40,31 @@ async function saveCrop(projectId: string, commentId: string, crop: ReadyCrop): 
   }
 }
 
-/** Captures server-side, uploads the image to the workspace, then records the snapshot. */
+/** A new project's first snapshot, once the project was deleted: nothing to keep, nothing failed. */
+const PROJECT_GONE: CaptureOutcome = { ok: false, message: CAPTURE_MESSAGES.failed };
+
+/**
+ * Captures server-side, uploads the image to the workspace, then records the
+ * snapshot. A `background` capture (`captureNewWebsite`) skips the upload once
+ * its project is gone, and a project the server no longer has (404) isn't a
+ * failed save either.
+ */
 async function captureSnapshot(
   projectId: string,
   url: string,
   width: number,
   signal: AbortSignal,
+  background = false,
 ): Promise<CaptureOutcome | null> {
   const result = await requestCapture(url, width, signal);
   if (signal.aborted) return null;
   if (!result.ok) return { ok: false, message: CAPTURE_MESSAGES[result.failure] };
+  if (background && !hasProject(projectId)) return PROJECT_GONE;
   const id = newId();
   const blobKey = snapshotBlobKey(id);
   const uploaded = await storeWorkspaceBlob(projectId, blobKey, result.blob);
   if (!uploaded.ok) {
+    if (background && uploaded.status === 404) return PROJECT_GONE;
     emitSquiggy({ type: "save-failed" });
     return { ok: false, message: CAPTURE_MESSAGES.storage };
   }
@@ -63,6 +79,34 @@ async function captureSnapshot(
     ...(scale < 1 ? { scale } : {}),
   });
   return saved.ok ? { ok: true, snapshot: saved.value } : { ok: false, message: saved.error };
+}
+
+/** New website projects' first snapshots while they're taken (`captureNewWebsite`). */
+const firstCaptures = createInFlight<CaptureOutcome | null>();
+
+/** What the viewer captures first: the Desktop breakpoint, which it opens on. */
+const FIRST_WIDTH = clampWidth(BREAKPOINT_WIDTH.desktop);
+
+/**
+ * Starts a new website project's first snapshot as soon as it's created, so
+ * it's often there by the time the project opens. Nothing waits on it: it
+ * lands in the workspace like any capture, and the viewer joins it while it
+ * runs rather than starting another. A failure says nothing; the viewer
+ * captures again on its own when it finds no snapshot.
+ */
+export function captureNewWebsite(projectId: string, url: string): void {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CLIENT_CAPTURE_TIMEOUT_MS);
+  // Only its timer aborts it, so an aborted capture took too long (as a viewer waiting on it says).
+  const capture = async (): Promise<CaptureOutcome> =>
+    (await captureSnapshot(projectId, url, FIRST_WIDTH, controller.signal, true)) ?? {
+      ok: false,
+      message: CAPTURE_MESSAGES.timeout,
+    };
+  void firstCaptures
+    .run(captureKey(projectId, url, FIRST_WIDTH), capture)
+    .catch(() => null)
+    .finally(() => clearTimeout(timer));
 }
 
 /**
@@ -82,5 +126,9 @@ export const serverBackend: ViewerBackend = {
   deleteComment,
   restoreComment,
   replaceWithImage,
-  captureSnapshot,
+  // Joins a new project's first snapshot if it's still being taken; leaving stops only the wait.
+  captureSnapshot(projectId, url, width, signal) {
+    const first = firstCaptures.join(captureKey(projectId, url, width));
+    return first ? unlessAborted(first, signal) : captureSnapshot(projectId, url, width, signal);
+  },
 };
