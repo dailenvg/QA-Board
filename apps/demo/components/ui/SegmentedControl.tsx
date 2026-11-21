@@ -1,8 +1,8 @@
 "use client";
 
 import { motion, useReducedMotion } from "motion/react";
-import { useId } from "react";
-import { instant, spring } from "@/lib/motion";
+import { useId, useState } from "react";
+import { duration, ease, instant, spring } from "@/lib/motion";
 import { Icon, type IconName } from "./Icon";
 import { useRadioGroup } from "./use-radio-group";
 
@@ -102,6 +102,14 @@ export function SegmentedControl<T extends string>({
   const reduce = useReducedMotion();
   const baseId = useId();
   const group = useRadioGroup(options, value, onChange);
+  // A first selection made after nothing was selected fades its thumb in, since there's no
+  // earlier thumb to glide from; one selected from the start, or moved between options, doesn't.
+  const [shownValue, setShownValue] = useState(value);
+  const [thumbFades, setThumbFades] = useState(false);
+  if (shownValue !== value) {
+    setShownValue(value);
+    setThumbFades(shownValue === null);
+  }
   const labelClass = labels === "wide" ? "relative max-2xl:sr-only" : "relative";
   const countClass = counts === "sm" ? "max-sm:sr-only" : "";
 
@@ -154,7 +162,13 @@ export function SegmentedControl<T extends string>({
             {selected ? (
               <motion.span
                 layoutId={layoutId}
-                transition={reduce ? instant : spring.snappy}
+                initial={thumbFades ? { opacity: 0 } : false}
+                animate={{ opacity: 1 }}
+                // The fade is opacity only, so it stays when motion is reduced.
+                transition={{
+                  ...(reduce ? instant : spring.snappy),
+                  opacity: { duration: duration.micro, ease: ease.out },
+                }}
                 className={`absolute inset-1 rounded-pill ${THUMB[tone]}`}
               />
             ) : null}

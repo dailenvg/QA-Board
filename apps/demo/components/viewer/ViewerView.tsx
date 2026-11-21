@@ -172,6 +172,19 @@ export function ViewerView({
   const focusCanvasPending = useRef(false);
 
   const { mode, surface, breakpoint, snapshots, latestOf } = view;
+  // Screen readers heard the frame check start ("Checking whether…"), so they hear how it ended
+  // when it put the viewer in Comment mode: the toggle changed on its own and focus stays put.
+  // Decided at that moment only, so a mode picked during the wait (or later) says nothing.
+  const [wasDecided, setWasDecided] = useState(view.modeDecided);
+  const [openedOnSnapshot, setOpenedOnSnapshot] = useState(false);
+  if (!wasDecided && view.modeDecided) {
+    setWasDecided(true);
+    setOpenedOnSnapshot(
+      mode === "comment" &&
+        frame.state.status === "done" &&
+        frame.state.result.verdict === "blocked",
+    );
+  }
   const stageKey = surfaceKey(surface);
   const comments = useMemo(() => commentsFor(data, project.id), [data, project.id]);
   const numbers = useMemo(() => pinNumbers(comments), [comments]);
@@ -656,6 +669,12 @@ export function ViewerView({
           </>
         }
       />
+      {/* Empty until then, so the sentence is announced when it arrives (and only once). */}
+      <p role="status" className="sr-only">
+        {openedOnSnapshot
+          ? "This site can't be shown here, so it opened on a snapshot in Comment mode."
+          : ""}
+      </p>
       <AnimatePresence>
         {notice}
         {deletion ? (

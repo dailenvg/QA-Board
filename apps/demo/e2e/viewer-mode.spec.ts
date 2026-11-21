@@ -27,6 +27,15 @@ function modeOption(page: Page, mode: "browse" | "comment") {
   return page.getByTestId(`mode-${mode}`);
 }
 
+/** What screen readers hear when a site that refuses framing opens on its snapshot. */
+function openedOnSnapshot(page: Page) {
+  return page
+    .getByRole("status")
+    .filter({
+      hasText: "This site can't be shown here, so it opened on a snapshot in Comment mode.",
+    });
+}
+
 /** Every mode remembered in this browser. */
 function storedModes(page: Page): Promise<string[]> {
   return page.evaluate(() =>
@@ -48,8 +57,10 @@ test("a site that refuses framing opens on its snapshot in Comment mode, Browse 
   await expect(modeOption(page, "browse")).toHaveAttribute("aria-checked", "false");
   await expect(modeOption(page, "comment")).toHaveAttribute("aria-checked", "false");
   await expect(page.getByTestId("frame-fallback")).toBeHidden();
+  await expect(openedOnSnapshot(page)).toHaveCount(0);
 
   await expect(modeOption(page, "comment")).toHaveAttribute("aria-checked", "true");
+  await expect(openedOnSnapshot(page)).toHaveCount(1);
   await expect(page.getByTestId("canvas-area")).toHaveAttribute("data-mode", "comment");
   await expect(page.getByRole("img", { name: /^Snapshot of/ })).toBeVisible();
   await expect(page.getByTestId("frame-fallback")).toBeHidden();
@@ -57,9 +68,10 @@ test("a site that refuses framing opens on its snapshot in Comment mode, Browse 
   await modeOption(page, "browse").click();
   await expect(page.getByTestId("frame-fallback")).toContainText("This site can't be shown here");
 
-  // Browse is remembered as picked, yet the site still opens on its snapshot.
+  // Browse is remembered as picked, yet the site still opens on its snapshot, and says so.
   await page.reload();
   await expect(modeOption(page, "comment")).toHaveAttribute("aria-checked", "true");
+  await expect(openedOnSnapshot(page)).toHaveCount(1);
   expect(await storedModes(page)).toEqual(["browse"]);
 });
 
@@ -80,6 +92,8 @@ test("the mode last picked for a project opens again after a reload", async ({ p
   await page.reload();
   await expect(modeOption(page, "comment")).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("img", { name: /^Snapshot of/ })).toBeVisible();
+  // Opened in the remembered mode, not put there by a refusal: nothing to announce.
+  await expect(openedOnSnapshot(page)).toHaveCount(0);
 
   await modeOption(page, "browse").click();
   await page.reload();
