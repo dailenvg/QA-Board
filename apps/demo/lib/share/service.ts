@@ -423,16 +423,24 @@ function shareReviewEndsAt(share: ShareRecord): number | null {
   return reviewDeadline(share.createdAt, share.reviewWindowHours);
 }
 
+/** Pinned on a snapshot or a page, where a screenshot is taken: not an older website's live page. */
+const onImage = (comment: SharedComment) => Boolean(comment.snapshotId || comment.pageId);
+
 /**
  * A comment as the guest reads it: a team member's says so, with their avatar
  * on this link (`token`'s) when there's one (4.11). Never their id or email.
+ * A client's on a snapshot or page without a crop was posted without its
+ * screenshot, and says so.
  */
 function guestComment(
-  comment: SharedComment,
+  { item: comment, origin }: Sequenced<SharedComment>,
   team: ReadonlyMap<string, TeamAvatar | null>,
   token: string,
 ): ClientComment {
-  if (!team.has(comment.id)) return comment;
+  if (!team.has(comment.id)) {
+    const pending = origin === "client" && onImage(comment) && !comment.crop;
+    return pending ? { ...comment, screenshotPending: true } : comment;
+  }
   const avatar = team.get(comment.id);
   return {
     ...comment,
@@ -458,7 +466,7 @@ export async function clientView(
     brand: toClientBrand(brand),
     clientName: share.clientName,
     snapshots: items(snapshots),
-    comments: items(comments).map((comment) => guestComment(comment, team, token)),
+    comments: comments.map((row) => guestComment(row, team, token)),
     reviewEndsAt: shareReviewEndsAt(share),
     reviewWindowHours: share.reviewWindowHours,
     expiresAt: share.expiresAt,

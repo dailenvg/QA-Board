@@ -18,6 +18,8 @@ import { CommentEdited } from "./CommentEdited";
 import { CommentEditor, EMPTY_CLIENT_EDIT } from "./CommentEditor";
 import { CommentTeamNote } from "./CommentTeamNote";
 import { PlacementChip } from "./PlacementChip";
+import { isScreenshotPending } from "./screenshot-pending";
+import { ScreenshotPending } from "./ScreenshotPending";
 import type { Placement } from "./surface";
 
 export interface CommentCardActions {
@@ -110,6 +112,8 @@ export function CommentCard({
   const placementId = useId();
   const pageId = useId();
   const breakpointId = useId();
+  const pendingId = useId();
+  const shotPending = !comment.crop && isScreenshotPending(comment);
   const described = [
     bodyId,
     comment.editedAt ? editedId : null,
@@ -117,6 +121,7 @@ export function CommentCard({
     pageNumber ? pageId : null,
     breakpoint ? breakpointId : null,
     placement ? placementId : null,
+    shotPending ? pendingId : null,
   ]
     .filter(Boolean)
     .join(" ");
@@ -296,9 +301,11 @@ export function CommentCard({
         )}
       </AnimatePresence>
 
-      {editing || !comment.crop ? null : (
+      {editing ? null : comment.crop ? (
         <CommentCropThumb crop={comment.crop} pin={cropPin} number={number} />
-      )}
+      ) : shotPending ? (
+        <ScreenshotPending id={pendingId} />
+      ) : null}
 
       {editing || !actions ? null : (
         // `relative` lifts the actions above the select button's card-wide ::after.

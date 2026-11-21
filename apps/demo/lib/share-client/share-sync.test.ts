@@ -6,6 +6,7 @@ import type { Database } from "../db/database";
 import { SHARE_LIMITS } from "../share/limits";
 import type { ShareState } from "../share/types";
 import type { Project, ProjectShare } from "../store/types";
+import { isScreenshotPending } from "@/components/viewer/screenshot-pending";
 import { listComments } from "../workspace/comments";
 import { createProject } from "../workspace/projects";
 
@@ -357,5 +358,58 @@ describe("a client's edit, end to end (4.12)", () => {
     await store.whenSaved();
     const late = await client.editComment("k-edit", "Too late", posted.value.editKey);
     expect(late).toMatchObject({ ok: false, status: 409, error: "locked" });
+  }, 60_000);
+});
+
+describe("a client's comment posted without its screenshot", () => {
+  it("reads as pending on the link and in the workspace, and isn't pushed back", async () => {
+    const project: Project = {
+      id: "p1",
+      folderId: "f1",
+      name: "Mockups",
+      source: {
+        kind: "pages",
+        origin: "image",
+        pages: [{ id: "pg1", blobKey: "page:pg1", name: "home.png", width: 800, height: 600 }],
+        fileName: "home.png",
+      },
+      createdAt: 0,
+      updatedAt: 0,
+    };
+    const { toShareState } = await import("./share-state");
+    const { share, sync, data, store, db, owner } = await sharedWorkspace(
+      project,
+      toShareState(project, [], []),
+    );
+    const { clientApi } = await import("./api");
+    const client = clientApi(share.token);
+    const onPage = { pageId: "pg1" };
+    expect((await client.addComment(commentForm("k-pending", false, onPage))).ok).toBe(true);
+    expect((await client.addComment(commentForm("k-crop", true, onPage))).ok).toBe(true);
+    const view = await client.view();
+    const onLink = view.ok ? view.value.comments : [];
+    expect(onLink.map((c) => [c.id, c.screenshotPending ?? false])).toEqual([
+      ["k-pending", true],
+      ["k-crop", false],
+    ]);
+
+    await sync.pullNow("p1");
+    const pending = (comments: ReturnType<typeof data>["comments"]) =>
+      comments.map((c) => [c.id, isScreenshotPending(c)]).sort();
+    expect(pending(data().comments)).toEqual([
+      ["k-crop", false],
+      ["k-pending", true],
+    ]);
+    // Saved to the workspace as a client's comment without a crop: pending after any reload too.
+    await store.whenSaved();
+    expect(pending(await listComments(db, owner.workspaceId, "p1"))).toEqual([
+      ["k-crop", false],
+      ["k-pending", true],
+    ]);
+
+    // The owner's copy matches the link's: a push sends nothing back.
+    sent.length = 0;
+    await sync.pushNow("p1");
+    expect(await shareRequests("PATCH")).toEqual([]);
   }, 60_000);
 });

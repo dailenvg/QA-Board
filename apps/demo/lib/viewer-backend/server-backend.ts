@@ -1,5 +1,6 @@
 import { cropBlobKey, snapshotBlobKey } from "../blob-store/keys";
 import { CAPTURE_MESSAGES } from "../capture/messages";
+import { CROP_ATTEMPTS, cropBackoff, wait } from "../crop/crop-retry";
 import { requestCapture } from "../capture/request-capture";
 import { emitSquiggy } from "../squiggy/events";
 import {
@@ -15,18 +16,23 @@ import {
 } from "../store/actions";
 import { newId } from "../store/id";
 import { storeWorkspaceBlob } from "../workspace-client/blob-upload";
-import type { CaptureOutcome, PendingCrop, ViewerBackend } from "./backend";
+import type { CaptureOutcome, ReadyCrop, ViewerBackend } from "./backend";
 
 /**
- * Uploads the crop once it's encoded, then attaches it. Best effort: a
- * comment whose crop never arrives just shows without one.
+ * Uploads the crop, then attaches it: up to `CROP_ATTEMPTS` tries with a
+ * short backoff. The comment is already saved, so one whose crop never
+ * arrives shows without it.
  */
-async function saveCrop(projectId: string, commentId: string, crop: PendingCrop): Promise<void> {
-  const blob = await crop.blob;
-  if (!blob) return;
+async function saveCrop(projectId: string, commentId: string, crop: ReadyCrop): Promise<void> {
   const blobKey = cropBlobKey(commentId);
-  const uploaded = await storeWorkspaceBlob(projectId, blobKey, blob);
-  if (uploaded.ok) attachCrop(commentId, { blobKey, rect: crop.rect });
+  for (let attempt = 0; attempt < CROP_ATTEMPTS; attempt += 1) {
+    if (attempt > 0) await wait(cropBackoff(attempt));
+    const uploaded = await storeWorkspaceBlob(projectId, blobKey, crop.blob);
+    if (uploaded.ok) {
+      attachCrop(commentId, { blobKey, rect: crop.rect });
+      return;
+    }
+  }
 }
 
 /** Captures server-side, uploads the image to the workspace, then records the snapshot. */

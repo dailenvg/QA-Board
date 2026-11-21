@@ -1,15 +1,16 @@
 "use client";
 
-import { motion, useIsPresent } from "motion/react";
+import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import {
   useCallback,
+  useEffect,
   useId,
   useState,
   type FormEvent,
   type KeyboardEvent,
   type RefObject,
 } from "react";
-import { usePopVariants } from "@/lib/motion";
+import { fadeOnly, usePopVariants } from "@/lib/motion";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { SHARE_LIMITS } from "@/lib/share/limits";
 import { Button } from "../ui/Button";
@@ -30,6 +31,20 @@ interface ComposerProps {
 }
 
 const NAME_MISSING = "Add your name so others know who commented.";
+
+/**
+ * A send still busy after this long says it's taking longer than usual: about when waiting
+ * stops holding attention. A UI threshold only; the send's own retries and timeouts are `sendDraft`'s.
+ */
+const SLOW_SEND_MS = 10_000;
+const SLOW_SEND = "Taking longer than usual. Keep this page open until your comment is posted.";
+
+/** Send's label: what it's doing while busy (a screenshot that needed another try says so). */
+function sendLabel({ sending, error }: Draft): string {
+  if (sending === "screenshot") return "Adding screenshot…";
+  if (sending) return "Posting…";
+  return error ? "Retry" : "Post";
+}
 
 /** Popover placement: flip left near the right edge and upward near the bottom. */
 function placement({ x, y }: Draft): string {
@@ -74,8 +89,24 @@ export function Composer({
   const errorId = useId();
   const sendErrorId = useId();
   const cancelHintId = useId();
+  const sending = draft.sending !== false;
   const nameError = error?.field === "name" ? error.message : null;
   const bodyError = error?.field === "body" ? error.message : null;
+
+  // A long send (a slow or stalled network can take minutes before Retry) says it's still going.
+  const [slow, setSlow] = useState(false);
+  if (slow && !sending) setSlow(false);
+  useEffect(() => {
+    if (!sending) return;
+    const timer = window.setTimeout(() => setSlow(true), SLOW_SEND_MS);
+    return () => window.clearTimeout(timer);
+  }, [sending]);
+  /**
+   * What screen readers hear: the send starting, a screenshot retry, and then that it's slow,
+   * said once instead of at every step after. Focus often stays in the comment field (Enter posts), where
+   * Send's label changes aren't read.
+   */
+  const status = !sending ? "" : slow ? SLOW_SEND : sendLabel(draft);
 
   const submit = (event?: FormEvent) => {
     event?.preventDefault();
@@ -147,6 +178,8 @@ export function Composer({
               // Whenever it appears: on a first visit, after Change (whose button it
               // replaces, so focus would drop to the page), and when a post finds no name.
               autoFocus
+              // The post already carries the name: a change typed now would be lost.
+              readOnly={sending}
               aria-invalid={nameError ? true : undefined}
               aria-describedby={nameErrorId}
               onChange={(event) => {
@@ -185,6 +218,8 @@ export function Composer({
             maxLength={SHARE_LIMITS.body}
             required
             autoFocus={Boolean(authorName)}
+            // The post already carries the text: words typed while it's sent would be lost.
+            readOnly={sending}
             placeholder="What should change here?"
             aria-invalid={bodyError ? true : undefined}
             aria-describedby={errorId}
@@ -199,6 +234,28 @@ export function Composer({
             Enter to post · Shift+Enter for a new line
           </p>
         </div>
+        {/* Always present, so each change is announced (a region added with its words isn't). */}
+        <p role="status" className="sr-only" data-testid="composer-status">
+          {status}
+        </p>
+        {/* Hidden from screen readers: the status above has said it. */}
+        <AnimatePresence initial={false}>
+          {slow ? (
+            <motion.p
+              key="slow"
+              aria-hidden="true"
+              data-testid="composer-slow"
+              variants={fadeOnly}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="flex items-start gap-2 text-meta text-muted"
+            >
+              <Icon name="clock" className="mt-0.5 size-4 shrink-0" />
+              {SLOW_SEND}
+            </motion.p>
+          ) : null}
+        </AnimatePresence>
         {draft.error ? (
           <p
             id={sendErrorId}
@@ -211,7 +268,12 @@ export function Composer({
           </p>
         ) : null}
         <div className="flex items-center justify-end gap-2">
-          <div className="flex gap-2">
+          {/*
+           * Wraps rather than squeezing Send into a two-line pill if a busy label such as
+           * "Adding screenshot…" and Cancel don't fit on one row (the 304px popover, or the docked
+           * composer on a narrow phone).
+           */}
+          <div className="flex flex-wrap justify-end gap-2">
             {/*
              * While posting, Cancel waits: a cancelled draft must never still arrive.
              * If the post fails, Cancel discards it as usual.
@@ -219,13 +281,13 @@ export function Composer({
             <Button
               variant="ghost"
               size="sm"
-              aria-disabled={draft.sending || undefined}
-              aria-describedby={draft.sending ? cancelHintId : undefined}
-              onClick={draft.sending ? undefined : onCancel}
+              aria-disabled={sending || undefined}
+              aria-describedby={sending ? cancelHintId : undefined}
+              onClick={sending ? undefined : onCancel}
             >
               Cancel
             </Button>
-            {draft.sending ? (
+            {sending ? (
               <span id={cancelHintId} className="sr-only">
                 Wait for the comment to finish posting.
               </span>
@@ -234,11 +296,12 @@ export function Composer({
             <Button
               type="submit"
               size="sm"
-              aria-disabled={draft.sending || undefined}
-              aria-busy={draft.sending || undefined}
+              className="whitespace-nowrap"
+              aria-disabled={sending || undefined}
+              aria-busy={sending || undefined}
               aria-describedby={draft.error ? sendErrorId : undefined}
             >
-              {draft.sending ? "Posting…" : draft.error ? "Retry" : "Post"}
+              {sendLabel(draft)}
             </Button>
           </div>
         </div>

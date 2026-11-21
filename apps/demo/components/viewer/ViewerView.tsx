@@ -5,6 +5,7 @@ import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "rea
 import { RESOLVED_HOP } from "../brand/mascot/moods";
 import { toPagePx } from "@/lib/crop/geometry";
 import { planCommentCrop } from "@/lib/crop/plan-comment-crop";
+import { onSurface } from "@/lib/crop/prepare-crop";
 import { renderCrop } from "@/lib/crop/render-crop";
 import {
   activeByBreakpoint,
@@ -43,6 +44,7 @@ import { ExportMenu } from "./ExportMenu";
 import { PageFilter, type PageScope } from "./PageFilter";
 import { PageStrip } from "./PageStrip";
 import { PinPopover } from "./PinPopover";
+import { sendDraft } from "./send-draft";
 import { commentSurfaceKey, pinInSurface, placementOf, surfaceKey } from "./surface";
 import { useCommentActions } from "./use-comment-actions";
 import { useViewerDraft } from "./use-viewer-draft";
@@ -51,10 +53,13 @@ import { useViewerSurface } from "./use-viewer-surface";
 import { ViewerStage } from "./ViewerStage";
 import { ViewerTopBar } from "./ViewerTopBar";
 import type { DraftStorage } from "@/lib/share-client/draft-storage";
-import type { CommentTab, PinPoint, ScreenshotHandler, ViewerMode } from "./types";
+import type { CommentTab, Draft, PinPoint, ScreenshotHandler, ViewerMode } from "./types";
 
 /** One celebration: the mascot's hop plus its rest beat. */
 const CELEBRATION_MS = RESOLVED_HOP * 2 * 1000;
+
+/** A comment that posted without its screenshot, once every try to add it failed. */
+const POSTED_WITHOUT_SCREENSHOT = "Comment posted without its screenshot.";
 
 interface ViewerViewProps {
   data: SquintData;
@@ -229,6 +234,11 @@ export function ViewerView({
   );
   const originalUrl = source.kind === "url" ? source.url : (source.referenceUrl ?? null);
   const stageDraft = draft?.surfaceKey === stageKey ? draft : null;
+  /** The surface on stage now, for a send's retries to check (`onSurface`). */
+  const stageKeyRef = useRef(stageKey);
+  useEffect(() => {
+    stageKeyRef.current = stageKey;
+  }, [stageKey]);
   const deletion = expiresAt === undefined ? null : deletionWhen(expiresAt, now);
   // The owner's notice offers Export (the top bar's menu, so formats and progress stay in one place).
   const canExport = owner && comments.length > 0;
@@ -335,11 +345,11 @@ export function ViewerView({
     });
   };
 
-  /** Reads what's on screen now, before posting re-renders or scrolls anything. */
+  /** Reads what's on screen now; null when the stage's image isn't there to read. */
   const cropFor = (point: PinPoint): PendingCrop | null => {
     const image = imageRef.current;
     const area = canvasAreaRef.current;
-    if (!image || !area || surface.kind === "frame") return null;
+    if (!image || !area) return null;
     const plan = planCommentCrop(image, area, point);
     if (!plan) return null;
     // Crops are cut in image px; the stored rect is in page px (they differ on a scaled-down snapshot).
@@ -348,43 +358,62 @@ export function ViewerView({
   };
 
   /**
-   * Posts the draft. The composer stays open with its text until the comment
-   * is saved; a failure shows inline with Retry, and the pin is marked unsent.
+   * Posts the draft, its screenshot first (`sendDraft`). The composer stays
+   * open with its text until the comment is saved; a failure shows inline with
+   * Retry, and the pin is marked unsent.
    */
   const submitDraft = async (body: string, author: string) => {
     if (!draft || draft.sending) return;
     if (author.trim() !== data.authorName) backend.setAuthorName(author);
-    const crop = draft.crop ?? cropFor(draft);
-    const sending = { ...draft, body, crop, sending: true, error: null };
-    setDraft(sending);
-    const input = {
-      id: draft.commentId,
-      projectId: project.id,
-      x: draft.x,
-      y: draft.y,
-      body,
-      author,
-    };
-    const result = await backend.addComment(
-      {
-        ...input,
-        ...(draft.snapshotId ? { snapshotId: draft.snapshotId } : {}),
-        ...(draft.pageId ? { pageId: draft.pageId } : {}),
-      },
-      crop,
-    );
-    if (!result.ok) {
+    const { commentId, x, y, snapshotId, pageId, surfaceKey: draftSurface } = draft;
+    const update = (change: Partial<Draft>) =>
       setDraft((current) =>
-        current?.commentId === sending.commentId
-          ? { ...current, sending: false, error: result.error }
-          : current,
+        current?.commentId === commentId ? { ...current, ...change } : current,
       );
+    setDraft({ ...draft, body, sending: "posting", error: null });
+    const takeCrop =
+      surface.kind === "frame"
+        ? null
+        : onSurface(
+            () => cropFor({ x, y }),
+            () => stageKeyRef.current === draftSurface,
+          );
+    const { result, crop } = await sendDraft({
+      crop: draft.crop,
+      takeCrop,
+      onCropRetry: () => update({ sending: "screenshot" }),
+      post: (ready) => {
+        update({ sending: "posting" });
+        return backend.addComment(
+          {
+            id: commentId,
+            projectId: project.id,
+            x,
+            y,
+            body,
+            author,
+            ...(snapshotId ? { snapshotId } : {}),
+            ...(pageId ? { pageId } : {}),
+          },
+          ready,
+        );
+      },
+    });
+    if (!result.ok) {
+      update({ sending: false, error: result.error, crop });
       return;
     }
-    setDraft((current) => (current?.commentId === sending.commentId ? null : current));
+    setDraft((current) => (current?.commentId === commentId ? null : current));
     setTab("active");
     setSelectedId(result.value.id);
     returnFocusToCanvas();
+    // Posted without its screenshot (every try failed): said here, since the card's mark may be
+    // out of sight (a phone's closed comments sheet) and the composer that was busy is gone. On a
+    // review link, its answer says so; for the owner, it's when one was wanted and none rendered.
+    const withoutScreenshot = owner
+      ? takeCrop !== null && crop === null
+      : result.value.screenshotPending === true;
+    if (withoutScreenshot) toast({ message: POSTED_WITHOUT_SCREENSHOT });
   };
 
   const forget = (id: string) => setSelectedId((current) => (current === id ? null : current));

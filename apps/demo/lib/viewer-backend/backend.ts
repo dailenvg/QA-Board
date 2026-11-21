@@ -18,9 +18,15 @@ export interface NewComment {
   pageId?: string;
 }
 
-/** A crop being encoded: the picture arrives a moment after the comment is posted. */
+/** A crop being encoded: the picture arrives a moment after the screen was read. */
 export interface PendingCrop {
   blob: Promise<Blob | null>;
+  rect: Rect;
+}
+
+/** A comment's screenshot, rendered and ready to send (`prepareCrop`). */
+export interface ReadyCrop {
+  blob: Blob;
   rect: Rect;
 }
 
@@ -48,9 +54,12 @@ export interface ViewerBackend {
   role: ViewerRole;
   /**
    * Resolves once the comment is saved (the owner's store) or accepted by the
-   * server (a shared link). On failure nothing is lost: the caller keeps the draft.
+   * server (a shared link), never rejecting. On failure nothing is lost: the
+   * caller keeps the draft. `crop` null: there's no screenshot to send (a live
+   * frame, or every try to render one failed); a shared link posts the comment
+   * marked `screenshotPending`.
    */
-  addComment(input: NewComment, crop: PendingCrop | null): Promise<Result<Comment>>;
+  addComment(input: NewComment, crop: ReadyCrop | null): Promise<Result<Comment>>;
   setAuthorName(name: string): void;
   setCommentStatus(id: string, status: CommentStatus): Result;
   editComment(id: string, body: string): Result;
@@ -78,6 +87,9 @@ export interface ViewerBackend {
 }
 
 export const OWNER_ONLY = "Only the project owner can do that.";
+
+/** A comment that wasn't sent, for no reason more specific. The draft keeps its text and offers Retry. */
+export const NOT_SENT = "Your comment wasn't sent. Retry in a moment.";
 
 export const ViewerBackendContext = createContext<ViewerBackend | null>(null);
 

@@ -274,7 +274,9 @@ test("a client comment that fails to send keeps its text until Retry gets it thr
   await cancel.click({ force: true });
   await expect(composer).toBeVisible();
 
-  await expect(composer.getByTestId("composer-send-error")).toContainText("wasn't sent");
+  // Each try fails: three with the screenshot (a short backoff between them), then one without.
+  const retried = { timeout: 10_000 };
+  await expect(composer.getByTestId("composer-send-error")).toContainText("wasn't sent", retried);
   await expect(cancel).not.toHaveAttribute("aria-disabled");
   await expect(composer.getByLabel("Comment", { exact: true })).toHaveValue("Keep this text");
   await expect(client.getByTestId("draft-pin")).toHaveAttribute("data-status", "unsent");
@@ -298,7 +300,7 @@ test("a client comment that fails to send keeps its text until Retry gets it thr
   await client.getByTestId("comment-overlay").click({ position: { x: 220, y: 120 } });
   await composer.getByLabel("Comment", { exact: true }).fill("Never mind");
   await composer.getByRole("button", { name: "Post" }).click();
-  await expect(composer.getByTestId("composer-send-error")).toBeVisible();
+  await expect(composer.getByTestId("composer-send-error")).toBeVisible(retried);
   await composer.getByRole("button", { name: "Cancel" }).click();
   await expect(composer).toHaveCount(0);
   await expect(client.getByTestId("draft-pin")).toHaveCount(0);

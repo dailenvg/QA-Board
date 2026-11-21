@@ -196,6 +196,12 @@ export interface Comment {
    * says so, 4.11). The workspace tells its own by `fromClient` instead. Never pushed.
    */
   team?: true;
+  /**
+   * On a review link: a client's comment posted without its screenshot (the
+   * server says so). The workspace tells by `fromClient` without `crop`
+   * (`isScreenshotPending`). Never pushed.
+   */
+  screenshotPending?: true;
 }
 
 /** A client's edit to their comment, pulled from its review link (4.12): new words, and when. */

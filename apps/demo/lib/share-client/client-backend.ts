@@ -1,18 +1,21 @@
 import { CAPTURE_MESSAGES } from "../capture/messages";
 import { isCaptureErrorCode } from "../capture/types";
+import { CROP_ATTEMPTS, cropBackoff, wait } from "../crop/crop-retry";
 import { extensionFor } from "../export/paths";
 import { cleanName } from "../store/actions";
 import type { Result } from "../store/store";
 import type { Comment } from "../store/types";
+import type { ClientComment, PostedComment } from "../share/types";
 import {
+  NOT_SENT as NOT_SENT_DEFAULT,
   OWNER_ONLY,
   type CaptureOutcome,
   type EditOutcome,
   type NewComment,
-  type PendingCrop,
+  type ReadyCrop,
   type ViewerBackend,
 } from "../viewer-backend/backend";
-import { clientApi } from "./api";
+import { clientApi, type ApiResult } from "./api";
 import { SHARED_PROJECT_ID, type ClientStore } from "./client-store";
 import type { ServerBlobs } from "./server-blobs";
 import { isPasswordRequired, isPaused } from "./unlock";
@@ -20,7 +23,6 @@ import { isPasswordRequired, isPaused } from "./unlock";
 const GONE = "This link no longer works. Ask the project owner for a new one.";
 const NOT_SENT: Record<number, string> = {
   0: "Your comment wasn't sent: Squint couldn't reach the server. Check your connection, then retry.",
-  413: "Your comment wasn't sent: its screenshot is too large. Retry to send it again.",
   429: "Your comment wasn't sent: too many comments in a short time. Wait a moment, then retry.",
 };
 /** 413 on a comment: the share holds its maximum of comments, or its 40 MB of images. */
@@ -35,7 +37,6 @@ const STILL_SENDING =
 /** 422 unknown-page: the owner removed the page while the comment was being written. */
 const PAGE_GONE =
   "Your comment wasn't sent: its page was removed from this review. Copy your text, then reload the page.";
-const NOT_SENT_DEFAULT = "Your comment wasn't sent. Retry in a moment.";
 /** 403 review-closed: the share's review window is over. */
 const REVIEW_CLOSED =
   "Your comment wasn't sent: the review window has closed. Copy your text to keep it.";
@@ -63,7 +64,7 @@ interface ClientBackendOptions {
 
 const ownerOnly = () => ({ ok: false as const, error: OWNER_ONLY });
 
-function commentForm(comment: Comment, blob: Blob | null, crop: PendingCrop | null): FormData {
+function commentForm(comment: Comment, crop: ReadyCrop | null): FormData {
   const { id, x, y, body, author, snapshotId, pageId } = comment;
   const form = new FormData();
   form.set(
@@ -76,11 +77,63 @@ function commentForm(comment: Comment, blob: Blob | null, crop: PendingCrop | nu
       author,
       ...(snapshotId ? { snapshotId } : {}),
       ...(pageId ? { pageId } : {}),
-      ...(blob && crop ? { crop: { rect: crop.rect } } : {}),
+      ...(crop ? { crop: { rect: crop.rect } } : {}),
     }),
   );
-  if (blob) form.set("crop", blob, `crop.${extensionFor(blob.type)}`);
+  if (crop) form.set("crop", crop.blob, `crop.${extensionFor(crop.blob.type)}`);
   return form;
+}
+
+type PostResult = ApiResult<PostedComment>;
+
+/** The server refused the picture itself: sending it again won't help, so the comment goes without it. */
+function cropRefused(result: PostResult): boolean {
+  if (result.ok) return false;
+  if (result.status === 413) return result.error !== "share-full";
+  return result.status === 415 || result.error === "crop-mismatch";
+}
+
+/** No answer, a timeout or a server error: the same picture may go through on another try. */
+function transient(result: PostResult): boolean {
+  return !result.ok && (result.status === 0 || result.status === 408 || result.status >= 500);
+}
+
+/**
+ * Sends the comment with its screenshot, up to `CROP_ATTEMPTS` times with a
+ * short backoff while the failure looks temporary. Every try has the same id,
+ * so one that got through answers 409 exists rather than posting twice. Null
+ * when the screenshot couldn't be uploaded: the caller posts without it.
+ */
+async function postWithCrop(
+  post: (form: FormData) => Promise<PostResult>,
+  comment: Comment,
+  crop: ReadyCrop,
+): Promise<PostResult | null> {
+  for (let attempt = 0; attempt < CROP_ATTEMPTS; attempt += 1) {
+    if (attempt > 0) await wait(cropBackoff(attempt));
+    const result = await post(commentForm(comment, crop));
+    if (cropRefused(result)) return null;
+    if (!transient(result)) return result;
+  }
+  return null;
+}
+
+/**
+ * The comment as this browser shows it once accepted: a client's comment
+ * without its screenshot is marked so, as the server marks it on every read.
+ */
+function asPosted(posted: PostedComment, crop: ReadyCrop | null): ClientComment {
+  const { editKey: _key, ...comment } = posted;
+  return crop ? comment : { ...comment, screenshotPending: true };
+}
+
+/** The comment as the link now shows it: with its crop, or marked pending, when it says so. */
+function shownAs(store: ClientStore, comment: Comment): Comment {
+  const shown = store.getSnapshot().view.comments.find((entry) => entry.id === comment.id);
+  if (shown?.crop) {
+    return { ...comment, crop: { blobKey: `crop:${comment.id}`, rect: shown.crop.rect } };
+  }
+  return shown?.screenshotPending ? { ...comment, screenshotPending: true } : comment;
 }
 
 /**
@@ -117,8 +170,10 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
         ...(input.snapshotId ? { snapshotId: input.snapshotId } : {}),
         ...(input.pageId ? { pageId: input.pageId } : {}),
       };
-      const blob = crop ? await crop.blob : null;
-      const result = await api.addComment(commentForm(comment, blob, crop));
+      // The screenshot is uploaded with the comment; once it can't be, the comment goes without it.
+      const withCrop = crop ? await postWithCrop(api.addComment, comment, crop) : null;
+      const sent = withCrop ? crop : null;
+      const result = withCrop ?? (await api.addComment(commentForm(comment, null)));
       // 409 pending: an earlier try of this comment is still being saved (or died mid-way
       // and is reclaimable a minute later). Not delivered yet: keep the draft, try again.
       if (!result.ok && result.status === 409 && result.error === "pending") {
@@ -126,23 +181,20 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
       }
       // 409 exists: the comment is visible, so an earlier try got through even though its
       // answer didn't arrive. Counting it as sent can't lose it or post it twice.
-      if (result.ok || result.status === 409) {
-        if (blob) blobs.hold(`crop:${comment.id}`, blob);
-        if (result.ok) {
-          // The key stays out of the view: it's only kept in this browser's storage.
-          const { editKey, ...posted } = result.value;
-          store.addComment(posted, editKey);
-        } else {
-          const view = await api.view();
-          if (view.ok) store.setView(view.value);
-        }
-        return {
-          ok: true,
-          value:
-            blob && crop
-              ? { ...comment, crop: { blobKey: `crop:${comment.id}`, rect: crop.rect } }
-              : comment,
-        };
+      if (result.ok) {
+        // The key stays out of the view: it's only kept in this browser's storage.
+        store.addComment(asPosted(result.value, sent), result.value.editKey);
+        if (!sent) return { ok: true, value: { ...comment, screenshotPending: true } };
+        blobs.hold(`crop:${comment.id}`, sent.blob);
+        const cropped = { blobKey: `crop:${comment.id}`, rect: sent.rect };
+        return { ok: true, value: { ...comment, crop: cropped } };
+      }
+      if (result.status === 409) {
+        // Whichever try got through may or may not have carried the picture: the link's own
+        // copy says (nothing, if it couldn't be read), and its thumbnail comes from there.
+        const view = await api.view();
+        if (view.ok) store.setView(view.value);
+        return { ok: true, value: shownAs(store, comment) };
       }
       if (result.status === 404) {
         store.markGone(isPaused(result));
