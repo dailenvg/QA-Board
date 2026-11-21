@@ -1,18 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { workspaceLabels } from "@/lib/store/archive";
 import { childFolders } from "@/lib/store/folders";
 import { DashboardEmpty } from "../dashboard/DashboardEmpty";
 import { LabelFilter } from "../dashboard/LabelFilter";
 import { SortControls } from "../dashboard/SortControls";
-import {
-  noMatchKind,
-  STATUS_FILTER_OPTIONS,
-  type ProjectFilter,
-  type StatusFilterValue,
-} from "../dashboard/status-filter";
+import { noMatchKind, STATUS_FILTER_OPTIONS, type ProjectFilter } from "../dashboard/status-filter";
 import { focusStatusFilter, StatusFilter } from "../dashboard/StatusFilter";
+import { useFilterAnnouncement } from "../dashboard/use-filter-announcement";
 import { useProjectFilter } from "../dashboard/use-project-filter";
 import type { Workspace } from "../dashboard/workspace-context";
 import { foldersMatching } from "./folder-files";
@@ -42,16 +38,6 @@ export function OverviewFolders({ workspace }: { workspace: Workspace }) {
   const { sort, setKey, reverse } = useFolderSort();
   const labels = useMemo(() => workspaceLabels(data), [data]);
   const { filter, setStatus, setLabel, reset } = useProjectFilter(labels);
-  // Silent until the person picks a filter, so a background sync under All says nothing.
-  const [picked, setPicked] = useState(false);
-  const pickStatus = (value: StatusFilterValue) => {
-    setStatus(value);
-    setPicked(true);
-  };
-  const pickLabel = (value: string | null) => {
-    setLabel(value);
-    setPicked(true);
-  };
   const topLevel = useMemo(() => childFolders(folders, null), [folders]);
   const sorted = useMemo(
     () =>
@@ -61,6 +47,11 @@ export function OverviewFolders({ workspace }: { workspace: Workspace }) {
         sort.direction,
       ),
     [data, waiting, topLevel, filter, sort],
+  );
+  // Silent until the person changes a filter: a background read that changes a count says nothing.
+  const announcement = useFilterAnnouncement(
+    `${filterName(filter)}: ${plural(sorted.length, "folder")}`,
+    filter,
   );
 
   return (
@@ -75,8 +66,8 @@ export function OverviewFolders({ workspace }: { workspace: Workspace }) {
         opening leftward from there).
       */}
       <div className="flex max-w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-2 [@media(hover:none)]:pb-10">
-        <StatusFilter value={filter.status} onChange={pickStatus} />
-        <LabelFilter labels={labels} value={filter.label} onChange={pickLabel} />
+        <StatusFilter value={filter.status} onChange={setStatus} />
+        <LabelFilter labels={labels} value={filter.label} onChange={setLabel} />
         {sorted.length > 1 ? (
           <div className="ml-auto">
             <SortControls sort={sort} options={FOLDER_SORT} onKey={setKey} onReverse={reverse} />
@@ -85,7 +76,7 @@ export function OverviewFolders({ workspace }: { workspace: Workspace }) {
       </div>
       {/* The filter's name too, so switching between two with the same count is still heard. */}
       <p className="sr-only" aria-live="polite">
-        {picked ? `${filterName(filter)}: ${plural(sorted.length, "folder")}` : ""}
+        {announcement}
       </p>
       {sorted.length === 0 ? (
         <div className="pt-4">
@@ -93,7 +84,6 @@ export function OverviewFolders({ workspace }: { workspace: Workspace }) {
             kind={noMatchKind(filter, "folders")}
             onAction={() => {
               reset();
-              setPicked(true);
               focusStatusFilter();
             }}
           />

@@ -96,3 +96,38 @@ test("an open folder page shows a client's new comment within a minute, without 
   await page.clock.fastForward(WORKSPACE_POLL_MS / 2);
   await expect(count).toHaveText("2 active,");
 });
+
+test("a filtered folder's live count speaks when the filter changes, not when a poll changes it", async ({
+  page,
+}) => {
+  await page.clock.install();
+  await seedWaiting(page);
+  await page.goto(`/f/${DEFAULT_FOLDER.id}`);
+  const live = page.getByTestId("filter-count");
+  await expect(live).toHaveText("");
+
+  await page
+    .getByRole("radiogroup", { name: "Filter by status" })
+    .getByRole("radio", { name: "Comments in" })
+    .click();
+  await expect(page.getByTestId("project-card")).toHaveCount(1);
+  await expect(live).toHaveText("1 project shown");
+
+  // Another shared project gets a client's comment: the next poll shows its card, quietly.
+  const { projectId } = await shareWorkspaceProject(page, "Second site");
+  await addWaitingClientComment(projectId, {
+    id: "second-1",
+    body: "One more",
+    author: "Cleo",
+    createdAt: Date.now(),
+  });
+  await page.clock.fastForward(WORKSPACE_POLL_MS);
+  await expect(page.getByTestId("project-card")).toHaveCount(2);
+  await expect(live).toHaveText("1 project shown");
+
+  await page
+    .getByRole("radiogroup", { name: "Filter by status" })
+    .getByRole("radio", { name: "Ready to review" })
+    .click();
+  await expect(live).toHaveText("4 projects shown");
+});

@@ -28,6 +28,7 @@ import { cardFocusHandoff, focusProjectCard, ProjectGrid } from "./ProjectGrid";
 import { sortProjects } from "./project-sort";
 import { isFiltered, matchesFilter, noMatchKind } from "./status-filter";
 import { focusStatusFilter } from "./StatusFilter";
+import { useFilterAnnouncement } from "./use-filter-announcement";
 import { useProjectFilter } from "./use-project-filter";
 import { useProjectSort } from "./use-project-sort";
 import { useWorkspace, type Workspace } from "./workspace-context";
@@ -78,6 +79,11 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
         sort.direction,
       ),
     [summaries, filter, sort],
+  );
+
+  const shownCount = useFilterAnnouncement(
+    isFiltered(filter) ? `${plural(visible.length, "project")} shown` : "",
+    filter,
   );
 
   const projectRename = useDialogState<Project>();
@@ -146,8 +152,8 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
         </section>
       ) : null}
       {subfolders.length ? <h2 className="text-heading font-bold">Projects</h2> : null}
-      <p className="sr-only" aria-live="polite">
-        {isFiltered(filter) ? `${plural(visible.length, "project")} shown` : ""}
+      <p className="sr-only" aria-live="polite" data-testid="filter-count">
+        {shownCount}
       </p>
       {/*
         One at a time: when the last card is archived (or filtered away) the grid fades out
