@@ -127,6 +127,15 @@ function asPosted(posted: PostedComment, crop: ReadyCrop | null): ClientComment 
   return crop ? comment : { ...comment, screenshotPending: true };
 }
 
+/** The comment as the link now shows it: with its crop, or marked pending, when it says so. */
+function shownAs(store: ClientStore, comment: Comment): Comment {
+  const shown = store.getSnapshot().view.comments.find((entry) => entry.id === comment.id);
+  if (shown?.crop) {
+    return { ...comment, crop: { blobKey: `crop:${comment.id}`, rect: shown.crop.rect } };
+  }
+  return shown?.screenshotPending ? { ...comment, screenshotPending: true } : comment;
+}
+
 /**
  * A shared link's viewer: comments and snapshots go to the server. A comment
  * counts as posted only once the server has it; until then the composer keeps
@@ -181,12 +190,14 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
           const view = await api.view();
           if (view.ok) store.setView(view.value);
         }
-        return {
-          ok: true,
-          value: sent
-            ? { ...comment, crop: { blobKey: `crop:${comment.id}`, rect: sent.rect } }
-            : { ...comment, screenshotPending: true },
-        };
+        if (sent) {
+          const cropped = { blobKey: `crop:${comment.id}`, rect: sent.rect };
+          return { ok: true, value: { ...comment, crop: cropped } };
+        }
+        if (result.ok) return { ok: true, value: { ...comment, screenshotPending: true } };
+        // 409 exists without the picture: the earlier try that got through may have had it,
+        // so the link's own copy says (nothing, if it couldn't be read).
+        return { ok: true, value: shownAs(store, comment) };
       }
       if (result.status === 404) {
         store.markGone(isPaused(result));

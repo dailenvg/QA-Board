@@ -122,6 +122,30 @@ describe("a comment's screenshot", () => {
     expect(store.getSnapshot().view.comments[0]).toMatchObject({ screenshotPending: true });
   });
 
+  it("posted without it but answered 'already exists': the link's copy says whether it had one", async () => {
+    vi.useFakeTimers();
+    const failures = Array.from({ length: CROP_ATTEMPTS }, () => failure(502));
+    const stored = { ...input, status: "active" as const, createdAt: 5, updatedAt: 5 };
+    const exists = failure(409, "exists");
+    for (const [onLink, expected] of [
+      [{ ...stored, crop: { rect: crop.rect } }, { crop: { rect: crop.rect } }],
+      [{ ...stored, screenshotPending: true as const }, { screenshotPending: true }],
+    ] as const) {
+      const { backend } = setup([
+        ...failures,
+        exists,
+        () => Response.json({ ...VIEW, comments: [onLink] }),
+      ]);
+      const sending = backend.addComment(input, crop);
+      await vi.runAllTimersAsync();
+      const result = await sending;
+      expect(result).toMatchObject({ ok: true, value: expected });
+      expect(result.ok && result.value).not.toHaveProperty(
+        "crop" in expected ? "screenshotPending" : "crop",
+      );
+    }
+  });
+
   it("gives every post a deadline, so a stalled connection can't leave it posting", async () => {
     const { backend, sent } = setup([accepted]);
     await backend.addComment(input, null);
