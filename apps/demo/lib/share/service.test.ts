@@ -119,8 +119,6 @@ describe("owner push and pull", () => {
       status: "active",
       createdAt: 200,
       updatedAt: 200,
-      // Posted without a crop: the guest reads it as waiting on its screenshot.
-      screenshotPending: true,
     });
     expect(await pullChanges(services.store, share, first.cursor)).toEqual({
       snapshots: [],
@@ -234,20 +232,18 @@ describe("client writes", () => {
     const ownerWithout = { ...bare, id: "o-bare" };
     await pushState(services, share, { ...STATE, comments: [COMMENT, ownerWithout] }, 0, 150);
     const rect = { x: 0, y: 0, width: 10, height: 10 };
-    await addClientComment(
-      services,
-      share,
-      { ...clientComment("k-crop"), crop: { rect } },
-      PNG,
-      200,
-    );
-    await addClientComment(services, share, clientComment("k-bare"), null, 200);
+    const onSnapshot = (id: string) => ({ ...clientComment(id), snapshotId: SNAPSHOT.id });
+    await addClientComment(services, share, { ...onSnapshot("k-crop"), crop: { rect } }, PNG, 200);
+    await addClientComment(services, share, onSnapshot("k-bare"), null, 200);
+    // An older website comment on the live page: there was never a screenshot to take.
+    await addClientComment(services, share, clientComment("k-live"), null, 200);
     const view = await clientView(services.store, share, GUEST_TOKEN);
     expect(view.comments.map((c) => [c.id, c.screenshotPending ?? false])).toEqual([
       ["c-1", false],
       ["o-bare", false],
       ["k-crop", false],
       ["k-bare", true],
+      ["k-live", false],
     ]);
     // Read, never stored: the owner's pull and the manifest see the comment as posted.
     const pulled = await pullChanges(services.store, share, 0);

@@ -254,7 +254,7 @@ describe("a comment posted without its screenshot", () => {
 
   it("shows the mark where the screenshot would be, and the card reads it", () => {
     for (const comment of [
-      { ...COMMENT, fromClient: true as const },
+      { ...COMMENT, pageId: "page-1", fromClient: true as const },
       { ...COMMENT, screenshotPending: true as const },
     ]) {
       const html = card(comment);
@@ -266,7 +266,8 @@ describe("a comment posted without its screenshot", () => {
   });
 
   // One with its screenshot shows the thumbnail instead (`isScreenshotPending`'s tests).
-  it("never shows it on the team's own comment", () => {
-    expect(card(COMMENT)).not.toContain(PENDING);
+  it("never shows it on the team's own comment, or a client's on the old live page", () => {
+    expect(card({ ...COMMENT, pageId: "page-1" })).not.toContain(PENDING);
+    expect(card({ ...COMMENT, fromClient: true })).not.toContain(PENDING);
   });
 });

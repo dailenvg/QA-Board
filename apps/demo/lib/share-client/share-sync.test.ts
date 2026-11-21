@@ -363,14 +363,29 @@ describe("a client's edit, end to end (4.12)", () => {
 
 describe("a client's comment posted without its screenshot", () => {
   it("reads as pending on the link and in the workspace, and isn't pushed back", async () => {
-    const { share, sync, data, store, db, owner } = await sharedWorkspace(SITE_PROJECT, {
-      ...STATE,
-      snapshots: [],
-    });
+    const project: Project = {
+      id: "p1",
+      folderId: "f1",
+      name: "Mockups",
+      source: {
+        kind: "pages",
+        origin: "image",
+        pages: [{ id: "pg1", blobKey: "page:pg1", name: "home.png", width: 800, height: 600 }],
+        fileName: "home.png",
+      },
+      createdAt: 0,
+      updatedAt: 0,
+    };
+    const { toShareState } = await import("./share-state");
+    const { share, sync, data, store, db, owner } = await sharedWorkspace(
+      project,
+      toShareState(project, [], []),
+    );
     const { clientApi } = await import("./api");
     const client = clientApi(share.token);
-    expect((await client.addComment(commentForm("k-pending", false))).ok).toBe(true);
-    expect((await client.addComment(commentForm("k-crop", true))).ok).toBe(true);
+    const onPage = { pageId: "pg1" };
+    expect((await client.addComment(commentForm("k-pending", false, onPage))).ok).toBe(true);
+    expect((await client.addComment(commentForm("k-crop", true, onPage))).ok).toBe(true);
     const view = await client.view();
     const onLink = view.ok ? view.value.comments : [];
     expect(onLink.map((c) => [c.id, c.screenshotPending ?? false])).toEqual([

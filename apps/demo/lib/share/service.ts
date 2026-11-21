@@ -423,10 +423,14 @@ function shareReviewEndsAt(share: ShareRecord): number | null {
   return reviewDeadline(share.createdAt, share.reviewWindowHours);
 }
 
+/** Pinned on a snapshot or a page, where a screenshot is taken: not an older website's live page. */
+const onImage = (comment: SharedComment) => Boolean(comment.snapshotId || comment.pageId);
+
 /**
  * A comment as the guest reads it: a team member's says so, with their avatar
  * on this link (`token`'s) when there's one (4.11). Never their id or email.
- * A client's without a crop was posted without its screenshot, and says so.
+ * A client's on a snapshot or page without a crop was posted without its
+ * screenshot, and says so.
  */
 function guestComment(
   { item: comment, origin }: Sequenced<SharedComment>,
@@ -434,7 +438,8 @@ function guestComment(
   token: string,
 ): ClientComment {
   if (!team.has(comment.id)) {
-    return origin === "client" && !comment.crop ? { ...comment, screenshotPending: true } : comment;
+    const pending = origin === "client" && onImage(comment) && !comment.crop;
+    return pending ? { ...comment, screenshotPending: true } : comment;
   }
   const avatar = team.get(comment.id);
   return {

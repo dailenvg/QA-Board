@@ -108,9 +108,8 @@ describe("editClientComment", () => {
       },
     });
     const view = await clientView(services.store, share, GUEST_TOKEN);
-    // Posted without a crop: the guest reads it as waiting on its screenshot.
     expect(view.comments.find((comment) => comment.id === "k-1")).toEqual(
-      edited.ok ? { ...edited.value, screenshotPending: true } : null,
+      edited.ok ? edited.value : null,
     );
   });
 

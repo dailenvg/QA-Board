@@ -20,9 +20,15 @@ describe("isScreenshotPending", () => {
     expect(isScreenshotPending({ ...base, screenshotPending: true })).toBe(true);
   });
 
-  it("is a client's comment without a crop, in the workspace", () => {
-    expect(isScreenshotPending({ ...base, fromClient: true })).toBe(true);
-    expect(isScreenshotPending({ ...base, fromClient: true, crop })).toBe(false);
+  it("is a client's comment on a snapshot or page without a crop, in the workspace", () => {
+    for (const surface of [{ snapshotId: "s1" }, { pageId: "p1" }]) {
+      expect(isScreenshotPending({ ...base, ...surface, fromClient: true })).toBe(true);
+      expect(isScreenshotPending({ ...base, ...surface, fromClient: true, crop })).toBe(false);
+    }
+  });
+
+  it("is never one on an older website's live page, which had no screenshot to take", () => {
+    expect(isScreenshotPending({ ...base, fromClient: true })).toBe(false);
   });
 
   it("is never the team's own comment, with a crop or not", () => {
