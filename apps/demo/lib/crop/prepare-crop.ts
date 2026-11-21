@@ -4,6 +4,16 @@ import { CROP_ATTEMPTS, CROP_RENDER_TIMEOUT_MS, cropBackoff, wait } from "./crop
 /** A take of the screen: a crop being rendered, or null when there was nothing to read. */
 export type TakeCrop = () => PendingCrop | null;
 
+/**
+ * `take`, only while the comment's own surface is still on stage. Retries
+ * read the screen again, and the person may have moved to another page or
+ * breakpoint meanwhile: that take is null (a failed try), so the comment
+ * ends without a screenshot rather than with another surface's.
+ */
+export function onSurface(take: TakeCrop, stillShown: () => boolean): TakeCrop {
+  return () => (stillShown() ? take() : null);
+}
+
 /** The render's picture, or null when it failed, threw, or took longer than `timeoutMs`. */
 async function finish(pending: PendingCrop, timeoutMs: number): Promise<ReadyCrop | null> {
   let timer: ReturnType<typeof setTimeout> | undefined;

@@ -4,6 +4,9 @@ import { SIGNED_OUT } from "./auth-fixtures";
 import {
   dropPin,
   hideComments,
+  openFolder,
+  pickImages,
+  samplePngFiles,
   shareImageProject,
   showComments,
   skipReviewGuide,
@@ -253,5 +256,77 @@ test("a send that's taking long says so, keeps its fields read-only, and frees t
   await expect(composer).toHaveCount(0);
   await expect(withoutScreenshotToast(guest)).toHaveCount(0);
   await expectScreenshot(guest, "On a slow network, edited");
+  await context.close();
+});
+
+/** A two-page image project with a review link, made from an address of its own (rate limits). */
+async function shareTwoPages(page: Page): Promise<string> {
+  await page.route("**/api/shares", (route) =>
+    route.continue({
+      headers: {
+        ...route.request().headers(),
+        "x-forwarded-for": `198.51.100.${Math.floor(Math.random() * 250) + 1}`,
+      },
+    }),
+  );
+  await openFolder(page);
+  const dialog = await pickImages(page, await samplePngFiles(page, ["Home", "About"]));
+  await dialog.getByTestId("grouping-combine").click();
+  await dialog.getByTestId("create-project").click();
+  await expect(page.getByTestId("page-position")).toHaveText("Page 1 of 2");
+  await page.getByTestId("share-button").click();
+  const share = page.getByTestId("share-dialog");
+  const link = (await share.getByTestId("copy-share-link").getAttribute("data-url"))!;
+  await expect(share.getByTestId("share-sync")).toHaveAttribute("data-sync", "synced");
+  await page.keyboard.press("Escape");
+  await page.unroute("**/api/shares");
+  return link;
+}
+
+test("moving to another page while the screenshot is retried never attaches that page's", async ({
+  page,
+  browser,
+}) => {
+  const link = await shareTwoPages(page);
+  const context = await browser.newContext({ storageState: SIGNED_OUT });
+  const guest = await context.newPage();
+  await skipReviewGuide(guest);
+  // Renders fail until the test says otherwise: then a retry reading page 2 would succeed.
+  await guest.addInitScript(() => {
+    const flags = window as unknown as { failCrops: boolean };
+    flags.failCrops = true;
+    const { prototype } = HTMLCanvasElement;
+    const encode = Object.getOwnPropertyDescriptor(prototype, "toBlob")?.value as (
+      this: HTMLCanvasElement,
+      ...args: Parameters<HTMLCanvasElement["toBlob"]>
+    ) => void;
+    prototype.toBlob = function toBlob(callback: BlobCallback, ...rest) {
+      if (!flags.failCrops) return encode.call(this, callback, ...rest);
+      setTimeout(() => callback(null), 20);
+    };
+  });
+  await guest.goto(link);
+  await expect(
+    guest.getByRole("img", { name: /page 1 of 2, the image under review/ }),
+  ).toBeVisible();
+
+  const composer = await writeComment(guest, "Pinned on page one", { x: 160, y: 120 });
+  const posted = nextPost(guest);
+  await composer.getByLabel("Comment", { exact: true }).press("Enter");
+  await expect(composer.getByRole("button", { name: "Adding screenshot…" })).toBeVisible();
+  await guest.getByRole("button", { name: "Next page" }).click();
+  await expect(guest.getByTestId("page-position")).toHaveText("Page 2 of 2");
+  await expect(
+    guest.getByRole("img", { name: /page 2 of 2, the image under review/ }),
+  ).toBeVisible();
+  await guest.evaluate(() => {
+    (window as unknown as { failCrops: boolean }).failCrops = false;
+  });
+
+  const answer = await posted;
+  expect(answer.status()).toBe(201);
+  expect(await answer.json()).not.toHaveProperty("crop");
+  await expectToldWithoutScreenshot(guest);
+  await expectPending(guest, "Pinned on page one");
   await context.close();
 });

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PendingCrop } from "../viewer-backend/backend";
 import { CROP_ATTEMPTS, CROP_BACKOFF_MS, CROP_RENDER_TIMEOUT_MS, cropBackoff } from "./crop-retry";
-import { prepareCrop } from "./prepare-crop";
+import { onSurface, prepareCrop } from "./prepare-crop";
 
 const rect = { x: 0, y: 0, width: 10, height: 10 };
 const picture = new Blob(["jpeg"], { type: "image/jpeg" });
@@ -77,5 +77,29 @@ describe("prepareCrop", () => {
     expect(take).toHaveBeenCalledTimes(2);
     await vi.advanceTimersByTimeAsync(CROP_BACKOFF_MS[1]);
     await expect(ready).resolves.toEqual({ blob: picture, rect });
+  });
+});
+
+describe("onSurface", () => {
+  it("takes while the comment's surface is on stage, and nothing once it isn't", () => {
+    let shown = true;
+    const take = takes("ok", "ok");
+    const guarded = onSurface(take, () => shown);
+    expect(guarded()).not.toBeNull();
+    shown = false;
+    expect(guarded()).toBeNull();
+    expect(take).toHaveBeenCalledTimes(1);
+  });
+
+  it("ends without a screenshot, never another surface's, when the page changes before a retry", async () => {
+    let stage = "page:p1";
+    const take = takes("null", "ok", "ok");
+    const ready = prepareCrop(onSurface(take, () => stage === "page:p1"));
+    await vi.advanceTimersByTimeAsync(0);
+    // The person moves to page 2 during the backoff: the retries would read it.
+    stage = "page:p2";
+    await vi.runAllTimersAsync();
+    await expect(ready).resolves.toBeNull();
+    expect(take).toHaveBeenCalledTimes(1);
   });
 });

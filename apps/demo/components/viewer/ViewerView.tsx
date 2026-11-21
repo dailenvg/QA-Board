@@ -5,6 +5,7 @@ import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "rea
 import { RESOLVED_HOP } from "../brand/mascot/moods";
 import { toPagePx } from "@/lib/crop/geometry";
 import { planCommentCrop } from "@/lib/crop/plan-comment-crop";
+import { onSurface } from "@/lib/crop/prepare-crop";
 import { renderCrop } from "@/lib/crop/render-crop";
 import {
   activeByBreakpoint,
@@ -233,6 +234,11 @@ export function ViewerView({
   );
   const originalUrl = source.kind === "url" ? source.url : (source.referenceUrl ?? null);
   const stageDraft = draft?.surfaceKey === stageKey ? draft : null;
+  /** The surface on stage now, for a send's retries to check (`onSurface`). */
+  const stageKeyRef = useRef(stageKey);
+  useEffect(() => {
+    stageKeyRef.current = stageKey;
+  }, [stageKey]);
   const deletion = expiresAt === undefined ? null : deletionWhen(expiresAt, now);
   // The owner's notice offers Export (the top bar's menu, so formats and progress stay in one place).
   const canExport = owner && comments.length > 0;
@@ -359,13 +365,19 @@ export function ViewerView({
   const submitDraft = async (body: string, author: string) => {
     if (!draft || draft.sending) return;
     if (author.trim() !== data.authorName) backend.setAuthorName(author);
-    const { commentId, x, y, snapshotId, pageId } = draft;
+    const { commentId, x, y, snapshotId, pageId, surfaceKey: draftSurface } = draft;
     const update = (change: Partial<Draft>) =>
       setDraft((current) =>
         current?.commentId === commentId ? { ...current, ...change } : current,
       );
     setDraft({ ...draft, body, sending: "posting", error: null });
-    const takeCrop = surface.kind === "frame" ? null : () => cropFor({ x, y });
+    const takeCrop =
+      surface.kind === "frame"
+        ? null
+        : onSurface(
+            () => cropFor({ x, y }),
+            () => stageKeyRef.current === draftSurface,
+          );
     const { result, crop } = await sendDraft({
       crop: draft.crop,
       takeCrop,
