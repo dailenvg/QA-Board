@@ -15,17 +15,15 @@ import {
 } from "../store/actions";
 import { newId } from "../store/id";
 import { storeWorkspaceBlob } from "../workspace-client/blob-upload";
-import type { CaptureOutcome, PendingCrop, ViewerBackend } from "./backend";
+import type { CaptureOutcome, ReadyCrop, ViewerBackend } from "./backend";
 
 /**
- * Uploads the crop once it's encoded, then attaches it. Best effort: a
- * comment whose crop never arrives just shows without one.
+ * Uploads the crop, then attaches it. Best effort: a comment whose crop
+ * never arrives just shows without one.
  */
-async function saveCrop(projectId: string, commentId: string, crop: PendingCrop): Promise<void> {
-  const blob = await crop.blob;
-  if (!blob) return;
+async function saveCrop(projectId: string, commentId: string, crop: ReadyCrop): Promise<void> {
   const blobKey = cropBlobKey(commentId);
-  const uploaded = await storeWorkspaceBlob(projectId, blobKey, blob);
+  const uploaded = await storeWorkspaceBlob(projectId, blobKey, crop.blob);
   if (uploaded.ok) attachCrop(commentId, { blobKey, rect: crop.rect });
 }
 

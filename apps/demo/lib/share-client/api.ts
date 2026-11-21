@@ -82,6 +82,13 @@ export const ownerApi = {
     call<null>(`/api/shares/${share.id}`, { method: "DELETE", headers: owner(share) }),
 };
 
+/**
+ * A comment's post gives up after this, a little past the server's 30 s
+ * deadline, so a stalled connection ends in an error to retry instead of
+ * leaving the comment posting forever.
+ */
+export const COMMENT_POST_TIMEOUT_MS = 35_000;
+
 /** A shared link's calls, by its token. */
 export function clientApi(token: string) {
   const base = `/api/s/${encodeURIComponent(token)}`;
@@ -91,7 +98,11 @@ export function clientApi(token: string) {
     /** The company's logo at `version` (`ClientBrand.logoVersion`), so a new logo is a new URL. */
     logoUrl: (version: string) => `${base}/brand/logo?v=${encodeURIComponent(version)}`,
     addComment: (form: FormData) =>
-      call<PostedComment>(`${base}/comments`, { method: "POST", body: form }),
+      call<PostedComment>(`${base}/comments`, {
+        method: "POST",
+        body: form,
+        signal: AbortSignal.timeout(COMMENT_POST_TIMEOUT_MS),
+      }),
     /** The client's edit of their own comment, with the key its post gave back. */
     editComment: (id: string, body: string, editKey: string) =>
       call<SharedComment>(

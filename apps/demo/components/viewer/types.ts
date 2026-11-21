@@ -1,8 +1,14 @@
 import type { ImageUpload } from "@/lib/store/actions";
-import type { PendingCrop } from "@/lib/viewer-backend/backend";
+import type { ReadyCrop } from "@/lib/viewer-backend/backend";
 
 export type ViewerMode = "browse" | "comment";
 export type CommentTab = "active" | "resolved";
+
+/**
+ * Where a send is: posting, or still trying to render the screenshot after a
+ * failed try ("screenshot"). False while nothing is being sent.
+ */
+export type SendStep = false | "posting" | "screenshot";
 
 export interface PinPoint {
   x: number;
@@ -18,12 +24,15 @@ export interface Draft extends PinPoint {
   pageId: string | null;
   /** The comment's id, fixed when the pin is placed, so a retry can't post it twice. */
   commentId: string;
-  /** Posting is under way. */
-  sending: boolean;
+  /** Sending is under way, and which step it's on. */
+  sending: SendStep;
   /** Why the last post failed. The draft and its text stay until it goes through. */
   error: string | null;
-  /** The screenshot taken on the first try, reused by retries. */
-  crop: PendingCrop | null;
+  /**
+   * The screenshot rendered on an earlier try, reused by retries. Null until
+   * one rendered: a retry (or a draft restored after a reload) takes it again.
+   */
+  crop: ReadyCrop | null;
   /** The name typed in this draft, kept with it (a reload restores both). */
   author?: string;
 }

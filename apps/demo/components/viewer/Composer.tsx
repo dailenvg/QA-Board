@@ -31,6 +31,13 @@ interface ComposerProps {
 
 const NAME_MISSING = "Add your name so others know who commented.";
 
+/** Send's label: what it's doing while busy (a screenshot that needed another try says so). */
+function sendLabel({ sending, error }: Draft): string {
+  if (sending === "screenshot") return "Preparing screenshot…";
+  if (sending) return "Posting…";
+  return error ? "Retry" : "Post";
+}
+
 /** Popover placement: flip left near the right edge and upward near the bottom. */
 function placement({ x, y }: Draft): string {
   const horizontal = x > 60 ? "calc(-100% - 0.5rem)" : "2.75rem";
@@ -74,6 +81,7 @@ export function Composer({
   const errorId = useId();
   const sendErrorId = useId();
   const cancelHintId = useId();
+  const sending = draft.sending !== false;
   const nameError = error?.field === "name" ? error.message : null;
   const bodyError = error?.field === "body" ? error.message : null;
 
@@ -219,13 +227,13 @@ export function Composer({
             <Button
               variant="ghost"
               size="sm"
-              aria-disabled={draft.sending || undefined}
-              aria-describedby={draft.sending ? cancelHintId : undefined}
-              onClick={draft.sending ? undefined : onCancel}
+              aria-disabled={sending || undefined}
+              aria-describedby={sending ? cancelHintId : undefined}
+              onClick={sending ? undefined : onCancel}
             >
               Cancel
             </Button>
-            {draft.sending ? (
+            {sending ? (
               <span id={cancelHintId} className="sr-only">
                 Wait for the comment to finish posting.
               </span>
@@ -234,11 +242,11 @@ export function Composer({
             <Button
               type="submit"
               size="sm"
-              aria-disabled={draft.sending || undefined}
-              aria-busy={draft.sending || undefined}
+              aria-disabled={sending || undefined}
+              aria-busy={sending || undefined}
               aria-describedby={draft.error ? sendErrorId : undefined}
             >
-              {draft.sending ? "Posting…" : draft.error ? "Retry" : "Post"}
+              {sendLabel(draft)}
             </Button>
           </div>
         </div>

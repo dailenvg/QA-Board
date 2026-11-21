@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { namesInMemory, VIEW } from "@/test/share-fixture";
+import { CROP_ATTEMPTS, CROP_BACKOFF_MS } from "../crop/crop-retry";
 import { createClientBackend } from "./client-backend";
 import { createClientStore } from "./client-store";
 import { linkEditKeys } from "./edit-keys";
@@ -40,7 +41,93 @@ function setup(answers: Array<() => Response>, comments = VIEW.comments.slice(0,
 const accepted = () =>
   Response.json({ ...input, status: "active", createdAt: 5, updatedAt: 5 }, { status: 201 });
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
+
+const crop = {
+  blob: new Blob(["jpeg"], { type: "image/jpeg" }),
+  rect: { x: 0, y: 0, width: 4, height: 3 },
+};
+const withCrop = () =>
+  Response.json(
+    { ...input, crop: { rect: crop.rect }, status: "active", createdAt: 5, updatedAt: 5 },
+    { status: 201 },
+  );
+const failure =
+  (status: number, error = "failed") =>
+  () =>
+    Response.json({ error }, { status });
+/** Whether each comment request carried the screenshot. */
+const cropsSent = (sent: RequestInit[]) =>
+  sent
+    .filter((init) => init.body instanceof FormData)
+    .map((init) => (init.body as FormData).has("crop"));
+
+describe("a comment's screenshot", () => {
+  it("goes with the comment and shows at once", async () => {
+    const { store, backend, sent } = setup([withCrop]);
+    const result = await backend.addComment(input, crop);
+    expect(result).toMatchObject({ ok: true, value: { crop: { blobKey: "crop:draft-1" } } });
+    expect(cropsSent(sent)).toEqual([true]);
+    expect(store.getSnapshot().view.comments[0]).not.toHaveProperty("screenshotPending");
+  });
+
+  it("is retried after a temporary failure, with a short backoff, and then goes through", async () => {
+    vi.useFakeTimers();
+    const { backend, sent } = setup([failure(503), failure(500), withCrop]);
+    const sending = backend.addComment(input, crop);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(cropsSent(sent)).toEqual([true]);
+    await vi.advanceTimersByTimeAsync(CROP_BACKOFF_MS[0]);
+    expect(cropsSent(sent)).toEqual([true, true]);
+    await vi.advanceTimersByTimeAsync(CROP_BACKOFF_MS[1]);
+    expect(await sending).toMatchObject({ ok: true, value: { crop: { rect: crop.rect } } });
+    expect(cropsSent(sent)).toEqual([true, true, true]);
+  });
+
+  it("after CROP_ATTEMPTS failed uploads, the comment posts without it, marked pending", async () => {
+    vi.useFakeTimers();
+    const failures = Array.from({ length: CROP_ATTEMPTS }, () => failure(502));
+    const { store, backend, sent } = setup([...failures, accepted]);
+    const sending = backend.addComment(input, crop);
+    await vi.runAllTimersAsync();
+    const result = await sending;
+    expect(result).toMatchObject({ ok: true, value: { screenshotPending: true } });
+    expect(result.ok && result.value).not.toHaveProperty("crop");
+    expect(cropsSent(sent)).toEqual([...failures.map(() => true), false]);
+    expect(store.getSnapshot().view.comments[0]).toMatchObject({ screenshotPending: true });
+  });
+
+  it("refused for its own sake (too large) isn't sent again: the comment goes without it", async () => {
+    const { backend, sent } = setup([failure(413, "too-large"), accepted]);
+    const result = await backend.addComment(input, crop);
+    expect(result).toMatchObject({ ok: true, value: { screenshotPending: true } });
+    expect(cropsSent(sent)).toEqual([true, false]);
+  });
+
+  it("isn't retried or dropped when the refusal is about the comment", async () => {
+    const { backend, sent } = setup([failure(403, "review-closed")]);
+    const result = await backend.addComment(input, crop);
+    expect(!result.ok && result.error).toContain("review window has closed");
+    expect(cropsSent(sent)).toEqual([true]);
+  });
+
+  it("marks a comment sent without one (every render failed) as pending, never silently", async () => {
+    const { store, backend, sent } = setup([accepted]);
+    const result = await backend.addComment(input, null);
+    expect(result).toMatchObject({ ok: true, value: { screenshotPending: true } });
+    expect(cropsSent(sent)).toEqual([false]);
+    expect(store.getSnapshot().view.comments[0]).toMatchObject({ screenshotPending: true });
+  });
+
+  it("gives every post a deadline, so a stalled connection can't leave it posting", async () => {
+    const { backend, sent } = setup([accepted]);
+    await backend.addComment(input, null);
+    expect(sent[0]?.signal).toBeInstanceOf(AbortSignal);
+  });
+});
 
 describe("client comments", () => {
   it("reports a failed send without adding anything, so the draft keeps its text", async () => {
