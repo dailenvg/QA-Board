@@ -146,6 +146,28 @@ describe("a comment's screenshot", () => {
     }
   });
 
+  it("sent with it but answered 'already exists': the link's copy says, even without one", async () => {
+    const stored = { ...input, status: "active" as const, createdAt: 5, updatedAt: 5 };
+    for (const [onLink, expected, absent] of [
+      [
+        { ...stored, crop: { rect: crop.rect } },
+        { crop: { rect: crop.rect } },
+        "screenshotPending",
+      ],
+      // The try that got through was an earlier one without the picture.
+      [{ ...stored, screenshotPending: true as const }, { screenshotPending: true }, "crop"],
+    ] as const) {
+      const { backend, sent } = setup([
+        failure(409, "exists"),
+        () => Response.json({ ...VIEW, comments: [onLink] }),
+      ]);
+      const result = await backend.addComment(input, crop);
+      expect(cropsSent(sent)).toEqual([true]);
+      expect(result).toMatchObject({ ok: true, value: expected });
+      expect(result.ok && result.value).not.toHaveProperty(absent);
+    }
+  });
+
   it("gives every post a deadline, so a stalled connection can't leave it posting", async () => {
     const { backend, sent } = setup([accepted]);
     await backend.addComment(input, null);

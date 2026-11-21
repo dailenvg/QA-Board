@@ -181,22 +181,19 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
       }
       // 409 exists: the comment is visible, so an earlier try got through even though its
       // answer didn't arrive. Counting it as sent can't lose it or post it twice.
-      if (result.ok || result.status === 409) {
-        if (sent) blobs.hold(`crop:${comment.id}`, sent.blob);
-        if (result.ok) {
-          // The key stays out of the view: it's only kept in this browser's storage.
-          store.addComment(asPosted(result.value, sent), result.value.editKey);
-        } else {
-          const view = await api.view();
-          if (view.ok) store.setView(view.value);
-        }
-        if (sent) {
-          const cropped = { blobKey: `crop:${comment.id}`, rect: sent.rect };
-          return { ok: true, value: { ...comment, crop: cropped } };
-        }
-        if (result.ok) return { ok: true, value: { ...comment, screenshotPending: true } };
-        // 409 exists without the picture: the earlier try that got through may have had it,
-        // so the link's own copy says (nothing, if it couldn't be read).
+      if (result.ok) {
+        // The key stays out of the view: it's only kept in this browser's storage.
+        store.addComment(asPosted(result.value, sent), result.value.editKey);
+        if (!sent) return { ok: true, value: { ...comment, screenshotPending: true } };
+        blobs.hold(`crop:${comment.id}`, sent.blob);
+        const cropped = { blobKey: `crop:${comment.id}`, rect: sent.rect };
+        return { ok: true, value: { ...comment, crop: cropped } };
+      }
+      if (result.status === 409) {
+        // Whichever try got through may or may not have carried the picture: the link's own
+        // copy says (nothing, if it couldn't be read), and its thumbnail comes from there.
+        const view = await api.view();
+        if (view.ok) store.setView(view.value);
         return { ok: true, value: shownAs(store, comment) };
       }
       if (result.status === 404) {
