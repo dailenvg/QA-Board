@@ -4,11 +4,14 @@ import type { WorkspaceStart } from "../workspace/types";
 import {
   connectedBlobs,
   connectWorkspace,
+  pollWorkspace,
   refreshWorkspace,
   startState,
   subscribeNotices,
+  workspaceReadAt,
   type WorkspaceState,
 } from "./workspace-store";
+import { startVisiblePoll } from "./visible-poll";
 
 /**
  * The state the server rendered the page with (`startState`), for `useSquint`
@@ -59,6 +62,15 @@ function useRefreshOnFocus(): void {
 }
 
 /**
+ * Reads the workspace again every `WORKSPACE_POLL_MS` while the tab is visible. Called after
+ * `useRefreshOnFocus`, so on coming back into view its listener runs second and joins the read
+ * that one started (`pollWorkspace`) instead of asking for another.
+ */
+function useRefreshWhileVisible(): void {
+  useEffect(() => startVisiblePoll({ refresh: pollWorkspace, lastReadAt: workspaceReadAt }), []);
+}
+
+/**
  * Connects this tab to the workspace the server rendered (`start`), keeps it
  * fresh while the page is open, and passes refusals of background saves to
  * `onNotice` (a toast). Returns where the page reads the workspace's images,
@@ -71,5 +83,6 @@ export function useWorkspaceData(
   useEffect(() => connectWorkspace(start), [start]);
   useEffect(() => subscribeNotices(onNotice), [onNotice]);
   useRefreshOnFocus();
+  useRefreshWhileVisible();
   return { blobs: CONNECTED_BLOBS, initial: startState(start) };
 }

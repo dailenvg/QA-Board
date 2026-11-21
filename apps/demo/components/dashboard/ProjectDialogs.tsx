@@ -6,6 +6,7 @@ import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { PromptDialog } from "../ui/PromptDialog";
 import { LabelDialog } from "./LabelDialog";
 import { MoveProjectDialog } from "./MoveProjectDialog";
+import { ShareLinkWarning } from "./ShareLinkWarning";
 
 interface ProjectDialogsProps {
   folders: readonly Folder[];
@@ -19,6 +20,23 @@ interface ProjectDialogsProps {
   onMove: (project: Project, folderId: string) => void;
   onLabel: (project: Project, label: string | null) => void;
   onDelete: (project: Project) => void;
+}
+
+/** What deleting `project` takes, and, with a share link, that its clients lose access and when. */
+function DeleteSummary({ project }: { project: Project }) {
+  const { share } = project;
+  if (!share) {
+    return "The project and all its comments will be deleted. You'll have a few seconds to undo it.";
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      <p>
+        The project and all its comments will be deleted, and its share link will stop working.
+        You&apos;ll have a few seconds to undo it.
+      </p>
+      <ShareLinkWarning reviewEnds={[share.reviewEndsAt]} place="project" />
+    </div>
+  );
 }
 
 /** Rename, move, label and delete dialogs for projects. */
@@ -63,11 +81,7 @@ export function ProjectDialogs({
         open={remove.open}
         onClose={remove.close}
         title={remove.payload ? `Delete ${remove.payload.name}?` : "Delete project?"}
-        description={
-          remove.payload?.share
-            ? "The project and all its comments will be deleted, and its share link will stop working. You'll have a few seconds to undo it."
-            : "The project and all its comments will be deleted. You'll have a few seconds to undo it."
-        }
+        description={remove.payload ? <DeleteSummary project={remove.payload} /> : ""}
         confirmLabel="Delete project"
         onConfirm={() => remove.payload && onDelete(remove.payload)}
       />

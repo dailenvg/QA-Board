@@ -24,9 +24,11 @@ import {
 import { pickFolder, sortedFolders } from "@/lib/store/selectors";
 import type { Folder, Project, SquintData } from "@/lib/store/types";
 import { useSquint } from "@/lib/store/use-squint";
+import { NO_WAITING, waitingCounts } from "@/lib/store/waiting-comments";
 import { useDialogState } from "@/lib/use-dialog-state";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { useShortcut } from "@/lib/use-shortcut";
+import { useClientActivity } from "@/lib/workspace-client/use-client-activity";
 import { useCan } from "@/lib/workspace-client/use-workspace-access";
 import { WorkspaceError } from "../app-state/WorkspaceError";
 import { NEW_FOLDER } from "../new-project/FolderPicker";
@@ -94,6 +96,11 @@ function WorkspaceShell({ data, account, children }: WorkspaceShellProps) {
   const folders = useMemo(() => (data ? sortedFolders(data) : []), [data]);
   // Archived projects stay out of counts, search and the Overview; the Archived filter shows them.
   const active = useMemo(() => (data ? activeData(data) : null), [data]);
+  const activity = useClientActivity();
+  const waiting = useMemo(
+    () => (data ? waitingCounts(data, activity) : NO_WAITING),
+    [data, activity],
+  );
   const counts = useMemo(
     () =>
       new Map(
@@ -155,6 +162,7 @@ function WorkspaceShell({ data, account, children }: WorkspaceShellProps) {
     return {
       data: active,
       allData: data,
+      waiting,
       folders,
       openNewProject: (folderId) => showNewProject({ folderId }),
       newFolder: (parentId) => showNewFolder({ parentId }),
@@ -195,6 +203,7 @@ function WorkspaceShell({ data, account, children }: WorkspaceShellProps) {
   }, [
     data,
     active,
+    waiting,
     folders,
     canTrash,
     showNewProject,

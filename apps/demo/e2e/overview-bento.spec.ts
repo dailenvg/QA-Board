@@ -81,9 +81,20 @@ async function archiveTwo(): Promise<void> {
   ]);
 }
 
-/** WITH_COMMENTS, plus a shared project whose client left a comment it hasn't pulled yet. */
-async function seedActivity(page: Page): Promise<string> {
-  await seedWorkspace(page, WITH_COMMENTS, "/sandbox");
+/**
+ * WITH_COMMENTS with the team's open comment resolved: with the client's comment still on the
+ * review link, three open and two resolved, so the hero's page (four pins at most) shows both kinds.
+ */
+const ONE_MORE_RESOLVED: SquintData = {
+  ...WITH_COMMENTS,
+  comments: WITH_COMMENTS.comments.map((entry) =>
+    entry.id === "team" ? { ...entry, status: "resolved", resolvedAt: Date.now() } : entry,
+  ),
+};
+
+/** `data` (WITH_COMMENTS), plus a shared project whose client left a comment it hasn't pulled yet. */
+async function seedActivity(page: Page, data: SquintData = WITH_COMMENTS): Promise<string> {
+  await seedWorkspace(page, data, "/sandbox");
   const { projectId } = await shareWorkspaceProject(page, "Shared site");
   await addWaitingClientComment(projectId, {
     id: "waiting",
@@ -166,15 +177,22 @@ test("the bento counts comments, client news, recent projects and what's deletin
   await archiveTwo();
   await openOverview(page);
 
-  await expect(tile(page, "status")).toHaveAttribute("data-open", "3");
+  // Open counts the client's comment still on the review link too, as the cards do.
+  await expect(tile(page, "status")).toHaveAttribute("data-open", "4");
   await expect(tile(page, "status")).toHaveAttribute("data-resolved", "1");
-  await expect(page.getByTestId("status-open")).toHaveText("3");
+  await expect(page.getByTestId("status-open")).toHaveText("4");
   await expect(page.getByTestId("status-resolved")).toHaveText("1");
 
-  // Oldest first, each opening its project; the client's is marked.
+  // Oldest first, each opening its project; the client's is marked. The one still on the
+  // review link has no words here yet: it's counted, and a line says why it isn't listed.
+  // "+N more" stands only for rows there was no room for: here every row fits.
   const waiting = tile(page, "waiting");
-  await expect(waiting).toHaveAttribute("data-count", "3");
+  await expect(waiting).toHaveAttribute("data-count", "4");
+  await expect(waiting.getByTestId("waiting-on-links")).toHaveText(
+    "1 client comment is still on its review link, so it isn't listed yet.",
+  );
   await expect(waiting.getByTestId("waiting-row")).toHaveCount(3);
+  await expect(waiting.getByTestId("tile-more")).toHaveCount(0);
   await expect(waiting.getByTestId("waiting-row").first()).toContainText("Pitch deck");
   await expect(waiting.getByTestId("waiting-row").first()).toContainText("Swap the cover photo");
   await expect(waiting.getByTestId("waiting-row").last()).toContainText("Client");
@@ -208,6 +226,32 @@ test("the bento counts comments, client news, recent projects and what's deletin
   // The client row opens its project.
   await clients.getByTestId("client-row").first().click();
   await expect(page).toHaveURL(new RegExp(`/p/${sharedId}$`));
+});
+
+test("with every open comment still on a review link, Comments waiting says so instead of a list", async ({
+  page,
+}) => {
+  await seedWorkspace(page, WORKSPACE_SEED, "/sandbox");
+  const { projectId } = await shareWorkspaceProject(page, "Shared site");
+  for (const id of ["link-1", "link-2"]) {
+    await addWaitingClientComment(projectId, {
+      id,
+      body: `Comment ${id}`,
+      author: "Cleo",
+      createdAt: Date.now(),
+    });
+  }
+  await openOverview(page);
+
+  const waiting = tile(page, "waiting");
+  await expect(waiting).toHaveAttribute("data-count", "2");
+  await expect(waiting.getByTestId("waiting-on-links")).toHaveText(
+    "2 client comments are still on review links, so they aren't listed yet.",
+  );
+  await expect(waiting.getByRole("list")).toHaveCount(0);
+  await expect(waiting.getByTestId("waiting-row")).toHaveCount(0);
+  await expect(waiting.getByTestId("tile-more")).toHaveCount(0);
+  await expect(waiting.getByTestId("tile-empty")).toHaveCount(0);
 });
 
 test("what came in before the last visit isn't new any more", async ({ page }) => {
@@ -278,10 +322,10 @@ test("the hero, comments waiting and client news have scenes, hidden from screen
     "aria-hidden",
     "true",
   );
-  // A client's cursor drops a pin per new comment; a bubble queues up per waiting comment.
+  // A client's cursor drops a pin per new comment; a bubble queues up per open comment.
   const clients = tile(page, "clients").getByTestId("tile-scene");
   await expect(clients.getByTestId("story-pin")).toHaveCount(2);
-  await expect(tile(page, "waiting").getByTestId("scene-bubble")).toHaveCount(3);
+  await expect(tile(page, "waiting").getByTestId("scene-bubble")).toHaveCount(4);
   // One-off entrances, never a loop: there's nothing to pause anywhere in the bento.
   await expect(page.getByRole("button", { name: "Pause animations" })).toHaveCount(0);
 
@@ -346,11 +390,11 @@ test("the scenes are drawn in grey lines, Squiggy the only color in them", async
   isMobile,
 }) => {
   test.skip(isMobile, "Phones hide the hero's project page.");
-  await seedActivity(page);
+  await seedActivity(page, ONE_MORE_RESOLVED);
   await openOverview(page);
   for (const name of SCENE_TILES) await tile(page, name).scrollIntoViewIfNeeded();
-  // Open pins and the resolved one on the hero's page, client pins, the pile, and the line
-  // art's lime Squiggy on the hero's page and on the pile.
+  // Open pins (the one still on the review link too) and a resolved one on the hero's page,
+  // client pins, the pile, and the line art's lime Squiggy on the hero's page and on the pile.
   const hero = page.getByTestId("overview-hero").getByTestId("tile-scene");
   await expect(hero.getByTestId("story-pin")).toHaveCount(4);
   await expect(hero.locator('[data-testid="story-pin"][data-resolved]')).toHaveCount(1);
@@ -418,8 +462,8 @@ test.describe("with reduced motion", () => {
   test("everything shows its final state at once", async ({ page }) => {
     await seedActivity(page);
     await openOverview(page);
-    // No count-up: the numbers are already there.
-    await expect(page.getByTestId("status-open")).toHaveText("3");
+    // No count-up: the numbers are already there (the client's waiting comment included).
+    await expect(page.getByTestId("status-open")).toHaveText("4");
     // Scenes are drawn at their last frame without waiting to be scrolled to.
     await expect(tile(page, "clients").getByTestId("story-pin")).toHaveCount(2);
     await expect(page.getByRole("button", { name: "Pause animations" })).toHaveCount(0);

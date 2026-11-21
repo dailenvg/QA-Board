@@ -46,13 +46,15 @@ interface OverviewBentoProps {
  * rest of the screen and no more (`BENTO_GRID`): lists show the rows that fit.
  */
 export function OverviewBento({ workspace, workspaceId }: OverviewBentoProps) {
-  const { data, allData, folders } = workspace;
+  const { data, allData, waiting, folders } = workspace;
   const activity = useClientActivity();
   const visit = useVisit(workspaceId);
   const since = visit?.since ?? null;
   const now = useNow();
 
-  const totals = useMemo(() => commentTotals(data), [data]);
+  const totals = useMemo(() => commentTotals(data, waiting), [data, waiting]);
+  // Open without the comments still on review links: what Comments waiting can list.
+  const listedOpen = useMemo(() => commentTotals(data).open, [data]);
   const oldest = useMemo(() => oldestOpen(data), [data]);
   const recent = useMemo(() => recentProjects(data, since), [data, since]);
   const news = useMemo(
@@ -98,7 +100,13 @@ export function OverviewBento({ workspace, workspaceId }: OverviewBentoProps) {
         <StatusTile {...totals} />
       </BentoTile>
       <BentoTile order={2} className="md:row-span-2">
-        <WaitingTile {...totals} oldest={oldest} now={now} thumb={thumb} />
+        <WaitingTile
+          {...totals}
+          onLinks={totals.open - listedOpen}
+          oldest={oldest}
+          now={now}
+          thumb={thumb}
+        />
       </BentoTile>
       <BentoTile order={3} className="xl:col-span-2">
         <ClientsTile news={news} now={now} thumb={thumb} />

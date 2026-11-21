@@ -22,6 +22,11 @@ import { useFitRows } from "./use-fit-rows";
 interface WaitingTileProps {
   open: number;
   resolved: number;
+  /**
+   * Of `open`, clients' comments still on review links: counted, not listed (they have no
+   * words here until their project is opened).
+   */
+  onLinks: number;
   /** The open comments that have waited longest, oldest first. */
   oldest: readonly WaitingComment[];
   now: number;
@@ -29,15 +34,25 @@ interface WaitingTileProps {
   thumb: (projectId: string) => ReactNode;
 }
 
+/** Why the list is shorter than the count: the rest are still on review links. */
+function onLinksLine(count: number): string {
+  return count === 1
+    ? "1 client comment is still on its review link, so it isn't listed yet."
+    : `${count} client comments are still on review links, so they aren't listed yet.`;
+}
+
 /**
  * How many comments are open, and the ones waiting longest, each opening its
  * project, with a bar of how long it has waited against the longest wait. Its
  * title sits on line art of comments piling up on Squiggy (`WaitingLines`),
- * which draws in again on hover or focus.
+ * which draws in again on hover or focus. Comments still on review links are
+ * in the count but can't be rows: a line above the list says so, and "+N more"
+ * counts only rows there was no room for, so it never stands for rows it can't show.
  */
-export function WaitingTile({ open, resolved, oldest, now, thumb }: WaitingTileProps) {
+export function WaitingTile({ open, resolved, onLinks, oldest, now, thumb }: WaitingTileProps) {
   const headingId = useId();
-  const { ref, shown, more } = useFitRows(oldest.length, LIST_ROWS.waiting.natural, open);
+  const listed = open - onLinks;
+  const { ref, shown, more } = useFitRows(oldest.length, LIST_ROWS.waiting.natural, listed);
   const longestAt = oldest[0]?.createdAt ?? now;
   const [sceneRef, scene] = useScene();
   return (
@@ -75,40 +90,50 @@ export function WaitingTile({ open, resolved, oldest, now, thumb }: WaitingTileP
             : "Comments on your projects show up here until they're resolved."}
         </TileEmpty>
       ) : (
-        <>
-          <div className={TILE_LIST_BOX}>
-            <ol ref={ref} role="list" className={TILE_LIST}>
-              {oldest.slice(0, shown).map((comment) => (
-                <TileRow
-                  key={comment.id}
-                  href={projectHref(comment.projectId)}
-                  thumb={thumb(comment.projectId)}
-                  testId="waiting-row"
-                >
-                  {/* As tall as the Client pin, so every row matches the first, which useFitRows measures. */}
-                  <span className="flex min-h-6 min-w-0 items-center gap-2">
-                    <span className="min-w-0 truncate text-body font-semibold">
-                      {comment.projectName}
+        // Where the bento fits one screen, this takes the tile's leftover height and the list's
+        // box what the line above it leaves (useFitRows measures the box).
+        <div className="flex flex-col gap-2 bento-fit:min-h-0 bento-fit:flex-1">
+          {onLinks > 0 ? (
+            <p data-testid="waiting-on-links" className="shrink-0 text-meta text-muted">
+              {onLinksLine(onLinks)}
+            </p>
+          ) : null}
+          {/* Every open comment still on a link: no rows, so no empty list to announce. */}
+          {oldest.length > 0 ? (
+            <div className={TILE_LIST_BOX}>
+              <ol ref={ref} role="list" className={TILE_LIST}>
+                {oldest.slice(0, shown).map((comment) => (
+                  <TileRow
+                    key={comment.id}
+                    href={projectHref(comment.projectId)}
+                    thumb={thumb(comment.projectId)}
+                    testId="waiting-row"
+                  >
+                    {/* As tall as the Client pin, so every row matches the first, which useFitRows measures. */}
+                    <span className="flex min-h-6 min-w-0 items-center gap-2">
+                      <span className="min-w-0 truncate text-body font-semibold">
+                        {comment.projectName}
+                      </span>
+                      {comment.fromClient ? <ClientChip /> : null}
                     </span>
-                    {comment.fromClient ? <ClientChip /> : null}
-                  </span>
-                  <span className="truncate text-meta text-ink-2">{comment.body}</span>
-                  <span className="flex items-center gap-2">
-                    <GrowBar
-                      share={now ? ageShare(comment.createdAt, longestAt, now) : 0}
-                      fill="bg-comments"
-                      className="flex-1"
-                    />
-                    <span className="shrink-0 text-meta text-muted">
-                      <TimeAgo at={comment.createdAt} now={now} />
+                    <span className="truncate text-meta text-ink-2">{comment.body}</span>
+                    <span className="flex items-center gap-2">
+                      <GrowBar
+                        share={now ? ageShare(comment.createdAt, longestAt, now) : 0}
+                        fill="bg-comments"
+                        className="flex-1"
+                      />
+                      <span className="shrink-0 text-meta text-muted">
+                        <TimeAgo at={comment.createdAt} now={now} />
+                      </span>
                     </span>
-                  </span>
-                </TileRow>
-              ))}
-            </ol>
-            {more ? <MoreLink count={open - shown} href={FOLDERS_HREF} /> : null}
-          </div>
-        </>
+                  </TileRow>
+                ))}
+              </ol>
+              {more ? <MoreLink count={listed - shown} href={FOLDERS_HREF} /> : null}
+            </div>
+          ) : null}
+        </div>
       )}
     </section>
   );

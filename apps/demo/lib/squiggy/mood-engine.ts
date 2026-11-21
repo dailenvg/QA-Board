@@ -2,6 +2,7 @@ import type { Mood } from "@/components/brand/mascot/moods";
 import { storageLevel, usedPercent } from "../account/storage-level";
 import { activeData } from "../store/archive";
 import type { SquintData } from "../store/types";
+import { NO_WAITING, type WaitingCounts } from "../store/waiting-comments";
 import type { StorageSummary } from "../workspace/types";
 import type { SquiggyEvent, SquiggyEventRecord, SquiggyEventType } from "./events";
 
@@ -77,11 +78,14 @@ export function storageStrain(storage: StorageSummary | null): StorageStrain | n
 
 /**
  * Counts projects and their comments, archived ones left out (as the Overview
- * leaves them out), and reads the storage. A tie for busiest goes to the older folder.
+ * leaves them out), clients' comments still waiting on a review link
+ * (`waiting`) counted as active, and reads the storage. A tie for busiest goes
+ * to the older folder.
  */
 export function squiggySummary(
   workspace: SquintData,
   storage: StorageSummary | null = null,
+  waiting: WaitingCounts = NO_WAITING,
 ): WorkspaceSummary {
   const data = activeData(workspace);
   const folderOf = new Map(data.projects.map((project) => [project.id, project.folderId]));
@@ -97,6 +101,12 @@ export function squiggySummary(
     }
     active += 1;
     activeByFolder.set(folderId, (activeByFolder.get(folderId) ?? 0) + 1);
+  }
+  for (const project of data.projects) {
+    const count = waiting.get(project.id) ?? 0;
+    if (count === 0) continue;
+    active += count;
+    activeByFolder.set(project.folderId, (activeByFolder.get(project.folderId) ?? 0) + count);
   }
   let busiestFolder: BusiestFolder | null = null;
   const byAge = [...data.folders].sort((a, b) => a.createdAt - b.createdAt);

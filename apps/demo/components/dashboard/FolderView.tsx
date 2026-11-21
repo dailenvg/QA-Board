@@ -28,6 +28,7 @@ import { cardFocusHandoff, focusProjectCard, ProjectGrid } from "./ProjectGrid";
 import { sortProjects } from "./project-sort";
 import { isFiltered, matchesFilter, noMatchKind } from "./status-filter";
 import { focusStatusFilter } from "./StatusFilter";
+import { useFilterAnnouncement } from "./use-filter-announcement";
 import { useProjectFilter } from "./use-project-filter";
 import { useProjectSort } from "./use-project-sort";
 import { useWorkspace, type Workspace } from "./workspace-context";
@@ -51,13 +52,16 @@ export function FolderView({ folderId }: { folderId: string }) {
  * chosen order, and the project dialogs.
  */
 function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Folder }) {
-  const { allData, folders, report } = workspace;
+  const { allData, waiting, folders, report } = workspace;
   const toast = useToast();
   const now = useNow();
   const { sort, setKey, reverse } = useProjectSort();
 
   // Archived projects included: the Archived filter shows them.
-  const summaries = useMemo(() => folderSummaries(allData, folder.id), [allData, folder.id]);
+  const summaries = useMemo(
+    () => folderSummaries(allData, folder.id, waiting),
+    [allData, folder.id, waiting],
+  );
   const labels = useMemo(() => labelsOf(summaries.map((entry) => entry.project)), [summaries]);
   const allLabels = useMemo(() => workspaceLabels(allData), [allData]);
   const { filter, setStatus, setLabel, reset } = useProjectFilter(labels);
@@ -75,6 +79,11 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
         sort.direction,
       ),
     [summaries, filter, sort],
+  );
+
+  const shownCount = useFilterAnnouncement(
+    isFiltered(filter) ? `${plural(visible.length, "project")} shown` : "",
+    filter,
   );
 
   const projectRename = useDialogState<Project>();
@@ -143,8 +152,8 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
         </section>
       ) : null}
       {subfolders.length ? <h2 className="text-heading font-bold">Projects</h2> : null}
-      <p className="sr-only" aria-live="polite">
-        {isFiltered(filter) ? `${plural(visible.length, "project")} shown` : ""}
+      <p className="sr-only" aria-live="polite" data-testid="filter-count">
+        {shownCount}
       </p>
       {/*
         One at a time: when the last card is archived (or filtered away) the grid fades out

@@ -124,7 +124,11 @@ export function ProjectCard({ summary, canMove, now, ...actions }: ProjectCardPr
           {project.label ? <LabelChip label={project.label} /> : null}
         </div>
         <p className="flex items-center gap-3 text-meta text-muted">
-          <span className="inline-flex items-center gap-1" title="Active and resolved comments">
+          <span
+            className="inline-flex items-center gap-1"
+            title="Active and resolved comments"
+            data-testid="project-card-comments"
+          >
             <Icon name="message" className="size-3.5" />
             <span className="tabular-nums">
               {counts.active}

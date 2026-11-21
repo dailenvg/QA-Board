@@ -2,6 +2,7 @@ import { pagesOf } from "./pages";
 import { previewSnapshot } from "./snapshots";
 import { countComments, deriveStatus, type CommentCounts, type ProjectStatus } from "./status";
 import type { Comment, Folder, Project, SquintData } from "./types";
+import { NO_WAITING, withWaiting, type WaitingCounts } from "./waiting-comments";
 
 export interface ProjectSummary {
   project: Project;
@@ -26,8 +27,19 @@ export function previewKeyOf(data: SquintData, project: Project): string | null 
   return previewSnapshot(data, project.id)?.blobKey ?? null;
 }
 
-export function summarize(data: SquintData, project: Project): ProjectSummary {
-  const counts = countComments(commentsFor(data, project.id));
+/**
+ * A project's card: its comments, with clients' comments still waiting on its
+ * review link (`waiting`) counted as open, and the status they make.
+ */
+export function summarize(
+  data: SquintData,
+  project: Project,
+  waiting: WaitingCounts = NO_WAITING,
+): ProjectSummary {
+  const counts = withWaiting(
+    countComments(commentsFor(data, project.id)),
+    waiting.get(project.id) ?? 0,
+  );
   return { project, counts, status: deriveStatus(counts), previewKey: previewKeyOf(data, project) };
 }
 
@@ -45,12 +57,16 @@ export function pageCounts(data: SquintData, project: Project): Map<string, Comm
   );
 }
 
-/** Projects in a folder, most recently updated first. */
-export function folderSummaries(data: SquintData, folderId: string): ProjectSummary[] {
+/** Projects in a folder, most recently updated first, counted as `summarize` counts them. */
+export function folderSummaries(
+  data: SquintData,
+  folderId: string,
+  waiting: WaitingCounts = NO_WAITING,
+): ProjectSummary[] {
   return data.projects
     .filter((project) => project.folderId === folderId)
     .sort((a, b) => b.updatedAt - a.updatedAt)
-    .map((project) => summarize(data, project));
+    .map((project) => summarize(data, project, waiting));
 }
 
 export function sortedFolders(data: SquintData): Folder[] {

@@ -21,8 +21,8 @@ import { fileOrphans, projectsMissingLinks, toSquintData } from "./workspace-dat
  * The signed-in workspace in this tab: the server's data, changed at once by
  * each action (optimistic) while its requests go out one at a time, in order.
  * A refused request rolls its action back; a later read from the server (on
- * focus, or when another tab says it changed something) settles any
- * difference, and the last write wins. Module-level, so it lives across the
+ * focus, every minute while visible, or when another tab says it changed
+ * something) settles any difference, and the last write wins. Module-level, so it lives across the
  * dashboard and viewer; it's never touched on the server.
  */
 
@@ -86,6 +86,8 @@ let pending = 0;
 let changes = 0;
 let reading: Promise<void> | null = null;
 let readAgain = false;
+/** When this tab last finished reading the workspace (or was handed a server render of it). */
+let lastReadAt = 0;
 /** When this tab last finished saving something. */
 let lastSavedAt = 0;
 /** Each server render's state, made once: the same object on the server, in hydration and after. */
@@ -312,11 +314,29 @@ export function refreshWorkspace(): Promise<void> {
     .catch(() => undefined)
     .finally(() => {
       reading = null;
+      lastReadAt = Date.now();
       if (!readAgain) return;
       readAgain = false;
       void whenSaved().then(refreshWorkspace);
     });
   return reading;
+}
+
+/**
+ * Reads the workspace again on a timer's behalf (`startVisiblePoll`): joins a
+ * read already on its way rather than asking for another, and waits for this
+ * tab's saves first, since a read that raced one would be thrown away and
+ * asked for again.
+ */
+export async function pollWorkspace(): Promise<void> {
+  if (reading) return reading;
+  if (pending > 0) await whenSaved();
+  return reading ?? refreshWorkspace();
+}
+
+/** When this tab last finished reading the workspace (epoch ms; 0 before it connects). */
+export function workspaceReadAt(): number {
+  return lastReadAt;
 }
 
 /**
@@ -338,6 +358,7 @@ export function startState(start: WorkspaceStart): WorkspaceState {
 function adopt(target: Connection, start: WorkspaceStart): void {
   for (const link of start.links) target.links.set(link.id, link);
   changes += 1;
+  lastReadAt = Date.now();
   clientActivity = start.data.clientActivity;
   storage = start.data.storage;
   access = start.data.workspace;

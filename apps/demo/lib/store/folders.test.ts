@@ -116,12 +116,14 @@ describe("folder tree", () => {
       projects: 3,
       comments: 3,
       shared: 2,
+      reviewEnds: [null, null],
     });
     expect(folderContents(DATA, "d")).toEqual({
       subfolders: 0,
       projects: 1,
       comments: 1,
       shared: 0,
+      reviewEnds: [],
     });
   });
 });

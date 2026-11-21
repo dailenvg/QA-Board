@@ -98,6 +98,11 @@ export interface FolderContents {
   comments: number;
   /** Projects inside with a working share link. */
   shared: number;
+  /**
+   * When each of those links' review windows ends (`reviewEndsAt`, epoch ms; null for no
+   * limit), one per shared project.
+   */
+  reviewEnds: Array<number | null>;
 }
 
 export function folderContents(data: SquintData, folderId: string): FolderContents {
@@ -109,6 +114,7 @@ export function folderContents(data: SquintData, folderId: string): FolderConten
     projects: projects.length,
     comments: data.comments.filter((comment) => projectIds.has(comment.projectId)).length,
     shared: projects.filter((project) => project.share).length,
+    reviewEnds: projects.flatMap((project) => (project.share ? [project.share.reviewEndsAt] : [])),
   };
 }
 

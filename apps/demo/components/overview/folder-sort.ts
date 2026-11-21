@@ -1,4 +1,5 @@
 import type { Folder, SquintData } from "@/lib/store/types";
+import { NO_WAITING, type WaitingCounts } from "@/lib/store/waiting-comments";
 import { NO_FILTER, type ProjectFilter } from "../dashboard/status-filter";
 import {
   nameCollator,
@@ -52,20 +53,23 @@ export const FOLDER_SORT: SortOptions<FolderSortKey> = {
 
 /**
  * Each folder with what it's sorted by, in the folders' order, counting only the projects
- * `filter` shows, as their cards do.
+ * `filter` shows, as their cards do: clients' comments still waiting on a review link
+ * (`waiting`) are open comments too.
  */
 export function folderStats(
   data: SquintData,
   folders: readonly Folder[],
   filter: ProjectFilter = NO_FILTER,
+  waiting: WaitingCounts = NO_WAITING,
 ): FolderStats[] {
-  const open = new Set(
-    data.comments
+  const open = new Set([
+    ...data.comments
       .filter((comment) => comment.status === "active")
       .map((comment) => comment.projectId),
-  );
+    ...waiting.keys(),
+  ]);
   return folders.map((folder) => {
-    const projects = projectsMatching(data, folder.id, filter);
+    const projects = projectsMatching(data, folder.id, filter, waiting);
     return {
       folder,
       updatedAt: projects.length

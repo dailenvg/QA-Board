@@ -1,6 +1,7 @@
 import { projectsInside } from "@/lib/store/folders";
 import { summarize } from "@/lib/store/selectors";
 import type { Folder, Project, SquintData } from "@/lib/store/types";
+import { NO_WAITING, type WaitingCounts } from "@/lib/store/waiting-comments";
 import { displayHost } from "@/lib/url";
 import {
   isFiltered,
@@ -12,15 +13,17 @@ import type { FolderFile } from "./glass-folder/GlassFolder";
 
 /**
  * The projects in a folder and its subfolders that `filter` shows (by default every one that
- * isn't archived), as a folder card counts them.
+ * isn't archived), as a folder card counts them. A status reads clients' comments still
+ * waiting on a review link (`waiting`) as open, as the project's card does.
  */
 export function projectsMatching(
   data: SquintData,
   folderId: string,
   filter: ProjectFilter = NO_FILTER,
+  waiting: WaitingCounts = NO_WAITING,
 ): Project[] {
   return projectsInside(data, folderId).filter((project) =>
-    matchesFilter(project, summarize(data, project).status, filter),
+    matchesFilter(project, summarize(data, project, waiting).status, filter),
   );
 }
 
@@ -29,14 +32,15 @@ export function foldersMatching(
   data: SquintData,
   folders: readonly Folder[],
   filter: ProjectFilter,
+  waiting: WaitingCounts = NO_WAITING,
 ): Folder[] {
   if (!isFiltered(filter)) return [...folders];
-  return folders.filter((folder) => projectsMatching(data, folder.id, filter).length > 0);
+  return folders.filter((folder) => projectsMatching(data, folder.id, filter, waiting).length > 0);
 }
 
-function toFile(data: SquintData, project: Project): FolderFile {
+function toFile(data: SquintData, project: Project, waiting: WaitingCounts): FolderFile {
   const { source } = project;
-  const { status, previewKey } = summarize(data, project);
+  const { status, previewKey } = summarize(data, project, waiting);
   return {
     id: project.id,
     name: project.name,
@@ -58,10 +62,11 @@ export function folderFiles(
   data: SquintData,
   folderId: string,
   filter: ProjectFilter = NO_FILTER,
+  waiting: WaitingCounts = NO_WAITING,
 ): FolderFile[] {
-  return projectsMatching(data, folderId, filter)
+  return projectsMatching(data, folderId, filter, waiting)
     .sort((a, b) => b.createdAt - a.createdAt)
-    .map((project) => toFile(data, project));
+    .map((project) => toFile(data, project, waiting));
 }
 
 /**

@@ -5,6 +5,7 @@ import type { FolderContents } from "@/lib/store/folders";
 import type { Folder } from "@/lib/store/types";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { PromptDialog } from "../ui/PromptDialog";
+import { ShareLinkWarning } from "./ShareLinkWarning";
 
 interface FolderDialogsProps {
   create: DialogState<{ parentId: string | null }>;
@@ -30,7 +31,7 @@ function needsTypedName({ comments, shared }: FolderContents): boolean {
 }
 
 /** What goes with the folder, counted, and that it can't be undone. */
-function DeleteSummary({ subfolders, projects, comments, shared }: FolderContents) {
+function DeleteSummary({ subfolders, projects, comments, shared, reviewEnds }: FolderContents) {
   if (subfolders + projects === 0) return <p>This folder is empty.</p>;
   return (
     <div className="flex flex-col gap-2">
@@ -45,6 +46,7 @@ function DeleteSummary({ subfolders, projects, comments, shared }: FolderContent
           </li>
         ) : null}
       </ul>
+      <ShareLinkWarning reviewEnds={reviewEnds} place="folder" />
       <p className="font-semibold text-ink">This can&apos;t be undone.</p>
     </div>
   );
