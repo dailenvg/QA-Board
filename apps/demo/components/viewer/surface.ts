@@ -93,3 +93,20 @@ export function surfaceTargetOf(
   const viewedSnapshotId = comment.snapshotId === latestId ? null : comment.snapshotId;
   return { mode: "comment", viewedSnapshotId, pageId: null };
 }
+
+/**
+ * A comment's pin in its surface's px (a snapshot's page px, a page's natural
+ * px), as its crop's `rect` is. Null when the surface's size isn't known: a
+ * frame-anchored pin, a missing snapshot, a page migrated without its size.
+ */
+export function pinInSurface(
+  comment: Comment,
+  snapshots: ReadonlyMap<string, Snapshot>,
+  pages: readonly Page[],
+): { x: number; y: number } | null {
+  const surface = comment.snapshotId
+    ? snapshots.get(comment.snapshotId)
+    : pages.find((page) => page.id === comment.pageId);
+  if (!surface?.width || !surface.height) return null;
+  return { x: (comment.x / 100) * surface.width, y: (comment.y / 100) * surface.height };
+}

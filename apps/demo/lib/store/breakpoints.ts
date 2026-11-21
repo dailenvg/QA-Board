@@ -46,3 +46,21 @@ export function activeByBreakpoint(
   }
   return counts;
 }
+
+/** The comments listed at `breakpoint` (`breakpointOfComment`). */
+export function commentsAtBreakpoint(
+  comments: readonly Comment[],
+  snapshots: ReadonlyMap<string, Snapshot>,
+  breakpoint: Breakpoint,
+): Comment[] {
+  return comments.filter((comment) => breakpointOfComment(comment, snapshots) === breakpoint);
+}
+
+/** Whether comments (open or resolved) are listed at more than one breakpoint. */
+export function spansBreakpoints(
+  comments: readonly Comment[],
+  snapshots: ReadonlyMap<string, Snapshot>,
+): boolean {
+  const seen = new Set(comments.map((comment) => breakpointOfComment(comment, snapshots)));
+  return seen.size > 1;
+}

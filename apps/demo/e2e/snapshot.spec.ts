@@ -75,6 +75,12 @@ test("a website comment pins to a snapshot, scrolls with it and keeps a screensh
   await showComments(page);
   const crop = onlyCommentCard(page).getByTestId("comment-crop");
   await expect(crop.locator("img")).toBeVisible();
+  // The 3:2 thumbnail frames the part of the crop around the pin, so the crop overflows it.
+  const thumb = await crop.boundingBox();
+  const whole = await crop.getByTestId("comment-crop-frame").boundingBox();
+  if (!thumb || !whole) throw new Error("The thumbnail isn't on screen");
+  expect(thumb.width / thumb.height).toBeCloseTo(1.5, 1);
+  expect(whole.width).toBeGreaterThan(thumb.width);
   await crop.click();
   const dialog = page.getByTestId("crop-dialog");
   await expect(dialog.getByRole("img", { name: "The area around pin 1" })).toBeVisible();
@@ -147,6 +153,68 @@ test("each breakpoint keeps its own snapshot and comments, and a pin opens its c
   await openFolder(page);
   const card = page.getByTestId("project-card").filter({ hasText: "Breakpoint review" });
   await expect(card.locator('img[src^="blob:"]')).toBeVisible();
+});
+
+test("All breakpoints lists every breakpoint's comments, and a card switches to its breakpoint", async ({
+  page,
+  baseURL,
+}) => {
+  await mockCapture(page);
+  await sandboxProject(page, baseURL, "All breakpoints review");
+  await page.getByTestId("mode-comment").click();
+  await expect(snapshotImage(page)).toBeVisible();
+  await postComment(page, "Desktop hero.", { x: 120, y: 90 }, "Ana");
+  await page.getByTestId("breakpoint-mobile").click();
+  await expect(snapshotImage(page)).toBeVisible();
+  await postComment(page, "Mobile menu.", { x: 60, y: 60 });
+  const desktopPin = page.getByRole("button", { name: "Comment 1 by Ana", exact: true });
+  const mobilePin = page.getByRole("button", { name: "Comment 2 by Ana", exact: true });
+  await expect(mobilePin).toBeVisible();
+
+  // The list starts on the breakpoint shown; its cards don't name it.
+  await showComments(page);
+  const one = page.getByTestId("breakpoint-scope-one");
+  await expect(one).toHaveAttribute("aria-checked", "true");
+  await expect(one).toHaveText("Mobile");
+  const cards = page.getByTestId("comment-card");
+  await expect(cards).toHaveCount(1);
+  await expect(cards.getByTestId("comment-breakpoint")).toHaveCount(0);
+
+  await page.getByTestId("breakpoint-scope-all").click();
+  await expect(cards).toHaveCount(2);
+  const desktopCard = cards.filter({ hasText: "Desktop hero." });
+  const mobileCard = cards.filter({ hasText: "Mobile menu." });
+  await expect(desktopCard.getByTestId("comment-breakpoint")).toHaveText("Desktop");
+  await expect(mobileCard.getByTestId("comment-breakpoint")).toHaveText("Mobile");
+  await expect(page.getByTestId("tab-active")).toContainText("2");
+  // Only the stage's own breakpoint draws pins.
+  await expect(desktopPin).toHaveCount(0);
+
+  // Choosing Desktop's card brings Desktop's snapshot and its pin onto the stage.
+  await desktopCard.getByRole("button", { name: /Comment 1 by Ana/ }).click();
+  await expect(page.getByTestId("breakpoint-desktop")).toHaveAttribute("aria-checked", "true");
+  await expect(desktopPin).toBeVisible();
+  await expect(mobilePin).toHaveCount(0);
+  await expect(desktopCard.getByRole("button", { name: /Comment 1 by Ana/ })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  // Switching breakpoints leaves focus on the card that was chosen.
+  await expect(desktopCard.getByRole("button", { name: /Comment 1 by Ana/ })).toBeFocused();
+  // The list keeps showing every breakpoint, and the other option names the new one.
+  await expect(cards).toHaveCount(2);
+  await expect(one).toHaveText("Desktop");
+
+  // Nothing resolved anywhere: the empty state doesn't name a breakpoint.
+  await page.getByTestId("tab-resolved").click();
+  await expect(page.getByTestId("comments-empty")).toContainText("Nothing resolved yet");
+  await page.getByTestId("tab-active").click();
+
+  // The choice lasts for the visit only, like "All pages".
+  await page.reload();
+  await showComments(page);
+  await expect(page.getByTestId("breakpoint-scope-one")).toHaveAttribute("aria-checked", "true");
+  await expect(cards).toHaveCount(1);
 });
 
 test("refreshing the snapshot keeps earlier comments on their own snapshot", async ({

@@ -10,6 +10,8 @@ import {
   activeByBreakpoint,
   BREAKPOINT_WIDTH,
   breakpointOfComment,
+  commentsAtBreakpoint,
+  spansBreakpoints,
   type Breakpoint,
 } from "@/lib/store/breakpoints";
 import { newId } from "@/lib/store/id";
@@ -30,6 +32,7 @@ import { useToast } from "../ui/ToastProvider";
 import { useViewerBackend, type PendingCrop } from "@/lib/viewer-backend/backend";
 import { can } from "@/lib/auth/permissions";
 import { useWorkspaceAccess } from "@/lib/workspace-client/use-workspace-access";
+import { BreakpointFilter, type BreakpointScope } from "./BreakpointFilter";
 import { BREAKPOINT_LABEL, BreakpointSwitch } from "./BreakpointSwitch";
 import { CanvasLayer } from "./CanvasLayer";
 import { CommentsBody } from "./CommentsBody";
@@ -40,7 +43,7 @@ import { ExportMenu } from "./ExportMenu";
 import { PageFilter, type PageScope } from "./PageFilter";
 import { PageStrip } from "./PageStrip";
 import { PinPopover } from "./PinPopover";
-import { commentSurfaceKey, placementOf, surfaceKey } from "./surface";
+import { commentSurfaceKey, pinInSurface, placementOf, surfaceKey } from "./surface";
 import { useCommentActions } from "./use-comment-actions";
 import { useViewerDraft } from "./use-viewer-draft";
 import { useViewerPage } from "./use-viewer-page";
@@ -85,8 +88,9 @@ type ScrollRequest = { id: string; target: "pin" | "card"; nonce: number } | nul
  * Viewer layout and state: mode, breakpoint, surface, tab, selection, the open
  * pin popover, draft pin, and comment actions. Changes go through the viewer
  * backend (the owner's store or a shared link's server); on a shared link,
- * moderation controls are hidden. Website comments are listed and pinned per
- * breakpoint; pin numbers stay project-wide, so exports and shared links match.
+ * moderation controls are hidden. Website comments are pinned per breakpoint and
+ * listed per breakpoint, or all together ("All breakpoints"); pin numbers stay
+ * project-wide, so exports and shared links match.
  */
 export function ViewerView({
   data,
@@ -114,6 +118,7 @@ export function ViewerView({
   const canvasAreaRef = useRef<HTMLElement>(null);
   const pages = useViewerPage(project, draft?.pageId ?? null, () => canvasAreaRef.current);
   const [pageScope, setPageScope] = useState<PageScope>("all");
+  const [breakpointScope, setBreakpointScope] = useState<BreakpointScope>("breakpoint");
   const view = useViewerSurface(project, data, pages, {
     mode: draft ? "comment" : "browse",
     snapshotId: draft?.snapshotId ?? null,
@@ -152,18 +157,36 @@ export function ViewerView({
   const numbers = useMemo(() => pinNumbers(comments), [comments]);
   const severalPages = pages.total > 1;
   const pageId = pages.page?.id;
+  /** A website's comments at the current breakpoint: the only ones it can pin. */
+  const onBreakpoint = useMemo(
+    () => (website ? commentsAtBreakpoint(comments, snapshots, breakpoint) : comments),
+    [website, comments, snapshots, breakpoint],
+  );
+  // "All breakpoints" is offered once comments sit at two of them, so it stays put as the
+  // breakpoint changes (as "All pages" does on page projects).
+  const severalBreakpoints = useMemo(
+    () => website && spansBreakpoints(comments, snapshots),
+    [website, comments, snapshots],
+  );
+  const allBreakpoints = severalBreakpoints && breakpointScope === "all";
   /**
-   * The comments at the current breakpoint on websites; on page projects all of them, or
-   * those on the page shown ("This page").
+   * On websites the comments at the current breakpoint, or all of them ("All breakpoints");
+   * on page projects all of them, or those on the page shown ("This page").
    */
   const listed = useMemo(() => {
-    if (website) {
-      return comments.filter((comment) => breakpointOfComment(comment, snapshots) === breakpoint);
-    }
+    if (website) return allBreakpoints ? comments : onBreakpoint;
     return severalPages && pageScope === "page"
       ? comments.filter((comment) => comment.pageId === pageId)
       : comments;
-  }, [website, comments, snapshots, breakpoint, severalPages, pageScope, pageId]);
+  }, [website, allBreakpoints, comments, onBreakpoint, severalPages, pageScope, pageId]);
+  /** Each listed comment's breakpoint, while the list shows them all: cards name it. */
+  const listedBreakpoints = useMemo(
+    () =>
+      allBreakpoints
+        ? new Map(comments.map((comment) => [comment.id, breakpointOfComment(comment, snapshots)]))
+        : undefined,
+    [allBreakpoints, comments, snapshots],
+  );
   const perPage = useMemo(() => pageCounts(data, project), [data, project]);
   const pageNumbers = useMemo(
     () =>
@@ -172,7 +195,10 @@ export function ViewerView({
         : undefined,
     [severalPages, project],
   );
-  const onStage = listed.filter((comment) => commentSurfaceKey(comment) === stageKey);
+  // Not `listed`: with "All breakpoints", Desktop's frame-anchored pins would land on a narrower frame.
+  const onStage = (website ? onBreakpoint : listed).filter(
+    (comment) => commentSurfaceKey(comment) === stageKey,
+  );
   // Resolved pins only show on the Resolved tab.
   const pins =
     tab === "active" ? onStage.filter((comment) => comment.status === "active") : onStage;
@@ -188,6 +214,13 @@ export function ViewerView({
       ),
     [comments, website, source.kind, snapshots, breakpoint, latestOf],
   );
+  /** Pins in surface px, so each card's thumbnail can centre on its own. */
+  const cropPins = useMemo(() => {
+    const projectPages = pagesOf(project);
+    return new Map(
+      comments.map((comment) => [comment.id, pinInSurface(comment, snapshots, projectPages)]),
+    );
+  }, [comments, snapshots, project]);
   const counts = countComments(comments);
   const listedCounts = countComments(listed);
   const breakpointCounts = useMemo(
@@ -491,6 +524,9 @@ export function ViewerView({
   // below it rather than under it (WCAG 2.4.11).
   const scrollInset = surface.kind === "snapshot" ? "scroll-pt-28" : "";
 
+  /** How many comments the list holds, for the scope filters' live region. */
+  const listedSummary = listed.length === 1 ? "1 comment" : `${listed.length} comments`;
+
   const commentsBody = (
     <CommentsBody
       comments={listed}
@@ -500,7 +536,8 @@ export function ViewerView({
       selectedId={selectedId}
       now={now}
       listRef={listRef}
-      // With comments at another breakpoint (or page), an empty list names this one.
+      // With comments at another breakpoint (or page) left out, an empty list names this one.
+      // "All breakpoints" leaves none out, so it gets the unscoped copy.
       scope={
         comments.length > listed.length
           ? website
@@ -509,6 +546,8 @@ export function ViewerView({
           : undefined
       }
       pageNumbers={pageNumbers}
+      breakpoints={listedBreakpoints}
+      cropPins={cropPins}
       canModerate={owner}
       moderator={moderator}
       reviewOpen={!locked}
@@ -621,11 +660,23 @@ export function ViewerView({
             {severalPages ? (
               <PageFilter value={pageScope} onChange={setPageScope} number={pages.number} />
             ) : null}
-            {/* Like "n projects shown" on folder pages: what "This page" leaves in the list. */}
+            {severalBreakpoints ? (
+              <BreakpointFilter
+                value={breakpointScope}
+                onChange={setBreakpointScope}
+                breakpoint={breakpoint}
+              />
+            ) : null}
+            {/*
+             * Like "n projects shown" on folder pages: what "This page", or the one breakpoint,
+             * leaves in the list. The "All" options leave nothing out, so they stay quiet.
+             */}
             <p aria-live="polite" className="sr-only">
               {severalPages && pageScope === "page"
-                ? `${listed.length === 1 ? "1 comment" : `${listed.length} comments`} on page ${pages.number}`
-                : ""}
+                ? `${listedSummary} on page ${pages.number}`
+                : severalBreakpoints && breakpointScope === "breakpoint"
+                  ? `${listedSummary} on ${BREAKPOINT_LABEL[breakpoint]}`
+                  : ""}
             </p>
             {commentsBody}
           </div>

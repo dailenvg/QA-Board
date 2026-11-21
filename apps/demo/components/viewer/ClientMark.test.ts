@@ -28,6 +28,8 @@ function card(comment: Comment, owner: boolean): string {
       number: 1,
       placement: null,
       pageNumber: null,
+      breakpoint: null,
+      cropPin: null,
       canModerate: owner,
       canEdit: owner,
       canDelete: owner,

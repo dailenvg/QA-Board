@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Comment, Page, Snapshot } from "@/lib/store/types";
 import {
   commentSurfaceKey,
+  pinInSurface,
   placementOf,
   stageSurface,
   surfaceKey,
@@ -116,5 +117,24 @@ describe("comment placement", () => {
       pageId: "p2",
     });
     expect(surfaceTargetOf(comment("gone"), "url", snapshots, "new")).toBeNull();
+  });
+});
+
+describe("pinInSurface", () => {
+  const sized: Page = { ...page, width: 1200, height: 900 };
+  const at = (base: Comment): Comment => ({ ...base, x: 25, y: 50 });
+
+  it("turns the pin's percentages into the snapshot's or page's px", () => {
+    expect(pinInSurface(at(comment("new")), snapshots, [])).toEqual({ x: 320, y: 1500 });
+    expect(pinInSurface(at(comment(undefined, "p2")), snapshots, [sized])).toEqual({
+      x: 300,
+      y: 450,
+    });
+  });
+
+  it("is null without a known surface size", () => {
+    expect(pinInSurface(at(comment()), snapshots, [sized])).toBeNull();
+    expect(pinInSurface(at(comment("gone")), snapshots, [sized])).toBeNull();
+    expect(pinInSurface(at(comment(undefined, "p2")), snapshots, [page])).toBeNull();
   });
 });
