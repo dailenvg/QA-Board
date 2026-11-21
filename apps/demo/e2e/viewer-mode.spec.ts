@@ -92,8 +92,10 @@ test("the mode last picked for a project opens again after a reload", async ({ p
   await page.reload();
   await expect(modeOption(page, "comment")).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("img", { name: /^Snapshot of/ })).toBeVisible();
-  // Opened in the remembered mode, not put there by a refusal: nothing to announce.
+  // Opened in the remembered mode, not put there by a refusal: nothing to announce, and
+  // focus stays where the page puts it.
   await expect(openedOnSnapshot(page)).toHaveCount(0);
+  await expect(page.getByTestId("comment-overlay")).not.toBeFocused();
 
   await modeOption(page, "browse").click();
   await page.reload();

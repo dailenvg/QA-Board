@@ -315,16 +315,20 @@ export function ViewerView({
 
   // Entering Comment mode (toolbar or C) puts focus on the canvas, so the arrow keys and
   // Enter place a pin right away. A snapshot may still be loading, so this waits for it.
-  // A mode decided after the frame check leaves focus where it is: someone may be tabbing
-  // through the top bar by then.
-  const decidedLate = useRef(!view.modeDecided);
+  // The mode the viewer opens in leaves focus where the page puts it (a remembered Comment,
+  // a site that refuses framing), unless it reopened a draft; one picked meanwhile is
+  // `chooseMode`'s to focus.
+  const [openedOnDraft] = useState(Boolean(draft));
+  /** The mode this effect last acted on; null until the opening mode is known. */
+  const focusedFor = useRef<ViewerMode | null>(null);
   useEffect(() => {
-    if (decidedLate.current && view.modeDecided) {
-      decidedLate.current = false;
-      return;
-    }
+    if (!view.modeDecided) return;
+    const previous = focusedFor.current;
+    focusedFor.current = mode;
+    // Unchanged (an effect run twice in development) or the opening mode: nothing to do.
+    if (previous === mode || (previous === null && !openedOnDraft)) return;
     focusCanvasPending.current = mode === "comment";
-  }, [mode, view.modeDecided]);
+  }, [mode, view.modeDecided, openedOnDraft]);
   useEffect(() => {
     if (!focusCanvasPending.current || !overlayRef.current) return;
     focusCanvasPending.current = false;
