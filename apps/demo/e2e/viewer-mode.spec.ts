@@ -1,7 +1,13 @@
 import type { Page } from "@playwright/test";
 import type { FrameCheckResult } from "../lib/frame-check/types";
 import { expect, test } from "./test";
-import { createUrlProject, mockCapture, mockFrameCheck, openFolder } from "./squint-fixtures";
+import {
+  createImageProject,
+  createUrlProject,
+  mockCapture,
+  mockFrameCheck,
+  openFolder,
+} from "./squint-fixtures";
 
 const BLOCKED: FrameCheckResult = {
   verdict: "blocked",
@@ -79,4 +85,31 @@ test("the mode last picked for a project opens again after a reload", async ({ p
   await page.reload();
   await expect(modeOption(page, "browse")).toHaveAttribute("aria-checked", "true");
   await expect(page.getByTestId("preview-frame")).toBeVisible();
+});
+
+test("creating a website project starts its snapshot, and opening it joins that one", async ({
+  page,
+  baseURL,
+}) => {
+  await mockFrameCheck(page, {
+    verdict: "embeddable",
+    finalUrl: `${baseURL}/sandbox`,
+    status: 200,
+  });
+  const captures = await mockCapture(page, { delayMs: 2_000 });
+  await openFolder(page);
+  const started = page.waitForRequest("**/api/capture");
+  await createUrlProject(page, `${baseURL}/sandbox`, "Early snapshot");
+  expect(((await started).postDataJSON() as { width: number }).width).toBe(1440);
+
+  // Still on its way: Comment mode waits for it instead of asking for another.
+  await modeOption(page, "comment").click();
+  await expect(page.getByTestId("capture-progress")).toBeVisible();
+  await expect(page.getByRole("img", { name: /^Snapshot of/ })).toBeVisible();
+  expect(captures()).toBe(1);
+
+  // An image project has nothing to capture.
+  await openFolder(page);
+  await createImageProject(page, "no-capture.png");
+  expect(captures()).toBe(1);
 });

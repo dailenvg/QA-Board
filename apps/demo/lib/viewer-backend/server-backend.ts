@@ -1,8 +1,12 @@
 import { cropBlobKey, snapshotBlobKey } from "../blob-store/keys";
+import { captureKey, createInFlight, unlessAborted } from "../capture/in-flight";
 import { CAPTURE_MESSAGES } from "../capture/messages";
+import { clampWidth } from "../capture/types";
+import { CLIENT_CAPTURE_TIMEOUT_MS } from "../capture/use-capture";
 import { CROP_ATTEMPTS, cropBackoff, wait } from "../crop/crop-retry";
 import { requestCapture } from "../capture/request-capture";
 import { emitSquiggy } from "../squiggy/events";
+import { BREAKPOINT_WIDTH } from "../store/breakpoints";
 import {
   addComment,
   addSnapshot,
@@ -65,6 +69,34 @@ async function captureSnapshot(
   return saved.ok ? { ok: true, snapshot: saved.value } : { ok: false, message: saved.error };
 }
 
+/** New website projects' first snapshots while they're taken (`captureNewWebsite`). */
+const firstCaptures = createInFlight<CaptureOutcome | null>();
+
+/** What the viewer captures first: the Desktop breakpoint, which it opens on. */
+const FIRST_WIDTH = clampWidth(BREAKPOINT_WIDTH.desktop);
+
+/**
+ * Starts a new website project's first snapshot as soon as it's created, so
+ * it's often there by the time the project opens. Nothing waits on it: it
+ * lands in the workspace like any capture, and the viewer joins it while it
+ * runs rather than starting another. A failure says nothing; the viewer
+ * captures again on its own when it finds no snapshot.
+ */
+export function captureNewWebsite(projectId: string, url: string): void {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CLIENT_CAPTURE_TIMEOUT_MS);
+  // Only its timer aborts it, so an aborted capture took too long (as a viewer waiting on it says).
+  const capture = async (): Promise<CaptureOutcome> =>
+    (await captureSnapshot(projectId, url, FIRST_WIDTH, controller.signal)) ?? {
+      ok: false,
+      message: CAPTURE_MESSAGES.timeout,
+    };
+  void firstCaptures
+    .run(captureKey(projectId, url, FIRST_WIDTH), capture)
+    .catch(() => null)
+    .finally(() => clearTimeout(timer));
+}
+
 /**
  * The signed-in owner's viewer: every change goes to the workspace store,
  * which shows it at once and saves it to the server (`lib/workspace-client`).
@@ -82,5 +114,9 @@ export const serverBackend: ViewerBackend = {
   deleteComment,
   restoreComment,
   replaceWithImage,
-  captureSnapshot,
+  // Joins a new project's first snapshot if it's still being taken; leaving stops only the wait.
+  captureSnapshot(projectId, url, width, signal) {
+    const first = firstCaptures.join(captureKey(projectId, url, width));
+    return first ? unlessAborted(first, signal) : captureSnapshot(projectId, url, width, signal);
+  },
 };

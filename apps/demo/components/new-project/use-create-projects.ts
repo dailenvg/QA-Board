@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createPagesProject, createProject, type ImageUpload } from "@/lib/store/actions";
 import type { Result } from "@/lib/store/store";
 import type { Project } from "@/lib/store/types";
+import { captureNewWebsite } from "@/lib/viewer-backend/server-backend";
 import { baseName, displayHost } from "@/lib/url";
 import type { SourceDraft } from "./source-draft";
 
@@ -26,10 +27,22 @@ function createImages(images: ImageUpload[], folderId: string, name: string) {
 const single = (result: Result<Project>): Result<Project[]> =>
   result.ok ? { ok: true, value: [result.value] } : result;
 
+/** A website project, its first snapshot started at once (`captureNewWebsite`). */
+function createWebsite(
+  draft: Extract<SourceDraft, { kind: "url" }>,
+  folderId: string,
+  name: string,
+) {
+  const result = createProject({ folderId, name: name || displayHost(draft.url), source: draft });
+  if (result.ok) captureNewWebsite(result.value.id, draft.url);
+  return result;
+}
+
 /**
- * Creates the projects a draft describes: a website; one image project (a
- * single image, or several combined into pages); one project per image; or a
- * PDF's pages. An empty `name` falls back to the host or the first file's name.
+ * Creates the projects a draft describes: a website (its first snapshot starts
+ * at once); one image project (a single image, or several combined into
+ * pages); one project per image; or a PDF's pages. An empty `name` falls back
+ * to the host or the first file's name.
  */
 export function useCreateProjects() {
   const [progress, setProgress] = useState<CreateProgress | null>(null);
@@ -61,9 +74,7 @@ export function useCreateProjects() {
   ): Promise<Result<Project[]>> => {
     switch (draft.kind) {
       case "url":
-        return single(
-          createProject({ folderId, name: name || displayHost(draft.url), source: draft }),
-        );
+        return single(createWebsite(draft, folderId, name));
       case "pdf":
         return single(
           await createPagesProject({

@@ -1,15 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CAPTURE_MESSAGES } from "../capture/messages";
+import type { CaptureResult } from "../capture/request-capture";
+import { CLIENT_CAPTURE_TIMEOUT_MS } from "../capture/use-capture";
 import { CROP_ATTEMPTS } from "../crop/crop-retry";
 
 const mocks = vi.hoisted(() => ({
   addComment: vi.fn(),
+  addSnapshot: vi.fn(),
   attachCrop: vi.fn(),
+  requestCapture: vi.fn(),
   storeWorkspaceBlob: vi.fn(),
 }));
 
 vi.mock("../store/actions", () => ({
   addComment: mocks.addComment,
-  addSnapshot: vi.fn(),
+  addSnapshot: mocks.addSnapshot,
   attachCrop: mocks.attachCrop,
   deleteComment: vi.fn(),
   editComment: vi.fn(),
@@ -21,8 +26,9 @@ vi.mock("../store/actions", () => ({
 vi.mock("../workspace-client/blob-upload", () => ({
   storeWorkspaceBlob: mocks.storeWorkspaceBlob,
 }));
+vi.mock("../capture/request-capture", () => ({ requestCapture: mocks.requestCapture }));
 
-const { serverBackend } = await import("./server-backend");
+const { captureNewWebsite, serverBackend } = await import("./server-backend");
 
 const input = { id: "c-1", projectId: "p1", x: 1, y: 2, body: "Fix", author: "Ana" };
 const crop = {
@@ -56,5 +62,93 @@ describe("the owner's comment screenshot", () => {
     await vi.runAllTimersAsync();
     expect(mocks.storeWorkspaceBlob).toHaveBeenCalledTimes(CROP_ATTEMPTS);
     expect(mocks.attachCrop).not.toHaveBeenCalled();
+  });
+});
+
+describe("a new website project's first snapshot", () => {
+  const URL = "https://acme.example/";
+  const captured: CaptureResult = {
+    ok: true,
+    blob: new Blob(["jpeg"], { type: "image/jpeg" }),
+    width: 1440,
+    height: 2400,
+    scale: 1,
+  };
+
+  /** Holds the capture until the test lets it answer. */
+  function slowCapture() {
+    let answer!: (result: CaptureResult) => void;
+    mocks.requestCapture.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    return (result: CaptureResult = captured) => answer(result);
+  }
+
+  beforeEach(() => {
+    mocks.storeWorkspaceBlob.mockResolvedValue({ ok: true });
+    mocks.addSnapshot.mockImplementation((snapshot: object) => ({ ok: true, value: snapshot }));
+  });
+
+  it("is captured at Desktop's width, and the viewer joins it instead of starting another", async () => {
+    const answer = slowCapture();
+    captureNewWebsite("p-new", URL);
+    expect(mocks.requestCapture).toHaveBeenCalledWith(URL, 1440, expect.any(AbortSignal));
+    const joined = serverBackend.captureSnapshot("p-new", URL, 1440, new AbortController().signal);
+    answer();
+    expect(await joined).toMatchObject({ ok: true, snapshot: { projectId: "p-new", width: 1440 } });
+    expect(mocks.requestCapture).toHaveBeenCalledTimes(1);
+    expect(mocks.addSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it("isn't joined at another breakpoint", async () => {
+    slowCapture();
+    captureNewWebsite("p-wide", URL);
+    void serverBackend.captureSnapshot("p-wide", URL, 390, new AbortController().signal);
+    await vi.waitFor(() => expect(mocks.requestCapture).toHaveBeenCalledTimes(2));
+    expect(mocks.requestCapture).toHaveBeenLastCalledWith(URL, 390, expect.any(AbortSignal));
+  });
+
+  it("carries on when the viewer leaves, and lands in the workspace", async () => {
+    const answer = slowCapture();
+    captureNewWebsite("p-left", URL);
+    const leaving = new AbortController();
+    const joined = serverBackend.captureSnapshot("p-left", URL, 1440, leaving.signal);
+    leaving.abort();
+    expect(await joined).toBeNull();
+    answer();
+    await vi.waitFor(() => expect(mocks.addSnapshot).toHaveBeenCalledTimes(1));
+  });
+
+  it("fails as too slow when it never answers, for the viewer waiting on it", async () => {
+    mocks.requestCapture.mockImplementation(
+      (_url: string, _width: number, signal: AbortSignal) =>
+        new Promise((resolve) =>
+          signal.addEventListener("abort", () => resolve({ ok: false, failure: "offline" })),
+        ),
+    );
+    captureNewWebsite("p-silent", URL);
+    const joined = serverBackend.captureSnapshot(
+      "p-silent",
+      URL,
+      1440,
+      new AbortController().signal,
+    );
+    await vi.advanceTimersByTimeAsync(CLIENT_CAPTURE_TIMEOUT_MS);
+    expect(await joined).toEqual({ ok: false, message: CAPTURE_MESSAGES.timeout });
+  });
+
+  it("is forgotten once it fails, so opening the project captures again", async () => {
+    const answer = slowCapture();
+    captureNewWebsite("p-failed", URL);
+    answer({ ok: false, failure: "unreachable" });
+    await vi.waitFor(() => expect(mocks.requestCapture).toHaveBeenCalledTimes(1));
+    await vi.runAllTimersAsync();
+    mocks.requestCapture.mockResolvedValue(captured);
+    const retry = await serverBackend.captureSnapshot(
+      "p-failed",
+      URL,
+      1440,
+      new AbortController().signal,
+    );
+    expect(retry).toMatchObject({ ok: true });
+    expect(mocks.requestCapture).toHaveBeenCalledTimes(2);
   });
 });
