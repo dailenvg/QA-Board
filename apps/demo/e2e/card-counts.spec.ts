@@ -9,6 +9,7 @@ import {
 } from "./squint-fixtures";
 import { addWaitingClientComment, workspaceRows } from "./workspace-db";
 import { WORKSPACE_SEED } from "./workspace-seed";
+import { WORKSPACE_POLL_MS } from "../lib/workspace-client/visible-poll";
 
 test.beforeEach(async ({ page }) => {
   // The website cards ask for the site's favicon; keep the specs off the network.
@@ -72,4 +73,26 @@ test("a client's comment still on the review link counts on its card, folder and
   );
   await openOverview(page);
   await expect(page.getByTestId("tile-waiting")).toHaveAttribute("data-count", "1");
+});
+
+test("an open folder page shows a client's new comment within a minute, without a reload", async ({
+  page,
+}) => {
+  await page.clock.install();
+  const projectId = await seedWaiting(page);
+  await page.goto(`/f/${DEFAULT_FOLDER.id}`);
+  const count = projectCard(page, "Shared site").getByTestId("project-card-comments");
+  await expect(count).toHaveText("1 active,");
+
+  await addWaitingClientComment(projectId, {
+    id: "waiting-2",
+    body: "And the footer?",
+    author: "Cleo",
+    createdAt: Date.now(),
+  });
+  // Nothing reads before the minute is up.
+  await page.clock.fastForward(WORKSPACE_POLL_MS / 2);
+  await expect(count).toHaveText("1 active,");
+  await page.clock.fastForward(WORKSPACE_POLL_MS / 2);
+  await expect(count).toHaveText("2 active,");
 });

@@ -128,6 +128,38 @@ describe("the workspace store", () => {
     expect(data().projects.map((project) => project.id)).toEqual(["p9"]);
   });
 
+  it("a poll joins a read on its way, and waits for this tab's saves before reading", async () => {
+    const { db, owner, store, actions, data } = await connected();
+    const readAt = store.workspaceReadAt();
+    let reads = 0;
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    intercept = (request) => {
+      if (request.url.endsWith("/snapshot")) reads += 1;
+      return request.method === "PATCH" ? held.then(() => Response.json({})) : null;
+    };
+
+    await Promise.all([store.refreshWorkspace(), store.pollWorkspace()]);
+    expect(reads).toBe(1);
+    expect(store.workspaceReadAt()).toBeGreaterThanOrEqual(readAt);
+
+    actions.renameFolder("f1", "Mine");
+    await createProject(db, owner.workspaceId, URL_PROJECT("p9"), 1);
+    const polled = store.pollWorkspace();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(reads).toBe(1);
+    intercept = (request) => {
+      if (request.url.endsWith("/snapshot")) reads += 1;
+      return null;
+    };
+    release();
+    await polled;
+    expect(reads).toBe(2);
+    expect(data().projects.map((project) => project.id)).toEqual(["p9"]);
+  });
+
   it("files a restored project whose folder is gone into a new folder", async () => {
     const { db, owner, store, data } = await connected(async (db, id) => {
       await createProject(db, id, URL_PROJECT("p1"), 1);
