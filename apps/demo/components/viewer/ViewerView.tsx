@@ -42,6 +42,7 @@ import { CommentsPanel } from "./CommentsPanel";
 import { commentRights } from "./comment-rights";
 import { DeleteOthersCommentDialog } from "./DeleteOthersCommentDialog";
 import { ExportMenu } from "./ExportMenu";
+import { rememberedMode, rememberMode } from "./mode-memory";
 import { openingMode } from "./opening-mode";
 import { PageFilter, type PageScope } from "./PageFilter";
 import { PageStrip } from "./PageStrip";
@@ -76,6 +77,8 @@ interface ViewerViewProps {
   panelNote?: string;
   /** Keeps an unsent draft across reloads (shared links), and warns before leaving it. */
   draftStorage?: DraftStorage;
+  /** Where the mode last picked is remembered in this browser: the project, or a shared link. */
+  modeScope: string;
   /** Why new comments are off, such as a shared link's closed review window. Reading still works. */
   commentLocked?: string;
   /** When this project is deleted (epoch ms); a notice shows under the top bar for its last 5 days. */
@@ -107,6 +110,7 @@ export function ViewerView({
   panelNotice,
   panelNote,
   draftStorage,
+  modeScope,
   commentLocked,
   expiresAt,
   accentRule,
@@ -130,8 +134,15 @@ export function ViewerView({
   const website = source.kind === "url";
   const locked = Boolean(commentLocked);
   const frame = useFrameCheck(website ? source.url : null);
+  const [remembered] = useState(() => rememberedMode(modeScope));
   const view = useViewerSurface(project, data, pages, {
-    mode: openingMode({ website, draft: Boolean(draft), locked, frame: frame.state }),
+    mode: openingMode({
+      website,
+      draft: Boolean(draft),
+      locked,
+      remembered,
+      frame: frame.state,
+    }),
     snapshotId: draft?.snapshotId ?? null,
   });
   const [tab, setTab] = useState<CommentTab>("active");
@@ -253,12 +264,14 @@ export function ViewerView({
     view.setMode(next);
   };
   /**
-   * A mode picked by the person (toolbar, C, Escape, Browse buttons). Entering Comment focuses
-   * the canvas, even when picked before the opening mode was known.
+   * A mode picked by the person (toolbar, C, Escape, Browse buttons), remembered for next
+   * time; a mode the viewer opened in or was put in isn't. Entering Comment focuses the
+   * canvas, even when picked before the opening mode was known.
    */
   const chooseMode = (next: ViewerMode) => {
     if (next !== mode) focusCanvasPending.current = next === "comment";
     setMode(next);
+    rememberMode(modeScope, next);
   };
   const setBreakpoint = (next: Breakpoint) => {
     setOpenId(null);

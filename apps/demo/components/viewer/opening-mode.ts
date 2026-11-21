@@ -7,18 +7,28 @@ export interface OpeningFacts {
   draft: boolean;
   /** Commenting is off (a shared link's closed review window). */
   locked: boolean;
+  /** The mode last picked for this project in this browser (`rememberedMode`). */
+  remembered: ViewerMode | null;
   frame: FrameCheckState;
 }
 
 /**
  * The mode the viewer opens in, or null while it can't tell yet (a website's
  * frame check is still running), so it never shows Browse only to leave it.
- * A draft opens where it was written. A website that refuses framing opens on
- * its snapshot in Comment mode, since Browse can't show it; the rest open in Browse.
+ * A draft opens where it was written; otherwise the remembered mode, else
+ * Browse. A website that refuses framing opens on its snapshot in Comment mode
+ * whatever was remembered, since Browse can't show it.
  */
-export function openingMode({ website, draft, locked, frame }: OpeningFacts): ViewerMode | null {
+export function openingMode({
+  website,
+  draft,
+  locked,
+  remembered,
+  frame,
+}: OpeningFacts): ViewerMode | null {
   if (draft) return "comment";
-  if (locked || !website) return "browse";
+  if (locked) return "browse";
+  if (!website || remembered === "comment") return remembered ?? "browse";
   if (frame.status === "checking") return null;
-  return frame.result.verdict === "blocked" ? "comment" : "browse";
+  return frame.result.verdict === "blocked" ? "comment" : (remembered ?? "browse");
 }

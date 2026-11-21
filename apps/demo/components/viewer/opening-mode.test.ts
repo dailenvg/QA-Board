@@ -24,6 +24,7 @@ const site = (facts: Partial<OpeningFacts> = {}): OpeningFacts => ({
   website: true,
   draft: false,
   locked: false,
+  remembered: null,
   frame: EMBEDDABLE,
   ...facts,
 });
@@ -58,5 +59,27 @@ describe("the mode the viewer opens in", () => {
 
   it("opens image and PDF projects in Browse without a frame check", () => {
     expect(openingMode(site({ website: false, frame: CHECKING }))).toBe("browse");
+  });
+
+  it("opens in the mode last picked for the project", () => {
+    expect(openingMode(site({ remembered: "comment" }))).toBe("comment");
+    expect(openingMode(site({ remembered: "browse" }))).toBe("browse");
+    expect(openingMode(site({ website: false, remembered: "comment" }))).toBe("comment");
+  });
+
+  it("opens in a remembered Comment mode without waiting for the frame check", () => {
+    expect(openingMode(site({ remembered: "comment", frame: CHECKING }))).toBe("comment");
+  });
+
+  it("waits for the frame check before a remembered Browse", () => {
+    expect(openingMode(site({ remembered: "browse", frame: CHECKING }))).toBeNull();
+  });
+
+  it("opens a site that refuses framing in Comment mode, whatever was remembered", () => {
+    expect(openingMode(site({ remembered: "browse", frame: BLOCKED }))).toBe("comment");
+  });
+
+  it("opens in Browse while commenting is locked, whatever was remembered", () => {
+    expect(openingMode(site({ remembered: "comment", locked: true }))).toBe("browse");
   });
 });
