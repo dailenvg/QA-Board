@@ -42,7 +42,7 @@ describe("the composer's send status", () => {
   it("says each step of a send, and nothing between sends", () => {
     expect(status(composer(false))).toBe("");
     expect(status(composer("posting"))).toBe("Posting…");
-    expect(status(composer("screenshot"))).toBe("Preparing screenshot…");
+    expect(status(composer("screenshot"))).toBe("Adding screenshot…");
     expect(status(composer(false, "Your comment wasn't sent."))).toBe("");
   });
 

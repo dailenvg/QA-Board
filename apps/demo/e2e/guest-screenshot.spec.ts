@@ -178,7 +178,7 @@ test("a screenshot that won't render says so on Send, then the comment posts mar
   const composer = await writeComment(guest, "Render keeps failing", { x: 160, y: 120 });
   const posted = nextPost(guest);
   await composer.getByLabel("Comment", { exact: true }).press("Enter");
-  await expect(composer.getByRole("button", { name: "Preparing screenshot…" })).toBeVisible();
+  await expect(composer.getByRole("button", { name: "Adding screenshot…" })).toBeVisible();
   expect((await posted).status()).toBe(201);
   await expect(composer).toHaveCount(0);
   await expectToldWithoutScreenshot(guest);

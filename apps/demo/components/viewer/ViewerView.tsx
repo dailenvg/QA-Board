@@ -396,8 +396,8 @@ export function ViewerView({
     setSelectedId(result.value.id);
     returnFocusToCanvas();
     // Posted without its screenshot (every try failed): said here, since the card's mark may be
-    // out of sight (a phone's closed comments sheet) and the composer that was busy is gone. A
-    // review link's answer says so; the owner's, when one was wanted and none rendered.
+    // out of sight (a phone's closed comments sheet) and the composer that was busy is gone. On a
+    // review link, its answer says so; for the owner, it's when one was wanted and none rendered.
     const withoutScreenshot = owner
       ? takeCrop !== null && crop === null
       : result.value.screenshotPending === true;

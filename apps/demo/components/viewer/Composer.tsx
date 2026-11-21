@@ -33,15 +33,15 @@ interface ComposerProps {
 const NAME_MISSING = "Add your name so others know who commented.";
 
 /**
- * A send still busy after this long says it's still going: about where waiting stops holding
- * attention. A UI threshold only; the send's own retries and timeouts are `sendDraft`'s.
+ * A send still busy after this long says it's taking longer than usual: about when waiting
+ * stops holding attention. A UI threshold only; the send's own retries and timeouts are `sendDraft`'s.
  */
 const SLOW_SEND_MS = 10_000;
 const SLOW_SEND = "Taking longer than usual. Keep this page open until your comment is posted.";
 
 /** Send's label: what it's doing while busy (a screenshot that needed another try says so). */
 function sendLabel({ sending, error }: Draft): string {
-  if (sending === "screenshot") return "Preparing screenshot…";
+  if (sending === "screenshot") return "Adding screenshot…";
   if (sending) return "Posting…";
   return error ? "Retry" : "Post";
 }
@@ -102,8 +102,8 @@ export function Composer({
     return () => window.clearTimeout(timer);
   }, [sending]);
   /**
-   * What screen readers hear: the send starting, a screenshot retry, then once that it's slow,
-   * instead of every step after. Focus often stays in the comment field (Enter posts), where
+   * What screen readers hear: the send starting, a screenshot retry, and then that it's slow,
+   * said once instead of at every step after. Focus often stays in the comment field (Enter posts), where
    * Send's label changes aren't read.
    */
   const status = !sending ? "" : slow ? SLOW_SEND : sendLabel(draft);
@@ -269,8 +269,9 @@ export function Composer({
         ) : null}
         <div className="flex items-center justify-end gap-2">
           {/*
-           * Wraps rather than squeezing Send into a two-line pill: "Preparing screenshot…" next
-           * to Cancel is wider than the 304px popover, and than the docked composer below ~375px.
+           * Wraps rather than squeezing Send into a two-line pill if a busy label such as
+           * "Adding screenshot…" and Cancel don't fit on one row (the 304px popover, or the docked
+           * composer on a narrow phone).
            */}
           <div className="flex flex-wrap justify-end gap-2">
             {/*
