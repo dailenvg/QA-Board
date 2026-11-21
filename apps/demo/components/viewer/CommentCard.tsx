@@ -112,6 +112,8 @@ export function CommentCard({
   const placementId = useId();
   const pageId = useId();
   const breakpointId = useId();
+  const pendingId = useId();
+  const shotPending = !comment.crop && isScreenshotPending(comment);
   const described = [
     bodyId,
     comment.editedAt ? editedId : null,
@@ -119,6 +121,7 @@ export function CommentCard({
     pageNumber ? pageId : null,
     breakpoint ? breakpointId : null,
     placement ? placementId : null,
+    shotPending ? pendingId : null,
   ]
     .filter(Boolean)
     .join(" ");
@@ -300,8 +303,8 @@ export function CommentCard({
 
       {editing ? null : comment.crop ? (
         <CommentCropThumb crop={comment.crop} pin={cropPin} number={number} />
-      ) : isScreenshotPending(comment) ? (
-        <ScreenshotPending />
+      ) : shotPending ? (
+        <ScreenshotPending id={pendingId} />
       ) : null}
 
       {editing || !actions ? null : (

@@ -241,3 +241,32 @@ describe("the author's avatar (4b.15)", () => {
     expect(client).not.toContain("company-badge");
   });
 });
+
+describe("a comment posted without its screenshot", () => {
+  const PENDING = 'data-testid="screenshot-pending"';
+  /** The ids the card's select button reads as its description. */
+  const describedBy = (html: string) =>
+    (
+      /data-card-select[^>]*aria-describedby="([^"]*)"/.exec(html)?.[1] ??
+      /aria-describedby="([^"]*)"[^>]*data-card-select/.exec(html)?.[1] ??
+      ""
+    ).split(" ");
+
+  it("shows the mark where the screenshot would be, and the card reads it", () => {
+    for (const comment of [
+      { ...COMMENT, fromClient: true as const },
+      { ...COMMENT, screenshotPending: true as const },
+    ]) {
+      const html = card(comment);
+      expect(html).toContain("Screenshot pending");
+      const id = /id="([^"]+)"[^>]*data-testid="screenshot-pending"/.exec(html)?.[1];
+      expect(id).toBeTruthy();
+      expect(describedBy(html)).toContain(id);
+    }
+  });
+
+  // One with its screenshot shows the thumbnail instead (`isScreenshotPending`'s tests).
+  it("never shows it on the team's own comment", () => {
+    expect(card(COMMENT)).not.toContain(PENDING);
+  });
+});

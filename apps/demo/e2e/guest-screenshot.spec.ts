@@ -51,6 +51,21 @@ async function writeComment(guest: Page, body: string, position: { x: number; y:
   return composer;
 }
 
+/** The toast a comment posted without its screenshot brings. */
+function withoutScreenshotToast(page: Page): Locator {
+  return page.getByTestId("toast").filter({ hasText: "without its screenshot" });
+}
+
+/**
+ * The toast says it, then leaves on its own (after 4 s) before anything else is clicked: on
+ * phones it sits over the comments sheet's toggle, and a pointer on it keeps it up.
+ */
+async function expectToldWithoutScreenshot(page: Page) {
+  const toast = withoutScreenshotToast(page);
+  await expect(toast).toHaveText("Comment posted without its screenshot.");
+  await expect(toast).toHaveCount(0, { timeout: 8_000 });
+}
+
 /** The comment shows its screenshot, not the pending mark. */
 async function expectScreenshot(page: Page, text: string) {
   await showComments(page);
@@ -86,6 +101,7 @@ test("a guest's first comment after reopening the link keeps its screenshot", as
   expect(answer.status()).toBe(201);
   expect(((await answer.json()) as { crop?: unknown }).crop).toBeTruthy();
   await expect(composer).toHaveCount(0);
+  await expect(withoutScreenshotToast(guest)).toHaveCount(0);
   await expectScreenshot(guest, "Written before closing");
 
   // The first comment in a newly opened tab has its screenshot too.
@@ -96,6 +112,7 @@ test("a guest's first comment after reopening the link keeps its screenshot", as
   const fresh = await writeComment(tab, "First in a new tab", { x: 220, y: 180 });
   await fresh.getByLabel("Comment", { exact: true }).press("Enter");
   await expect(fresh).toHaveCount(0);
+  await expect(withoutScreenshotToast(tab)).toHaveCount(0);
   await expectScreenshot(tab, "First in a new tab");
 
   // The owner gets both with their screenshots.
@@ -128,6 +145,7 @@ test("a screenshot that won't upload is retried, then the comment posts marked p
   );
   await expect(composer).toHaveCount(0);
   expect(tries).toBe(4);
+  await expectToldWithoutScreenshot(guest);
   await expectPending(guest, "Upload keeps failing");
 
   // It stays pending after a reload: the link says so, not just this tab.
@@ -163,6 +181,7 @@ test("a screenshot that won't render says so on Send, then the comment posts mar
   await expect(composer.getByRole("button", { name: "Preparing screenshot…" })).toBeVisible();
   expect((await posted).status()).toBe(201);
   await expect(composer).toHaveCount(0);
+  await expectToldWithoutScreenshot(guest);
   await expectPending(guest, "Render keeps failing");
   await context.close();
 });
@@ -186,6 +205,53 @@ test("a send that can't reach the server ends with Retry, never stuck, and Retry
   await retry.click();
   expect((await posted).status()).toBe(201);
   await expect(composer).toHaveCount(0);
+  await expect(withoutScreenshotToast(guest)).toHaveCount(0);
   await expectScreenshot(guest, "Sent while offline");
+  await context.close();
+});
+
+test("a send that's taking long says so, keeps its fields read-only, and frees them once Retry shows", async ({
+  page,
+  browser,
+}) => {
+  // A real 10 s threshold, then the retries: longer than the default 30 s with the setup.
+  test.setTimeout(90_000);
+  const link = await shareImageProject(page, "slow.png");
+  const { context, guest } = await openAsGuest(browser, link);
+  // The first try stalls past the slow-send line, then fails; the rest fail at once.
+  let tries = 0;
+  await guest.route(COMMENTS, async (route) => {
+    tries += 1;
+    if (tries === 1) await new Promise((resolve) => setTimeout(resolve, 11_000));
+    await route.fulfill({ status: 503, json: { error: "unavailable" } });
+  });
+
+  const composer = await writeComment(guest, "On a slow network", { x: 160, y: 120 });
+  const name = composer.getByLabel("Your name");
+  const words = composer.getByLabel("Comment", { exact: true });
+  await words.press("Enter");
+  await expect(composer.getByTestId("composer-status")).toHaveText("Posting…");
+  await expect(name).not.toBeEditable();
+  await expect(words).not.toBeEditable();
+  await expect(composer.getByTestId("composer-slow")).toHaveCount(0);
+
+  const slow = "Taking longer than usual. Keep this page open until your comment is posted.";
+  await expect(composer.getByTestId("composer-slow")).toHaveText(slow, { timeout: 12_000 });
+  await expect(composer.getByTestId("composer-status")).toHaveText(slow);
+
+  // Every try failed: Retry, the line and status gone, the fields editable again.
+  const retry = composer.getByRole("button", { name: "Retry" });
+  await expect(retry).toBeVisible({ timeout: 10_000 });
+  await expect(composer.getByTestId("composer-slow")).toHaveCount(0);
+  await expect(composer.getByTestId("composer-status")).toHaveText("");
+  await expect(name).toBeEditable();
+  await expect(words).toBeEditable();
+  await words.fill("On a slow network, edited");
+
+  await guest.unroute(COMMENTS);
+  await retry.click();
+  await expect(composer).toHaveCount(0);
+  await expect(withoutScreenshotToast(guest)).toHaveCount(0);
+  await expectScreenshot(guest, "On a slow network, edited");
   await context.close();
 });

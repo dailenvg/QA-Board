@@ -57,6 +57,9 @@ import type { CommentTab, Draft, PinPoint, ScreenshotHandler, ViewerMode } from 
 /** One celebration: the mascot's hop plus its rest beat. */
 const CELEBRATION_MS = RESOLVED_HOP * 2 * 1000;
 
+/** A comment that posted without its screenshot, once every try to add it failed. */
+const POSTED_WITHOUT_SCREENSHOT = "Comment posted without its screenshot.";
+
 interface ViewerViewProps {
   data: SquintData;
   project: Project;
@@ -362,9 +365,10 @@ export function ViewerView({
         current?.commentId === commentId ? { ...current, ...change } : current,
       );
     setDraft({ ...draft, body, sending: "posting", error: null });
+    const takeCrop = surface.kind === "frame" ? null : () => cropFor({ x, y });
     const { result, crop } = await sendDraft({
       crop: draft.crop,
-      takeCrop: surface.kind === "frame" ? null : () => cropFor({ x, y }),
+      takeCrop,
       onCropRetry: () => update({ sending: "screenshot" }),
       post: (ready) => {
         update({ sending: "posting" });
@@ -391,6 +395,13 @@ export function ViewerView({
     setTab("active");
     setSelectedId(result.value.id);
     returnFocusToCanvas();
+    // Posted without its screenshot (every try failed): said here, since the card's mark may be
+    // out of sight (a phone's closed comments sheet) and the composer that was busy is gone. A
+    // review link's answer says so; the owner's, when one was wanted and none rendered.
+    const withoutScreenshot = owner
+      ? takeCrop !== null && crop === null
+      : result.value.screenshotPending === true;
+    if (withoutScreenshot) toast({ message: POSTED_WITHOUT_SCREENSHOT });
   };
 
   const forget = (id: string) => setSelectedId((current) => (current === id ? null : current));
