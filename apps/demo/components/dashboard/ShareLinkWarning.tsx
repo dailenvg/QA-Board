@@ -14,7 +14,8 @@ interface ShareLinkWarningProps {
  * In a delete dialog: that clients on the share links lose access, and when the
  * last one's review window ends. Nothing without a link. In the danger tint the
  * share dialog warns in; not an alert, since it's there as the dialog opens and
- * is read with the rest of its description.
+ * is read with the rest of its description. Body size, as the description around
+ * it: it's what the delete decides on, not a footnote, and 16px on phones.
  */
 export function ShareLinkWarning({ reviewEnds, place }: ShareLinkWarningProps) {
   const now = useNow();
@@ -23,7 +24,7 @@ export function ShareLinkWarning({ reviewEnds, place }: ShareLinkWarningProps) {
   return (
     <p
       data-testid="share-link-warning"
-      className="flex items-start gap-2 rounded-tile bg-danger-soft p-3 text-meta text-danger"
+      className="flex items-start gap-2 rounded-tile bg-danger-soft p-3 text-body text-danger"
     >
       <Icon name="alert" className="mt-0.5 size-4 shrink-0" />
       <span>{warning}</span>

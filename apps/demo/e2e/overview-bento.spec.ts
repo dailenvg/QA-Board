@@ -184,10 +184,15 @@ test("the bento counts comments, client news, recent projects and what's deletin
   await expect(page.getByTestId("status-resolved")).toHaveText("1");
 
   // Oldest first, each opening its project; the client's is marked. The one still on the
-  // review link has no words here yet: it's counted, not listed.
+  // review link has no words here yet: it's counted, and a line says why it isn't listed.
+  // "+N more" stands only for rows there was no room for: here every row fits.
   const waiting = tile(page, "waiting");
   await expect(waiting).toHaveAttribute("data-count", "4");
+  await expect(waiting.getByTestId("waiting-on-links")).toHaveText(
+    "1 client comment is still on its review link, so it isn't listed yet.",
+  );
   await expect(waiting.getByTestId("waiting-row")).toHaveCount(3);
+  await expect(waiting.getByTestId("tile-more")).toHaveCount(0);
   await expect(waiting.getByTestId("waiting-row").first()).toContainText("Pitch deck");
   await expect(waiting.getByTestId("waiting-row").first()).toContainText("Swap the cover photo");
   await expect(waiting.getByTestId("waiting-row").last()).toContainText("Client");
@@ -221,6 +226,32 @@ test("the bento counts comments, client news, recent projects and what's deletin
   // The client row opens its project.
   await clients.getByTestId("client-row").first().click();
   await expect(page).toHaveURL(new RegExp(`/p/${sharedId}$`));
+});
+
+test("with every open comment still on a review link, Comments waiting says so instead of a list", async ({
+  page,
+}) => {
+  await seedWorkspace(page, WORKSPACE_SEED, "/sandbox");
+  const { projectId } = await shareWorkspaceProject(page, "Shared site");
+  for (const id of ["link-1", "link-2"]) {
+    await addWaitingClientComment(projectId, {
+      id,
+      body: `Comment ${id}`,
+      author: "Cleo",
+      createdAt: Date.now(),
+    });
+  }
+  await openOverview(page);
+
+  const waiting = tile(page, "waiting");
+  await expect(waiting).toHaveAttribute("data-count", "2");
+  await expect(waiting.getByTestId("waiting-on-links")).toHaveText(
+    "2 client comments are still on review links, so they aren't listed yet.",
+  );
+  await expect(waiting.getByRole("list")).toHaveCount(0);
+  await expect(waiting.getByTestId("waiting-row")).toHaveCount(0);
+  await expect(waiting.getByTestId("tile-more")).toHaveCount(0);
+  await expect(waiting.getByTestId("tile-empty")).toHaveCount(0);
 });
 
 test("what came in before the last visit isn't new any more", async ({ page }) => {
