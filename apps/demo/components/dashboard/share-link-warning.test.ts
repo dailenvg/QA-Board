@@ -31,36 +31,36 @@ describe("share link warning", () => {
 
   it("names when a project's link is open until", () => {
     expect(shareLinkWarning([LATER], NOW, "project")).toBe(
-      `Clients with its share link will lose access. The link is open until ${until(LATER)}.`,
+      `Clients will lose access. The link is open until ${until(LATER)}.`,
     );
   });
 
   it("says plainly when a link has no end date, without inventing one", () => {
     expect(shareLinkWarning([null], NOW, "project")).toBe(
-      "Clients with its share link will lose access. The link has no end date.",
+      "Clients will lose access. The link has no end date.",
     );
   });
 
   it("still warns for a link whose review window has closed, saying when it did", () => {
     expect(shareLinkWarning([PAST], NOW, "project")).toBe(
-      `Clients with its share link will lose access. Its review window closed ${until(PAST)}.`,
+      `Clients will lose access. The review window closed ${until(PAST)}.`,
     );
     // Before the browser has a clock, nothing reads as closed.
     expect(shareLinkWarning([PAST], 0, "project")).toContain(`open until ${until(PAST)}`);
   });
 
-  it("counts a folder's links and names the one that ends last", () => {
+  it("names a folder's shared projects and when the last of their links ends", () => {
     expect(shareLinkWarning([SOON], NOW, "folder")).toBe(
-      `Clients with the share link inside will lose access. The link is open until ${until(SOON)}.`,
+      `Clients will lose access to the shared project. The link is open until ${until(SOON)}.`,
     );
     expect(shareLinkWarning([SOON, LATER, PAST], NOW, "folder")).toBe(
-      `Clients with the 3 share links inside will lose access. The last one is open until ${until(LATER)}.`,
+      `Clients will lose access to the shared projects. The last review window closes ${until(LATER)}.`,
     );
     expect(shareLinkWarning([SOON, null], NOW, "folder")).toBe(
-      "Clients with the 2 share links inside will lose access. At least one has no end date.",
+      "Clients will lose access to the shared projects. At least one link has no end date.",
     );
     expect(shareLinkWarning([PAST, PAST - HOUR], NOW, "folder")).toBe(
-      `Clients with the 2 share links inside will lose access. The last review window closed ${until(PAST)}.`,
+      `Clients will lose access to the shared projects. The last review window closed ${until(PAST)}.`,
     );
   });
 

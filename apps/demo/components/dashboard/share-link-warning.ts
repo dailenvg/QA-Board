@@ -34,29 +34,29 @@ export function wrappableOpenUntil(end: number): string {
 }
 
 function lead(count: number, place: DeletedPlace): string {
-  if (place === "project") return "Clients with its share link will lose access.";
+  if (place === "project") return "Clients will lose access.";
   return count === 1
-    ? "Clients with the share link inside will lose access."
-    : `Clients with the ${count} share links inside will lose access.`;
+    ? "Clients will lose access to the shared project."
+    : "Clients will lose access to the shared projects.";
 }
 
 function when(end: number | null, count: number, now: number): string {
   const one = count === 1;
-  if (end === null) return one ? "The link has no end date." : "At least one has no end date.";
+  if (end === null) return one ? "The link has no end date." : "At least one link has no end date.";
   if (now && reviewClosed(end, now)) {
     return one
-      ? `Its review window closed ${wrappableOpenUntil(end)}.`
+      ? `The review window closed ${wrappableOpenUntil(end)}.`
       : `The last review window closed ${wrappableOpenUntil(end)}.`;
   }
   return one
     ? `The link is open until ${wrappableOpenUntil(end)}.`
-    : `The last one is open until ${wrappableOpenUntil(end)}.`;
+    : `The last review window closes ${wrappableOpenUntil(end)}.`;
 }
 
 /**
  * The warning for deleting a project or folder whose links end at `ends` (one
  * `reviewEndsAt` per link; null for no limit), or null without a link. With
- * several, it names how many and the one that ends last. `now` is 0 before
+ * several, it names when the last one ends. `now` is 0 before
  * the browser has a clock: no window reads as closed then.
  */
 export function shareLinkWarning(

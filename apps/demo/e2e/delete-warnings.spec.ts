@@ -58,10 +58,10 @@ test("deleting a shared project warns that its clients lose access, naming when 
     "The project and all its comments will be deleted, and its share link will stop working. You'll have a few seconds to undo it.",
   );
   await expect(shared.getByTestId("share-link-warning")).toHaveText(
-    `Clients with its share link will lose access. The link is open until ${until}.`,
+    `Clients will lose access. The link is open until ${until}.`,
   );
   // Read with the dialog's description.
-  await expect(shared).toHaveAccessibleDescription(/Clients with its share link will lose access/);
+  await expect(shared).toHaveAccessibleDescription(/Clients will lose access/);
   await shared.getByRole("button", { name: "Cancel" }).click();
   await expect(shared).toHaveCount(0);
 
@@ -85,7 +85,7 @@ test("deleting a folder holding a shared project warns too; one without doesn't"
     "1 share link stops working",
   );
   await expect(shared.getByTestId("share-link-warning")).toHaveText(
-    `Clients with the share link inside will lose access. The link is open until ${until}.`,
+    `Clients will lose access to the shared project. The link is open until ${until}.`,
   );
   await shared.getByRole("button", { name: "Cancel" }).click();
   await expect(shared).toHaveCount(0);
