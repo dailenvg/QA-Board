@@ -117,6 +117,21 @@ describe("squiggySummary", () => {
     expect(squiggySummary(data([], [])).storage).toBeNull();
   });
 
+  it("counts clients' comments still waiting on a review link as active, archived ones left out", () => {
+    const result = squiggySummary(
+      data(
+        [project("p1", "a"), project("p2", "b"), { ...project("p3", "b"), archivedAt: 1 }],
+        [comment("1", "p2", "active")],
+      ),
+      null,
+      new Map([
+        ["p1", 2],
+        ["p3", 4],
+      ]),
+    );
+    expect(result).toMatchObject({ active: 3, busiestFolder: { id: "a", active: 2 } });
+  });
+
   it("has no busiest folder when nothing is active", () => {
     const result = squiggySummary(data([project("p1", "a")], [comment("1", "p1", "resolved")]));
     expect(result.busiestFolder).toBeNull();

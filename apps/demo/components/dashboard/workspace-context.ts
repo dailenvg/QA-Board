@@ -1,5 +1,6 @@
 import { createContext, useContext } from "react";
 import type { Folder, SquintData } from "@/lib/store/types";
+import type { WaitingCounts } from "@/lib/store/waiting-comments";
 import type { MenuItem } from "../ui/Menu";
 
 export interface Workspace {
@@ -10,6 +11,11 @@ export interface Workspace {
   data: SquintData;
   /** Everything, archived projects included: for the Archived filter and what a delete takes. */
   allData: SquintData;
+  /**
+   * Clients' open comments still waiting on each project's review link, by project id: every
+   * open-comment count adds them (`summarize`), so they show before the project is opened.
+   */
+  waiting: WaitingCounts;
   /** Oldest first, as in the sidebar. Empty until the person creates their first folder. */
   folders: readonly Folder[];
   /**

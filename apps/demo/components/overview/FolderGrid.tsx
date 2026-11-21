@@ -41,14 +41,14 @@ export function FolderGrid({
   filter = NO_FILTER,
 }: FolderGridProps) {
   // Archived projects included: the filter decides whether they show.
-  const data = workspace.allData;
+  const { allData: data, waiting } = workspace;
   const tone = useTheme();
   const swatches = useMemo(() => folderSwatches(workspace.folders), [workspace.folders]);
   const cards = useMemo(
     () =>
       new Map(
         folders.map((folder) => {
-          const files = folderFiles(data, folder.id, filter);
+          const files = folderFiles(data, folder.id, filter, waiting);
           const meta = projectCountLabel(
             files.length,
             subtreeIds(data.folders, folder.id).size > 1,
@@ -56,7 +56,7 @@ export function FolderGrid({
           return [folder.id, { files, meta }];
         }),
       ),
-    [data, folders, filter],
+    [data, folders, filter, waiting],
   );
 
   return (

@@ -51,13 +51,16 @@ export function FolderView({ folderId }: { folderId: string }) {
  * chosen order, and the project dialogs.
  */
 function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Folder }) {
-  const { allData, folders, report } = workspace;
+  const { allData, waiting, folders, report } = workspace;
   const toast = useToast();
   const now = useNow();
   const { sort, setKey, reverse } = useProjectSort();
 
   // Archived projects included: the Archived filter shows them.
-  const summaries = useMemo(() => folderSummaries(allData, folder.id), [allData, folder.id]);
+  const summaries = useMemo(
+    () => folderSummaries(allData, folder.id, waiting),
+    [allData, folder.id, waiting],
+  );
   const labels = useMemo(() => labelsOf(summaries.map((entry) => entry.project)), [summaries]);
   const allLabels = useMemo(() => workspaceLabels(allData), [allData]);
   const { filter, setStatus, setLabel, reset } = useProjectFilter(labels);

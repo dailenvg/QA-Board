@@ -46,13 +46,13 @@ interface OverviewBentoProps {
  * rest of the screen and no more (`BENTO_GRID`): lists show the rows that fit.
  */
 export function OverviewBento({ workspace, workspaceId }: OverviewBentoProps) {
-  const { data, allData, folders } = workspace;
+  const { data, allData, waiting, folders } = workspace;
   const activity = useClientActivity();
   const visit = useVisit(workspaceId);
   const since = visit?.since ?? null;
   const now = useNow();
 
-  const totals = useMemo(() => commentTotals(data), [data]);
+  const totals = useMemo(() => commentTotals(data, waiting), [data, waiting]);
   const oldest = useMemo(() => oldestOpen(data), [data]);
   const recent = useMemo(() => recentProjects(data, since), [data, since]);
   const news = useMemo(

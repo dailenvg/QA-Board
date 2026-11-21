@@ -1,12 +1,14 @@
 import type { Comment, Project, SquintData } from "../store/types";
+import { NO_WAITING, waitingComments, type WaitingCounts } from "../store/waiting-comments";
 import type { ClientCommentActivity } from "../workspace/types";
 
 /**
  * What the Overview's tiles show, worked out from the workspace. Pure: no
- * React, no clock (callers pass the last visit's time). Comment counts are
- * the workspace's own comments, as on every card, folder page and Squiggy's
- * line, so the numbers agree across the app; clients' comments still waiting
- * on a review link only count where the Overview talks about clients.
+ * React, no clock (callers pass the last visit's time). Open-comment counts
+ * add clients' comments still waiting on a review link (`waitingCounts`), as
+ * every card, folder page and Squiggy's line do, so the numbers agree across
+ * the app. Lists of comments show only those pulled into the workspace: a
+ * waiting comment has no words here yet.
  */
 
 /**
@@ -56,13 +58,18 @@ export function resolvedPercent({ open, resolved }: CommentTotals): number {
   return percentOf(resolved, open + resolved);
 }
 
-export function commentTotals(data: SquintData): CommentTotals {
+/** Open and resolved comments, open counting those still waiting on `data`'s projects' links. */
+export function commentTotals(
+  data: SquintData,
+  waiting: WaitingCounts = NO_WAITING,
+): CommentTotals {
   let open = 0;
   let resolved = 0;
   for (const comment of placedComments(data)) {
     if (comment.status === "active") open += 1;
     else resolved += 1;
   }
+  for (const project of data.projects) open += waiting.get(project.id) ?? 0;
   return { open, resolved };
 }
 
@@ -152,9 +159,9 @@ export interface ClientNews {
 
 /**
  * Client comments posted since `since`: those pulled into the workspace
- * (`fromClient`) and those still waiting on a review link (`activity`). A
- * project pulled since the server's read (its cursor moved past the read's)
- * has its waiting comments in `data` now, so they aren't counted again.
+ * (`fromClient`) and those still waiting on a review link (`activity`, as
+ * `waitingComments` reads it, so a comment pulled since the server's read
+ * isn't counted again).
  */
 export function newFromClients(
   data: SquintData,
@@ -179,11 +186,10 @@ export function newFromClients(
       add(project, 1, comment.createdAt);
     }
   }
-  for (const entry of activity) {
-    const project = projects.get(entry.projectId);
-    if (!project || (project.share?.cursor ?? 0) > entry.cursor) continue;
-    const fresh = entry.waiting.filter((at) => at > since);
-    if (fresh.length === 0) continue;
+  for (const [projectId, times] of waitingComments(data, activity)) {
+    const project = projects.get(projectId);
+    const fresh = times.filter((at) => at > since);
+    if (!project || fresh.length === 0) continue;
     waiting += fresh.length;
     add(project, fresh.length, Math.max(...fresh));
   }

@@ -38,7 +38,7 @@ function filterName(filter: ProjectFilter): string {
  * only.
  */
 export function OverviewFolders({ workspace }: { workspace: Workspace }) {
-  const { allData: data, folders } = workspace;
+  const { allData: data, waiting, folders } = workspace;
   const { sort, setKey, reverse } = useFolderSort();
   const labels = useMemo(() => workspaceLabels(data), [data]);
   const { filter, setStatus, setLabel, reset } = useProjectFilter(labels);
@@ -56,11 +56,11 @@ export function OverviewFolders({ workspace }: { workspace: Workspace }) {
   const sorted = useMemo(
     () =>
       sortFolders(
-        folderStats(data, foldersMatching(data, topLevel, filter), filter),
+        folderStats(data, foldersMatching(data, topLevel, filter, waiting), filter, waiting),
         sort.key,
         sort.direction,
       ),
-    [data, topLevel, filter, sort],
+    [data, waiting, topLevel, filter, sort],
   );
 
   return (

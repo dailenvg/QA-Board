@@ -72,6 +72,12 @@ describe("folderStats", () => {
     expect(byId.get("b")?.openComments).toBe(true);
   });
 
+  it("flags clients' comments still waiting on a review link as open comments", () => {
+    const waiting = new Map([["p1", 1]]);
+    const flagged = folderStats(workspace, top, undefined, waiting);
+    expect(flagged.find((entry) => entry.folder.id === "a")?.openComments).toBe(true);
+  });
+
   it("keeps the folders' order", () => {
     expect(folderStats(workspace, top).map((entry) => entry.folder.id)).toEqual([
       "a",

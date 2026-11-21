@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Mood } from "@/components/brand/mascot/moods";
 import { useSquint } from "../store/use-squint";
+import { waitingCounts } from "../store/waiting-comments";
 import { useTimedFlag } from "../use-timed-flag";
+import { useClientActivity } from "../workspace-client/use-client-activity";
 import { useWorkspaceStorage } from "../workspace-client/use-workspace-storage";
 import { useActivity } from "./activity";
 import { useSquiggyAttention } from "./attention";
@@ -71,9 +73,13 @@ function useSettled(value: boolean, onDelay: number, offDelay: number): boolean 
 export function useSquiggyMood(): SquiggyMood {
   const state = useSquint();
   const storage = useWorkspaceStorage();
+  const activity = useClientActivity();
   const summary = useMemo(
-    () => (state.status === "ready" ? squiggySummary(state.data, storage) : null),
-    [state, storage],
+    () =>
+      state.status === "ready"
+        ? squiggySummary(state.data, storage, waitingCounts(state.data, activity))
+        : null,
+    [state, storage, activity],
   );
   const { engaged, asleep } = useActivity();
   const listening = useSettled(useSquiggyAttention(), ATTENTION_SETTLE_MS, ATTENTION_RELEASE_MS);

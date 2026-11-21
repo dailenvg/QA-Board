@@ -90,6 +90,14 @@ describe("overview activity", () => {
     expect(commentTotals(data({}))).toEqual({ open: 0, resolved: 0 });
   });
 
+  it("counts comments still waiting on a review link as open, for projects it has", () => {
+    const waiting = new Map([
+      ["b", 2],
+      ["gone", 5],
+    ]);
+    expect(commentTotals(WORKSPACE, waiting)).toEqual({ open: 5, resolved: 1 });
+  });
+
   it("rounds percentages without reading 100% or 0% before it's all or none", () => {
     expect(resolvedPercent({ open: 1, resolved: 199 })).toBe(99);
     expect(resolvedPercent({ open: 199, resolved: 1 })).toBe(1);
