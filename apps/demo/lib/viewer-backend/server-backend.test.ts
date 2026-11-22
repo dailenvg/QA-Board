@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CAPTURE_MESSAGES } from "../capture/messages";
+import { captureFailed } from "../capture/messages";
 import type { CaptureResult } from "../capture/request-capture";
 import { CLIENT_CAPTURE_TIMEOUT_MS } from "../capture/use-capture";
 import { CROP_ATTEMPTS } from "../crop/crop-retry";
@@ -137,7 +137,7 @@ describe("a new website project's first snapshot", () => {
       new AbortController().signal,
     );
     await vi.advanceTimersByTimeAsync(CLIENT_CAPTURE_TIMEOUT_MS);
-    expect(await joined).toEqual({ ok: false, message: CAPTURE_MESSAGES.timeout });
+    expect(await joined).toEqual(captureFailed("timeout"));
   });
 
   it("isn't uploaded once the project is deleted, and says nothing", async () => {
@@ -168,6 +168,23 @@ describe("a new website project's first snapshot", () => {
     expect(mocks.emitSquiggy).toHaveBeenCalledWith({ type: "save-failed" });
   });
 
+  it("lands on a login page: saves nothing, says nothing, and the viewer hears why", async () => {
+    const answer = slowCapture();
+    captureNewWebsite("p-login", URL);
+    const joined = serverBackend.captureSnapshot(
+      "p-login",
+      URL,
+      1440,
+      new AbortController().signal,
+    );
+    answer({ ok: false, failure: "login-page" });
+    expect(await joined).toEqual(captureFailed("login-page"));
+    await vi.runAllTimersAsync();
+    expect(mocks.storeWorkspaceBlob).not.toHaveBeenCalled();
+    expect(mocks.addSnapshot).not.toHaveBeenCalled();
+    expect(mocks.emitSquiggy).not.toHaveBeenCalled();
+  });
+
   it("is forgotten once it fails, so opening the project captures again", async () => {
     const answer = slowCapture();
     captureNewWebsite("p-failed", URL);
@@ -187,6 +204,19 @@ describe("a new website project's first snapshot", () => {
 });
 
 describe("a snapshot taken in the viewer", () => {
+  it("of a login page saves nothing and doesn't tell Squiggy", async () => {
+    mocks.requestCapture.mockResolvedValue({ ok: false, failure: "login-page" });
+    const outcome = await serverBackend.captureSnapshot(
+      "p-viewer",
+      "https://acme.example/",
+      1440,
+      new AbortController().signal,
+    );
+    expect(outcome).toEqual(captureFailed("login-page"));
+    expect(mocks.storeWorkspaceBlob).not.toHaveBeenCalled();
+    expect(mocks.emitSquiggy).not.toHaveBeenCalled();
+  });
+
   it("tells Squiggy when its upload fails, even for a project the server no longer has", async () => {
     mocks.requestCapture.mockResolvedValue({
       ok: true,
@@ -202,7 +232,7 @@ describe("a snapshot taken in the viewer", () => {
       1440,
       new AbortController().signal,
     );
-    expect(outcome).toEqual({ ok: false, message: CAPTURE_MESSAGES.storage });
+    expect(outcome).toEqual(captureFailed("storage"));
     expect(mocks.emitSquiggy).toHaveBeenCalledWith({ type: "save-failed" });
     expect(mocks.hasProject).not.toHaveBeenCalled();
   });

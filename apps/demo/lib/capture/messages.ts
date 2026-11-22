@@ -17,7 +17,13 @@ export const CAPTURE_MESSAGES: Record<CaptureFailure, string> = {
   "rate-limited": "That's a lot of snapshots in a short time. Wait a minute, then try again.",
   busy: "Squint is busy taking other snapshots. Try again in a moment.",
   unavailable: "Snapshots aren't available on this server right now. Try again later.",
+  "login-page": "The site showed a login page instead of its content, so no snapshot was saved.",
   failed: "The snapshot didn't work. Try again.",
   offline: "Squint couldn't reach its server. Check your connection, then try again.",
   storage: "The snapshot couldn't be uploaded. Check your connection, then try again.",
 };
+
+/** A capture that failed with `failure`, worded for the viewer. */
+export function captureFailed(failure: CaptureFailure) {
+  return { ok: false as const, message: CAPTURE_MESSAGES[failure], failure };
+}

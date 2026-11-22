@@ -1,4 +1,4 @@
-import { CAPTURE_MESSAGES } from "../capture/messages";
+import { captureFailed } from "../capture/messages";
 import { isCaptureErrorCode } from "../capture/types";
 import { CROP_ATTEMPTS, cropBackoff, wait } from "../crop/crop-retry";
 import { extensionFor } from "../export/paths";
@@ -287,7 +287,7 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
         : result.status === 0
           ? "offline"
           : "failed";
-      return { ok: false, message: CAPTURE_MESSAGES[code] };
+      return captureFailed(code);
     },
   };
 }

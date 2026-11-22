@@ -1,4 +1,5 @@
 import { createContext, useContext } from "react";
+import type { CaptureFailure } from "../capture/messages";
 import type { ImageUpload } from "../store/actions";
 import type { Result } from "../store/store";
 import type { Comment, CommentStatus, Rect, Snapshot } from "../store/types";
@@ -30,7 +31,9 @@ export interface ReadyCrop {
   rect: Rect;
 }
 
-export type CaptureOutcome = { ok: true; snapshot: Snapshot } | { ok: false; message: string };
+/** `failure`: the capture's own reason, when it has one (not for a locked or full share). */
+export type CaptureOutcome =
+  { ok: true; snapshot: Snapshot } | { ok: false; message: string; failure?: CaptureFailure };
 
 /**
  * Why an edit that waits for the server wasn't saved. A `final` one can't be

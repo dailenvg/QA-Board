@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { namesInMemory, VIEW } from "@/test/share-fixture";
+import { captureFailed } from "../capture/messages";
 import { CROP_ATTEMPTS, CROP_BACKOFF_MS } from "../crop/crop-retry";
 import { createClientBackend } from "./client-backend";
 import { createClientStore } from "./client-store";
@@ -257,6 +258,15 @@ describe("client snapshots", () => {
     expect(outcome?.ok).toBe(false);
     expect(outcome && !outcome.ok && outcome.message).toContain("password");
     expect(store.getSnapshot().locked).toBe(true);
+  });
+
+  it("passes a login page's code on, so the viewer can say why", async () => {
+    const { store, backend } = setup([
+      () => Response.json({ error: "login-page" }, { status: 422 }),
+    ]);
+    const outcome = await backend.captureSnapshot("shared", "", 1280, new AbortController().signal);
+    expect(outcome).toEqual(captureFailed("login-page"));
+    expect(store.getSnapshot().view.snapshots).toEqual(VIEW.snapshots);
   });
 });
 

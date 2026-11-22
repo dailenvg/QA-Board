@@ -1,17 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Snapshot } from "../store/types";
-import { CAPTURE_MESSAGES } from "./messages";
+import { CAPTURE_MESSAGES, captureFailed, type CaptureFailure } from "./messages";
 import { clampWidth } from "./types";
 
+/** `failure`: the capture's own reason, when it has one (see `CaptureOutcome`). */
 export type CaptureState =
-  { status: "idle" } | { status: "capturing" } | { status: "failed"; message: string };
+  | { status: "idle" }
+  | { status: "capturing" }
+  | { status: "failed"; message: string; failure?: CaptureFailure };
 
 const IDLE: CaptureState = { status: "idle" };
 
 /** Past the capture route's 60 s limit, so a server that can answer always does first. */
 export const CLIENT_CAPTURE_TIMEOUT_MS = 75_000;
 
-type Outcome = { ok: true; snapshot: Snapshot } | { ok: false; message: string };
+type Outcome =
+  { ok: true; snapshot: Snapshot } | { ok: false; message: string; failure?: CaptureFailure };
 export type Capturer = (width: number, signal: AbortSignal) => Promise<Outcome | null>;
 
 /**
@@ -52,7 +56,7 @@ export function useCapture(
         if (controller.current !== current) return;
         controller.current = null;
         if (timedOut) {
-          setState({ status: "failed", message: CAPTURE_MESSAGES.timeout });
+          setState({ status: "failed", message: CAPTURE_MESSAGES.timeout, failure: "timeout" });
           return;
         }
         if (!outcome || current.signal.aborted) {
@@ -60,14 +64,14 @@ export function useCapture(
           return;
         }
         if (!outcome.ok) {
-          setState({ status: "failed", message: outcome.message });
+          setState({ status: "failed", message: outcome.message, failure: outcome.failure });
           return;
         }
         setState(IDLE);
         onCapturedRef.current(outcome.snapshot);
       };
       void capturer(clampWidth(width), current.signal).then(settle, () =>
-        settle({ ok: false, message: CAPTURE_MESSAGES.failed }),
+        settle(captureFailed("failed")),
       );
     },
     [capturer],
