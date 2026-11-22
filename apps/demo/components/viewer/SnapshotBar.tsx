@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
+import { CAPTURE_PARTIAL_NOTICE } from "@/lib/capture/messages";
 import type { CaptureState } from "@/lib/capture/use-capture";
 import { useRevealVariants } from "@/lib/motion";
 import { absoluteTime, relativeTime } from "@/lib/relative-time";
@@ -19,7 +20,11 @@ interface SnapshotBarProps {
   showLatestLabel: string;
 }
 
-/** Floating bar over the snapshot: which snapshot this is, and a way to refresh or go back. */
+/**
+ * Floating bar over the snapshot: which snapshot this is, and a way to refresh
+ * or go back. Under it, why the last capture failed, or that it only got the
+ * top of a long page (said once: it isn't stored).
+ */
 export function SnapshotBar({
   snapshot,
   isLatest,
@@ -84,6 +89,16 @@ export function SnapshotBar({
         >
           <Icon name="alert" className="mt-0.5 size-4 shrink-0" />
           {capture.message}
+        </p>
+      ) : null}
+      {capture.status === "idle" && capture.partial && isLatest ? (
+        // Informational, not an alert: the snapshot worked. The stage's status line reads it out.
+        <p
+          data-testid="capture-partial"
+          className="flex items-start gap-2 self-start rounded-field bg-panel px-3 py-2 text-meta text-ink shadow-float ring-1 ring-line"
+        >
+          <Icon name="info" className="mt-0.5 size-4 shrink-0 text-muted" />
+          {CAPTURE_PARTIAL_NOTICE}
         </p>
       ) : null}
     </motion.div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, type ReactNode, type Ref } from "react";
+import { CAPTURE_PARTIAL_NOTICE } from "@/lib/capture/messages";
 import type { CaptureState } from "@/lib/capture/use-capture";
 import { absoluteTime } from "@/lib/relative-time";
 import type { Snapshot } from "@/lib/store/types";
@@ -30,15 +31,15 @@ interface SnapshotStageProps {
 /**
  * What screen readers hear as the stage changes. The first capture announces
  * itself (CaptureProgress); this covers a refresh starting, and a snapshot
- * arriving or being switched to.
+ * arriving or being switched to, with the partial-page notice when it applies.
  */
 function announcement(snapshot: Snapshot | null, isLatest: boolean, capture: CaptureState) {
   if (capture.status === "capturing") return snapshot ? "Taking a new snapshot…" : "";
   if (!snapshot) return "";
   const taken = absoluteTime(snapshot.createdAt);
-  return isLatest
-    ? `Showing the snapshot taken ${taken}.`
-    : `Showing an earlier snapshot, taken ${taken}.`;
+  if (!isLatest) return `Showing an earlier snapshot, taken ${taken}.`;
+  const partial = capture.status === "idle" && capture.partial;
+  return `Showing the snapshot taken ${taken}.${partial ? ` ${CAPTURE_PARTIAL_NOTICE}` : ""}`;
 }
 
 /**

@@ -24,6 +24,10 @@ export const CAPTURE_MESSAGES: Record<CaptureFailure, string> = {
   storage: "The snapshot couldn't be uploaded. Check your connection, then try again.",
 };
 
+/** Said under a snapshot that only got the top of a long page before time ran out. */
+export const CAPTURE_PARTIAL_NOTICE =
+  "Only the top of this page was captured. It took too long to load in full.";
+
 /** A capture that failed with `failure`, worded for the viewer. */
 export function captureFailed(failure: CaptureFailure) {
   return { ok: false as const, message: CAPTURE_MESSAGES[failure], failure };

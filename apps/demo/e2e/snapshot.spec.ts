@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./test";
+import { CAPTURE_PARTIAL_NOTICE } from "../lib/capture/messages";
 import { CLIENT_CAPTURE_TIMEOUT_MS } from "../lib/capture/use-capture";
 import { LEGACY_V1 } from "../test/legacy-v1";
 import { snapshotPng } from "./sample-snapshot";
@@ -250,6 +251,27 @@ test("refreshing the snapshot keeps earlier comments on their own snapshot", asy
   await bar.getByRole("button", { name: "Back to latest" }).click();
   await expect(bar).not.toContainText("Earlier snapshot");
   await expect(pin).toHaveCount(0);
+});
+
+test("a snapshot that only got the top of a long page says so, once", async ({ page, baseURL }) => {
+  await mockCapture(page);
+  await sandboxProject(page, baseURL, "Long page review");
+  await page.getByTestId("mode-comment").click();
+  await expect(snapshotImage(page)).toBeVisible();
+  const notice = page.getByTestId("capture-partial");
+  await expect(notice).toHaveCount(0);
+
+  const captures = await mockCapture(page, { partial: true });
+  await page.getByRole("button", { name: "Refresh snapshot" }).click();
+  await expect.poll(captures).toBe(1);
+  await expect(notice).toHaveText(CAPTURE_PARTIAL_NOTICE);
+  await expect(page.getByTestId("snapshot-bar").getByRole("alert")).toHaveCount(0);
+
+  // Only the capture that just finished says it: the snapshot doesn't keep it.
+  await page.reload();
+  await page.getByTestId("mode-comment").click();
+  await expect(snapshotImage(page)).toBeVisible();
+  await expect(notice).toHaveCount(0);
 });
 
 test("a failed snapshot offers Retry and a screenshot upload", async ({ page, baseURL }) => {

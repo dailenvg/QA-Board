@@ -74,9 +74,11 @@ export function useViewerSurface(
     [backend, project.id, url],
   );
   const { state: lastCapture, capture } = useCapture(capturer, () => setViewedId(null));
-  // One capture runs at a time and shows on every breakpoint; a failure only on its own.
-  const captureState =
-    lastCapture.status === "failed" && capturedFor !== breakpoint ? IDLE : lastCapture;
+  // One capture runs at a time and shows on every breakpoint; a failure or a partial page
+  // only on its own.
+  const outcomeShown =
+    lastCapture.status === "failed" || (lastCapture.status === "idle" && lastCapture.partial);
+  const captureState = outcomeShown && capturedFor !== breakpoint ? IDLE : lastCapture;
 
   const setMode = useCallback(
     (next: ViewerMode) => {
