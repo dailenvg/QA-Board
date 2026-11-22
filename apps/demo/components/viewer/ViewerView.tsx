@@ -602,8 +602,13 @@ export function ViewerView({
       ? "pb-[calc(7rem+env(safe-area-inset-bottom))] sm:pb-[calc(7rem+env(safe-area-inset-bottom))]"
       : "pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:pb-[calc(5.5rem+env(safe-area-inset-bottom))]";
   // The snapshot bar is sticky at the top of the canvas; keep focused and scrolled-to pins
-  // below it rather than under it (WCAG 2.4.11).
-  const scrollInset = surface.kind === "snapshot" ? "scroll-pt-28" : "";
+  // below it rather than under it (WCAG 2.4.11). A failure or partial-page notice under the
+  // bar sticks with it, up to three lines on a phone, so the inset grows while one shows.
+  const lastCapture = view.capture.state;
+  const barNotice =
+    lastCapture.status === "failed" || (lastCapture.status === "idle" && lastCapture.partial);
+  const scrollInset =
+    surface.kind !== "snapshot" ? "" : barNotice ? "scroll-pt-40" : "scroll-pt-28";
 
   /** How many comments the list holds, for the scope filters' live region. */
   const listedSummary = listed.length === 1 ? "1 comment" : `${listed.length} comments`;
