@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as BrowserModule from "./browser";
 import { browserTurn, CLOSE_LIMIT_MS, type CaptureBrowser } from "./browser";
 import { capturePage } from "./capture-page";
+import { LOGIN_SIGNALS_SCRIPT, type LoginSignals } from "./login-page";
 
 const mocks = vi.hoisted(() => ({ launch: vi.fn<() => Promise<CaptureBrowser>>() }));
 
@@ -73,5 +74,74 @@ describe("capturePage turns", () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(await settles(next)).toBe(true);
     (await next)();
+  });
+});
+
+const SIGN_IN: LoginSignals = {
+  title: "Sign in",
+  heading: "Welcome back",
+  passwordInputs: 1,
+  forms: 1,
+  textLength: 200,
+  links: 3,
+};
+
+/** A browser whose one page loads at once, ends on `finalUrl` and reads as `signals`. */
+function loadedBrowser(finalUrl: string, signals: LoginSignals) {
+  const screenshot = vi.fn(() => Promise.resolve({ data: Buffer.from("jpeg").toString("base64") }));
+  const page = {
+    setDefaultTimeout: () => {},
+    on: () => {},
+    goto: () => Promise.resolve({ headers: () => ({}) }),
+    waitForLoadState: () => Promise.resolve(),
+    url: () => finalUrl,
+    evaluate: (script: string) =>
+      Promise.resolve(
+        script === LOGIN_SIGNALS_SCRIPT
+          ? signals
+          : script.includes("scrollHeight")
+            ? 1200
+            : undefined,
+      ),
+    addStyleTag: () => Promise.resolve(),
+    context: () => ({ newCDPSession: () => Promise.resolve({ send: screenshot }) }),
+  };
+  const launched = {
+    browser: {
+      newContext: () => Promise.resolve({ newPage: () => Promise.resolve(page) }),
+      once: () => {},
+    },
+    close: () => Promise.resolve(),
+  } as unknown as CaptureBrowser;
+  return { launched, screenshot };
+}
+
+describe("capturePage on a login screen", () => {
+  afterEach(() => {
+    mocks.launch.mockReset();
+  });
+
+  it("fails with login-page and never takes the picture", async () => {
+    const { launched, screenshot } = loadedBrowser(
+      "https://vercel.com/login?next=%2Fsso-api",
+      SIGN_IN,
+    );
+    mocks.launch.mockResolvedValue(launched);
+    const result = capturePage(URL_, 1440, new AbortController().signal, log);
+    await expect(result).rejects.toMatchObject({ code: "login-page" });
+    expect(screenshot).not.toHaveBeenCalled();
+  });
+
+  it("takes the picture of a page that only has a login box", async () => {
+    const { launched, screenshot } = loadedBrowser("https://example.com/", {
+      ...SIGN_IN,
+      title: "Example",
+      textLength: 8_000,
+      links: 60,
+    });
+    mocks.launch.mockResolvedValue(launched);
+    const image = await capturePage(URL_, 1440, new AbortController().signal, log);
+    expect(image).toMatchObject({ width: 1440, height: 1200, contentType: "image/jpeg" });
+    expect(screenshot).toHaveBeenCalledTimes(1);
   });
 });
