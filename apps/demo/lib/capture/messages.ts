@@ -17,7 +17,8 @@ export const CAPTURE_MESSAGES: Record<CaptureFailure, string> = {
   "rate-limited": "That's a lot of snapshots in a short time. Wait a minute, then try again.",
   busy: "Squint is busy taking other snapshots. Try again in a moment.",
   unavailable: "Snapshots aren't available on this server right now. Try again later.",
-  "login-page": "The site showed a login page instead of its content, so no snapshot was saved.",
+  "login-page":
+    "Squint got a sign-in page instead of the site's content, so there's no new snapshot.",
   failed: "The snapshot didn't work. Try again.",
   offline: "Squint couldn't reach its server. Check your connection, then try again.",
   storage: "The snapshot couldn't be uploaded. Check your connection, then try again.",
