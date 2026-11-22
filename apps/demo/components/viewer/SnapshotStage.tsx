@@ -44,7 +44,8 @@ function announcement(snapshot: Snapshot | null, isLatest: boolean, capture: Cap
 /**
  * Comment surface for websites: a full-page snapshot in the scrolling canvas,
  * so pins stay on the content. The first visit to each breakpoint captures
- * one at that breakpoint's width, with progress and failure states.
+ * one at that breakpoint's width, with progress and failure states. A
+ * capture that lands on a login page saves nothing, so there's no canvas to pin on.
  */
 export function SnapshotStage({
   snapshot,
@@ -78,6 +79,7 @@ export function SnapshotStage({
   ) : capture.status === "failed" ? (
     <CaptureFailed
       message={capture.message}
+      loginPage={capture.failure === "login-page"}
       onRetry={onCapture}
       onScreenshot={onScreenshot}
       onBrowse={onBrowse}
