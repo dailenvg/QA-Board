@@ -26,7 +26,7 @@ export const CAPTURE_MESSAGES: Record<CaptureFailure, string> = {
 
 /** Said under a snapshot that only got the top of a long page before time ran out. */
 export const CAPTURE_PARTIAL_NOTICE =
-  "Only the top of this page was captured. It took too long to load in full.";
+  "The page took too long to capture in full, so this snapshot shows only the top.";
 
 /** A capture that failed with `failure`, worded for the viewer. */
 export function captureFailed(failure: CaptureFailure) {
