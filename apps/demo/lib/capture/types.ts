@@ -34,6 +34,8 @@ export const CAPTURE_ERROR_CODES = [
   "rate-limited",
   "busy",
   "unavailable",
+  /** The page was a login screen (a deployment's protection, a password form): nothing to review. */
+  "login-page",
   "failed",
 ] as const;
 

@@ -11,6 +11,8 @@ const STATUS: Record<CaptureErrorCode, number> = {
   "rate-limited": 429,
   busy: 503,
   unavailable: 503,
+  // The request was fine and the site answered; what it answered with can't be reviewed.
+  "login-page": 422,
   failed: 500,
 };
 

@@ -3,6 +3,7 @@ import type { Browser, CDPSession, Page } from "playwright-core";
 import { browserTurn, CLOSE_LIMIT_MS, launchBrowser } from "./browser";
 import { CaptureError } from "./capture-error";
 import { REFUSED_HEADER, startGuardProxy, type GuardProxy } from "./guard-proxy";
+import { isLoginPage, LOGIN_SIGNALS_SCRIPT } from "./login-page";
 import { safeError } from "./safe-error";
 import type { StepLog } from "./step-log";
 import { tmpFreeMb } from "./tmp-space";
@@ -74,6 +75,18 @@ async function load(page: Page, url: URL, proxy: GuardProxy, log: StepLog): Prom
     () => log("networkidle"),
     () => log("networkidle cut off"),
   );
+}
+
+/**
+ * Turns away a page that turned out to be a login screen (a protected
+ * deployment, a password form) before it's shot: a snapshot of it would have
+ * nothing to review. A page whose signals can't be read is shot as usual.
+ */
+async function refuseLoginPage(page: Page, url: URL, log: StepLog): Promise<void> {
+  const signals = await page.evaluate<unknown>(LOGIN_SIGNALS_SCRIPT).catch(() => null);
+  if (!signals || !isLoginPage(url, new URL(page.url()), signals)) return;
+  log("login page");
+  throw new CaptureError("login-page");
 }
 
 /** Freezes animations, transitions and the caret, so the picture is the page at rest. */
@@ -164,6 +177,7 @@ async function snapshot(
   page.on("crash", () => log("page crashed"));
   log("page");
   await load(page, url, proxy, log);
+  await refuseLoginPage(page, url, log);
   return shoot(page, width, log);
 }
 

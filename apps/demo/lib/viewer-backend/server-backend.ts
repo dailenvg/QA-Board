@@ -1,6 +1,6 @@
 import { cropBlobKey, snapshotBlobKey } from "../blob-store/keys";
 import { captureKey, createInFlight, unlessAborted } from "../capture/in-flight";
-import { CAPTURE_MESSAGES } from "../capture/messages";
+import { captureFailed } from "../capture/messages";
 import { clampWidth } from "../capture/types";
 import { CLIENT_CAPTURE_TIMEOUT_MS } from "../capture/use-capture";
 import { CROP_ATTEMPTS, cropBackoff, wait } from "../crop/crop-retry";
@@ -41,7 +41,7 @@ async function saveCrop(projectId: string, commentId: string, crop: ReadyCrop): 
 }
 
 /** A new project's first snapshot, once the project was deleted: nothing to keep, nothing failed. */
-const PROJECT_GONE: CaptureOutcome = { ok: false, message: CAPTURE_MESSAGES.failed };
+const PROJECT_GONE: CaptureOutcome = captureFailed("failed");
 
 /**
  * Captures server-side, uploads the image to the workspace, then records the
@@ -58,7 +58,7 @@ async function captureSnapshot(
 ): Promise<CaptureOutcome | null> {
   const result = await requestCapture(url, width, signal);
   if (signal.aborted) return null;
-  if (!result.ok) return { ok: false, message: CAPTURE_MESSAGES[result.failure] };
+  if (!result.ok) return captureFailed(result.failure);
   if (background && !hasProject(projectId)) return PROJECT_GONE;
   const id = newId();
   const blobKey = snapshotBlobKey(id);
@@ -66,7 +66,7 @@ async function captureSnapshot(
   if (!uploaded.ok) {
     if (background && uploaded.status === 404) return PROJECT_GONE;
     emitSquiggy({ type: "save-failed" });
-    return { ok: false, message: CAPTURE_MESSAGES.storage };
+    return captureFailed("storage");
   }
   const { width: pageWidth, height, scale } = result;
   const saved = addSnapshot({
@@ -99,10 +99,8 @@ export function captureNewWebsite(projectId: string, url: string): void {
   const timer = setTimeout(() => controller.abort(), CLIENT_CAPTURE_TIMEOUT_MS);
   // Only its timer aborts it, so an aborted capture took too long (as a viewer waiting on it says).
   const capture = async (): Promise<CaptureOutcome> =>
-    (await captureSnapshot(projectId, url, FIRST_WIDTH, controller.signal, true)) ?? {
-      ok: false,
-      message: CAPTURE_MESSAGES.timeout,
-    };
+    (await captureSnapshot(projectId, url, FIRST_WIDTH, controller.signal, true)) ??
+    captureFailed("timeout");
   void firstCaptures
     .run(captureKey(projectId, url, FIRST_WIDTH), capture)
     .catch(() => null)
