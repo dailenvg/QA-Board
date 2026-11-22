@@ -29,4 +29,32 @@ describe("asking for a capture", () => {
     );
     expect(result).toEqual({ ok: false, failure: "failed" });
   });
+
+  function image(headers: Record<string, string>) {
+    vi.stubGlobal("fetch", () =>
+      Promise.resolve(
+        new Response(new Blob([new Uint8Array([0xff, 0xd8])], { type: "image/jpeg" }), {
+          headers: {
+            "content-type": "image/jpeg",
+            "x-capture-width": "1440",
+            "x-capture-height": "900",
+            ...headers,
+          },
+        }),
+      ),
+    );
+    return requestCapture("https://acme.example/", 1440, new AbortController().signal);
+  }
+
+  it("reads a partial capture from its header", async () => {
+    expect(await image({ "x-capture-partial": "1" })).toMatchObject({
+      ok: true,
+      height: 900,
+      partial: true,
+    });
+  });
+
+  it("reads a whole capture as not partial", async () => {
+    expect(await image({})).not.toHaveProperty("partial");
+  });
 });

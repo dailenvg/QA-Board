@@ -341,6 +341,24 @@ describe("client writes", () => {
     expect(changes.snapshots).toHaveLength(1);
   });
 
+  it("answers that a partial capture is partial, and stores it like any other", async () => {
+    const { services, share } = await shared();
+    const capture = (_url: URL, width: number) =>
+      Promise.resolve({
+        body: new Uint8Array(JPEG),
+        contentType: "image/jpeg",
+        width,
+        height: 900,
+        scale: 1,
+        partial: true as const,
+      });
+    const added = await captureForClient(services, share, 1024, capture, 200);
+    expect(added).toMatchObject({ ok: true, value: { height: 900, partial: true } });
+    const [stored] = (await pullChanges(services.store, share, 0)).snapshots;
+    expect(stored).toMatchObject({ height: 900 });
+    expect(stored).not.toHaveProperty("partial");
+  });
+
   it("leaves no snapshot without an image when storing the image throws", async () => {
     const { services, share } = await shared();
     const before = await services.store.snapshots(share.id);

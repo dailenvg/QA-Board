@@ -259,14 +259,12 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
       const result = await api.capture(width, signal);
       if (signal.aborted) return null;
       if (result.ok) {
-        store.addSnapshot(result.value);
+        const { partial, ...shared } = result.value;
+        store.addSnapshot(shared);
         return {
           ok: true,
-          snapshot: {
-            ...result.value,
-            projectId: SHARED_PROJECT_ID,
-            blobKey: `snapshot:${result.value.id}`,
-          },
+          snapshot: { ...shared, projectId: SHARED_PROJECT_ID, blobKey: `snapshot:${shared.id}` },
+          ...(partial ? { partial } : {}),
         };
       }
       if (result.status === 404) {

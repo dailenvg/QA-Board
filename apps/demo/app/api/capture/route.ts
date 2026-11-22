@@ -8,7 +8,10 @@ import { CAPTURE_HEADERS } from "@/lib/capture/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-/** The capture itself stops at 25s; the rest is headroom for a cold Chromium start. */
+/**
+ * The capture answers within 45 s (`CAPTURE_TIMEOUT_MS`), or a few seconds
+ * more while a timed-out browser closes; the rest is headroom for a cold start.
+ */
 export const maxDuration = 60;
 
 const MAX_BODY_CHARS = 4096;
@@ -29,7 +32,8 @@ async function readBody(request: Request): Promise<unknown> {
 /**
  * `POST /api/capture` `{ url, width }`: a full-page JPEG of a public website,
  * with its page size in CSS px in the `x-capture-width` / `x-capture-height`
- * headers. Errors are `{ error: <code> }`. Signed-in users only: 401
+ * headers, and `x-capture-partial: 1` when only the top of a long page was
+ * shot in time. Errors are `{ error: <code> }`. Signed-in users only: 401
  * `{ error: "unauthenticated" }` without a valid session, whatever the cookie
  * says. Guests capture through their share's own route (`/api/s/[token]/capture`).
  */
@@ -52,6 +56,7 @@ export async function POST(request: Request) {
         [CAPTURE_HEADERS.width]: String(image.width),
         [CAPTURE_HEADERS.height]: String(image.height),
         [CAPTURE_HEADERS.scale]: String(image.scale),
+        ...(image.partial ? { [CAPTURE_HEADERS.partial]: "1" } : {}),
       },
     });
   } catch (error) {

@@ -9,6 +9,7 @@ import { captureForClient } from "@/lib/share/service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+/** As `/api/capture`: the capture answers within 45 s; the rest covers a cold start and storing the image. */
 export const maxDuration = 60;
 
 type Params = { params: Promise<{ token: string }> };
@@ -16,6 +17,8 @@ type Params = { params: Promise<{ token: string }> };
 /**
  * `POST { width }`: snapshots the shared project's own address (the client
  * never sends one) through the guarded capture, and adds it to the share.
+ * The snapshot comes back with `partial: true` when only the top of a long
+ * page was shot in time.
  */
 export async function POST(request: Request, { params }: Params) {
   const { token } = await params;

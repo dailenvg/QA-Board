@@ -31,9 +31,13 @@ export interface ReadyCrop {
   rect: Rect;
 }
 
-/** `failure`: the capture's own reason, when it has one (not for a locked or full share). */
+/**
+ * `failure`: the capture's own reason, when it has one (not for a locked or full share).
+ * `partial`: only the top of a long page was captured in time; said once, never stored.
+ */
 export type CaptureOutcome =
-  { ok: true; snapshot: Snapshot } | { ok: false; message: string; failure?: CaptureFailure };
+  | { ok: true; snapshot: Snapshot; partial?: true }
+  | { ok: false; message: string; failure?: CaptureFailure };
 
 /**
  * Why an edit that waits for the server wasn't saved. A `final` one can't be

@@ -24,6 +24,11 @@ export const CAPTURE_HEADERS = {
   height: "x-capture-height",
   /** Image px per page px; below 1 when a big page was rendered smaller to fit. */
   scale: "x-capture-scale",
+  /**
+   * "1" when time ran out partway down a long page: the image is its top part, as tall as
+   * the height header says. Missing otherwise.
+   */
+  partial: "x-capture-partial",
 } as const;
 
 export const CAPTURE_ERROR_CODES = [

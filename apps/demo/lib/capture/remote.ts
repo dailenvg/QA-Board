@@ -14,7 +14,10 @@ async function errorCode(response: Response): Promise<CaptureError> {
   return new CaptureError(isCaptureErrorCode(code) ? code : "failed");
 }
 
-/** Delegates to an external capture service (`SQUINT_CAPTURE_URL`) that speaks the same contract. */
+/**
+ * Delegates to an external capture service (`SQUINT_CAPTURE_URL`) that speaks
+ * the same contract, passing on its `x-capture-partial` when it sends one.
+ */
 export async function captureRemote(
   serviceUrl: string,
   input: CaptureRequest,
@@ -40,5 +43,6 @@ export async function captureRemote(
   if (!(scale > 0 && scale <= 1)) throw new CaptureError("failed");
   const body = new Uint8Array(await response.arrayBuffer());
   if (body.length > CAPTURE_LIMITS.maxBytes) throw new CaptureError("failed");
-  return { body, contentType, width, height, scale };
+  const partial = response.headers.get(CAPTURE_HEADERS.partial) === "1";
+  return { body, contentType, width, height, scale, ...(partial ? { partial } : {}) };
 }
