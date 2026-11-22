@@ -1,7 +1,9 @@
+import sharp from "sharp";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as BrowserModule from "./browser";
 import { browserTurn, CLOSE_LIMIT_MS, type CaptureBrowser } from "./browser";
 import { capturePage } from "./capture-page";
+import { UNPIN_SCRIPT } from "./unpin";
 import { LOGIN_SIGNALS_SCRIPT, type LoginSignals } from "./login-page";
 
 const mocks = vi.hoisted(() => ({ launch: vi.fn<() => Promise<CaptureBrowser>>() }));
@@ -18,6 +20,8 @@ vi.mock("./guard-proxy", () => ({
 
 const URL_ = new URL("https://example.com");
 const log = () => {};
+/** A capture whose slicing is never told to stop. */
+const NO_STOP = new AbortController().signal;
 
 /** Whether `promise` settles within a few ticks. */
 async function settles(promise: Promise<unknown>): Promise<boolean> {
@@ -51,7 +55,9 @@ describe("capturePage turns", () => {
   it("gives up its turn at once when its signal aborted while it waited", async () => {
     const endFirst = await browserTurn();
     const controller = new AbortController();
-    const result = capturePage(URL_, 1440, controller.signal, log).catch((error: unknown) => error);
+    const result = capturePage(URL_, 1440, controller.signal, NO_STOP, log).catch(
+      (error: unknown) => error,
+    );
     controller.abort();
     endFirst();
     expect(await result).toMatchObject({ code: "timeout" });
@@ -64,7 +70,7 @@ describe("capturePage turns", () => {
   it("frees the turn after an abort even when the browser and its close hang", async () => {
     mocks.launch.mockResolvedValue(hungBrowser());
     const controller = new AbortController();
-    void capturePage(URL_, 1440, controller.signal, log).catch(() => undefined);
+    void capturePage(URL_, 1440, controller.signal, NO_STOP, log).catch(() => undefined);
     await vi.advanceTimersByTimeAsync(0);
     expect(mocks.launch).toHaveBeenCalled();
     const next = browserTurn();
@@ -102,7 +108,7 @@ function loadedBrowser(finalUrl: string, signals: LoginSignals) {
         script === LOGIN_SIGNALS_SCRIPT
           ? signals
           : script.includes("scrollHeight")
-            ? 1200
+            ? 800
             : undefined,
       ),
     addStyleTag: () => Promise.resolve(),
@@ -129,7 +135,7 @@ describe("capturePage on a login screen", () => {
       SIGN_IN,
     );
     mocks.launch.mockResolvedValue(launched);
-    const result = capturePage(URL_, 1440, new AbortController().signal, log);
+    const result = capturePage(URL_, 1440, new AbortController().signal, NO_STOP, log);
     await expect(result).rejects.toMatchObject({ code: "login-page" });
     expect(screenshot).not.toHaveBeenCalled();
   });
@@ -142,8 +148,126 @@ describe("capturePage on a login screen", () => {
       links: 60,
     });
     mocks.launch.mockResolvedValue(launched);
-    const image = await capturePage(URL_, 1440, new AbortController().signal, log);
-    expect(image).toMatchObject({ width: 1440, height: 1200, contentType: "image/jpeg" });
+    const image = await capturePage(URL_, 1440, new AbortController().signal, NO_STOP, log);
+    expect(image).toMatchObject({ width: 1440, height: 800, contentType: "image/jpeg" });
     expect(screenshot).toHaveBeenCalledTimes(1);
+  });
+});
+
+interface Clip {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** A JPEG of `clip`'s size in one shade per band, so the stitched image shows where each landed. */
+function bandJpeg({ y, width, height }: Clip): Promise<Buffer> {
+  const shade = Math.min(250, (y / 900) * 100);
+  return sharp({ create: { width, height, channels: 3, background: { r: shade, g: 0, b: 0 } } })
+    .jpeg({ quality: 95 })
+    .toBuffer();
+}
+
+/**
+ * A browser whose one page is `pageHeight` px tall and shoots each clip as
+ * `bandJpeg`. `events` records the lazy-content scroll, the screenshots and the
+ * unpin script in order.
+ */
+function longPageBrowser(pageHeight: number, shoot: (clip: Clip) => Promise<Buffer> = bandJpeg) {
+  const events: string[] = [];
+  const clips: Array<Clip & { captureBeyondViewport?: boolean }> = [];
+  const send = async (_method: string, params: { clip: Clip; captureBeyondViewport?: boolean }) => {
+    clips.push({ ...params.clip, captureBeyondViewport: params.captureBeyondViewport });
+    events.push(`shot ${params.clip.y}`);
+    return { data: (await shoot(params.clip)).toString("base64") };
+  };
+  const page = {
+    setDefaultTimeout: () => {},
+    on: () => {},
+    goto: () => Promise.resolve({ headers: () => ({}) }),
+    waitForLoadState: () => Promise.resolve(),
+    url: () => "https://example.com/",
+    evaluate: (script: string) => {
+      if (script === UNPIN_SCRIPT) events.push("unpin");
+      if (script.includes("document.fonts")) events.push("settle");
+      return Promise.resolve(script.includes("scrollHeight") ? pageHeight : null);
+    },
+    addStyleTag: () => Promise.resolve(),
+    context: () => ({ newCDPSession: () => Promise.resolve({ send }) }),
+  };
+  const launched = {
+    browser: {
+      newContext: () => Promise.resolve({ newPage: () => Promise.resolve(page) }),
+      once: () => {},
+    },
+    close: () => Promise.resolve(),
+  } as unknown as CaptureBrowser;
+  return { launched, events, clips };
+}
+
+/** The red channel at the middle of row `y` of a JPEG. */
+async function redAt(jpeg: Uint8Array, y: number): Promise<number> {
+  const { data, info } = await sharp(jpeg).raw().toBuffer({ resolveWithObject: true });
+  return data[(y * info.width + Math.floor(info.width / 2)) * info.channels] ?? -1;
+}
+
+describe("capturePage on a long page", () => {
+  afterEach(() => {
+    mocks.launch.mockReset();
+  });
+
+  it("shoots it a viewport at a time and stitches the slices in place", async () => {
+    const { launched, events, clips } = longPageBrowser(2_000);
+    mocks.launch.mockResolvedValue(launched);
+    const image = await capturePage(URL_, 320, new AbortController().signal, NO_STOP, log);
+    expect(image).toMatchObject({ width: 320, height: 2_000, scale: 1 });
+    expect(image.partial).toBeUndefined();
+    expect(clips).toEqual([
+      { x: 0, y: 0, width: 320, height: 900, scale: 1, captureBeyondViewport: undefined },
+      { x: 0, y: 900, width: 320, height: 900, scale: 1, captureBeyondViewport: undefined },
+      { x: 0, y: 1_800, width: 320, height: 200, scale: 1, captureBeyondViewport: undefined },
+    ]);
+    // Pinned bars are unpinned once the first slice has them, before the page scrolls.
+    expect(events).toEqual(["settle", "shot 0", "unpin", "shot 900", "shot 1800"]);
+    const { width, height } = await sharp(image.body).metadata();
+    expect([width, height]).toEqual([320, 2_000]);
+    expect(await redAt(image.body, 450)).toBeLessThan(10);
+    expect(await redAt(image.body, 1_350)).toBeGreaterThan(90);
+    expect(await redAt(image.body, 1_900)).toBeGreaterThan(190);
+  });
+
+  it("returns the slices shot so far as partial once told to stop", async () => {
+    const stop = new AbortController();
+    const { launched, clips } = longPageBrowser(2_000, (clip) => {
+      if (clip.y === 900) stop.abort();
+      return bandJpeg(clip);
+    });
+    mocks.launch.mockResolvedValue(launched);
+    const image = await capturePage(URL_, 320, new AbortController().signal, stop.signal, log);
+    expect(image).toMatchObject({ width: 320, height: 900, partial: true });
+    expect(clips).toHaveLength(2);
+    expect((await sharp(image.body).metadata()).height).toBe(900);
+  });
+
+  it("still shoots the first slice when told to stop before the page settled", async () => {
+    const stop = new AbortController();
+    stop.abort();
+    const { launched, events } = longPageBrowser(2_000);
+    mocks.launch.mockResolvedValue(launched);
+    const image = await capturePage(URL_, 320, new AbortController().signal, stop.signal, log);
+    expect(image).toMatchObject({ height: 900, partial: true });
+    // Nor does it scroll for lazy content first: there's only time for the top.
+    expect(events).toEqual(["shot 0"]);
+  });
+
+  it("keeps one screenshot for a page that fits the viewport", async () => {
+    const { launched, clips } = longPageBrowser(900);
+    mocks.launch.mockResolvedValue(launched);
+    const image = await capturePage(URL_, 320, new AbortController().signal, NO_STOP, log);
+    expect(image).toMatchObject({ width: 320, height: 900, scale: 1 });
+    expect(clips).toEqual([
+      { x: 0, y: 0, width: 320, height: 900, scale: 1, captureBeyondViewport: true },
+    ]);
   });
 });
