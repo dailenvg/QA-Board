@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type ReactNode, type Ref } from "react";
+import { useCallback, useEffect, useRef, type ReactNode, type Ref } from "react";
 import type { CaptureState } from "@/lib/capture/use-capture";
 import { absoluteTime } from "@/lib/relative-time";
 import type { Snapshot } from "@/lib/store/types";
@@ -63,6 +63,15 @@ export function SnapshotStage({
 }: SnapshotStageProps) {
   const firstCapture = !snapshot && captureUrl !== null && capture.status === "idle";
   const retake = captureUrl ? onCapture : null;
+  const bodyRef = useRef<HTMLDivElement>(null);
+
+  // Retry unmounts its own button as the progress takes its place. Park focus
+  // on the stage so it isn't dropped to the page: if the capture fails again,
+  // the next Tab lands on the failure's buttons rather than the top of the page.
+  const retry = useCallback(() => {
+    bodyRef.current?.focus({ preventScroll: true });
+    onCapture();
+  }, [onCapture]);
 
   useEffect(() => {
     if (firstCapture) onCapture();
@@ -80,7 +89,7 @@ export function SnapshotStage({
     <CaptureFailed
       message={capture.message}
       loginPage={capture.failure === "login-page"}
-      onRetry={onCapture}
+      onRetry={retry}
       onScreenshot={onScreenshot}
       onBrowse={onBrowse}
     />
@@ -103,7 +112,14 @@ export function SnapshotStage({
           showLatestLabel={showLatestLabel}
         />
       ) : null}
-      <div className="flex-1 p-3 sm:p-5">{body}</div>
+      {/* Focusable only without a snapshot (see `retry`), so clicks on the canvas never move focus here. */}
+      <div
+        ref={bodyRef}
+        tabIndex={snapshot ? undefined : -1}
+        className="flex-1 p-3 focus:outline-none sm:p-5"
+      >
+        {body}
+      </div>
     </div>
   );
 }

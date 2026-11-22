@@ -14,6 +14,11 @@ function loginState(page: Page) {
   return page.getByTestId("capture-failed").and(page.locator('[data-reason="login-page"]'));
 }
 
+/** Whatever has focus inside the snapshot stage: none when focus fell to the page. */
+function stageFocus(page: Page) {
+  return page.getByTestId("snapshot-stage").locator(":focus");
+}
+
 test("a site behind a login shows a warning with no canvas to pin on, and Try again captures again", async ({
   page,
   baseURL,
@@ -39,6 +44,10 @@ test("a site behind a login shows a warning with no canvas to pin on, and Try ag
   await warning.getByRole("button", { name: "Try again" }).click();
   await expect.poll(captures).toBe(asked + 1);
   await expect(warning).toBeVisible();
+  // Focus waited on the stage while it retried (not dropped to the page), so Tab reaches the actions.
+  await expect(stageFocus(page)).toHaveCount(1);
+  await page.keyboard.press("Tab");
+  await expect(warning.getByLabel("Upload a screenshot", { exact: true })).toBeFocused();
 
   captures = await mockCapture(page);
   await warning.getByRole("button", { name: "Try again" }).click();
@@ -77,5 +86,8 @@ test("a guest on a site behind a login gets Try again, not an upload", async ({
   await warning.getByRole("button", { name: "Try again" }).click();
   await expect.poll(() => asked).toBe(before + 1);
   await expect(warning).toBeVisible();
+  await expect(stageFocus(guest)).toHaveCount(1);
+  await guest.keyboard.press("Tab");
+  await expect(warning.getByRole("button", { name: "Try again" })).toBeFocused();
   await context.close();
 });
