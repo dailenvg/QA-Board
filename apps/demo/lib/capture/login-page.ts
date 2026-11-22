@@ -28,21 +28,20 @@ export const LOGIN_SIGNALS_SCRIPT = `(() => {
     const box = el.getBoundingClientRect();
     return shown && box.width > 0 && box.height > 0;
   };
-  const all = (selector, scope = document) =>
-    Array.from(scope.querySelectorAll(selector)).filter(visible);
+  const all = (selector) => Array.from(document.querySelectorAll(selector)).filter(visible);
   const text = (value) => String(value || "").trim().slice(0, 200);
+  const FIELD = 'input:not([type="hidden"]):not([type="password"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not([type="file"]):not([type="range"]):not([type="color"]), select, textarea';
   const passwords = all('input[type="password"]');
-  const fieldScope = (passwords[0] && passwords[0].form) || document;
+  const form = passwords[0] && passwords[0].form;
+  // A form's elements include controls tied to it by a form attribute, wherever they sit.
+  const controls = form ? Array.from(form.elements) : Array.from(document.querySelectorAll(FIELD));
   const heading = all("h1")[0];
   return {
     title: text(document.title),
     heading: heading ? text(heading.textContent) : "",
     passwordInputs: passwords.length,
     newPasswordInputs: passwords.filter((el) => /new-password/i.test(el.autocomplete || "")).length,
-    fields: all(
-      'input:not([type="hidden"]):not([type="password"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not([type="file"]):not([type="range"]):not([type="color"]), select, textarea',
-      fieldScope,
-    ).length,
+    fields: controls.filter((el) => el.matches(FIELD) && visible(el)).length,
     forms: all("form").length,
     textLength: document.body ? document.body.innerText.trim().length : 0,
     links: all("a[href]").length,
@@ -51,12 +50,9 @@ export const LOGIN_SIGNALS_SCRIPT = `(() => {
 
 /** A path segment that names a login page: /login, /sign-in, /users/sign_in, /auth, /wp-login.php. */
 const LOGIN_SEGMENT = /^(log-?in|sign[-_]?in|auth|sso|wp-login)(\.\w+)?$/i;
-/**
- * A path segment for a page that asks for a password without being a login wall:
- * signing up, joining, resetting a password, account settings.
- */
+/** A path segment for a page that asks for a password without being a login wall: sign up, join, reset. */
 const ACCOUNT_SEGMENT =
-  /^(sign[-_]?up|register|join|reset(-password)?|forgot(-password)?|password|account)(\.\w+)?$/i;
+  /^(sign[-_]?up|register|join|reset(-password)?|forgot(-password)?)(\.\w+)?$/i;
 /** A title or heading that asks the visitor to log in ("Sign in · Acme"), not an article about it. */
 const LOGIN_WORDS = /\b(log[- ]?in|sign[- ]?in)\b/i;
 const LOGIN_TITLE_MAX = 80;
@@ -103,19 +99,30 @@ function hasSegment(url: URL, pattern: RegExp): boolean {
   return url.pathname.split("/").some((segment) => pattern.test(segment));
 }
 
-/** The same page, give or take a query or a trailing slash. */
+/** The same site, with or without `www.` and whatever the protocol: sites redirect to their preferred address. */
+function sameSite(a: URL, b: URL): boolean {
+  const site = (url: URL) => url.host.replace(/^www\./i, "").toLowerCase();
+  return site(a) === site(b);
+}
+
+/** The same page on the same site, give or take a query, a trailing slash or letter case. */
 function samePage(a: URL, b: URL): boolean {
-  const path = (url: URL) => url.pathname.replace(/\/+$/, "");
-  return a.origin === b.origin && path(a) === path(b);
+  const path = (url: URL) => url.pathname.replace(/\/+$/, "").toLowerCase();
+  return sameSite(a, b) && path(a) === path(b);
 }
 
 /**
- * The capture ended on the page it was asked for, and that page's address
- * says it's a login, sign-up or account page: the reviewer wants that page.
+ * The reviewer asked for a login, sign-up or reset page by its address, and
+ * the capture ended there: they want that page. A login page may also move
+ * to another login address on the same site (`/login` to `/en/login`).
  */
 function askedForOnPurpose(requested: URL, final: URL): boolean {
-  if (!samePage(requested, final)) return false;
-  return hasSegment(requested, LOGIN_SEGMENT) || hasSegment(requested, ACCOUNT_SEGMENT);
+  if (hasSegment(requested, LOGIN_SEGMENT)) {
+    return (
+      samePage(requested, final) || (sameSite(requested, final) && hasSegment(final, LOGIN_SEGMENT))
+    );
+  }
+  return hasSegment(requested, ACCOUNT_SEGMENT) && samePage(requested, final);
 }
 
 function namesLogin(value: string): boolean {
@@ -156,7 +163,7 @@ function isMostlyForm(signals: LoginSignals): boolean {
  * form that's clearly the page's point (a login address, a login title, or
  * little else on the page). Errs towards no: a page that only has a login
  * box somewhere, or asks for a new password, is reviewed as usual. So is a
- * login or account page the reviewer asked for by its address.
+ * login, sign-up or reset page the reviewer asked for by its address.
  */
 export function isLoginPage(requested: URL, final: URL, raw: unknown): boolean {
   if (askedForOnPurpose(requested, final)) return false;

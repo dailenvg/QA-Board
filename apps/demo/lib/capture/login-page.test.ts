@@ -111,6 +111,22 @@ describe("a generic login page", () => {
     expect(check({ ...sidebar, heading: "Log in to Acme" })).toBe(true);
   });
 
+  it("is a login shown in place at an account address, which nobody asks to review", () => {
+    expect(at(SIGN_IN, "https://acme.example/account")).toBe(true);
+    expect(at(SIGN_IN, "https://acme.example/settings/password")).toBe(true);
+  });
+
+  it("is the root, or another site, that a login address ended on", () => {
+    const login = new URL("https://acme.example/login");
+    expect(check(SIGN_IN, login, SITE)).toBe(true);
+    expect(check(SIGN_IN, new URL("https://id.other.example/login"), login)).toBe(true);
+  });
+
+  it("is a sign-in form a sign-up address moved to another page for, even on its site", () => {
+    const signup = new URL("https://acme.example/signup");
+    expect(check(SIGN_IN, new URL("https://acme.example/en/signup"), signup)).toBe(true);
+  });
+
   it("is a login wall that an account or sign-up address redirected to", () => {
     const login = new URL("https://acme.example/login?next=%2Faccount");
     expect(check(SIGN_IN, login, new URL("https://acme.example/account"))).toBe(true);
@@ -170,7 +186,18 @@ describe("not a login page", () => {
     expect(at({ heading: "Log in to Vercel" }, "https://vercel.com/login")).toBe(false);
   });
 
-  it("is a sign-up, join, reset or account page the reviewer asked for by its address", () => {
+  it("is a login page asked for by an address the site redirects to its preferred one", () => {
+    const sign = (requested: string, final: string) =>
+      check(SIGN_IN, new URL(final), new URL(requested));
+    expect(sign("https://acme.example/login", "https://www.acme.example/login")).toBe(false);
+    expect(sign("https://www.acme.example/login", "https://acme.example/login/")).toBe(false);
+    expect(sign("http://acme.example/login", "https://acme.example/login")).toBe(false);
+    expect(sign("https://acme.example/login", "https://acme.example/Login")).toBe(false);
+    expect(sign("https://acme.example/login", "https://acme.example/en/login?lang=en")).toBe(false);
+    expect(sign("https://acme.example/signup", "https://www.acme.example/signup")).toBe(false);
+  });
+
+  it("is a sign-up, join or reset page the reviewer asked for by its address", () => {
     for (const path of [
       "signup",
       "sign-up",
@@ -179,8 +206,6 @@ describe("not a login page", () => {
       "reset",
       "reset-password",
       "forgot-password",
-      "password",
-      "account",
     ]) {
       expect(at(SIGN_IN, `https://acme.example/${path}?ref=nav`)).toBe(false);
     }
