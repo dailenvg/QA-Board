@@ -5,11 +5,11 @@ import { clampWidth } from "./types";
 
 /**
  * `failure`: the capture's own reason, when it has one (see `CaptureOutcome`).
- * `partial`: the capture that just finished only got the top of a long page;
- * it lasts until the next capture starts, and is never stored.
+ * `partial`: the capture that just finished only got the top of a long page,
+ * for the snapshot it made; it lasts until the next capture starts, and is never stored.
  */
 export type CaptureState =
-  | { status: "idle"; partial?: true }
+  | { status: "idle"; partial?: { snapshotId: string } }
   | { status: "capturing" }
   | { status: "failed"; message: string; failure?: CaptureFailure };
 
@@ -37,7 +37,7 @@ export function settledState(
   if (timedOut) return { status: "failed", message: CAPTURE_MESSAGES.timeout, failure: "timeout" };
   if (!outcome || aborted) return IDLE;
   if (!outcome.ok) return { status: "failed", message: outcome.message, failure: outcome.failure };
-  return outcome.partial ? { status: "idle", partial: true } : IDLE;
+  return outcome.partial ? { status: "idle", partial: { snapshotId: outcome.snapshot.id } } : IDLE;
 }
 
 export type Capturer = (width: number, signal: AbortSignal) => Promise<Outcome | null>;

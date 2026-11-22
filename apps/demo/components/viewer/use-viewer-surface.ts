@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { useViewerBackend } from "@/lib/viewer-backend/backend";
-import { useCapture, type CaptureState } from "@/lib/capture/use-capture";
+import { useCapture } from "@/lib/capture/use-capture";
 import {
   BREAKPOINT_WIDTH,
   breakpointOf,
@@ -9,11 +9,10 @@ import {
 } from "@/lib/store/breakpoints";
 import { snapshotsFor } from "@/lib/store/snapshots";
 import type { Comment, Project, Snapshot, SquintData } from "@/lib/store/types";
+import { shownCaptureState } from "./shown-capture-state";
 import { stageSurface, surfaceTargetOf, type StageSource } from "./surface";
 import type { ViewerMode } from "./types";
 import type { ViewerPage } from "./use-viewer-page";
-
-const IDLE: CaptureState = { status: "idle" };
 
 /**
  * Mode, breakpoint, the snapshot being viewed, and snapshot capture for one
@@ -74,11 +73,11 @@ export function useViewerSurface(
     [backend, project.id, url],
   );
   const { state: lastCapture, capture } = useCapture(capturer, () => setViewedId(null));
-  // One capture runs at a time and shows on every breakpoint; a failure or a partial page
-  // only on its own.
-  const outcomeShown =
-    lastCapture.status === "failed" || (lastCapture.status === "idle" && lastCapture.partial);
-  const captureState = outcomeShown && capturedFor !== breakpoint ? IDLE : lastCapture;
+  const captureState = shownCaptureState(lastCapture, {
+    capturedFor,
+    breakpoint,
+    latestId: latest?.id ?? null,
+  });
 
   const setMode = useCallback(
     (next: ViewerMode) => {

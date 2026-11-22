@@ -10,7 +10,7 @@ describe("a capture's state once it settles", () => {
   it("notes a partial page, so the snapshot bar can say so", () => {
     expect(settledState({ ok: true, snapshot, partial: true }, done)).toEqual({
       status: "idle",
-      partial: true,
+      partial: { snapshotId: "s1" },
     });
   });
 
