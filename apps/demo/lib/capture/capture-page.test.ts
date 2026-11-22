@@ -81,6 +81,8 @@ const SIGN_IN: LoginSignals = {
   title: "Sign in",
   heading: "Welcome back",
   passwordInputs: 1,
+  newPasswordInputs: 0,
+  fields: 1,
   forms: 1,
   textLength: 200,
   links: 3,
