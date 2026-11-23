@@ -6,7 +6,7 @@ import { REFUSED_HEADER, startGuardProxy, type GuardProxy } from "./guard-proxy"
 import { isLoginPage, LOGIN_SIGNALS_SCRIPT } from "./login-page";
 import { safeError } from "./safe-error";
 import { shrinkToFit } from "./shrink-to-fit";
-import { planSlices, shootSlices, type Slice, type SliceShots } from "./slices";
+import { clampSlice, planSlices, shootSlices, type Slice, type SliceShots } from "./slices";
 import { sizedSlices, slicesRenderer, type SliceImage } from "./stitch";
 import type { StepLog } from "./step-log";
 import { tmpFreeMb } from "./tmp-space";
@@ -63,6 +63,16 @@ const HEIGHT_SCRIPT = `Math.max(
   document.documentElement.scrollHeight,
   document.body ? document.body.scrollHeight : 0
 )`;
+
+/** The page's height in CSS px, NaN if it can't be read. */
+async function pageHeight(page: Page): Promise<number> {
+  return Number(await page.evaluate(HEIGHT_SCRIPT));
+}
+
+/** Unpins the page's bars (`UNPIN_SCRIPT`) and returns what it did, for the log. */
+function unpin(page: Page): Promise<string> {
+  return page.evaluate<unknown>(UNPIN_SCRIPT).then(String, () => "failed");
+}
 
 /** Scrolls straight to `y`, then gives the page two frames and a pause to show what's there. */
 function scrollScript(y: number): string {
@@ -177,32 +187,36 @@ async function shootWhole(
 }
 
 /**
- * Scrolls to `slice` and shoots the viewport's part of it. The clip is in page
- * px; on the last slice the browser may stop scrolling short of `slice.y`,
- * which still leaves the slice inside the viewport. Before the second slice,
- * the page's pinned bars are unpinned (`UNPIN_SCRIPT`), with the page still
- * at the top where the first slice left it.
+ * Scrolls to `planned` and shoots the viewport's part of it. The clip is in
+ * page px; on the last slice the browser may stop scrolling short of
+ * `planned.y`, which still leaves the slice inside the viewport. From the
+ * second slice on, the page's pinned bars are unpinned (`UNPIN_SCRIPT`) once
+ * it has scrolled, so bars a scroll handler pins only then are caught too, and
+ * the slice is cut to the page's height now: a bar leaving the flow shortens
+ * the page. Null when the page now ends above the slice.
  */
 async function shootSlice(
   page: Page,
   cdp: CDPSession,
   width: number,
-  slice: Slice,
+  planned: Slice,
   index: number,
   log: StepLog,
-): Promise<SliceImage> {
-  if (index === 1) {
-    const unpinned = await page.evaluate<unknown>(UNPIN_SCRIPT).catch(() => "failed");
-    log(`unpinned: ${String(unpinned)}`);
+): Promise<SliceImage | null> {
+  await page.evaluate(scrollScript(planned.y));
+  if (index > 0) log(`unpinned: ${await unpin(page)}`);
+  const slice = index > 0 ? clampSlice(planned, await pageHeight(page)) : planned;
+  if (!slice) {
+    log(`page ends above slice ${index + 1}`);
+    return null;
   }
-  await page.evaluate(scrollScript(slice.y));
   const { data } = await cdp.send("Page.captureScreenshot", {
     format: "jpeg",
     quality: SLICE_QUALITY,
     clip: { x: 0, y: slice.y, width, height: slice.height, scale: 1 },
   });
   const jpeg = Buffer.from(data, "base64");
-  log(`slice ${index + 1} ${jpeg.length}B`);
+  log(`slice ${index + 1} ${slice.height}px ${jpeg.length}B`);
   return { slice, jpeg };
 }
 
@@ -211,7 +225,7 @@ async function shootSlice(
  * viewport at a time until the last slice or until `stop` aborts.
  */
 async function shoot(page: Page, width: number, stop: AbortSignal, log: StepLog): Promise<Shot> {
-  const plan = planSlices(Number(await page.evaluate(HEIGHT_SCRIPT)), VIEWPORT_HEIGHT);
+  const plan = planSlices(await pageHeight(page), VIEWPORT_HEIGHT);
   await page.addStyleTag({ content: FREEZE_CSS }).catch(() => undefined);
   log(
     `measured ${width}x${plan.height} in ${plan.slices.length} slices, ${tmpFreeMb()} MB free in /tmp, ${memFreeMb()} MB RAM`,

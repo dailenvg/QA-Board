@@ -171,10 +171,17 @@ function bandJpeg({ y, width, height }: Clip): Promise<Buffer> {
 
 /**
  * A browser whose one page is `pageHeight` px tall and shoots each clip as
- * `bandJpeg`. `events` records the lazy-content scroll, the screenshots and the
- * unpin script in order.
+ * `bandJpeg`. A list of heights is read in turn, the last one from then on: a
+ * page that gets shorter as it scrolls. `events` records the lazy-content
+ * scroll, the screenshots and the unpin script in order.
  */
-function longPageBrowser(pageHeight: number, shoot: (clip: Clip) => Promise<Buffer> = bandJpeg) {
+function longPageBrowser(
+  pageHeight: number | number[],
+  shoot: (clip: Clip) => Promise<Buffer> = bandJpeg,
+) {
+  const heights = [pageHeight].flat();
+  let measured = 0;
+  const measure = () => heights[Math.min(measured++, heights.length - 1)];
   const events: string[] = [];
   const clips: Array<Clip & { captureBeyondViewport?: boolean }> = [];
   const send = async (_method: string, params: { clip: Clip; captureBeyondViewport?: boolean }) => {
@@ -190,8 +197,9 @@ function longPageBrowser(pageHeight: number, shoot: (clip: Clip) => Promise<Buff
     url: () => "https://example.com/",
     evaluate: (script: string) => {
       if (script === UNPIN_SCRIPT) events.push("unpin");
-      if (script.includes("document.fonts")) events.push("settle");
-      return Promise.resolve(script.includes("scrollHeight") ? pageHeight : null);
+      const settle = script.includes("document.fonts");
+      if (settle) events.push("settle");
+      return Promise.resolve(script.includes("scrollHeight") && !settle ? measure() : null);
     },
     addStyleTag: () => Promise.resolve(),
     context: () => ({ newCDPSession: () => Promise.resolve({ send }) }),
@@ -228,8 +236,8 @@ describe("capturePage on a long page", () => {
       { x: 0, y: 900, width: 320, height: 900, scale: 1, captureBeyondViewport: undefined },
       { x: 0, y: 1_800, width: 320, height: 200, scale: 1, captureBeyondViewport: undefined },
     ]);
-    // Pinned bars are unpinned once the first slice has them, before the page scrolls.
-    expect(events).toEqual(["settle", "shot 0", "unpin", "shot 900", "shot 1800"]);
+    // Pinned bars are unpinned before every slice after the first, the page scrolled to it.
+    expect(events).toEqual(["settle", "shot 0", "unpin", "shot 900", "unpin", "shot 1800"]);
     const { width, height } = await sharp(image.body).metadata();
     expect([width, height]).toEqual([320, 2_000]);
     expect(await redAt(image.body, 450)).toBeLessThan(10);
@@ -259,6 +267,35 @@ describe("capturePage on a long page", () => {
     expect(image).toMatchObject({ height: 900, partial: true });
     // Nor does it scroll for lazy content first: there's only time for the top.
     expect(events).toEqual(["shot 0"]);
+  });
+
+  it("cuts the last slice to a page that got shorter as it scrolled", async () => {
+    // A header pinned by a scroll handler leaves the flow once the page scrolls.
+    const { launched, clips } = longPageBrowser([3_200, 3_140]);
+    mocks.launch.mockResolvedValue(launched);
+    const image = await capturePage(URL_, 320, new AbortController().signal, NO_STOP, log);
+    expect(image).toMatchObject({ width: 320, height: 3_140 });
+    expect(clips.map(({ y, height }) => [y, height])).toEqual([
+      [0, 900],
+      [900, 900],
+      [1_800, 900],
+      [2_700, 440],
+    ]);
+    expect((await sharp(image.body).metadata()).height).toBe(3_140);
+  });
+
+  it("drops a last slice the shorter page no longer reaches", async () => {
+    const { launched, clips } = longPageBrowser([2_710, 2_690]);
+    mocks.launch.mockResolvedValue(launched);
+    const image = await capturePage(URL_, 320, new AbortController().signal, NO_STOP, log);
+    expect(image).toMatchObject({ height: 2_690 });
+    expect(image.partial).toBeUndefined();
+    expect(clips.map(({ y, height }) => [y, height])).toEqual([
+      [0, 900],
+      [900, 900],
+      [1_800, 890],
+    ]);
+    expect((await sharp(image.body).metadata()).height).toBe(2_690);
   });
 
   it("keeps one screenshot for a page that fits the viewport", async () => {

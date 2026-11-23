@@ -26,6 +26,18 @@ export function planSlices(pageHeight: number, viewportHeight: number): SlicePla
   return { height, slices };
 }
 
+/**
+ * `slice` cut to fit a page that's now `pageHeight` CSS px tall, or null when
+ * the page ends above it. A page can get shorter as it scrolls (a header a
+ * scroll handler pins leaves the flow); a height that can't be read leaves
+ * `slice` as it is.
+ */
+export function clampSlice(slice: Slice, pageHeight: number): Slice | null {
+  if (!Number.isFinite(pageHeight)) return slice;
+  const height = Math.min(slice.height, Math.round(pageHeight) - slice.y);
+  return height > 0 ? { y: slice.y, height } : null;
+}
+
 /** The bands shot, in order, and whether time ran out before the last one. */
 export interface SliceShots<T> {
   shots: T[];
@@ -44,14 +56,16 @@ function whenStopped(stop: AbortSignal): Promise<typeof STOPPED> {
 }
 
 /**
- * Shoots `slices` one by one. Once `stop` aborts, slicing ends with what's
+ * Shoots `slices` one by one. Each shot carries the band it covers, which may
+ * be shorter than planned; a null shot means the page now ends above that
+ * band, and slicing is done. Once `stop` aborts, slicing ends with what's
  * been shot so far, abandoning a band still being shot. The first band is
  * always waited for: with nothing shot there's no picture to return, so only
  * the caller's own abort ends that wait.
  */
-export async function shootSlices<T>(
+export async function shootSlices<T extends { slice: Slice }>(
   slices: readonly Slice[],
-  shootOne: (slice: Slice, index: number) => Promise<T>,
+  shootOne: (slice: Slice, index: number) => Promise<T | null>,
   stop: AbortSignal,
 ): Promise<SliceShots<T>> {
   const shots: T[] = [];
@@ -60,16 +74,19 @@ export async function shootSlices<T>(
   for (const [index, slice] of slices.entries()) {
     if (shots.length > 0 && stop.aborted) return { shots, height, partial: true };
     const shooting = shootOne(slice, index);
+    let shot: T | null;
     if (shots.length > 0) {
       // An abandoned band's call fails once the browser closes; nothing waits for it.
       shooting.catch(() => undefined);
-      const shot = await Promise.race([shooting, stopped]);
-      if (shot === STOPPED) return { shots, height, partial: true };
-      shots.push(shot);
+      const raced = await Promise.race([shooting, stopped]);
+      if (raced === STOPPED) return { shots, height, partial: true };
+      shot = raced;
     } else {
-      shots.push(await shooting);
+      shot = await shooting;
     }
-    height += slice.height;
+    if (!shot) break;
+    shots.push(shot);
+    height += shot.slice.height;
   }
   return { shots, height, partial: false };
 }

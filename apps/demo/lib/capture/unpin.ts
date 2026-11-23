@@ -1,8 +1,10 @@
 /**
  * Stops the page's pinned bars (fixed and sticky headers, cookie banners, chat
- * buttons, sticky sidebars) from repeating down a stitched image. Run once the
- * first slice has been shot with them in it, with the page still at the top.
- * Returns how many elements it hid and how many it un-stuck.
+ * buttons, sticky sidebars) from repeating down a stitched image. Run before
+ * each slice after the first, once the page has scrolled to it: a header a
+ * scroll handler pins only past some point shows up then, and running again
+ * only repeats what's done. Returns how many elements it hid and how many it
+ * un-stuck.
  *
  * Conservative on purpose, since hiding the wrong element blanks the page:
  * - Sticky elements are never hidden. They're in the normal flow like

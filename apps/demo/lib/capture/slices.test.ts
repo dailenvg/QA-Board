@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planSlices, shootSlices, type Slice } from "./slices";
+import { clampSlice, planSlices, shootSlices, type Slice } from "./slices";
 
 describe("planning a page's slices", () => {
   it("cuts it a viewport at a time, the last slice only as tall as what's left", () => {
@@ -31,20 +31,59 @@ describe("planning a page's slices", () => {
   });
 });
 
+describe("cutting a slice to a page that got shorter", () => {
+  it("keeps a slice the page still covers", () => {
+    expect(clampSlice({ y: 900, height: 900 }, 3_140)).toEqual({ y: 900, height: 900 });
+  });
+
+  it("cuts a slice that runs past the page's end", () => {
+    expect(clampSlice({ y: 2_700, height: 500 }, 3_140)).toEqual({ y: 2_700, height: 440 });
+  });
+
+  it("drops a slice the page no longer reaches", () => {
+    expect(clampSlice({ y: 2_700, height: 10 }, 2_690)).toBeNull();
+    expect(clampSlice({ y: 2_700, height: 10 }, 2_700)).toBeNull();
+  });
+
+  it("leaves a slice as it is when the height can't be read", () => {
+    expect(clampSlice({ y: 2_700, height: 500 }, Number.NaN)).toEqual({ y: 2_700, height: 500 });
+  });
+});
+
 const SLICES: Slice[] = [
   { y: 0, height: 900 },
   { y: 900, height: 900 },
   { y: 1_800, height: 200 },
 ];
 
+/** A shot of `slice` as planned. */
+function shotOf(slice: Slice): Promise<{ slice: Slice }> {
+  return Promise.resolve({ slice });
+}
+
+/** Where each shot starts, top first. */
+function tops(shots: Array<{ slice: Slice }>): number[] {
+  return shots.map(({ slice }) => slice.y);
+}
+
 describe("shooting slices", () => {
   it("shoots every slice when there's time", async () => {
+    const result = await shootSlices(SLICES, shotOf, new AbortController().signal);
+    expect(tops(result.shots)).toEqual([0, 900, 1_800]);
+    expect(result).toMatchObject({ height: 2_000, partial: false });
+  });
+
+  it("counts the height each shot covers, and ends where the page now ends", async () => {
     const result = await shootSlices(
       SLICES,
-      (slice) => Promise.resolve(slice.y),
+      (slice, index) => {
+        if (index === 1) return shotOf({ y: 900, height: 850 });
+        return index === 2 ? Promise.resolve(null) : shotOf(slice);
+      },
       new AbortController().signal,
     );
-    expect(result).toEqual({ shots: [0, 900, 1_800], height: 2_000, partial: false });
+    expect(tops(result.shots)).toEqual([0, 900]);
+    expect(result).toMatchObject({ height: 1_750, partial: false });
   });
 
   it("stops before the next slice once told to, keeping what's shot", async () => {
@@ -53,12 +92,13 @@ describe("shooting slices", () => {
       SLICES,
       (slice, index) => {
         if (index === 1) stop.abort();
-        return Promise.resolve(slice.y);
+        return shotOf(slice);
       },
       stop.signal,
     );
     // The slice under way when the stop came still lands if it's done first.
-    expect(result).toEqual({ shots: [0, 900], height: 1_800, partial: true });
+    expect(tops(result.shots)).toEqual([0, 900]);
+    expect(result).toMatchObject({ height: 1_800, partial: true });
   });
 
   it("abandons a slice still being shot when told to stop", async () => {
@@ -66,13 +106,14 @@ describe("shooting slices", () => {
     const result = await shootSlices(
       SLICES,
       (slice, index) => {
-        if (index === 0) return Promise.resolve(slice.y);
+        if (index === 0) return shotOf(slice);
         stop.abort();
-        return new Promise<number>(() => {});
+        return new Promise<{ slice: Slice }>(() => {});
       },
       stop.signal,
     );
-    expect(result).toEqual({ shots: [0], height: 900, partial: true });
+    expect(tops(result.shots)).toEqual([0]);
+    expect(result).toMatchObject({ height: 900, partial: true });
   });
 
   it("waits for the first slice even when already told to stop", async () => {
@@ -84,11 +125,12 @@ describe("shooting slices", () => {
       async (slice) => {
         calls += 1;
         await new Promise((resolve) => setTimeout(resolve, 5));
-        return slice.y;
+        return { slice };
       },
       stop.signal,
     );
-    expect(result).toEqual({ shots: [0], height: 900, partial: true });
+    expect(tops(result.shots)).toEqual([0]);
+    expect(result).toMatchObject({ height: 900, partial: true });
     expect(calls).toBe(1);
   });
 
