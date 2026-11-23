@@ -16,13 +16,17 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../store/actions", () => ({
   addComment: mocks.addComment,
+  addReply: vi.fn(),
   addSnapshot: mocks.addSnapshot,
   attachCrop: mocks.attachCrop,
   deleteComment: vi.fn(),
+  deleteReply: vi.fn(),
   editComment: vi.fn(),
+  editReply: vi.fn(),
   hasProject: mocks.hasProject,
   replaceWithImage: vi.fn(),
   restoreComment: vi.fn(),
+  restoreReply: vi.fn(),
   setAuthorName: vi.fn(),
   setCommentStatus: vi.fn(),
 }));
