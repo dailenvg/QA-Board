@@ -45,9 +45,9 @@ describe("clientInfoSchema", () => {
     expect(clientInfoSchema.safeParse({ userAgent: "x".repeat(USER_AGENT_MAX) }).success).toBe(
       true,
     );
-    expect(
-      clientInfoSchema.safeParse({ userAgent: "x".repeat(USER_AGENT_MAX + 1) }).success,
-    ).toBe(false);
+    expect(clientInfoSchema.safeParse({ userAgent: "x".repeat(USER_AGENT_MAX + 1) }).success).toBe(
+      false,
+    );
   });
 
   it("reads a stored value, or null for anything else", () => {

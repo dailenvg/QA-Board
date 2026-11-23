@@ -43,7 +43,9 @@ describe("captureClientInfo", () => {
 
   it("asks for the hint once per page load", async () => {
     const hints = vi.fn().mockResolvedValue({ platform: "Windows", platformVersion: "15.0.0" });
-    const view = fakeWindow({ userAgentData: { platform: "Windows", getHighEntropyValues: hints } });
+    const view = fakeWindow({
+      userAgentData: { platform: "Windows", getHighEntropyValues: hints },
+    });
     await captureClientInfo(view);
     await captureClientInfo(view);
     expect(hints).toHaveBeenCalledTimes(1);
