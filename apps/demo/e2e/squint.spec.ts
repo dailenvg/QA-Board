@@ -14,7 +14,11 @@ import {
   showComments,
   topBarStatus,
   openNewTopLevelFolder,
+  seedWorkspace,
+  shareWorkspaceProject,
 } from "./squint-fixtures";
+import { addWaitingClientComment } from "./workspace-db";
+import { WORKSPACE_SEED } from "./workspace-seed";
 
 test("a website project takes a comment from posted to resolved, reopened and deleted", async ({
   page,
@@ -391,4 +395,67 @@ test("Get info shows the browser a comment was posted from, kept through Undo an
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
   await expect(popover).toBeVisible();
+
+  // Escape closes the open menu first, then the popover.
+  await popover.getByRole("button", { name: "More actions for comment 1" }).click();
+  await expect(popover.getByRole("menu")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(popover.getByRole("menu")).toHaveCount(0);
+  await expect(popover).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(popover).toHaveCount(0);
+});
+
+test("a client's comment opens its More menu inside the list, and says its details weren't kept", async ({
+  page,
+  baseURL,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "One desktop browser is enough for this.");
+  await page.route("https://example.com/**", (route) => route.abort());
+  await mockFrameCheck(page, {
+    verdict: "embeddable",
+    finalUrl: `${baseURL}/sandbox`,
+    status: 200,
+  });
+  await mockCapture(page);
+  await seedWorkspace(page, WORKSPACE_SEED, "/sandbox");
+  const { projectId } = await shareWorkspaceProject(page, "Client site");
+  await addWaitingClientComment(projectId, {
+    id: "older-client-1",
+    body: "Is this the final logo?",
+    author: "Cleo",
+    createdAt: Date.now(),
+  });
+  await page.goto(`/p/${projectId}`);
+  await showComments(page);
+  const card = onlyCommentCard(page).filter({ hasText: "Is this the final logo?" });
+  // Not the member's own: no Edit, so More sits right after Resolve.
+  await expect(card.getByRole("button", { name: /^Edit/ })).toHaveCount(0);
+
+  await card.getByRole("button", { name: "More actions for comment 1" }).click();
+  const menu = card.getByRole("menu");
+  await expect(menu).toBeVisible();
+  const list = page.getByRole("list", { name: "Active comments" });
+  const [menuBox, listBox] = await Promise.all([menu.boundingBox(), list.boundingBox()]);
+  expect(menuBox && listBox).toBeTruthy();
+  if (menuBox && listBox) {
+    expect(menuBox.x).toBeGreaterThanOrEqual(listBox.x);
+    expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(listBox.x + listBox.width);
+  }
+  expect(await list.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+
+  await menu.getByRole("menuitem", { name: "Get info" }).click();
+  const dialog = page.getByRole("dialog", { name: "Browser details" });
+  await expect(dialog).toContainText("Comment 1 by Cleo");
+  await expect(dialog.getByTestId("browser-details-empty")).toHaveText(
+    "Not recorded. This was posted before Squint kept browser details.",
+  );
+  await expect(dialog.getByRole("button", { name: "Copy details" })).toHaveCount(0);
+  const done = dialog.getByRole("button", { name: "Done" });
+  await expect(done).toBeFocused();
+  await expect(done).toHaveAccessibleDescription(
+    "Not recorded. This was posted before Squint kept browser details.",
+  );
+  await done.click();
+  await expect(dialog).toHaveCount(0);
 });

@@ -168,6 +168,9 @@ export function PinPopover({
     const onKeyDown = (event: KeyboardEvent) => {
       // A modal dialog on top (such as a screenshot) handles its own Escape.
       if (event.key !== "Escape" || document.querySelector('[aria-modal="true"]')) return;
+      // An open menu in here (More) takes this Escape; the next one closes the popover. Its own
+      // stopPropagation can't stop this listener, which sits on the same node as React's.
+      if (event.target instanceof Element && event.target.closest('[role="menu"]')) return;
       // Closing re-enables the viewer's Escape shortcut before the event reaches the window.
       event.preventDefault();
       event.stopPropagation();

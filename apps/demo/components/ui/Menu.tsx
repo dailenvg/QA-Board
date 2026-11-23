@@ -60,15 +60,28 @@ const GAP = 4;
 /** Room the menu keeps from the edge of the screen (or its dialog). */
 const EDGE = 8;
 
+interface Bounds {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
 /**
  * The visible part of a scroller marked `data-menu-bounds` around `anchor` (the sidebar's
- * navigation), while it clips (on narrow screens it doesn't scroll, so the screen bounds).
+ * navigation, the viewer's comment list), while it clips (on narrow screens the sidebar
+ * doesn't scroll, so the screen bounds). A scroller clips both ways, so its sides count too.
  */
-function clippingBounds(anchor: HTMLElement): { top: number; bottom: number } | null {
+function clippingBounds(anchor: HTMLElement): Bounds | null {
   const scroller = anchor.closest<HTMLElement>("[data-menu-bounds]");
   if (!scroller || getComputedStyle(scroller).overflowY === "visible") return null;
   const box = scroller.getBoundingClientRect();
-  return { top: Math.max(0, box.top), bottom: Math.min(window.innerHeight, box.bottom) };
+  return {
+    top: Math.max(0, box.top),
+    bottom: Math.min(window.innerHeight, box.bottom),
+    left: Math.max(0, box.left),
+    right: Math.min(window.innerWidth, box.right),
+  };
 }
 
 /**
@@ -98,16 +111,15 @@ function fittingSide(
 
 /**
  * Lined up with the trigger's right edge, unless the menu would then cross the left edge of the
- * screen (or its dialog) and fits lined up with the trigger's left edge instead.
+ * screen (or its dialog, or its `data-menu-bounds` scroller) and fits lined up with the
+ * trigger's left edge instead.
  */
 function fittingAlign(anchor: HTMLElement | null, menu: HTMLElement | null): MenuAlign {
   if (!anchor || !menu) return "end";
   const box = anchor.getBoundingClientRect();
   if (!box.width) return "end";
-  const bounds = anchor.closest('[role="dialog"]')?.getBoundingClientRect() ?? {
-    left: 0,
-    right: window.innerWidth,
-  };
+  const bounds = anchor.closest('[role="dialog"]')?.getBoundingClientRect() ??
+    clippingBounds(anchor) ?? { left: 0, right: window.innerWidth };
   // offsetWidth ignores the pop-in's scale, so this is the menu's full width.
   const width = menu.offsetWidth;
   const fitsEnd = box.right - width >= bounds.left + EDGE;
