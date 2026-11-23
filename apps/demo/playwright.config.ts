@@ -23,9 +23,8 @@ export default defineConfig({
   workers: 1,
   forbidOnly: CI,
   retries: CI ? 1 : 0,
-  reporter: CI
-    ? [["github"], ["html", { open: "never" }]]
-    : [["list"], ["html", { open: "never" }]],
+  // CI runs in shards; each writes a blob that the `e2e-report` job merges into one HTML report.
+  reporter: CI ? [["github"], ["blob"]] : [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: BASE_URL,
     trace: "retain-on-failure",

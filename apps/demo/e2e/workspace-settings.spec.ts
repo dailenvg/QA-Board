@@ -102,6 +102,7 @@ test("the owner names the workspace and picks a color and sender name, previewed
   const preview = card.getByTestId("invite-preview");
   await expect(card.getByTestId("workspace-slug")).toHaveText(E2E_COMPANY.slug);
   await expect(preview.getByTestId("invite-preview-name")).toHaveText(E2E_COMPANY.name);
+  const frame = preview.getByTestId("brand-mark");
   const mark = preview.getByTestId("brand-default");
   await expectMark(mark, "company", AVATAR_FILL);
   await expect(card.getByRole("button", { name: "Save changes" })).toHaveAttribute(
@@ -128,11 +129,14 @@ test("the owner names the workspace and picks a color and sender name, previewed
   await color.fill("#0f766e");
   await expect(color).not.toHaveAttribute("aria-invalid");
   await expect(card.getByTestId("brand-contrast")).toContainText("On white: 5.5:1");
-  await expectMark(mark, "company", "#0f766e");
+  // The color rings the logo frame; the default mark stays gray whatever the brand color.
+  await expect(frame).toHaveCSS("box-shadow", /rgb\(15, 118, 110\)/);
+  await expectMark(mark, "company", AVATAR_FILL);
   await color.fill("#E03B9D");
   await expect(color).not.toHaveAttribute("aria-invalid");
   await expect(card.getByTestId("brand-contrast")).toContainText("On white: 4.0:1");
-  await expectMark(mark, "company", "#e03b9d");
+  await expect(frame).toHaveCSS("box-shadow", /rgb\(224, 59, 157\)/);
+  await expectMark(mark, "company", AVATAR_FILL);
 
   await card.getByLabel("Email sender name").fill("Northwind  Team");
   await expect(preview.getByTestId("invite-preview-sender")).toHaveText(
