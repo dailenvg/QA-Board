@@ -1,8 +1,9 @@
 import type { CaptureFailure } from "./messages";
 import { CAPTURE_HEADERS, isCaptureErrorCode } from "./types";
 
+/** `partial`: only the top `height` px of a long page were captured in time. */
 export type CaptureResult =
-  | { ok: true; blob: Blob; width: number; height: number; scale: number }
+  | { ok: true; blob: Blob; width: number; height: number; scale: number; partial?: true }
   | { ok: false; failure: CaptureFailure };
 
 async function failureOf(response: Response): Promise<CaptureFailure> {
@@ -41,11 +42,13 @@ export async function requestCapture(
     return { ok: false, failure: "failed" };
   }
   const scale = Number(response.headers.get(CAPTURE_HEADERS.scale) ?? 1);
+  const partial = response.headers.get(CAPTURE_HEADERS.partial) === "1";
   return {
     ok: true,
     blob,
     width: pageWidth,
     height: pageHeight,
     scale: scale > 0 && scale <= 1 ? scale : 1,
+    ...(partial ? { partial } : {}),
   };
 }

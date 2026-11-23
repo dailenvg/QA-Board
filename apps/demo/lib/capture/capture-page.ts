@@ -5,20 +5,33 @@ import { CaptureError } from "./capture-error";
 import { REFUSED_HEADER, startGuardProxy, type GuardProxy } from "./guard-proxy";
 import { isLoginPage, LOGIN_SIGNALS_SCRIPT } from "./login-page";
 import { safeError } from "./safe-error";
+import { shrinkToFit } from "./shrink-to-fit";
+import { clampSlice, planSlices, shootSlices, type Slice, type SliceShots } from "./slices";
+import { sizedSlices, slicesRenderer, type SliceImage } from "./stitch";
 import type { StepLog } from "./step-log";
 import { tmpFreeMb } from "./tmp-space";
 import { CAPTURE_LIMITS } from "./types";
+import { UNPIN_SCRIPT } from "./unpin";
+import { whenAborted } from "./when-aborted";
 
 const VIEWPORT_HEIGHT = 900;
-const JPEG_QUALITY = 80;
-/** Lower quality used once the image has to shrink anyway. */
-const SCALED_QUALITY = 70;
-/** Smallest render scale; a 2560 x 16000 page of pure noise fits at 0.5. */
-const MIN_SCALE = 0.25;
+/** Slices are encoded again once stitched, so they're shot at a high quality to keep that loss small. */
+const SLICE_QUALITY = 90;
+/** After scrolling to a slice: time for on-scroll content to show before it's shot. */
+const SLICE_PAUSE_MS = 100;
 const LOAD_WAIT_MS = 10_000;
 const IDLE_WAIT_MS = 2_500;
+/** Web fonts still loading after this are shot as they are. */
+const FONTS_WAIT_MS = 3_000;
 /** Upper bound for any single page step; the caller's signal ends the whole capture sooner. */
 const STEP_TIMEOUT_MS = 25_000;
+/**
+ * Past an abort, how long a stitch may hold the turn on top of `CLOSE_LIMIT_MS`: the encode
+ * under way can't be stopped. A 2560 x 16000 page encoded in about 0.25 s on one core locally,
+ * so this leaves room for a slower CPU and a smaller retry already started. A stitch still
+ * running after it has hung, and the turn is freed without it.
+ */
+export const ENCODE_ALLOWANCE_MS = 5_000;
 
 export interface CapturedImage {
   body: Uint8Array<ArrayBuffer>;
@@ -28,7 +41,14 @@ export interface CapturedImage {
   height: number;
   /** Image px per page px: 1 unless the page was rendered smaller to fit `CAPTURE_LIMITS.maxBytes`. */
   scale: number;
+  /** Time ran out partway down a long page: the image is its top `height` px. */
+  partial?: true;
 }
+
+/** What a browser hands back: the whole page, or slices to stitch once it has closed. */
+type Shot =
+  | { kind: "whole"; image: CapturedImage }
+  | { kind: "slices"; width: number; slices: SliceShots<SliceImage> };
 
 /**
  * Scrolls down a viewport at a time so lazy images and on-scroll content load,
@@ -43,7 +63,7 @@ const SETTLE_SCRIPT = `(async () => {
     await pause(120);
   }
   window.scrollTo(0, 0);
-  if (document.fonts) await document.fonts.ready;
+  if (document.fonts) await Promise.race([document.fonts.ready, pause(${FONTS_WAIT_MS})]);
 })()`;
 
 const HEIGHT_SCRIPT = `Math.max(
@@ -51,7 +71,47 @@ const HEIGHT_SCRIPT = `Math.max(
   document.body ? document.body.scrollHeight : 0
 )`;
 
-async function load(page: Page, url: URL, proxy: GuardProxy, log: StepLog): Promise<void> {
+/** The page's height in CSS px, NaN if it can't be read. */
+async function pageHeight(page: Page): Promise<number> {
+  return Number(await page.evaluate(HEIGHT_SCRIPT));
+}
+
+/** Unpins the page's bars (`UNPIN_SCRIPT`) and returns what it did, for the log. */
+function unpin(page: Page): Promise<string> {
+  return page.evaluate<unknown>(UNPIN_SCRIPT).then(String, () => "failed");
+}
+
+/** Scrolls straight to `y`, then gives the page two frames and a pause to show what's there. */
+function scrollScript(y: number): string {
+  return `new Promise((resolve) => {
+    window.scrollTo({ top: ${y}, left: 0, behavior: "instant" });
+    requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, ${SLICE_PAUSE_MS})));
+  })`;
+}
+
+/** Whether `wait` finished before `stop` aborted; false at once if it already has. */
+function waitUnlessStopped(wait: Promise<unknown>, stop: AbortSignal): Promise<boolean> {
+  if (stop.aborted) return Promise.resolve(false);
+  const finished = wait.then(
+    () => true,
+    () => false,
+  );
+  return Promise.race([finished, whenAborted(stop).catch(() => false)]);
+}
+
+/**
+ * Opens `url` and lets it settle. Once `stop` aborts, what's left is cut
+ * short so a slow page still has time to be shot: the waits for the load
+ * event and for the network to go quiet end early, and the lazy-content scroll
+ * is skipped if it hasn't started (it can't stop halfway: it moves the page).
+ */
+async function load(
+  page: Page,
+  url: URL,
+  proxy: GuardProxy,
+  stop: AbortSignal,
+  log: StepLog,
+): Promise<void> {
   let refused: boolean;
   try {
     const response = await page.goto(url.toString(), { waitUntil: "domcontentloaded" });
@@ -65,16 +125,16 @@ async function load(page: Page, url: URL, proxy: GuardProxy, log: StepLog): Prom
   if (refused) throw new CaptureError("private-host");
   log("goto");
   // Slow trackers shouldn't sink the snapshot: capture whatever has loaded by then.
-  await page.waitForLoadState("load", { timeout: LOAD_WAIT_MS }).then(
-    () => log("load"),
-    () => log("load cut off"),
-  );
-  await page.evaluate(SETTLE_SCRIPT).catch(() => undefined);
-  log("scroll");
-  await page.waitForLoadState("networkidle", { timeout: IDLE_WAIT_MS }).then(
-    () => log("networkidle"),
-    () => log("networkidle cut off"),
-  );
+  const loaded = page.waitForLoadState("load", { timeout: LOAD_WAIT_MS });
+  log((await waitUnlessStopped(loaded, stop)) ? "load" : "load cut off");
+  if (stop.aborted) {
+    log("scroll skipped");
+  } else {
+    await page.evaluate(SETTLE_SCRIPT).catch(() => undefined);
+    log("scroll");
+  }
+  const idle = page.waitForLoadState("networkidle", { timeout: IDLE_WAIT_MS });
+  log((await waitUnlessStopped(idle, stop)) ? "networkidle" : "networkidle cut off");
 }
 
 /**
@@ -118,33 +178,124 @@ async function render(
   return Buffer.from(data, "base64");
 }
 
+/** A page no taller than the viewport, in one screenshot that shrinks to fit if it must. */
+async function shootWhole(
+  cdp: CDPSession,
+  width: number,
+  height: number,
+  log: StepLog,
+): Promise<CapturedImage> {
+  const { image, scale } = await shrinkToFit(
+    (at, quality) => render(cdp, width, height, at, quality),
+    "screenshot",
+    log,
+  );
+  return { body: new Uint8Array(image), contentType: "image/jpeg", width, height, scale };
+}
+
 /**
- * The page as a JPEG of at most `CAPTURE_LIMITS.maxBytes`, so the response
- * fits a Vercel Function (4.5 MB) without relying on streaming. Full size at
- * quality 80 first; if that's too big, the render scale shrinks by the
- * measured overshoot (byte count grows with pixel count) until it fits.
+ * Scrolls to `planned` and shoots the viewport's part of it. The clip is in
+ * page px; on the last slice the browser may stop scrolling short of
+ * `planned.y`, which still leaves the slice inside the viewport. From the
+ * second slice on, the page's pinned bars are unpinned (`UNPIN_SCRIPT`) once
+ * it has scrolled, so bars a scroll handler pins only then are caught too, and
+ * the slice is cut to the page's height now: a bar leaving the flow shortens
+ * the page. Null when the page now ends above the slice.
  */
-async function shoot(page: Page, width: number, log: StepLog): Promise<CapturedImage> {
-  const pageHeight = Number(await page.evaluate(HEIGHT_SCRIPT));
-  const height = Math.max(1, Math.min(CAPTURE_LIMITS.maxHeight, Math.round(pageHeight) || 1));
-  await page.addStyleTag({ content: FREEZE_CSS }).catch(() => undefined);
-  log(`measured ${width}x${height}, ${tmpFreeMb()} MB free in /tmp, ${memFreeMb()} MB RAM`);
-  const cdp = await page.context().newCDPSession(page);
-  let scale = 1;
-  let shot = await render(cdp, width, height, scale, JPEG_QUALITY);
-  log(`screenshot x${scale} ${shot.length}B`);
-  while (shot.length > CAPTURE_LIMITS.maxBytes && scale > MIN_SCALE) {
-    const shrink = Math.sqrt(CAPTURE_LIMITS.maxBytes / shot.length) * 0.9;
-    scale = Math.max(MIN_SCALE, Math.floor(scale * shrink * 100) / 100);
-    shot = await render(cdp, width, height, scale, SCALED_QUALITY);
-    log(`screenshot x${scale} ${shot.length}B`);
+async function shootSlice(
+  page: Page,
+  cdp: CDPSession,
+  width: number,
+  planned: Slice,
+  index: number,
+  log: StepLog,
+): Promise<SliceImage | null> {
+  await page.evaluate(scrollScript(planned.y));
+  if (index > 0) log(`unpinned: ${await unpin(page)}`);
+  const slice = index > 0 ? clampSlice(planned, await pageHeight(page)) : planned;
+  if (!slice) {
+    log(`page ends above slice ${index + 1}`);
+    return null;
   }
-  if (shot.length > CAPTURE_LIMITS.maxBytes) throw new CaptureError("failed");
-  return { body: new Uint8Array(shot), contentType: "image/jpeg", width, height, scale };
+  const { data } = await cdp.send("Page.captureScreenshot", {
+    format: "jpeg",
+    quality: SLICE_QUALITY,
+    clip: { x: 0, y: slice.y, width, height: slice.height, scale: 1 },
+  });
+  const jpeg = Buffer.from(data, "base64");
+  log(`slice ${index + 1} ${slice.height}px ${jpeg.length}B`);
+  return { slice, jpeg };
+}
+
+/**
+ * Shoots the page: in one screenshot when it fits the viewport, otherwise one
+ * viewport at a time until the last slice or until `stop` aborts.
+ */
+async function shoot(page: Page, width: number, stop: AbortSignal, log: StepLog): Promise<Shot> {
+  const plan = planSlices(await pageHeight(page), VIEWPORT_HEIGHT);
+  await page.addStyleTag({ content: FREEZE_CSS }).catch(() => undefined);
+  log(
+    `measured ${width}x${plan.height} in ${plan.slices.length} slices, ${tmpFreeMb()} MB free in /tmp, ${memFreeMb()} MB RAM`,
+  );
+  const cdp = await page.context().newCDPSession(page);
+  if (plan.slices.length === 1) {
+    return { kind: "whole", image: await shootWhole(cdp, width, plan.height, log) };
+  }
+  const slices = await shootSlices(
+    plan.slices,
+    (slice, index) => shootSlice(page, cdp, width, slice, index, log),
+    stop,
+  );
+  if (slices.partial) log(`out of time after ${slices.shots.length}/${plan.slices.length} slices`);
+  return { kind: "slices", width, slices };
+}
+
+/**
+ * Stitches a long page's slices into one JPEG that fits
+ * `CAPTURE_LIMITS.maxBytes`. Runs once the browser has closed, so Chromium's
+ * memory is free for it. Once `signal` aborts, no further encode starts: an
+ * encode under way can't be stopped, but a smaller retry is skipped.
+ */
+async function stitch(
+  width: number,
+  { shots, height, partial }: SliceShots<SliceImage>,
+  signal: AbortSignal,
+  log: StepLog,
+): Promise<CapturedImage> {
+  try {
+    log(`stitching ${width}x${height}, ${rssMb()} MB RSS`);
+    const jpegs = await sizedSlices(shots, width);
+    const render = slicesRenderer(jpegs, width, height);
+    const { image, scale } = await shrinkToFit(
+      (at, quality) => {
+        if (signal.aborted) throw new CaptureError("timeout");
+        return render(at, quality);
+      },
+      "stitched",
+      log,
+    );
+    log(`${rssMb()} MB RSS after stitching`);
+    return {
+      body: new Uint8Array(image),
+      contentType: "image/jpeg",
+      width,
+      height,
+      scale,
+      ...(partial ? { partial: true as const } : {}),
+    };
+  } catch (error) {
+    if (error instanceof CaptureError) throw error;
+    log(`stitch failed: ${safeError(error)} (${rssMb()} MB RSS)`);
+    throw new CaptureError("failed");
+  }
 }
 
 function memFreeMb(): number {
   return Math.round(freemem() / 1_048_576);
+}
+
+function rssMb(): number {
+  return Math.round(process.memoryUsage.rss() / 1_048_576);
 }
 
 /** Rejects if Chromium exits mid-capture: its pending protocol calls would otherwise never settle. */
@@ -161,8 +312,9 @@ async function snapshot(
   proxy: GuardProxy,
   url: URL,
   width: number,
+  stop: AbortSignal,
   log: StepLog,
-): Promise<CapturedImage> {
+): Promise<Shot> {
   const context = await browser.newContext({
     viewport: { width, height: VIEWPORT_HEIGHT },
     deviceScaleFactor: 1,
@@ -176,9 +328,9 @@ async function snapshot(
   page.setDefaultTimeout(STEP_TIMEOUT_MS);
   page.on("crash", () => log("page crashed"));
   log("page");
-  await load(page, url, proxy, log);
+  await load(page, url, proxy, stop, log);
   await refuseLoginPage(page, url, log);
-  return shoot(page, width, log);
+  return shoot(page, width, stop, log);
 }
 
 /** One capture in its own browser; aborting `signal` closes it, ending any step still waiting. */
@@ -186,8 +338,9 @@ async function captureInBrowser(
   url: URL,
   width: number,
   signal: AbortSignal,
+  stop: AbortSignal,
   log: StepLog,
-): Promise<CapturedImage> {
+): Promise<Shot> {
   const proxy = await startGuardProxy();
   const launched = await launchBrowser(log, signal).catch((error: unknown) => {
     proxy.close();
@@ -202,7 +355,7 @@ async function captureInBrowser(
   signal.addEventListener("abort", onAbort);
   try {
     signal.throwIfAborted();
-    return await Promise.race([snapshot(browser, proxy, url, width, log), whenGone(browser)]);
+    return await Promise.race([snapshot(browser, proxy, url, width, stop, log), whenGone(browser)]);
   } catch (error) {
     if (signal.aborted) throw new CaptureError("timeout");
     if (error instanceof CaptureError) throw error;
@@ -217,27 +370,89 @@ async function captureInBrowser(
 }
 
 /**
- * Captures a full-page JPEG at `width` CSS px (device scale factor 1) in a
- * headless Chromium whose every connection goes through an address-checking
- * proxy. Waiting for a turn counts toward the caller's `signal`.
+ * Runs the browser in this capture's turn. Whatever a hung browser does, the
+ * turn ends `CLOSE_LIMIT_MS` after an abort: by then it has closed or been killed.
  */
-export async function capturePage(
+async function shootInTurn(
   url: URL,
   width: number,
   signal: AbortSignal,
+  stop: AbortSignal,
+  endTurn: () => void,
   log: StepLog,
-): Promise<CapturedImage> {
-  const endTurn = await browserTurn();
-  // Whatever a hung browser does, the turn ends CLOSE_LIMIT_MS after an abort:
-  // by then the browser has closed or been killed.
+): Promise<Shot> {
   const onAbort = () => setTimeout(endTurn, CLOSE_LIMIT_MS).unref();
   signal.addEventListener("abort", onAbort, { once: true });
   try {
     if (signal.aborted) throw new CaptureError("timeout");
     log("turn");
-    return await captureInBrowser(url, width, signal, log);
+    return await captureInBrowser(url, width, signal, stop, log);
   } finally {
     signal.removeEventListener("abort", onAbort);
-    endTurn();
   }
+}
+
+/**
+ * Stitches the slices once the browser has closed. The caller's wait ends as
+ * soon as `signal` aborts, with a timeout. The turn lasts until sharp is done,
+ * so the next capture's Chromium never starts beside an encode still holding
+ * hundreds of MB, but no longer than `CLOSE_LIMIT_MS` + `ENCODE_ALLOWANCE_MS`
+ * after the abort: a hung encode mustn't hold every later capture.
+ */
+function stitchInTurn(
+  shot: Extract<Shot, { kind: "slices" }>,
+  signal: AbortSignal,
+  endTurn: () => void,
+  log: StepLog,
+): Promise<CapturedImage> {
+  if (signal.aborted) {
+    log("out of time before stitching");
+    endTurn();
+    return Promise.reject(new CaptureError("timeout"));
+  }
+  let fallback: NodeJS.Timeout | undefined;
+  const onAbort = () => {
+    fallback = setTimeout(() => {
+      log("stitch still running, turn ended without it");
+      endTurn();
+    }, CLOSE_LIMIT_MS + ENCODE_ALLOWANCE_MS).unref();
+  };
+  signal.addEventListener("abort", onAbort, { once: true });
+  const settled = () => {
+    signal.removeEventListener("abort", onAbort);
+    clearTimeout(fallback);
+    endTurn();
+  };
+  const stitching = stitch(shot.width, shot.slices, signal, log);
+  void stitching.then(settled, settled);
+  return Promise.race([stitching, whenAborted(signal)]);
+}
+
+/**
+ * Captures a full-page JPEG at `width` CSS px (device scale factor 1) in a
+ * headless Chromium whose every connection goes through an address-checking
+ * proxy. Waiting for a turn counts toward the caller's `signal`. Once `stop`
+ * aborts, the page's remaining waits are cut short, and a long page stops
+ * being shot: what's been shot comes back `partial`. It has to abort early
+ * enough before `signal` to leave time to close the browser and stitch; a
+ * long page still unstitched when `signal` aborts fails with a timeout.
+ */
+export async function capturePage(
+  url: URL,
+  width: number,
+  signal: AbortSignal,
+  stop: AbortSignal,
+  log: StepLog,
+): Promise<CapturedImage> {
+  const endTurn = await browserTurn();
+  let shot: Shot;
+  try {
+    shot = await shootInTurn(url, width, signal, stop, endTurn, log);
+  } catch (error) {
+    endTurn();
+    throw error;
+  }
+  if (shot.kind === "slices") return stitchInTurn(shot, signal, endTurn, log);
+  endTurn();
+  return shot.image;
 }

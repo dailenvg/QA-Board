@@ -68,7 +68,7 @@ async function captureSnapshot(
     emitSquiggy({ type: "save-failed" });
     return captureFailed("storage");
   }
-  const { width: pageWidth, height, scale } = result;
+  const { width: pageWidth, height, scale, partial } = result;
   const saved = addSnapshot({
     id,
     projectId,
@@ -78,7 +78,8 @@ async function captureSnapshot(
     sourceUrl: url,
     ...(scale < 1 ? { scale } : {}),
   });
-  return saved.ok ? { ok: true, snapshot: saved.value } : { ok: false, message: saved.error };
+  if (!saved.ok) return { ok: false, message: saved.error };
+  return { ok: true, snapshot: saved.value, ...(partial ? { partial } : {}) };
 }
 
 /** New website projects' first snapshots while they're taken (`captureNewWebsite`). */

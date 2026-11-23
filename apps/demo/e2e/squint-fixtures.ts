@@ -14,12 +14,17 @@ export const SNAPSHOT_HEIGHT = 2400;
 
 /**
  * Answers /api/capture locally (a striped PNG at the requested width, or an
- * error), so tests never launch a browser or touch the network. Returns how
- * many captures were asked for.
+ * error), so tests never launch a browser or touch the network. `partial`
+ * answers as a long page that ran out of time. Returns how many captures were
+ * asked for.
  */
 export async function mockCapture(
   page: Page,
-  { failWith, delayMs = 0 }: { failWith?: CaptureErrorCode; delayMs?: number } = {},
+  {
+    failWith,
+    delayMs = 0,
+    partial = false,
+  }: { failWith?: CaptureErrorCode; delayMs?: number; partial?: boolean } = {},
 ): Promise<() => number> {
   let calls = 0;
   await page.unroute("**/api/capture");
@@ -33,7 +38,11 @@ export async function mockCapture(
     const { width } = route.request().postDataJSON() as { width: number };
     await route.fulfill({
       contentType: "image/png",
-      headers: { "x-capture-width": String(width), "x-capture-height": String(SNAPSHOT_HEIGHT) },
+      headers: {
+        "x-capture-width": String(width),
+        "x-capture-height": String(SNAPSHOT_HEIGHT),
+        ...(partial ? { "x-capture-partial": "1" } : {}),
+      },
       body: snapshotPng(width, SNAPSHOT_HEIGHT),
     });
   });

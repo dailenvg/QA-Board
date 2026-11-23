@@ -268,6 +268,23 @@ describe("client snapshots", () => {
     expect(outcome).toEqual(captureFailed("login-page"));
     expect(store.getSnapshot().view.snapshots).toEqual(VIEW.snapshots);
   });
+
+  it("says a partial capture is partial, without keeping that on the snapshot", async () => {
+    const shared = {
+      id: "s-new",
+      width: 1280,
+      height: 900,
+      createdAt: 9,
+      sourceUrl: "https://a.example/",
+    };
+    const { store, backend } = setup([
+      () => Response.json({ ...shared, partial: true }, { status: 201 }),
+    ]);
+    const outcome = await backend.captureSnapshot("shared", "", 1280, new AbortController().signal);
+    expect(outcome).toMatchObject({ ok: true, partial: true, snapshot: { id: "s-new" } });
+    expect(outcome?.ok && outcome.snapshot).not.toHaveProperty("partial");
+    expect(store.getSnapshot().view.snapshots.at(-1)).toEqual(shared);
+  });
 });
 
 describe("a client's edit of their own comment (4.12)", () => {

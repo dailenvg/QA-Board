@@ -1,10 +1,10 @@
 import { EDIT_KEY_HEADER, OWNER_KEY_HEADER } from "../share/http-headers";
 import type {
+  CapturedSnapshot,
   ClientView,
   CreatedShare,
   PostedComment,
   SharedComment,
-  SharedSnapshot,
   ShareChange,
   ShareChanges,
   ShareManifest,
@@ -110,7 +110,7 @@ export function clientApi(token: string) {
         jsonInit("PATCH", { body }, { [EDIT_KEY_HEADER]: editKey }),
       ),
     capture: (width: number, signal: AbortSignal) =>
-      call<SharedSnapshot>(`${base}/capture`, { ...jsonInit("POST", { width }), signal }),
+      call<CapturedSnapshot>(`${base}/capture`, { ...jsonInit("POST", { width }), signal }),
   };
 }
 

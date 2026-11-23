@@ -1,8 +1,9 @@
 "use client";
 
-import { motion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { CAPTURE_PARTIAL_NOTICE } from "@/lib/capture/messages";
 import type { CaptureState } from "@/lib/capture/use-capture";
-import { useRevealVariants } from "@/lib/motion";
+import { duration, instant, useRevealVariants } from "@/lib/motion";
 import { absoluteTime, relativeTime } from "@/lib/relative-time";
 import type { Snapshot } from "@/lib/store/types";
 import { useNow } from "@/lib/use-now";
@@ -19,7 +20,11 @@ interface SnapshotBarProps {
   showLatestLabel: string;
 }
 
-/** Floating bar over the snapshot: which snapshot this is, and a way to refresh or go back. */
+/**
+ * Floating bar over the snapshot: which snapshot this is, and a way to refresh
+ * or go back. Under it, why the last capture failed, or that it only got the
+ * top of a long page (said once: it isn't stored).
+ */
 export function SnapshotBar({
   snapshot,
   isLatest,
@@ -30,7 +35,10 @@ export function SnapshotBar({
 }: SnapshotBarProps) {
   const now = useNow();
   const variants = useRevealVariants();
+  const reduce = useReducedMotion();
   const capturing = capture.status === "capturing";
+  // A capture can run 45 s and phones show the icon alone, so it turns while one is working.
+  const spinning = capturing && !reduce;
   const refreshLabel = capturing ? "Taking a snapshot…" : "Refresh snapshot";
   return (
     <motion.div
@@ -71,7 +79,15 @@ export function SnapshotBar({
             className="max-sm:size-11 max-sm:px-0"
             onClick={capturing ? undefined : onRefresh}
           >
-            <Icon name="refresh" className="size-4" />
+            <motion.span
+              className="inline-flex"
+              animate={{ rotate: spinning ? 360 : 0 }}
+              transition={
+                spinning ? { duration: duration.loop, ease: "linear", repeat: Infinity } : instant
+              }
+            >
+              <Icon name="refresh" className="size-4" />
+            </motion.span>
             <span className="max-sm:sr-only">{refreshLabel}</span>
           </Button>
         ) : null}
@@ -86,6 +102,25 @@ export function SnapshotBar({
           {capture.message}
         </p>
       ) : null}
+      {/* initial={false}: arriving with the bar, the bar's own reveal covers it. */}
+      <AnimatePresence initial={false}>
+        {capture.status === "idle" && capture.partial && isLatest ? (
+          // Informational, not an alert: the snapshot worked. The stage's status line reads it out.
+          // It fades out as the next capture starts, which is when it stops being true.
+          <motion.p
+            key="capture-partial"
+            variants={variants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            data-testid="capture-partial"
+            className="flex items-start gap-2 self-start rounded-field bg-panel px-3 py-2 text-meta text-ink shadow-float ring-1 ring-line"
+          >
+            <Icon name="info" className="mt-0.5 size-4 shrink-0 text-muted" />
+            {CAPTURE_PARTIAL_NOTICE}
+          </motion.p>
+        ) : null}
+      </AnimatePresence>
     </motion.div>
   );
 }

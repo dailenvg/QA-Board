@@ -44,6 +44,14 @@ export interface SharedSnapshot {
   scale?: number;
 }
 
+/**
+ * A client's new snapshot as their capture answers it. `partial`: only the
+ * top of a long page was captured in time. Said once, never stored.
+ */
+export interface CapturedSnapshot extends SharedSnapshot {
+  partial?: true;
+}
+
 export interface SharedComment {
   id: string;
   x: number;

@@ -12,6 +12,7 @@ import { pageBlobKey } from "./keys";
 import { isExpired, rescheduledExpiry, shareExpiresAt } from "./retention";
 import { DEFAULT_REVIEW_WINDOW_HOURS, reviewClosed, reviewDeadline } from "./review-window";
 import type {
+  CapturedSnapshot,
   ClientComment,
   ClientView,
   CreatedShare,
@@ -657,7 +658,8 @@ export async function editClientComment(
 /**
  * Captures the shared project's own address (never one the client sends) and
  * adds it as a snapshot every viewer of the share can comment on. Refused once
- * the review window is over.
+ * the review window is over. A partial capture is stored like any other; only
+ * the answer says it's partial.
  */
 export async function captureForClient(
   services: ShareServices,
@@ -665,7 +667,7 @@ export async function captureForClient(
   width: number,
   capture: (url: URL, width: number) => Promise<CapturedImage>,
   now: number,
-): Promise<Outcome<SharedSnapshot>> {
+): Promise<Outcome<CapturedSnapshot>> {
   if (reviewClosed(shareReviewEndsAt(share), now)) return REVIEW_CLOSED;
   const { source } = share.project;
   if (source.kind !== "url") return fail(422, "not-a-website");
@@ -704,5 +706,5 @@ export async function captureForClient(
     await undo();
     throw new Error("The snapshot expired before its image was stored.");
   }
-  return ok(snapshot);
+  return ok(image.partial ? { ...snapshot, partial: true } : snapshot);
 }

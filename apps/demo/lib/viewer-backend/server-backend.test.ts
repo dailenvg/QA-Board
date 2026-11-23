@@ -236,4 +236,25 @@ describe("a snapshot taken in the viewer", () => {
     expect(mocks.emitSquiggy).toHaveBeenCalledWith({ type: "save-failed" });
     expect(mocks.hasProject).not.toHaveBeenCalled();
   });
+
+  it("says the capture was partial, and records the snapshot like any other", async () => {
+    mocks.requestCapture.mockResolvedValue({
+      ok: true,
+      blob: new Blob(["jpeg"], { type: "image/jpeg" }),
+      width: 1440,
+      height: 900,
+      scale: 1,
+      partial: true,
+    });
+    mocks.storeWorkspaceBlob.mockResolvedValue({ ok: true });
+    mocks.addSnapshot.mockImplementation((snapshot: object) => ({ ok: true, value: snapshot }));
+    const outcome = await serverBackend.captureSnapshot(
+      "p-viewer",
+      "https://acme.example/",
+      1440,
+      new AbortController().signal,
+    );
+    expect(outcome).toMatchObject({ ok: true, partial: true, snapshot: { height: 900 } });
+    expect(mocks.addSnapshot).toHaveBeenCalledWith(expect.not.objectContaining({ partial: true }));
+  });
 });
