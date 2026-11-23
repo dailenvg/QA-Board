@@ -255,6 +255,42 @@ describe("share routes: permissions", () => {
     expect(view.comments[0]?.body).toBe(STATE.comments[0]?.body);
   });
 
+  it("records a guest's browser with the request's user agent, for the owner's pull only", async () => {
+    const share = await create();
+    const form = new FormData();
+    const sent = {
+      viewport: { width: 390, height: 844 },
+      dpr: 3,
+      userAgent: "Claimed by the body",
+    };
+    form.set(
+      "comment",
+      JSON.stringify({ id: "k-ua", x: 1, y: 1, body: "Hi", author: "Cleo", clientInfo: sent }),
+    );
+    const header =
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) Version/18.1 Safari/604.1";
+    const response = await clientCommentsRoute.POST(
+      request(`/api/s/${share.token}/comments`, {
+        method: "POST",
+        body: form,
+        headers: { "user-agent": header },
+      }),
+      params({ token: share.token }),
+    );
+    expect(response.status).toBe(201);
+    expect(await response.json()).not.toHaveProperty("clientInfo");
+
+    const view = await (await clientCalls(share.token).view()).text();
+    expect(view).not.toContain("clientInfo");
+    const pull = await ownerCalls(share, share.ownerKey).pull();
+    const { comments } = (await pull.json()) as { comments: Array<{ clientInfo?: unknown }> };
+    expect(comments[0]?.clientInfo).toEqual({
+      viewport: { width: 390, height: 844 },
+      dpr: 3,
+      userAgent: header,
+    });
+  });
+
   it("refuses oversized and invalid bodies", async () => {
     const share = await create();
     const tooLong = { ...STATE, project: { ...STATE.project, name: "x".repeat(81) } };

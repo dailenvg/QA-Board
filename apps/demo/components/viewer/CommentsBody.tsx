@@ -135,6 +135,8 @@ export function CommentsBody({
         initial="hidden"
         animate="visible"
         aria-label={tab === "active" ? "Active comments" : "Resolved comments"}
+        // A card's More menu opens above its trigger when the list's visible part has no room below.
+        data-menu-bounds
         // `relative`: popLayout positions cards leaving for the other tab against this list.
         className="relative flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 pb-3"
       >

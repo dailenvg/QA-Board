@@ -1,3 +1,4 @@
+import type { ClientInfo } from "../client-info/schema";
 import { pageImageKey } from "../blob-store/keys";
 import { emitSquiggy } from "../squiggy/events";
 import { cleanLabel } from "./archive";
@@ -354,6 +355,7 @@ export function addComment(input: {
   author: string;
   snapshotId?: string;
   pageId?: string;
+  clientInfo?: ClientInfo;
 }): Promise<Result<Comment>> {
   const now = Date.now();
   // The server gives the member's photo on every read; stamped now, it shows from the start.
@@ -370,6 +372,7 @@ export function addComment(input: {
     updatedAt: now,
     ...(input.snapshotId ? { snapshotId: input.snapshotId } : {}),
     ...(input.pageId ? { pageId: input.pageId } : {}),
+    ...(input.clientInfo ? { clientInfo: input.clientInfo } : {}),
     mine: true,
     ...(avatar ? { authorAvatar: avatar } : {}),
   };

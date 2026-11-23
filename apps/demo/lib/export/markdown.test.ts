@@ -28,6 +28,15 @@ describe("toMarkdown", () => {
     await expect(zipMarkdown).toMatchFileSnapshot("__snapshots__/comments.example.md.snap");
   });
 
+  it("leaves browser details out", () => {
+    const clientInfo = { userAgent: "Mozilla/5.0 (Test UA)", dpr: 2 };
+    const comments = URL_EXPORT.comments.map((comment) => ({ ...comment, clientInfo }));
+    const markdown = toMarkdown(buildExportDocument({ ...URL_EXPORT, comments }), {
+      withFiles: true,
+    });
+    expect(markdown).toBe(zipMarkdown);
+  });
+
   it("keeps hostile comment text from changing the document's structure", () => {
     expect(structure(zipMarkdown)).toEqual([
       "# Squint review: Acme \\*launch\\* \\[v2\\]",

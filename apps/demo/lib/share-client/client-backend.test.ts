@@ -66,6 +66,19 @@ const cropsSent = (sent: RequestInit[]) =>
     .filter((init) => init.body instanceof FormData)
     .map((init) => (init.body as FormData).has("crop"));
 
+describe("a comment's browser details", () => {
+  it("go with the comment without the user agent, which the server reads from the request", async () => {
+    const { store, backend, sent } = setup([accepted]);
+    const clientInfo = { userAgent: "Mozilla/5.0", viewport: { width: 390, height: 844 }, dpr: 3 };
+    await backend.addComment({ ...input, clientInfo }, null);
+    const form = sent.find((init) => init.body instanceof FormData)?.body as FormData;
+    const json = form.get("comment");
+    const comment = JSON.parse(typeof json === "string" ? json : "{}") as Record<string, unknown>;
+    expect(comment.clientInfo).toEqual({ viewport: { width: 390, height: 844 }, dpr: 3 });
+    expect(store.getSnapshot().view.comments[0]).not.toHaveProperty("clientInfo");
+  });
+});
+
 describe("a comment's screenshot", () => {
   it("goes with the comment and shows at once", async () => {
     const { store, backend, sent } = setup([withCrop]);

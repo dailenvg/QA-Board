@@ -102,6 +102,36 @@ describe("toShareState", () => {
     });
   });
 
+  it("never pushes browser details, the team's own or a client's pulled ones", () => {
+    const clientInfo = { userAgent: "Mozilla/5.0", viewport: { width: 1440, height: 900 }, dpr: 2 };
+    const pushed = toShareState(
+      project,
+      [
+        { ...comment, clientInfo },
+        { ...pageComment, fromClient: true, clientInfo },
+      ],
+      [snapshot],
+    );
+    expect(JSON.stringify(pushed)).not.toMatch(/clientInfo|Mozilla/);
+    // The same push as without them, so the manifest's digests don't change either.
+    const without = toShareState(
+      project,
+      [comment, { ...pageComment, fromClient: true }],
+      [snapshot],
+    );
+    expect(pushed).toEqual(without);
+  });
+
+  it("keeps a pulled comment's browser details in the workspace", () => {
+    const clientInfo = { userAgent: "Mozilla/5.0", dpr: 3 };
+    const [shared] = toShareState(project, [pageComment], []).comments;
+    if (!shared) throw new Error("no comment");
+    expect(fromSharedComment({ ...shared, clientInfo }, "p1")).toEqual({
+      ...pageComment,
+      clientInfo,
+    });
+  });
+
   it("carries each comment's page", () => {
     const [shared] = toShareState(project, [pageComment], []).comments;
     expect(shared).toMatchObject({ id: "c2", pageId: "pg2" });

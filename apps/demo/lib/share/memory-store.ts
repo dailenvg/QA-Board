@@ -165,10 +165,12 @@ export function createMemoryStore(): ShareStore {
       }
       return done(stale);
     },
-    insertComment(id, comment, origin, claim, editKeyHash) {
+    insertComment(id, comment, origin, claim, editKeyHash, clientInfo) {
       const entry = shares.get(id);
       if (!entry || entry.comments.has(comment.id)) return done(false);
       upsert(entry.comments, comment, origin);
+      const inserted = entry.comments.get(comment.id);
+      if (inserted && clientInfo) entry.comments.set(comment.id, { ...inserted, clientInfo });
       if (editKeyHash) entry.editKeys.set(comment.id, editKeyHash);
       if (claim) {
         entry.pending.set(comment.id, claim.claim);

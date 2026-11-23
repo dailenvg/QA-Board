@@ -135,6 +135,24 @@ describe("writesFor", () => {
     }
   });
 
+  it("leaves a new comment's user agent to the server, and an Undo sends back the one recorded", () => {
+    const clientInfo = { userAgent: "Posted from here", viewport: { width: 1440, height: 900 } };
+    const own: Comment = { ...comment, id: "c4", mine: true, clientInfo };
+    const [added] = writes({ type: "comment/add", comment: own });
+    expect(added?.body).toMatchObject({ clientInfo: { viewport: clientInfo.viewport } });
+    expect(added?.body).not.toHaveProperty("clientInfo.userAgent");
+    // Deleted, then Undo: the details it was posted with, not re-read from this browser.
+    const [restored] = writes({ type: "comment/restore", comment: own });
+    expect(restored?.body).toMatchObject({ clientInfo });
+  });
+
+  it("never sends a client's browser details: the server reads them from the review link", () => {
+    const clientInfo = { userAgent: "The guest's", dpr: 3 };
+    const guest: Comment = { ...comment, fromClient: true, clientInfo };
+    const [restored] = writes({ type: "comment/restore", comment: guest });
+    expect(restored?.body).not.toHaveProperty("clientInfo");
+  });
+
   it("sends nothing to take out a comment the server already deleted", () => {
     expect(writes({ type: "comment/removed", id: "c1" })).toEqual([]);
     expect(reduce(DATA, { type: "comment/removed", id: "c1" }).comments).toEqual([]);

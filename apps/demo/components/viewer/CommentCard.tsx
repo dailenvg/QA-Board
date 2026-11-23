@@ -16,6 +16,7 @@ import { CommentBadge } from "./CommentBadge";
 import { CommentCropThumb } from "./CommentCropThumb";
 import { CommentEdited } from "./CommentEdited";
 import { CommentEditor, EMPTY_CLIENT_EDIT } from "./CommentEditor";
+import { CommentMoreMenu } from "./CommentMoreMenu";
 import { CommentTeamNote } from "./CommentTeamNote";
 import { PlacementChip } from "./PlacementChip";
 import { isScreenshotPending } from "./screenshot-pending";
@@ -33,6 +34,8 @@ export interface CommentCardActions {
   onResolve: (id: string) => void;
   onReopen: (id: string) => void;
   onDelete: (comment: Comment) => void;
+  /** The team's "Get info" (browser details) in the card's More menu; guests get none. */
+  onGetInfo?: (comment: Comment) => void;
 }
 
 interface CommentCardProps extends CommentCardActions {
@@ -99,6 +102,7 @@ export function CommentCard({
   onResolve,
   onReopen,
   onDelete,
+  onGetInfo,
 }: CommentCardProps) {
   const [editing, setEditing] = useState(false);
   const [save, setSave] = useState<SaveState>(SAVE_IDLE);
@@ -126,7 +130,7 @@ export function CommentCard({
     .filter(Boolean)
     .join(" ");
   const resolved = comment.status === "resolved";
-  const actions = canModerate || canEdit;
+  const actions = canModerate || canEdit || Boolean(onGetInfo);
   // Without the action row (shared link), this keeps the card's bottom inset at 16px.
   const bottomInset = actions ? "" : "pb-2";
 
@@ -332,6 +336,9 @@ export function CommentCard({
               <Icon name="pencil" className="size-4" />
               Edit
             </Button>
+          ) : null}
+          {onGetInfo ? (
+            <CommentMoreMenu number={number} onGetInfo={() => onGetInfo(comment)} />
           ) : null}
           {canDelete ? (
             <Button

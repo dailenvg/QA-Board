@@ -136,6 +136,61 @@ describe("owner push and pull", () => {
   });
 });
 
+describe("browser details", () => {
+  const INFO = {
+    userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/131.0.0.0 Safari/537.36",
+    viewport: { width: 1440, height: 900 },
+    dpr: 2,
+  };
+
+  it("go to the owner's pull with the guest's comment, and nowhere else", async () => {
+    const { services, share } = await shared();
+    const before = await shareManifest(services.store, share);
+    await addClientComment(
+      services,
+      share,
+      { ...clientComment("k-1"), clientInfo: INFO },
+      null,
+      200,
+    );
+    const pulled = await pullChanges(services.store, share, 0);
+    expect(pulled.comments).toEqual([
+      {
+        ...clientComment("k-1"),
+        status: "active",
+        createdAt: 200,
+        updatedAt: 200,
+        clientInfo: INFO,
+      },
+    ]);
+
+    const view = await clientView(services.store, share, GUEST_TOKEN);
+    expect(JSON.stringify(view)).not.toContain("clientInfo");
+    expect(JSON.stringify(view)).not.toContain(INFO.userAgent);
+
+    // The manifest digests the comment itself, the same as one posted without details.
+    const manifest = await shareManifest(services.store, share);
+    const plain = await shared();
+    await addClientComment(plain.services, plain.share, clientComment("k-1"), null, 200);
+    expect(manifest.comments).toEqual(
+      (await shareManifest(plain.services.store, plain.share)).comments,
+    );
+    expect(manifest.comments).toHaveLength(before.comments.length + 1);
+  });
+
+  it("aren't sent back to the guest who posted", async () => {
+    const { services, share } = await shared();
+    const posted = await addClientComment(
+      services,
+      share,
+      { ...clientComment("k-1"), clientInfo: INFO },
+      null,
+      200,
+    );
+    expect(posted.ok && posted.value).not.toHaveProperty("clientInfo");
+  });
+});
+
 describe("blob rules", () => {
   it("accepts referenced images only, by their real type", async () => {
     const { services, share } = await shared();

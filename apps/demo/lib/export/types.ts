@@ -1,3 +1,4 @@
+import type { ClientInfo } from "../client-info/schema";
 import type { CommentStatus, PageOrigin, Rect } from "../store/types";
 
 /** What a pin's percentages are relative to. */
@@ -40,6 +41,11 @@ export interface ExportComment {
   pageUrl: string | null;
   /** The crop, when this browser still has it; `file` is its path in the ZIP. */
   screenshot: { file: string; rect: Rect } | null;
+  /**
+   * The browser it was posted from, as recorded (052); null for comments from
+   * before. In the JSON only: the Markdown is for reading, not debugging.
+   */
+  clientInfo: ClientInfo | null;
 }
 
 export interface ExportSnapshot {

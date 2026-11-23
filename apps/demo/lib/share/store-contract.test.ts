@@ -153,6 +153,19 @@ describe.each(stores)("%s share store", (_name, make) => {
     );
   });
 
+  it("keeps a client's browser details beside the comment, through an owner's push", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    const clientInfo = { userAgent: "Mozilla/5.0", viewport: { width: 390, height: 844 }, dpr: 3 };
+    await store.insertComment(RECORD.id, COMMENT, "client", undefined, KEY_HASH, clientInfo);
+    await store.insertComment(RECORD.id, { ...COMMENT, id: "plain" }, "client");
+    await store.upsertComment(RECORD.id, { ...COMMENT, pageId: "page-2" }, "owner");
+    const [posted, plain] = await store.comments(RECORD.id);
+    expect(posted?.clientInfo).toEqual(clientInfo);
+    expect(posted?.item).not.toHaveProperty("clientInfo");
+    expect(plain).not.toHaveProperty("clientInfo");
+  });
+
   it("edits a client's words only with the hash of their key, while active", async () => {
     const store = await make();
     await store.create(RECORD);

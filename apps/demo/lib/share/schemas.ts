@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sentClientInfoSchema } from "../client-info/schema";
 import { SHARE_LIMITS } from "./limits";
 
 export { SHARE_LIMITS } from "./limits";
@@ -116,8 +117,14 @@ export const changeSchema = z.object({
   cursor: z.number().int().nonnegative(),
 });
 
-/** A client's new comment. Status and timestamps are the server's to set. */
-export const clientCommentSchema = z.object(commentFields);
+/**
+ * A client's new comment. Status and timestamps are the server's to set, and
+ * so is the user agent in its browser details (from the request).
+ */
+export const clientCommentSchema = z.object({
+  ...commentFields,
+  clientInfo: sentClientInfoSchema.optional(),
+});
 
 /** A client's edit of their own comment (4.12): its new words, and nothing else. */
 export const clientEditSchema = z.object({ body: commentFields.body });

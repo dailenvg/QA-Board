@@ -1,4 +1,5 @@
 import { captureFailed } from "../capture/messages";
+import { sentPart } from "../client-info/schema";
 import { isCaptureErrorCode } from "../capture/types";
 import { CROP_ATTEMPTS, cropBackoff, wait } from "../crop/crop-retry";
 import { extensionFor } from "../export/paths";
@@ -64,8 +65,12 @@ interface ClientBackendOptions {
 
 const ownerOnly = () => ({ ok: false as const, error: OWNER_ONLY });
 
+/**
+ * The multipart post: the comment as JSON, with the browser's details but
+ * not its user agent (the server records the request's), and the screenshot.
+ */
 function commentForm(comment: Comment, crop: ReadyCrop | null): FormData {
-  const { id, x, y, body, author, snapshotId, pageId } = comment;
+  const { id, x, y, body, author, snapshotId, pageId, clientInfo } = comment;
   const form = new FormData();
   form.set(
     "comment",
@@ -78,6 +83,7 @@ function commentForm(comment: Comment, crop: ReadyCrop | null): FormData {
       ...(snapshotId ? { snapshotId } : {}),
       ...(pageId ? { pageId } : {}),
       ...(crop ? { crop: { rect: crop.rect } } : {}),
+      ...(clientInfo ? { clientInfo: sentPart(clientInfo) } : {}),
     }),
   );
   if (crop) form.set("crop", crop.blob, `crop.${extensionFor(crop.blob.type)}`);
@@ -169,6 +175,7 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
         updatedAt: now,
         ...(input.snapshotId ? { snapshotId: input.snapshotId } : {}),
         ...(input.pageId ? { pageId: input.pageId } : {}),
+        ...(input.clientInfo ? { clientInfo: input.clientInfo } : {}),
       };
       // The screenshot is uploaded with the comment; once it can't be, the comment goes without it.
       const withCrop = crop ? await postWithCrop(api.addComment, comment, crop) : null;

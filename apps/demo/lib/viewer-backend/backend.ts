@@ -1,4 +1,5 @@
 import { createContext, useContext } from "react";
+import type { ClientInfo } from "../client-info/schema";
 import type { CaptureFailure } from "../capture/messages";
 import type { ImageUpload } from "../store/actions";
 import type { Result } from "../store/store";
@@ -17,6 +18,8 @@ export interface NewComment {
   snapshotId?: string;
   /** The page the pin is on (page projects, when not on a snapshot). */
   pageId?: string;
+  /** The browser posting it (`captureClientInfo`), when it could be read. */
+  clientInfo?: ClientInfo;
 }
 
 /** A crop being encoded: the picture arrives a moment after the screen was read. */

@@ -7,6 +7,8 @@ import { MIGRATIONS, migrate } from "./migrate";
 
 const UP_TO_050 = MIGRATIONS.slice(0, 50);
 const DROP_PASSWORD_RESETS = MIGRATIONS.find(({ id }) => id === "051_drop_password_resets");
+/** Up to 051: later migrations have their own tests. */
+const UP_TO_051 = MIGRATIONS.slice(0, 51);
 
 const closers: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -58,7 +60,7 @@ describe.each(databases)("051_drop_password_resets on %s", (_name, make) => {
       [`sha256:reset-password:${"b".repeat(64)}`, userId],
     );
 
-    expect(await migrate(db)).toEqual(["051_drop_password_resets"]);
+    expect(await migrate(db, UP_TO_051)).toEqual(["051_drop_password_resets"]);
     await db.query(DROP_PASSWORD_RESETS?.sql ?? "");
 
     expect(await exists(db, "password_resets")).toBe(false);

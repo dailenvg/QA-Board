@@ -3,6 +3,7 @@
 import { AnimatePresence, useReducedMotion } from "motion/react";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { RESOLVED_HOP } from "../brand/mascot/moods";
+import { captureClientInfo } from "@/lib/client-info/capture";
 import { toPagePx } from "@/lib/crop/geometry";
 import { planCommentCrop } from "@/lib/crop/plan-comment-crop";
 import { onSurface } from "@/lib/crop/prepare-crop";
@@ -42,6 +43,7 @@ import { CommentsPanel } from "./CommentsPanel";
 import { commentRights } from "./comment-rights";
 import { DeleteOthersCommentDialog } from "./DeleteOthersCommentDialog";
 import { ExportMenu } from "./ExportMenu";
+import { GetInfoDialog } from "./GetInfoDialog";
 import { rememberedMode, rememberMode } from "./mode-memory";
 import { openingMode } from "./opening-mode";
 import { PageFilter, type PageScope } from "./PageFilter";
@@ -163,6 +165,8 @@ export function ViewerView({
   const [celebrating, celebrate] = useTimedFlag(CELEBRATION_MS);
   const deleting = useDialogState<Comment>();
   const moderating = useDialogState<Comment>();
+  /** The comment whose browser details are open (Get info, the team's), with its number then. */
+  const inspecting = useDialogState<{ comment: Comment; number: number }>();
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const exportMenuRef = useRef<MenuHandle>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -188,6 +192,13 @@ export function ViewerView({
   const stageKey = surfaceKey(surface);
   const comments = useMemo(() => commentsFor(data, project.id), [data, project.id]);
   const numbers = useMemo(() => pinNumbers(comments), [comments]);
+  // A comment deleted while its details are open (here, in another tab, by the owner) takes
+  // them with it; the dialog leaves with the number it was opened with.
+  if (inspecting.open && inspecting.payload && !numbers.has(inspecting.payload.comment.id)) {
+    inspecting.close();
+  }
+  const getInfo = (comment: Comment) =>
+    inspecting.show({ comment, number: numbers.get(comment.id) ?? 0 });
   const severalPages = pages.total > 1;
   const pageId = pages.page?.id;
   /** A website's comments at the current breakpoint: the only ones it can pin. */
@@ -430,12 +441,15 @@ export function ViewerView({
             () => cropFor({ x, y }),
             () => stageKeyRef.current === draftSurface,
           );
+    // The browser as it is when Post is pressed; read while the screenshot is prepared.
+    const browser = captureClientInfo();
     const { result, crop } = await sendDraft({
       crop: draft.crop,
       takeCrop,
       onCropRetry: () => update({ sending: "screenshot" }),
-      post: (ready) => {
+      post: async (ready) => {
         update({ sending: "posting" });
+        const clientInfo = await browser;
         return backend.addComment(
           {
             id: commentId,
@@ -446,6 +460,7 @@ export function ViewerView({
             author,
             ...(snapshotId ? { snapshotId } : {}),
             ...(pageId ? { pageId } : {}),
+            ...(clientInfo ? { clientInfo } : {}),
           },
           ready,
         );
@@ -559,6 +574,7 @@ export function ViewerView({
       canModerate={owner}
       onResolve={resolveFromPopover}
       onReopen={commentActions.reopen}
+      onGetInfo={owner ? () => getInfo(openComment) : undefined}
       onClose={closePopover}
     />
   ) : null;
@@ -642,6 +658,7 @@ export function ViewerView({
       onResolve={commentActions.resolve}
       onReopen={commentActions.reopen}
       onDelete={askToDelete}
+      onGetInfo={owner ? getInfo : undefined}
     />
   );
 
@@ -790,6 +807,12 @@ export function ViewerView({
           deleting.close();
           if (target) commentActions.remove(target);
         }}
+      />
+      <GetInfoDialog
+        open={inspecting.open}
+        comment={inspecting.payload?.comment ?? null}
+        number={inspecting.payload?.number ?? 0}
+        onClose={inspecting.close}
       />
       <DeleteOthersCommentDialog
         open={moderating.open}

@@ -14,7 +14,11 @@ import {
   showComments,
   topBarStatus,
   openNewTopLevelFolder,
+  seedWorkspace,
+  shareWorkspaceProject,
 } from "./squint-fixtures";
+import { addWaitingClientComment } from "./workspace-db";
+import { WORKSPACE_SEED } from "./workspace-seed";
 
 test("a website project takes a comment from posted to resolved, reopened and deleted", async ({
   page,
@@ -319,4 +323,139 @@ test("deleting a comment or a project can be undone", async ({ page }) => {
   await expect(card.getByTestId("status-chip")).toHaveAttribute("data-status", "comments");
   await card.getByRole("link", { name: "undo-check" }).click();
   await expect(page.getByRole("button", { name: "Comment 2 by Ana", exact: true })).toBeVisible();
+});
+
+test("Get info shows the browser a comment was posted from, kept through Undo and reload", async ({
+  page,
+  context,
+  baseURL,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "One desktop browser is enough for this.");
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: baseURL });
+  await openFolder(page);
+  await createImageProject(page, "browser-info.png");
+  await postComment(page, "The footer wraps.", { x: 100, y: 80 }, "Ana");
+  await showComments(page);
+  const card = onlyCommentCard(page);
+  const dialog = page.getByRole("dialog", { name: "Browser details" });
+
+  const expectDetails = async () => {
+    await expect(dialog).toContainText("Comment 1 by Ana");
+    const details = dialog.getByTestId("browser-details");
+    await expect(details.locator("dt")).toHaveText([
+      "Browser",
+      "Operating system",
+      "Window size",
+      "Pixel ratio",
+      "Posted from",
+    ]);
+    // Playwright's Desktop Chrome: Chrome on Windows NT 10.0, a 1280 by 720 window at 1x.
+    await expect(details.locator("dd")).toHaveText([
+      /^Chrome \d+$/,
+      /^Windows/,
+      "1280 × 720",
+      "1×",
+      "Squint",
+    ]);
+  };
+
+  await card.getByRole("button", { name: "Actions for comment 1" }).click();
+  await page.getByRole("menuitem", { name: "Get info" }).click();
+  await expectDetails();
+  await dialog.getByRole("button", { name: "Copy details" }).click();
+  await expect(page.getByTestId("toast").filter({ hasText: "Details copied." })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(
+    /^Browser: Chrome \d+\n[\s\S]*\nPosted from: Squint\nUser agent: Mozilla\/5\.0 /,
+  );
+  await dialog.getByRole("button", { name: "Done" }).click();
+  await expect(dialog).toHaveCount(0);
+
+  // Undo puts back the details it was posted with; the server has them after a reload.
+  await card.getByRole("button", { name: "Delete comment 1" }).click();
+  await page
+    .getByRole("dialog", { name: "Delete comment 1?" })
+    .getByRole("button", { name: "Delete comment" })
+    .click();
+  await expect(card).toHaveCount(0);
+  await page
+    .getByTestId("toast")
+    .filter({ hasText: "Comment deleted" })
+    .getByRole("button", { name: "Undo" })
+    .click();
+  await expect(card).toBeVisible();
+  await page.reload();
+  await showComments(page);
+
+  // From the pin's popover too; Escape closes the dialog and leaves the popover open.
+  await page.getByRole("button", { name: "Comment 1 by Ana", exact: true }).click();
+  const popover = page.getByTestId("pin-popover");
+  await popover.getByRole("button", { name: "Actions for comment 1" }).click();
+  await popover.getByRole("menuitem", { name: "Get info" }).click();
+  await expectDetails();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(popover).toBeVisible();
+
+  // Escape closes the open menu first, then the popover.
+  await popover.getByRole("button", { name: "Actions for comment 1" }).click();
+  await expect(popover.getByRole("menu")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(popover.getByRole("menu")).toHaveCount(0);
+  await expect(popover).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(popover).toHaveCount(0);
+});
+
+test("a client's comment opens its More menu inside the list, and says its details weren't kept", async ({
+  page,
+  baseURL,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "One desktop browser is enough for this.");
+  await page.route("https://example.com/**", (route) => route.abort());
+  await mockFrameCheck(page, {
+    verdict: "embeddable",
+    finalUrl: `${baseURL}/sandbox`,
+    status: 200,
+  });
+  await mockCapture(page);
+  await seedWorkspace(page, WORKSPACE_SEED, "/sandbox");
+  const { projectId } = await shareWorkspaceProject(page, "Client site");
+  await addWaitingClientComment(projectId, {
+    id: "older-client-1",
+    body: "Is this the final logo?",
+    author: "Cleo",
+    createdAt: Date.now(),
+  });
+  await page.goto(`/p/${projectId}`);
+  await showComments(page);
+  const card = onlyCommentCard(page).filter({ hasText: "Is this the final logo?" });
+  // Not the member's own: no Edit, so More sits right after Resolve.
+  await expect(card.getByRole("button", { name: /^Edit/ })).toHaveCount(0);
+
+  await card.getByRole("button", { name: "Actions for comment 1" }).click();
+  const menu = card.getByRole("menu");
+  await expect(menu).toBeVisible();
+  const list = page.getByRole("list", { name: "Active comments" });
+  const [menuBox, listBox] = await Promise.all([menu.boundingBox(), list.boundingBox()]);
+  expect(menuBox && listBox).toBeTruthy();
+  if (menuBox && listBox) {
+    expect(menuBox.x).toBeGreaterThanOrEqual(listBox.x);
+    expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(listBox.x + listBox.width);
+  }
+  expect(await list.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+
+  await menu.getByRole("menuitem", { name: "Get info" }).click();
+  const dialog = page.getByRole("dialog", { name: "Browser details" });
+  await expect(dialog).toContainText("Comment 1 by Cleo");
+  await expect(dialog.getByTestId("browser-details-empty")).toHaveText(
+    "Not recorded. This was posted before Squint kept browser details.",
+  );
+  await expect(dialog.getByRole("button", { name: "Copy details" })).toHaveCount(0);
+  const done = dialog.getByRole("button", { name: "Done" });
+  await expect(done).toBeFocused();
+  await expect(done).toHaveAccessibleDescription(
+    "Not recorded. This was posted before Squint kept browser details.",
+  );
+  await done.click();
+  await expect(dialog).toHaveCount(0);
 });

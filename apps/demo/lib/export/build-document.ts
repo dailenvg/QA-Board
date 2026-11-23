@@ -144,6 +144,7 @@ export function buildExportDocument({
               rect: comment.crop.rect,
             }
           : null,
+      clientInfo: comment.clientInfo ?? null,
     };
   });
   const order = (entry: ExportComment) => (entry.status === "active" ? 0 : 1);

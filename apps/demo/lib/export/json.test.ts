@@ -53,8 +53,23 @@ describe("toJson", () => {
       "location",
       "pageUrl",
       "screenshot",
+      "clientInfo",
       "edited",
     ]);
+  });
+
+  it("gives each comment's browser details as recorded, or null", () => {
+    const clientInfo = { userAgent: "Mozilla/5.0", viewport: { width: 1440, height: 900 }, dpr: 2 };
+    const [first, ...rest] = URL_EXPORT.comments;
+    if (!first) throw new Error("fixture");
+    const input = { ...URL_EXPORT, comments: [{ ...first, clientInfo }, ...rest] };
+    const withInfo = JSON.parse(toJson(buildExportDocument(input), { withFiles: true })) as {
+      comments: Array<{ id: string; clientInfo: unknown }>;
+    };
+    expect(withInfo.comments.find((comment) => comment.id === first.id)?.clientInfo).toEqual(
+      clientInfo,
+    );
+    expect(parsed.comments.every((comment) => comment.clientInfo === null)).toBe(true);
   });
 
   it("says which page each pin is on, in page px", () => {

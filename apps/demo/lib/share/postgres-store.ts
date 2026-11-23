@@ -1,3 +1,4 @@
+import type { ClientInfo } from "../client-info/schema";
 import { brandColor, SQUINT_BRAND } from "./brand";
 import type { Queryable } from "./migrate";
 import { sameShareKey, SHARE_PERSON_KEY, shareAvatarVersion, sharePersonKey } from "./share-people";
@@ -40,6 +41,7 @@ interface ItemRow<T> {
   seq: string | number;
   crop_key?: string | null;
   edit_seq?: string | number | null;
+  client_info?: ClientInfo | null;
 }
 
 interface BlobRow {
@@ -178,6 +180,7 @@ function toSequenced<T>(row: ItemRow<T>): Sequenced<T> {
     ...(row.edit_seq !== null && row.edit_seq !== undefined
       ? { editSeq: Number(row.edit_seq) }
       : {}),
+    ...(row.client_info ? { clientInfo: row.client_info } : {}),
   };
 }
 
@@ -360,7 +363,7 @@ export function createPostgresStore(db: Queryable): ShareStore {
         "squint_share_comments",
         id,
         options?.includePending ? "" : "AND NOT pending",
-        ", crop_key, edit_seq",
+        ", crop_key, edit_seq, client_info",
       ),
     async upsertSnapshot(id, snapshot, origin) {
       await db.query(upsertSql("squint_share_snapshots"), [
@@ -397,11 +400,11 @@ export function createPostgresStore(db: Queryable): ShareStore {
       );
       return rows.map((row) => row.id);
     },
-    async insertComment(id, comment, origin, claim, editKeyHash) {
+    async insertComment(id, comment, origin, claim, editKeyHash, clientInfo) {
       const { rows } = await db.query(
         `INSERT INTO squint_share_comments
-           (share_id, id, data, origin, pending, claim, crop_key, edit_key_hash)
-         VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, $8)
+           (share_id, id, data, origin, pending, claim, crop_key, edit_key_hash, client_info)
+         VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, $8, $9::jsonb)
          ON CONFLICT (share_id, id) DO NOTHING RETURNING id`,
         [
           id,
@@ -412,6 +415,7 @@ export function createPostgresStore(db: Queryable): ShareStore {
           claim?.claim ?? null,
           claim?.cropKey ?? null,
           editKeyHash ?? null,
+          clientInfo ? JSON.stringify(clientInfo) : null,
         ],
       );
       return rows.length === 1;

@@ -1,3 +1,4 @@
+import type { ClientInfo } from "../client-info/schema";
 import type { CommentStatus, PageOrigin, Rect } from "../store/types";
 
 /** A page of a shared page project. Its picture is the blob `pageBlobKey(id, rev)`. */
@@ -124,6 +125,12 @@ export interface Sequenced<T> {
    * edits by it. Server-side only.
    */
   editSeq?: number;
+  /**
+   * Comments only: the browser a client posted from (052), kept beside the
+   * comment, never in it (`item`), so the manifest's digest and the guest's
+   * view never have it. Only the owner's pull carries it.
+   */
+  clientInfo?: ClientInfo;
 }
 
 export interface ShareRecord {
@@ -238,6 +245,8 @@ export interface ClientView {
  */
 export interface PulledComment extends SharedComment {
   edited?: true;
+  /** The browser it was posted from, when the link recorded it (052). Team only. */
+  clientInfo?: ClientInfo;
 }
 
 /** The owner's pull: client additions and edits after `since`, and the new cursor. */
