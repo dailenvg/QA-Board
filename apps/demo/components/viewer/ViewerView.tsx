@@ -3,6 +3,7 @@
 import { AnimatePresence, useReducedMotion } from "motion/react";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { RESOLVED_HOP } from "../brand/mascot/moods";
+import { captureClientInfo } from "@/lib/client-info/capture";
 import { toPagePx } from "@/lib/crop/geometry";
 import { planCommentCrop } from "@/lib/crop/plan-comment-crop";
 import { onSurface } from "@/lib/crop/prepare-crop";
@@ -430,12 +431,15 @@ export function ViewerView({
             () => cropFor({ x, y }),
             () => stageKeyRef.current === draftSurface,
           );
+    // The browser as it is when Post is pressed; read while the screenshot is prepared.
+    const browser = captureClientInfo();
     const { result, crop } = await sendDraft({
       crop: draft.crop,
       takeCrop,
       onCropRetry: () => update({ sending: "screenshot" }),
-      post: (ready) => {
+      post: async (ready) => {
         update({ sending: "posting" });
+        const clientInfo = await browser;
         return backend.addComment(
           {
             id: commentId,
@@ -446,6 +450,7 @@ export function ViewerView({
             author,
             ...(snapshotId ? { snapshotId } : {}),
             ...(pageId ? { pageId } : {}),
+            ...(clientInfo ? { clientInfo } : {}),
           },
           ready,
         );

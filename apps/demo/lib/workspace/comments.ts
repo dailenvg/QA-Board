@@ -1,3 +1,4 @@
+import type { ClientInfo } from "../client-info/schema";
 import type { Database } from "../db/database";
 import { personAvatarSrc } from "../routes";
 import { logoVersion } from "../share/brand";
@@ -30,6 +31,8 @@ interface CommentRow {
   updated_at: Date;
   resolved_at: Date | null;
   edited_at: Date | null;
+  /** The browser it was posted from (052); null on comments from before. */
+  client_info: ClientInfo | null;
   /** Its `origin` is 'client': a guest's comment, pulled from the review link. */
   from_client: boolean;
   /**
@@ -67,7 +70,7 @@ const columns = (alias: string) => `${alias}.project_id, ${alias}.id, ${alias}.x
     ELSE ${alias}.author_name END AS author_name,
   ${alias}.author_user_id, ${alias}.status, ${alias}.snapshot_id, ${alias}.page_id, ${alias}.crop,
   ${alias}.created_at, ${alias}.updated_at, ${alias}.resolved_at, ${alias}.edited_at,
-  ${alias}.origin = 'client' AS from_client, ${authorAvatarKey(alias)}`;
+  ${alias}.client_info, ${alias}.origin = 'client' AS from_client, ${authorAvatarKey(alias)}`;
 const COLUMNS = columns("comment");
 const RETURNING = columns("comments");
 
@@ -115,6 +118,7 @@ function toComment(row: CommentRow, workspaceId: string, viewerId?: string): Com
     ...(row.snapshot_id ? { snapshotId: row.snapshot_id } : {}),
     ...(row.page_id ? { pageId: row.page_id } : {}),
     ...(row.crop ? { crop: row.crop } : {}),
+    ...(row.client_info ? { clientInfo: row.client_info } : {}),
     ...(row.from_client ? { fromClient: true as const } : {}),
     ...(mine ? { mine: true as const } : {}),
     ...(authorAvatar ? { authorAvatar } : {}),
@@ -172,9 +176,10 @@ function clampEditedAt(editedAt: number | undefined, createdAt: number, now: num
  * name (`users.name`; the body's `author` only while they have none) and,
  * when it's one of theirs brought back by Undo, keeps `editedAt`
  * (`clampEditedAt`). A guest's (`guest`, read from the review link's own row,
- * `findGuestComment`) takes its words, name, position, creation and
- * `editedAt` from there, never from the browser, so they can't be changed on
- * the way in.
+ * `findGuestComment`) takes its words, name, position, creation, `editedAt`
+ * and browser details from there, never from the browser, so they can't be
+ * changed on the way in. A team comment keeps `clientInfo` as the route
+ * recorded it (with the request's user agent).
  * Run the project check first for a 404.
  */
 export async function addComment(
@@ -204,13 +209,15 @@ export async function addComment(
     createdAt,
     now,
   );
+  const clientInfo = guest ? guest.clientInfo : (sent.clientInfo ?? null);
   const { rows } = await db.query<CommentRow>(
     `INSERT INTO comments (project_id, id, x, y, body, author_name, author_user_id, status,
-       snapshot_id, page_id, crop, created_at, updated_at, resolved_at, edited_at, origin)
+       snapshot_id, page_id, crop, created_at, updated_at, resolved_at, edited_at, origin,
+       client_info)
      SELECT project.id, $3, $4, $5, $6,
        COALESCE((SELECT name FROM users WHERE id = $8::uuid), $7), $8, $9, $10, $11,
        $12::jsonb, $13, $14, $15, $16,
-       CASE WHEN $8::uuid IS NULL THEN 'client' ELSE 'team' END
+       CASE WHEN $8::uuid IS NULL THEN 'client' ELSE 'team' END, $17::jsonb
      FROM projects AS project
      WHERE project.workspace_id = $1 AND project.id = $2 AND project.deleted_at IS NULL
      ON CONFLICT (project_id, id) DO NOTHING RETURNING ${RETURNING}`,
@@ -231,6 +238,7 @@ export async function addComment(
       toDate(input.updatedAt ?? createdAt),
       resolvedAt === null ? null : toDate(resolvedAt),
       editedAt === null ? null : toDate(editedAt),
+      clientInfo ? JSON.stringify(clientInfo) : null,
     ],
   );
   return rows[0]

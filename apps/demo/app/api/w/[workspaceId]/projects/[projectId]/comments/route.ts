@@ -1,3 +1,4 @@
+import { userAgentOf } from "@/lib/client-info/schema";
 import { json } from "@/lib/share/http";
 import { addComment, listComments } from "@/lib/workspace/comments";
 import { notFound, param, readBody, refusal } from "@/lib/workspace/http";
@@ -26,7 +27,8 @@ export const GET = withMember<Params>(async (_request, { db, user, workspaceId }
  * and last edit as the link holds them (whatever the body says); 404 unless
  * a guest posted that comment there.
  * Its snapshot or page must be the project's (422 `unknown-surface`); 409
- * when the id is taken.
+ * when the id is taken. A member's `clientInfo` is kept with the request's
+ * user agent, unless it brings its own (an Undo putting back what was recorded).
  */
 export const POST = withMember<Params>(async (request, { db, user, workspaceId, now }, params) => {
   const projectId = param(idSchema, params.projectId);
@@ -37,6 +39,11 @@ export const POST = withMember<Params>(async (request, { db, user, workspaceId, 
   const guest = fromShare ? await findGuestComment(db, workspaceId, projectId, comment.id) : null;
   if (fromShare && !guest) return notFound();
   const author = guest ? null : user.id;
-  const added = await addComment(db, workspaceId, projectId, comment, author, now, guest);
+  const clientInfo = comment.clientInfo && {
+    ...comment.clientInfo,
+    userAgent: comment.clientInfo.userAgent ?? userAgentOf(request),
+  };
+  const sent = { ...comment, clientInfo };
+  const added = await addComment(db, workspaceId, projectId, sent, author, now, guest);
   return added.ok ? json(added.value, 201) : refusal(added.reason);
 });

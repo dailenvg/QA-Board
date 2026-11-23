@@ -1,3 +1,5 @@
+import type { ClientInfo } from "../client-info/schema";
+
 export interface Folder {
   id: string;
   name: string;
@@ -202,6 +204,13 @@ export interface Comment {
    * (`isScreenshotPending`). Never pushed.
    */
   screenshotPending?: true;
+  /**
+   * The browser it was posted from (052), for the team's "Get info": recorded
+   * by the server from the post, a guest's read from the review link. Missing
+   * on comments posted before Squint kept it. Team only: never pushed to a
+   * review link (`toShareState`), never in a guest's view.
+   */
+  clientInfo?: ClientInfo;
 }
 
 /** A client's edit to their comment, pulled from its review link (4.12): new words, and when. */

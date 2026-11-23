@@ -1,3 +1,4 @@
+import { sentPart } from "../client-info/schema";
 import { windowChoice } from "../share/review-window";
 import type { Action } from "../store/reducer";
 import type { Comment, Snapshot, SquintData } from "../store/types";
@@ -64,6 +65,24 @@ function commentBody(comment: Comment) {
   return body;
 }
 
+/**
+ * A new comment: its browser details go without the user agent, which the
+ * server reads from the request itself.
+ */
+function newCommentBody(comment: Comment) {
+  const { clientInfo, ...body } = commentBody(comment);
+  return clientInfo ? { ...body, clientInfo: sentPart(clientInfo) } : body;
+}
+
+/**
+ * A guest's comment, saved as one (`fromShare`): the server reads its words
+ * and browser details from the review link, so neither is sent.
+ */
+function guestCommentBody(comment: Comment) {
+  const { clientInfo: _info, ...body } = commentBody(comment);
+  return { ...body, fromShare: true };
+}
+
 function snapshotBody(snapshot: Snapshot) {
   const { projectId: _project, ...body } = snapshot;
   return body;
@@ -98,14 +117,14 @@ function commentWrite(
  * still says it was edited). A client's goes back only as a client's, while
  * the guest's original is still on the review link (the server checks):
  * once it isn't, the 404 refuses the Undo rather than re-post the client's
- * words as the member's.
+ * words as the member's. The member's own keeps the browser details it was
+ * posted with (`clientInfo`, user agent included), not this browser's.
  */
 function restoreWrites(comment: Comment): ServerWrite[] {
   const path = commentsPath(comment.projectId);
-  const body = commentBody(comment);
   return comment.fromClient
-    ? [write("POST", path, { ...body, fromShare: true }, [409])]
-    : [write("POST", path, body, [409])];
+    ? [write("POST", path, guestCommentBody(comment), [409])]
+    : [write("POST", path, commentBody(comment), [409])];
 }
 
 /** Comments whose client edited their words since `before` (4.12). */
@@ -132,7 +151,7 @@ function mergeWrites(before: SquintData, after: SquintData, projectId: string): 
     ),
     // Guests' comments: saved without an author account (the server checks they're a guest's).
     ...added(before.comments, after.comments).map((comment) =>
-      write("POST", commentsPath(projectId), { ...commentBody(comment), fromShare: true }, [409]),
+      write("POST", commentsPath(projectId), guestCommentBody(comment), [409]),
     ),
     ...clientEdited(before, after).map((comment) =>
       write("POST", `${commentPath(projectId, comment.id)}/client-edit`, {}, [404]),
@@ -188,7 +207,9 @@ export function writesFor(action: Action, before: SquintData, after: SquintData)
     case "project/restore":
       return [write("POST", `${projectPath(action.project.id)}/restore`)];
     case "comment/add":
-      return [write("POST", commentsPath(action.comment.projectId), commentBody(action.comment))];
+      return [
+        write("POST", commentsPath(action.comment.projectId), newCommentBody(action.comment)),
+      ];
     case "comment/restore":
       return restoreWrites(action.comment);
     case "comment/edit":

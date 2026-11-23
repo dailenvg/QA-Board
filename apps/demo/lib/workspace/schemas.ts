@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { clientInfoSchema } from "../client-info/schema";
 import { CLIENT_NAME_MAX, storedClientName } from "../share/client-name";
 import { MAX_INVITES_PER_SEND } from "../share/invite-addresses";
 import { SHARE_LIMITS } from "../share/limits";
@@ -140,6 +141,13 @@ export const commentCreateSchema = z.object({
   snapshotId: idSchema.optional(),
   pageId: idSchema.optional(),
   crop: cropSchema.optional(),
+  /**
+   * The browser it's posted from. A new comment leaves out `userAgent`: the
+   * server records the request's. An Undo of the member's own comment sends
+   * back what was recorded, `userAgent` included. Ignored on a guest's,
+   * whose details come from the review link.
+   */
+  clientInfo: clientInfoSchema.partial({ userAgent: true }).optional(),
   /**
    * A guest's comment, pulled from the project's review link: saved without
    * an author account. Only accepted for a comment a guest posted on that link.

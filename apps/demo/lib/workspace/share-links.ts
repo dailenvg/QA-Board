@@ -1,4 +1,5 @@
 import { audit } from "../account/audit";
+import { type ClientInfo, parseClientInfo } from "../client-info/schema";
 import { hashPassword } from "../auth/password";
 import type { Database } from "../db/database";
 import type { Queryable } from "../share/migrate";
@@ -347,10 +348,13 @@ export interface GuestComment {
   /** When the guest posted it (epoch ms), as the server stamped it there. */
   createdAt: number;
   editedAt: number | null;
+  /** The browser they posted from, as the link recorded it; null when it didn't (before 052). */
+  clientInfo: ClientInfo | null;
 }
 
 interface GuestCommentRow {
   data: Partial<Record<keyof GuestComment, unknown>>;
+  client_info: unknown;
 }
 
 const finite = (value: unknown): number | null => {
@@ -372,18 +376,20 @@ export async function findGuestComment(
   commentId: string,
 ): Promise<GuestComment | null> {
   const { rows } = await db.query<GuestCommentRow>(
-    `SELECT comment.data FROM project_share_links AS link
+    `SELECT comment.data, comment.client_info FROM project_share_links AS link
      JOIN squint_share_comments AS comment ON comment.share_id = link.share_id
      WHERE link.workspace_id = $1 AND link.project_id = $2
        AND comment.id = $3 AND comment.origin = 'client' AND NOT comment.pending`,
     [workspaceId, projectId, commentId],
   );
-  const data = rows[0]?.data;
+  const [row] = rows;
+  const data = row?.data;
   const [x, y, createdAt] = [finite(data?.x), finite(data?.y), finite(data?.createdAt)];
   if (!data || typeof data.body !== "string" || typeof data.author !== "string") return null;
   if (x === null || y === null || createdAt === null) return null;
   const { body, author } = data;
-  return { body, author, x, y, createdAt, editedAt: finite(data.editedAt) };
+  const clientInfo = parseClientInfo(row?.client_info);
+  return { body, author, x, y, createdAt, editedAt: finite(data.editedAt), clientInfo };
 }
 
 /** The id of the share linked to the workspace's live project, or null without one. */
