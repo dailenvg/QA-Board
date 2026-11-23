@@ -92,9 +92,7 @@ describe("systemName", () => {
     expect(systemName(UA.firefoxWindows)).toBe("Windows 10 or 11");
     expect(systemName(UA.edgeWindows, { name: "Windows", version: "15.0.0" })).toBe("Windows 11");
     expect(systemName(UA.edgeWindows, { name: "Windows", version: "13.0.0" })).toBe("Windows 11");
-    expect(systemName(UA.chromeWindows, { name: "Windows", version: "10.0.0" })).toBe(
-      "Windows 10",
-    );
+    expect(systemName(UA.chromeWindows, { name: "Windows", version: "10.0.0" })).toBe("Windows 10");
     expect(systemName(UA.chromeWindows, { name: "Windows", version: "0.3.0" })).toBe(
       "Windows 10 or 11",
     );
@@ -119,9 +117,7 @@ describe("systemName", () => {
     expect(systemName(UA.samsung)).toBe("Android 14");
     expect(systemName(UA.firefoxAndroid)).toBe("Android 14");
     expect(systemName(UA.chromeAndroid)).toBe("Android");
-    expect(systemName(UA.chromeAndroid, { name: "Android", version: "15.0.0" })).toBe(
-      "Android 15",
-    );
+    expect(systemName(UA.chromeAndroid, { name: "Android", version: "15.0.0" })).toBe("Android 15");
   });
 
   it("names ChromeOS and Linux without versions", () => {
