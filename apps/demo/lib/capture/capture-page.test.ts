@@ -2,16 +2,29 @@ import sharp from "sharp";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as BrowserModule from "./browser";
 import { browserTurn, CLOSE_LIMIT_MS, type CaptureBrowser } from "./browser";
-import { capturePage } from "./capture-page";
+import { capturePage, ENCODE_ALLOWANCE_MS } from "./capture-page";
+import type * as StitchModule from "./stitch";
 import { UNPIN_SCRIPT } from "./unpin";
 import { LOGIN_SIGNALS_SCRIPT, type LoginSignals } from "./login-page";
 
-const mocks = vi.hoisted(() => ({ launch: vi.fn<() => Promise<CaptureBrowser>>() }));
+const mocks = vi.hoisted(() => ({
+  launch: vi.fn<() => Promise<CaptureBrowser>>(),
+  /** Makes the stitch never settle, as a hung libvips would. */
+  stitchHangs: false,
+}));
 
 vi.mock("./browser", async (importOriginal) => ({
   ...(await importOriginal<typeof BrowserModule>()),
   launchBrowser: () => mocks.launch(),
 }));
+vi.mock("./stitch", async (importOriginal) => {
+  const actual = await importOriginal<typeof StitchModule>();
+  return {
+    ...actual,
+    sizedSlices: (...args: Parameters<typeof actual.sizedSlices>) =>
+      mocks.stitchHangs ? new Promise<never>(() => {}) : actual.sizedSlices(...args),
+  };
+});
 vi.mock("./guard-proxy", () => ({
   REFUSED_HEADER: "x-squint-refused",
   startGuardProxy: () =>
@@ -284,6 +297,21 @@ describe("capturePage on a long page", () => {
     expect((await sharp(image.body).metadata()).height).toBe(3_140);
   });
 
+  it("stops at a slice cut short, even when the page grows back after it", async () => {
+    const { launched, clips } = longPageBrowser([2_000, 1_750, 2_000]);
+    mocks.launch.mockResolvedValue(launched);
+    const image = await capturePage(URL_, 320, new AbortController().signal, NO_STOP, log);
+    expect(image).toMatchObject({ width: 320, height: 1_750 });
+    expect(image.partial).toBeUndefined();
+    expect(clips.map(({ y, height }) => [y, height])).toEqual([
+      [0, 900],
+      [900, 850],
+    ]);
+    expect((await sharp(image.body).metadata()).height).toBe(1_750);
+    // The short slice's band sits right under the first, with no padding between.
+    expect(await redAt(image.body, 1_700)).toBeGreaterThan(90);
+  });
+
   it("drops a last slice the shorter page no longer reaches", async () => {
     const { launched, clips } = longPageBrowser([2_710, 2_690]);
     mocks.launch.mockResolvedValue(launched);
@@ -352,5 +380,35 @@ describe("capturePage out of time with a long page shot", () => {
     (await next)();
     // The abort skipped the encode itself.
     expect(steps.some((step) => step.startsWith("stitched"))).toBe(false);
+  });
+
+  it("frees the turn a while after its signal aborts even when the stitch hangs", async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.stitchHangs = true;
+      const { launched } = longPageBrowser(2_000, () => Promise.resolve(Buffer.from("jpeg")));
+      mocks.launch.mockResolvedValue(launched);
+      const controller = new AbortController();
+      const steps: string[] = [];
+      let stitchStarted = () => {};
+      const stitching = new Promise<void>((resolve) => (stitchStarted = resolve));
+      const result = capturePage(URL_, 320, controller.signal, NO_STOP, (step) => {
+        steps.push(step);
+        if (step.startsWith("stitching")) stitchStarted();
+      });
+      await stitching;
+      const next = browserTurn();
+      controller.abort();
+      await expect(result).rejects.toMatchObject({ code: "timeout" });
+      await vi.advanceTimersByTimeAsync(CLOSE_LIMIT_MS + ENCODE_ALLOWANCE_MS - 1);
+      expect(await settles(next)).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await settles(next)).toBe(true);
+      expect(steps).toContain("stitch still running, turn ended without it");
+      (await next)();
+    } finally {
+      mocks.stitchHangs = false;
+      vi.useRealTimers();
+    }
   });
 });

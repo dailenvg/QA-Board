@@ -25,6 +25,13 @@ const IDLE_WAIT_MS = 2_500;
 const FONTS_WAIT_MS = 3_000;
 /** Upper bound for any single page step; the caller's signal ends the whole capture sooner. */
 const STEP_TIMEOUT_MS = 25_000;
+/**
+ * Past an abort, how long a stitch may hold the turn on top of `CLOSE_LIMIT_MS`: the encode
+ * under way can't be stopped. A 2560 x 16000 page encoded in about 0.25 s on one core locally,
+ * so this leaves room for a slower CPU and a smaller retry already started. A stitch still
+ * running after it has hung, and the turn is freed without it.
+ */
+export const ENCODE_ALLOWANCE_MS = 5_000;
 
 export interface CapturedImage {
   body: Uint8Array<ArrayBuffer>;
@@ -389,7 +396,8 @@ async function shootInTurn(
  * Stitches the slices once the browser has closed. The caller's wait ends as
  * soon as `signal` aborts, with a timeout. The turn lasts until sharp is done,
  * so the next capture's Chromium never starts beside an encode still holding
- * hundreds of MB.
+ * hundreds of MB, but no longer than `CLOSE_LIMIT_MS` + `ENCODE_ALLOWANCE_MS`
+ * after the abort: a hung encode mustn't hold every later capture.
  */
 function stitchInTurn(
   shot: Extract<Shot, { kind: "slices" }>,
@@ -402,8 +410,21 @@ function stitchInTurn(
     endTurn();
     return Promise.reject(new CaptureError("timeout"));
   }
+  let fallback: NodeJS.Timeout | undefined;
+  const onAbort = () => {
+    fallback = setTimeout(() => {
+      log("stitch still running, turn ended without it");
+      endTurn();
+    }, CLOSE_LIMIT_MS + ENCODE_ALLOWANCE_MS).unref();
+  };
+  signal.addEventListener("abort", onAbort, { once: true });
+  const settled = () => {
+    signal.removeEventListener("abort", onAbort);
+    clearTimeout(fallback);
+    endTurn();
+  };
   const stitching = stitch(shot.width, shot.slices, signal, log);
-  void stitching.then(endTurn, endTurn);
+  void stitching.then(settled, settled);
   return Promise.race([stitching, whenAborted(signal)]);
 }
 
