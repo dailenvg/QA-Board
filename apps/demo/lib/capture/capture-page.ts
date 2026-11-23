@@ -246,18 +246,27 @@ async function shoot(page: Page, width: number, stop: AbortSignal, log: StepLog)
 /**
  * Stitches a long page's slices into one JPEG that fits
  * `CAPTURE_LIMITS.maxBytes`. Runs once the browser has closed, so Chromium's
- * memory is free for it.
+ * memory is free for it. Once `signal` aborts, no further encode starts: an
+ * encode under way can't be stopped, but a smaller retry is skipped.
  */
 async function stitch(
   width: number,
   { shots, height, partial }: SliceShots<SliceImage>,
+  signal: AbortSignal,
   log: StepLog,
 ): Promise<CapturedImage> {
   try {
     log(`stitching ${width}x${height}, ${rssMb()} MB RSS`);
     const jpegs = await sizedSlices(shots, width);
     const render = slicesRenderer(jpegs, width, height);
-    const { image, scale } = await shrinkToFit(render, "stitched", log);
+    const { image, scale } = await shrinkToFit(
+      (at, quality) => {
+        if (signal.aborted) throw new CaptureError("timeout");
+        return render(at, quality);
+      },
+      "stitched",
+      log,
+    );
     log(`${rssMb()} MB RSS after stitching`);
     return {
       body: new Uint8Array(image),
@@ -354,12 +363,58 @@ async function captureInBrowser(
 }
 
 /**
+ * Runs the browser in this capture's turn. Whatever a hung browser does, the
+ * turn ends `CLOSE_LIMIT_MS` after an abort: by then it has closed or been killed.
+ */
+async function shootInTurn(
+  url: URL,
+  width: number,
+  signal: AbortSignal,
+  stop: AbortSignal,
+  endTurn: () => void,
+  log: StepLog,
+): Promise<Shot> {
+  const onAbort = () => setTimeout(endTurn, CLOSE_LIMIT_MS).unref();
+  signal.addEventListener("abort", onAbort, { once: true });
+  try {
+    if (signal.aborted) throw new CaptureError("timeout");
+    log("turn");
+    return await captureInBrowser(url, width, signal, stop, log);
+  } finally {
+    signal.removeEventListener("abort", onAbort);
+  }
+}
+
+/**
+ * Stitches the slices once the browser has closed. The caller's wait ends as
+ * soon as `signal` aborts, with a timeout. The turn lasts until sharp is done,
+ * so the next capture's Chromium never starts beside an encode still holding
+ * hundreds of MB.
+ */
+function stitchInTurn(
+  shot: Extract<Shot, { kind: "slices" }>,
+  signal: AbortSignal,
+  endTurn: () => void,
+  log: StepLog,
+): Promise<CapturedImage> {
+  if (signal.aborted) {
+    log("out of time before stitching");
+    endTurn();
+    return Promise.reject(new CaptureError("timeout"));
+  }
+  const stitching = stitch(shot.width, shot.slices, signal, log);
+  void stitching.then(endTurn, endTurn);
+  return Promise.race([stitching, whenAborted(signal)]);
+}
+
+/**
  * Captures a full-page JPEG at `width` CSS px (device scale factor 1) in a
  * headless Chromium whose every connection goes through an address-checking
  * proxy. Waiting for a turn counts toward the caller's `signal`. Once `stop`
  * aborts, the page's remaining waits are cut short, and a long page stops
  * being shot: what's been shot comes back `partial`. It has to abort early
- * enough before `signal` to leave time to close the browser and stitch.
+ * enough before `signal` to leave time to close the browser and stitch; a
+ * long page still unstitched when `signal` aborts fails with a timeout.
  */
 export async function capturePage(
   url: URL,
@@ -369,17 +424,14 @@ export async function capturePage(
   log: StepLog,
 ): Promise<CapturedImage> {
   const endTurn = await browserTurn();
-  // Whatever a hung browser does, the turn ends CLOSE_LIMIT_MS after an abort:
-  // by then the browser has closed or been killed.
-  const onAbort = () => setTimeout(endTurn, CLOSE_LIMIT_MS).unref();
-  signal.addEventListener("abort", onAbort, { once: true });
+  let shot: Shot;
   try {
-    if (signal.aborted) throw new CaptureError("timeout");
-    log("turn");
-    const shot = await captureInBrowser(url, width, signal, stop, log);
-    return shot.kind === "whole" ? shot.image : await stitch(shot.width, shot.slices, log);
-  } finally {
-    signal.removeEventListener("abort", onAbort);
+    shot = await shootInTurn(url, width, signal, stop, endTurn, log);
+  } catch (error) {
     endTurn();
+    throw error;
   }
+  if (shot.kind === "slices") return stitchInTurn(shot, signal, endTurn, log);
+  endTurn();
+  return shot.image;
 }

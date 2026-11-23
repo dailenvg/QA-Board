@@ -308,3 +308,49 @@ describe("capturePage on a long page", () => {
     ]);
   });
 });
+
+describe("capturePage out of time with a long page shot", () => {
+  beforeEach(() => {
+    vi.stubEnv("VERCEL", "1");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    mocks.launch.mockReset();
+  });
+
+  it("times out without stitching when its signal aborted as the browser finished", async () => {
+    const controller = new AbortController();
+    const { launched } = longPageBrowser(2_000, (clip) => {
+      if (clip.y === 1_800) controller.abort();
+      return bandJpeg(clip);
+    });
+    mocks.launch.mockResolvedValue(launched);
+    const steps: string[] = [];
+    const result = capturePage(URL_, 320, controller.signal, NO_STOP, (step) => steps.push(step));
+    await expect(result).rejects.toMatchObject({ code: "timeout" });
+    expect(steps.some((step) => step.startsWith("stitching"))).toBe(false);
+    const next = browserTurn();
+    (await next)();
+  });
+
+  it("stops waiting when its signal aborts mid-stitch, and keeps the turn until sharp is done", async () => {
+    const controller = new AbortController();
+    const { launched } = longPageBrowser(2_000);
+    mocks.launch.mockResolvedValue(launched);
+    const steps: string[] = [];
+    const result = capturePage(URL_, 320, controller.signal, NO_STOP, (step) => {
+      steps.push(step);
+      if (step.startsWith("stitching")) controller.abort();
+    });
+    await expect(result).rejects.toMatchObject({ code: "timeout" });
+    const next = browserTurn();
+    let started = false;
+    void next.then(() => (started = true));
+    await Promise.resolve();
+    expect(started).toBe(false);
+    (await next)();
+    // The abort skipped the encode itself.
+    expect(steps.some((step) => step.startsWith("stitched"))).toBe(false);
+  });
+});
