@@ -1,12 +1,14 @@
 "use client";
 
 import { motion } from "motion/react";
+import { useId } from "react";
 import { clientInfoText, describeClientInfo, type InfoRow } from "@/lib/client-info/describe";
 import { staggerGroup, useRevealVariants } from "@/lib/motion";
 import type { Comment } from "@/lib/store/types";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
 import { Icon } from "../ui/Icon";
+import { StateArt } from "../ui/line-art/StateArt";
 import { useToast } from "../ui/ToastProvider";
 
 const ROWS = staggerGroup();
@@ -58,6 +60,7 @@ function InfoList({ rows }: { rows: readonly InfoRow[] }) {
  */
 export function GetInfoDialog({ open, comment, number, onClose }: GetInfoDialogProps) {
   const toast = useToast();
+  const emptyId = useId();
   const info = comment?.clientInfo;
   const rows = comment
     ? describeClientInfo(info, comment.fromClient ? "review-link" : "squint")
@@ -85,9 +88,17 @@ export function GetInfoDialog({ open, comment, number, onClose }: GetInfoDialogP
       {rows ? (
         <InfoList rows={rows} />
       ) : (
-        <p data-testid="browser-details-empty" className="text-body text-ink-2">
-          {NOT_RECORDED}
-        </p>
+        // Line art as in the other small surfaces' empty states (search, Send to ClickUp).
+        <div className="flex flex-col items-center gap-3 py-2 text-center">
+          <StateArt scene="noMatch" size="sm" still />
+          <p
+            id={emptyId}
+            data-testid="browser-details-empty"
+            className="text-body text-pretty text-ink-2"
+          >
+            {NOT_RECORDED}
+          </p>
+        </div>
       )}
       <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         {rows ? (
@@ -96,7 +107,8 @@ export function GetInfoDialog({ open, comment, number, onClose }: GetInfoDialogP
             Copy details
           </Button>
         ) : null}
-        <Button onClick={onClose} data-autofocus>
+        {/* Focused on opening: without details, it reads out why, as the dialog only names the comment. */}
+        <Button onClick={onClose} aria-describedby={rows ? undefined : emptyId} data-autofocus>
           Done
         </Button>
       </div>
