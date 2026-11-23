@@ -10,7 +10,9 @@ import type { ExportDocument } from "./types";
  *   `source-image.<ext>`). `location.surface` "image" became "page", and
  *   `location.page` (`{ id, number, name }`, else null) says which page.
  *   A screenshot of a pin on a page is `screenshots/<NN>-p<PP>-<id>.<ext>`
- *   (`.jpg` for newer screenshots, `.png` for older ones).
+ *   (`.jpg` for newer screenshots, `.png` for older ones). Added since,
+ *   without a new version: each comment's `clientInfo`, the browser it was
+ *   posted from as recorded (`userAgent`, `viewport`, `dpr`, `platform`), or null.
  * - `squint.comments/1`: the first version.
  */
 export const JSON_SCHEMA = "squint.comments/2";
