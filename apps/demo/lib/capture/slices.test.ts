@@ -86,6 +86,21 @@ describe("shooting slices", () => {
     expect(result).toMatchObject({ height: 1_750, partial: false });
   });
 
+  it("stops at a slice cut short, even when the page grows back after it", async () => {
+    let calls = 0;
+    const result = await shootSlices(
+      SLICES,
+      (slice, index) => {
+        calls += 1;
+        return shotOf(index === 1 ? { y: 900, height: 850 } : slice);
+      },
+      new AbortController().signal,
+    );
+    expect(calls).toBe(2);
+    expect(tops(result.shots)).toEqual([0, 900]);
+    expect(result).toMatchObject({ height: 1_750, partial: false });
+  });
+
   it("stops before the next slice once told to, keeping what's shot", async () => {
     const stop = new AbortController();
     const result = await shootSlices(

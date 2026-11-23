@@ -57,11 +57,12 @@ function whenStopped(stop: AbortSignal): Promise<typeof STOPPED> {
 
 /**
  * Shoots `slices` one by one. Each shot carries the band it covers, which may
- * be shorter than planned; a null shot means the page now ends above that
- * band, and slicing is done. Once `stop` aborts, slicing ends with what's
- * been shot so far, abandoning a band still being shot. The first band is
- * always waited for: with nothing shot there's no picture to return, so only
- * the caller's own abort ends that wait.
+ * be shorter than planned: the page now ends in that band, and slicing is done
+ * (not partial: the shots cover the whole page as it was then). A null shot
+ * means the page now ends above that band, and slicing is done too. Once
+ * `stop` aborts, slicing ends with what's been shot so far, abandoning a band
+ * still being shot. The first band is always waited for: with nothing shot
+ * there's no picture to return, so only the caller's own abort ends that wait.
  */
 export async function shootSlices<T extends { slice: Slice }>(
   slices: readonly Slice[],
@@ -87,6 +88,9 @@ export async function shootSlices<T extends { slice: Slice }>(
     if (!shot) break;
     shots.push(shot);
     height += shot.slice.height;
+    // A short shot reaches the page's end as it was then. A band after it, on a page that grew
+    // back, would sit below a short tile, and the stitch pads every tile to the tallest.
+    if (shot.slice.height < slice.height) break;
   }
   return { shots, height, partial: false };
 }
