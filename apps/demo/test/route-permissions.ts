@@ -62,6 +62,12 @@ export const ROUTE_PERMISSIONS: Record<string, Record<string, RouteAccess>> = {
   "/api/w/:workspaceId/projects/:projectId/comments/:commentId": { PATCH: WRITE, DELETE: WRITE },
   // A client's edit, copied from the review link (4.12): sync, like the pull that finds it.
   "/api/w/:workspaceId/projects/:projectId/comments/:commentId/client-edit": { POST: WRITE },
+  // Replies: words and delete are row checks inside, as for comments (decision 6).
+  "/api/w/:workspaceId/projects/:projectId/comments/:commentId/replies": { POST: WRITE },
+  "/api/w/:workspaceId/projects/:projectId/comments/:commentId/replies/:replyId": {
+    PATCH: WRITE,
+    DELETE: WRITE,
+  },
   // Reading the link (every member's viewer syncs it) and the pull position are sync, not managing it.
   "/api/w/:workspaceId/projects/:projectId/share-link": {
     GET: READ,

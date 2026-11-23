@@ -160,11 +160,11 @@ async function surfaceExists(db: Queryable, projectId: string, input: CommentCre
 }
 
 /**
- * When a restored comment's words last changed: what the browser says, kept
- * between its creation and now, so the worst a made-up value can do is mark
- * the caller's own comment edited.
+ * When a restored comment's (or reply's) words last changed: what the
+ * browser says, kept between its creation and now, so the worst a made-up
+ * value can do is mark the caller's own comment edited.
  */
-function clampEditedAt(editedAt: number | undefined, createdAt: number, now: number) {
+export function clampEditedAt(editedAt: number | undefined, createdAt: number, now: number) {
   return editedAt === undefined ? null : Math.min(Math.max(editedAt, createdAt), now);
 }
 

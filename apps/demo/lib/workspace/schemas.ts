@@ -165,6 +165,25 @@ export const commentPatchSchema = z
     message: "Nothing to change",
   });
 
+/**
+ * A reply by the signed-in member, posted under their own name (`author`
+ * only while they have none). An Undo of their own reply sends back when it
+ * was posted and last edited (`editedAt`, kept between `createdAt` and now)
+ * and the browser details recorded then, `userAgent` included; a new reply
+ * leaves out `userAgent`, which the server reads from the request.
+ */
+export const replyCreateSchema = z.object({
+  id: idSchema,
+  body: text(LIMITS.body),
+  author: text(LIMITS.author),
+  createdAt: time.optional(),
+  editedAt: time.optional(),
+  clientInfo: clientInfoSchema.partial({ userAgent: true }).optional(),
+});
+
+/** A reply's new words: the only thing about a reply that changes. */
+export const replyPatchSchema = z.object({ body: text(LIMITS.body) });
+
 const reviewWindow = z.enum(REVIEW_WINDOWS);
 
 /**
@@ -299,6 +318,8 @@ export type SourceInput = z.infer<typeof sourceSchema>;
 export type SnapshotInput = z.infer<typeof snapshotSchema>;
 export type CommentCreate = z.infer<typeof commentCreateSchema>;
 export type CommentPatch = z.infer<typeof commentPatchSchema>;
+export type ReplyCreate = z.infer<typeof replyCreateSchema>;
+export type ReplyPatch = z.infer<typeof replyPatchSchema>;
 export type ShareAttach = z.infer<typeof shareAttachSchema>;
 export type ShareSync = z.infer<typeof shareSyncSchema>;
 export type ShareSettings = z.infer<typeof shareSettingsSchema>;

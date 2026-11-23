@@ -12,6 +12,8 @@ import * as blob from "@/app/api/w/[workspaceId]/projects/[projectId]/blobs/[key
 import * as clientEdit from "@/app/api/w/[workspaceId]/projects/[projectId]/comments/[commentId]/client-edit/route";
 import * as comment from "@/app/api/w/[workspaceId]/projects/[projectId]/comments/[commentId]/route";
 import * as comments from "@/app/api/w/[workspaceId]/projects/[projectId]/comments/route";
+import * as reply from "@/app/api/w/[workspaceId]/projects/[projectId]/comments/[commentId]/replies/[replyId]/route";
+import * as replies from "@/app/api/w/[workspaceId]/projects/[projectId]/comments/[commentId]/replies/route";
 import * as label from "@/app/api/w/[workspaceId]/projects/[projectId]/label/route";
 import * as pages from "@/app/api/w/[workspaceId]/projects/[projectId]/pages/route";
 import * as restore from "@/app/api/w/[workspaceId]/projects/[projectId]/restore/route";
@@ -51,6 +53,8 @@ const ROUTES: Array<[string, Partial<Record<string, unknown>>]> = [
   ["/projects/:projectId/comments", comments],
   ["/projects/:projectId/comments/:commentId", comment],
   ["/projects/:projectId/comments/:commentId/client-edit", clientEdit],
+  ["/projects/:projectId/comments/:commentId/replies", replies],
+  ["/projects/:projectId/comments/:commentId/replies/:replyId", reply],
   ["/projects/:projectId/share-link", shareLink],
   ["/projects/:projectId/share-link/settings", shareSettings],
   ["/projects/:projectId/share-link/password", sharePassword],

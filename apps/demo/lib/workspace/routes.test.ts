@@ -47,6 +47,7 @@ const IDS = {
   projectId: "p1",
   snapshotId: "s1",
   commentId: "c1",
+  replyId: "r1",
   key: "page:page-1",
 };
 const path = (workspaceId: string, route: string) => `/api/w/${workspaceId}${fill(route, IDS)}`;
