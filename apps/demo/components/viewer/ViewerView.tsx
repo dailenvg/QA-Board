@@ -43,6 +43,7 @@ import { CommentsPanel } from "./CommentsPanel";
 import { commentRights } from "./comment-rights";
 import { DeleteOthersCommentDialog } from "./DeleteOthersCommentDialog";
 import { ExportMenu } from "./ExportMenu";
+import { GetInfoDialog } from "./GetInfoDialog";
 import { rememberedMode, rememberMode } from "./mode-memory";
 import { openingMode } from "./opening-mode";
 import { PageFilter, type PageScope } from "./PageFilter";
@@ -164,6 +165,8 @@ export function ViewerView({
   const [celebrating, celebrate] = useTimedFlag(CELEBRATION_MS);
   const deleting = useDialogState<Comment>();
   const moderating = useDialogState<Comment>();
+  /** The comment whose browser details are open (Get info, the team's). */
+  const inspecting = useDialogState<Comment>();
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const exportMenuRef = useRef<MenuHandle>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -564,6 +567,7 @@ export function ViewerView({
       canModerate={owner}
       onResolve={resolveFromPopover}
       onReopen={commentActions.reopen}
+      onGetInfo={owner ? () => inspecting.show(openComment) : undefined}
       onClose={closePopover}
     />
   ) : null;
@@ -647,6 +651,7 @@ export function ViewerView({
       onResolve={commentActions.resolve}
       onReopen={commentActions.reopen}
       onDelete={askToDelete}
+      onGetInfo={owner ? inspecting.show : undefined}
     />
   );
 
@@ -795,6 +800,12 @@ export function ViewerView({
           deleting.close();
           if (target) commentActions.remove(target);
         }}
+      />
+      <GetInfoDialog
+        open={inspecting.open}
+        comment={inspecting.payload}
+        number={inspecting.payload ? (numbers.get(inspecting.payload.id) ?? 0) : 0}
+        onClose={inspecting.close}
       />
       <DeleteOthersCommentDialog
         open={moderating.open}

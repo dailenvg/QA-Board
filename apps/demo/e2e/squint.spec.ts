@@ -320,3 +320,75 @@ test("deleting a comment or a project can be undone", async ({ page }) => {
   await card.getByRole("link", { name: "undo-check" }).click();
   await expect(page.getByRole("button", { name: "Comment 2 by Ana", exact: true })).toBeVisible();
 });
+
+test("Get info shows the browser a comment was posted from, kept through Undo and reload", async ({
+  page,
+  context,
+  baseURL,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "One desktop browser is enough for this.");
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: baseURL });
+  await openFolder(page);
+  await createImageProject(page, "browser-info.png");
+  await postComment(page, "The footer wraps.", { x: 100, y: 80 }, "Ana");
+  await showComments(page);
+  const card = onlyCommentCard(page);
+  const dialog = page.getByRole("dialog", { name: "Browser details" });
+
+  const expectDetails = async () => {
+    await expect(dialog).toContainText("Comment 1 by Ana");
+    const details = dialog.getByTestId("browser-details");
+    await expect(details.locator("dt")).toHaveText([
+      "Browser",
+      "Operating system",
+      "Window size",
+      "Pixel ratio",
+      "Posted from",
+    ]);
+    // Playwright's Desktop Chrome: Chrome on Windows NT 10.0, a 1280 by 720 window at 1x.
+    await expect(details.locator("dd")).toHaveText([
+      /^Chrome \d+$/,
+      /^Windows/,
+      "1280 × 720",
+      "1×",
+      "Squint",
+    ]);
+  };
+
+  await card.getByRole("button", { name: "More actions for comment 1" }).click();
+  await page.getByRole("menuitem", { name: "Get info" }).click();
+  await expectDetails();
+  await dialog.getByRole("button", { name: "Copy details" }).click();
+  await expect(page.getByTestId("toast").filter({ hasText: "Details copied" })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(
+    /^Browser: Chrome \d+\n[\s\S]*\nPosted from: Squint\nUser agent: Mozilla\/5\.0 /,
+  );
+  await dialog.getByRole("button", { name: "Done" }).click();
+  await expect(dialog).toHaveCount(0);
+
+  // Undo puts back the details it was posted with; the server has them after a reload.
+  await card.getByRole("button", { name: "Delete comment 1" }).click();
+  await page
+    .getByRole("dialog", { name: "Delete comment 1?" })
+    .getByRole("button", { name: "Delete comment" })
+    .click();
+  await expect(card).toHaveCount(0);
+  await page
+    .getByTestId("toast")
+    .filter({ hasText: "Comment deleted" })
+    .getByRole("button", { name: "Undo" })
+    .click();
+  await expect(card).toBeVisible();
+  await page.reload();
+  await showComments(page);
+
+  // From the pin's popover too; Escape closes the dialog and leaves the popover open.
+  await page.getByRole("button", { name: "Comment 1 by Ana", exact: true }).click();
+  const popover = page.getByTestId("pin-popover");
+  await popover.getByRole("button", { name: "More actions for comment 1" }).click();
+  await popover.getByRole("menuitem", { name: "Get info" }).click();
+  await expectDetails();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(popover).toBeVisible();
+});

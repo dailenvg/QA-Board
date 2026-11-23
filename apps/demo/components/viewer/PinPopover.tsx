@@ -12,6 +12,7 @@ import { ClientMark } from "./ClientMark";
 import { CommentAuthorAvatar } from "./CommentAuthorAvatar";
 import { CommentBadge } from "./CommentBadge";
 import { CommentEdited } from "./CommentEdited";
+import { CommentMoreMenu } from "./CommentMoreMenu";
 import { CommentTeamNote } from "./CommentTeamNote";
 import { PlacementChip } from "./PlacementChip";
 import type { Placement } from "./surface";
@@ -27,6 +28,8 @@ interface PinPopoverProps {
   canModerate: boolean;
   onResolve: (id: string) => void;
   onReopen: (id: string) => void;
+  /** The team's "Get info" (browser details) in the More menu; guests get none. */
+  onGetInfo?: () => void;
   /** `returnFocus`: closed from the keyboard or the close button, so focus goes back to the pin. */
   onClose: (returnFocus: boolean) => void;
 }
@@ -96,7 +99,8 @@ function measure(node: HTMLElement, { x, y }: Comment): Side | null {
 /**
  * A pin's comment, opened from the pin: who said it (their avatar, with the
  * company badge for the team) and when, the full text,
- * where it was placed, and (for the owner) Resolve or Reopen. A non-modal
+ * where it was placed, and (for the team) Resolve or Reopen and the More
+ * menu (Get info). A non-modal
  * dialog beside the pin, flipped (and if need be slid) to stay inside the stage; docked to the
  * bottom on phones, like the composer. Escape, the close button, a click
  * outside or another pin close it.
@@ -110,6 +114,7 @@ export function PinPopover({
   canModerate,
   onResolve,
   onReopen,
+  onGetInfo,
   onClose,
 }: PinPopoverProps) {
   const docked = !useMediaQuery("(min-width: 640px)");
@@ -169,6 +174,8 @@ export function PinPopover({
       onCloseRef.current(true);
     };
     const onPointerDown = (event: PointerEvent) => {
+      // A modal dialog opened from here (Get info) takes its own clicks, the backdrop's too.
+      if (document.querySelector('[aria-modal="true"]')) return;
       const target = event.target as Element | null;
       // Pins handle their own clicks: the same pin toggles, another one switches.
       if (ref.current?.contains(target) || target?.closest("[data-pin-id]")) return;
@@ -269,9 +276,9 @@ export function PinPopover({
       </p>
       <CommentEdited id={editedId} editedAt={comment.editedAt} now={now} />
       {placement ? <PlacementChip id={placementId} placement={placement} now={now} /> : null}
-      {canModerate ? (
-        <div className="flex justify-end pt-1">
-          {resolved ? (
+      {canModerate || onGetInfo ? (
+        <div className="flex items-center justify-end gap-1 pt-1">
+          {!canModerate ? null : resolved ? (
             <Button variant="secondary" size="sm" onClick={() => onReopen(comment.id)}>
               <Icon name="undo" className="size-4" />
               Reopen
@@ -282,6 +289,7 @@ export function PinPopover({
               Resolve
             </Button>
           )}
+          {onGetInfo ? <CommentMoreMenu number={number} onGetInfo={onGetInfo} /> : null}
         </div>
       ) : null}
     </motion.div>
