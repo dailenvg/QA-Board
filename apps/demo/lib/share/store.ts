@@ -1,3 +1,4 @@
+import type { ClientInfo } from "../client-info/schema";
 import type { ShareBrand } from "./brand";
 import type {
   BlobLocation,
@@ -91,7 +92,10 @@ export interface ShareStore {
     id: string,
     options?: { includePending: boolean },
   ): Promise<Sequenced<SharedSnapshot>[]>;
-  /** With each row's `editSeq` once a client has edited it; never its edit key's hash. */
+  /**
+   * With each row's `editSeq` once a client has edited it, and the browser a
+   * client posted from (`clientInfo`); never its edit key's hash.
+   */
   comments(id: string, options?: { includePending: boolean }): Promise<Sequenced<SharedComment>[]>;
   /** Inserts, or replaces the data of an existing row (keeping its origin and seq). */
   upsertSnapshot(id: string, snapshot: SharedSnapshot, origin: Origin): Promise<void>;
@@ -116,6 +120,7 @@ export interface ShareStore {
    * Inserts only; false when the id is taken (by any row, pending or not).
    * With a `claim`, the row is pending: it claims the id but stays invisible
    * until that same claim confirms it, and records where its crop goes.
+   * `clientInfo` is kept beside the comment (052), for the owner's pull only.
    */
   insertComment(
     id: string,
@@ -123,6 +128,7 @@ export interface ShareStore {
     origin: Origin,
     claim?: { claim: string; cropKey: string },
     editKeyHash?: string,
+    clientInfo?: ClientInfo,
   ): Promise<boolean>;
   /**
    * A client's edit of their visible comment's words, in one step (4.12):

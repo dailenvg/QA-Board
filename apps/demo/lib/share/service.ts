@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { CapturedImage } from "../capture/capture-page";
+import type { ClientInfo } from "../client-info/schema";
 import { sharePersonAvatarSrc } from "../routes";
 import { toClientBrand } from "./brand";
 import type { ShareServices } from "./server";
@@ -41,11 +42,15 @@ export type { CreatedShare } from "./types";
 const fail = (status: Failure["status"], error: string): Failure => ({ ok: false, status, error });
 const ok = <T>(value: T): Outcome<T> => ({ ok: true, value });
 
-/** A client's new comment, before the server sets its status and timestamps. */
+/**
+ * A client's new comment, before the server sets its status and timestamps,
+ * with the browser it's posted from (the request's user agent included):
+ * stored beside the comment, never in it (052).
+ */
 export type ClientCommentInput = Omit<
   SharedComment,
   "status" | "createdAt" | "updatedAt" | "resolvedAt" | "editedAt"
->;
+> & { clientInfo?: ClientInfo };
 
 // ── Access ─────────────────────────────────────────────────────────────────
 
@@ -307,10 +312,15 @@ export async function applyChanges(
 /** The highest of a row's sequences: its insert's, and its latest client edit's. */
 const lastSeq = (row: Sequenced<unknown>) => Math.max(row.seq, row.editSeq ?? 0);
 
+/** A client's comment as the owner pulls it: with the browser it was posted from, when recorded. */
+const pulledComment = (row: Sequenced<SharedComment>): PulledComment =>
+  row.clientInfo ? { ...row.item, clientInfo: row.clientInfo } : row.item;
+
 /**
- * Client additions after `since`, in order, then client edits after it to
- * comments pulled before (`edited`, 4.12), with the cursor to ask from next
- * time: past every addition and edit sent, so each comes once.
+ * Client additions after `since`, in order (with their browser details), then
+ * client edits after it to comments pulled before (`edited`, 4.12), with the
+ * cursor to ask from next time: past every addition and edit sent, so each
+ * comes once.
  */
 export async function pullChanges(
   store: ShareStore,
@@ -330,7 +340,7 @@ export async function pullChanges(
   );
   const sent = [...newSnapshots, ...newComments, ...editedComments];
   const pulled: PulledComment[] = [
-    ...items(newComments),
+    ...newComments.map(pulledComment),
     ...editedComments.map((row) => ({ ...row.item, edited: true as const })),
   ];
   return {
@@ -505,9 +515,11 @@ async function claimCommentId(
   claim: { claim: string; cropKey: string } | undefined,
   editKeyHash: string,
   now: number,
+  clientInfo: ClientInfo | undefined,
 ): Promise<Outcome<undefined>> {
   const { store } = services;
-  const insert = () => store.insertComment(share.id, comment, "client", claim, editKeyHash);
+  const insert = () =>
+    store.insertComment(share.id, comment, "client", claim, editKeyHash, clientInfo);
   if (await insert()) return ok(undefined);
   const since = await store.pendingSince(share.id, comment.id);
   if (since === null) return fail(409, "exists");
@@ -587,12 +599,21 @@ export async function addClientComment(
   }
   const existing = await store.comments(share.id);
   if (existing.length >= SHARE_LIMITS.comments) return fail(413, "share-full");
-  const comment: SharedComment = { ...input, status: "active", createdAt: now, updatedAt: now };
+  const { clientInfo, ...fields } = input;
+  const comment: SharedComment = { ...fields, status: "active", createdAt: now, updatedAt: now };
   const editKey = createSecret();
   const keyHash = hashSecret(editKey);
   if (!crop) {
     // Without a crop there's nothing to wait for: the row is visible as soon as it's claimed.
-    const claimed = await claimCommentId(services, share, comment, undefined, keyHash, now);
+    const claimed = await claimCommentId(
+      services,
+      share,
+      comment,
+      undefined,
+      keyHash,
+      now,
+      clientInfo,
+    );
     return claimed.ok ? ok({ ...comment, editKey }) : claimed;
   }
   // With a crop, the row is claimed pending under a random nonce and its crop goes to a key
@@ -602,7 +623,7 @@ export async function addClientComment(
   const nonce = randomUUID();
   const cropKey = `crop:${comment.id}:${nonce}`;
   const claim = { claim: nonce, cropKey };
-  const claimed = await claimCommentId(services, share, comment, claim, keyHash, now);
+  const claimed = await claimCommentId(services, share, comment, claim, keyHash, now, clientInfo);
   if (!claimed.ok) return claimed;
   const undo = async () => {
     await store.deleteClaim(share.id, comment.id, nonce);

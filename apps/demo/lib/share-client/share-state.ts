@@ -69,7 +69,12 @@ function sharedSnapshot({
   return { id, width, height, createdAt, sourceUrl, ...(scale !== undefined ? { scale } : {}) };
 }
 
-/** What the owner pushes: the project's metadata, snapshots and comments, without local keys. */
+/**
+ * What the owner pushes: the project's metadata, snapshots and comments,
+ * without local keys. The one place that decides what of a comment reaches a
+ * review link: whose it is, the author's photo and the browser it was posted
+ * from (`clientInfo`, team only) never do.
+ */
 export function toShareState(
   project: Project,
   comments: readonly Comment[],

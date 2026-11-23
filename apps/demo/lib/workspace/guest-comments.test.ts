@@ -56,7 +56,15 @@ beforeEach(async () => {
   });
   await store.insertComment(shareId, item("guest-1"), "client");
   await store.insertComment(shareId, item("owners-own"), "owner");
+  await store.insertComment(shareId, item("guest-ua"), "client", undefined, undefined, GUEST_INFO);
 });
+
+/** The browser a guest posted "guest-ua" from, as the review link recorded it. */
+const GUEST_INFO = {
+  userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) Version/18.1 Safari/604.1",
+  viewport: { width: 390, height: 844 },
+  dpr: 3,
+};
 
 function post(projectId: string, id: string, fromShare?: true) {
   return call("POST", `/api/w/${a.workspaceId}/projects/${projectId}/comments`, {
@@ -115,5 +123,68 @@ describe("saving a guest's comment pulled from a review link", () => {
       body: { id: "x", x: 1, y: 1, body: "Hi", author: "Cleo", fromShare: "yes" },
     });
     expect(response.status).toBe(400);
+  });
+});
+
+describe("browser details", () => {
+  const HEADER = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/131.0.0.0 Safari/537.36";
+  const SENT = { viewport: { width: 1440, height: 900 }, dpr: 2, platform: { name: "macOS" } };
+  const commentsPath = () => `/api/w/${a.workspaceId}/projects/p1/comments`;
+
+  function postWith(id: string, clientInfo: unknown, extra: Record<string, unknown> = {}) {
+    return call("POST", commentsPath(), {
+      cookie: a.cookie,
+      headers: { "user-agent": HEADER },
+      body: { id, x: 1, y: 1, body: "Hi", author: "Cleo", clientInfo, ...extra },
+    });
+  }
+
+  async function infoOf(id: string): Promise<unknown> {
+    const { rows } = await db.query<{ client_info: unknown }>(
+      "SELECT client_info FROM comments WHERE id = $1",
+      [id],
+    );
+    return rows[0]?.client_info;
+  }
+
+  it("records a member's with the request's user agent, and reads it back", async () => {
+    const response = await postWith("mine", SENT);
+    expect(response.status).toBe(201);
+    const stored = { ...SENT, userAgent: HEADER };
+    expect(((await response.json()) as { clientInfo?: unknown }).clientInfo).toEqual(stored);
+    expect(await infoOf("mine")).toEqual(stored);
+    const list = await call("GET", commentsPath(), { cookie: a.cookie });
+    const comments = (await list.json()) as Array<{ id: string; clientInfo?: unknown }>;
+    expect(comments.find((comment) => comment.id === "mine")?.clientInfo).toEqual(stored);
+  });
+
+  it("keeps what an Undo sends back, not this browser's", async () => {
+    const original = { ...SENT, userAgent: "The browser it was posted from" };
+    expect((await postWith("mine", original)).status).toBe(201);
+    expect(await infoOf("mine")).toEqual(original);
+  });
+
+  it("records nothing for a post without details (an older tab, or an older comment's Undo)", async () => {
+    expect((await post("p1", "older")).status).toBe(201);
+    expect(await infoOf("older")).toBeNull();
+  });
+
+  it("refuses details out of bounds", async () => {
+    const response = await postWith("big", { viewport: { width: 20_000, height: 900 } });
+    expect(response.status).toBe(400);
+  });
+
+  it("takes a guest's from the review link, whatever the browser says", async () => {
+    const response = await postWith(
+      "guest-ua",
+      { ...SENT, userAgent: "Made up" },
+      {
+        fromShare: true,
+      },
+    );
+    expect(response.status).toBe(201);
+    expect(await infoOf("guest-ua")).toEqual(GUEST_INFO);
+    expect((await postWith("guest-1", SENT, { fromShare: true })).status).toBe(201);
+    expect(await infoOf("guest-1")).toBeNull();
   });
 });

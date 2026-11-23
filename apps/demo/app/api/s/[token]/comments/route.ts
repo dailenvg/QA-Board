@@ -1,3 +1,4 @@
+import { userAgentOf } from "@/lib/client-info/schema";
 import { failure, json, readBytes, validate } from "@/lib/share/http";
 import { asClient } from "@/lib/share/routes";
 import { clientCommentSchema, SHARE_LIMITS } from "@/lib/share/schemas";
@@ -34,7 +35,8 @@ function parseComment(value: FormDataEntryValue | null): unknown {
 /**
  * `POST` multipart `comment` + optional `crop`: a client adds a comment
  * (always active). 201 with the comment and its `editKey`, which lets this
- * browser edit the words later: sent this once, never again.
+ * browser edit the words later: sent this once, never again. Its browser
+ * details (`clientInfo`) are kept with the request's user agent, for the team.
  */
 export async function POST(request: Request, { params }: Params) {
   const { token } = await params;
@@ -45,7 +47,10 @@ export async function POST(request: Request, { params }: Params) {
     if (!input.ok) return input.response;
     const file = form.get("crop");
     const crop = file instanceof Blob ? new Uint8Array(await file.arrayBuffer()) : null;
-    const added = await addClientComment(services, share, input.value, crop, Date.now());
+    const { clientInfo, ...comment } = input.value;
+    const recorded = clientInfo && { ...clientInfo, userAgent: userAgentOf(request) };
+    const sent = { ...comment, ...(recorded ? { clientInfo: recorded } : {}) };
+    const added = await addClientComment(services, share, sent, crop, Date.now());
     return added.ok ? json(added.value, 201) : failure(added);
   });
 }
