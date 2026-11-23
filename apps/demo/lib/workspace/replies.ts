@@ -66,16 +66,33 @@ export interface ReplyAuthor {
   userId: string;
 }
 
-function toReply(row: ReplyRow, workspaceId: string, viewerId?: string): Reply {
+/** A team author's photo URL from a reply row, or null without one. */
+type AvatarOf = (row: ReplyRow) => string | null;
+
+/**
+ * Photo URLs for one read in `workspaceId`, each author's worked out once:
+ * their person key is an HMAC, and a workspace's replies are many and by few people.
+ */
+function avatarSources(workspaceId: string): AvatarOf {
+  const known = new Map<string, string>();
+  return (row) => {
+    if (!row.author_avatar_key || !row.author_user_id) return null;
+    const cacheKey = `${row.author_user_id}/${row.author_avatar_key}`;
+    const cached = known.get(cacheKey);
+    if (cached) return cached;
+    const src = personAvatarSrc(
+      workspaceId,
+      personKey(workspaceId, row.author_user_id),
+      logoVersion(row.author_avatar_key),
+    );
+    known.set(cacheKey, src);
+    return src;
+  };
+}
+
+function toReply(row: ReplyRow, avatarOf: AvatarOf, viewerId?: string): Reply {
   const mine = !row.from_client && viewerId !== undefined && row.author_user_id === viewerId;
-  const authorAvatar =
-    row.author_avatar_key && row.author_user_id
-      ? personAvatarSrc(
-          workspaceId,
-          personKey(workspaceId, row.author_user_id),
-          logoVersion(row.author_avatar_key),
-        )
-      : null;
+  const authorAvatar = avatarOf(row);
   return {
     id: row.id,
     projectId: row.project_id,
@@ -108,7 +125,8 @@ export async function listReplies(
      ORDER BY reply.created_at, reply.id`,
     [workspaceId, projectId ?? null],
   );
-  return rows.map((row) => toReply(row, workspaceId, viewerId));
+  const avatarOf = avatarSources(workspaceId);
+  return rows.map((row) => toReply(row, avatarOf, viewerId));
 }
 
 /** Whether the live project has the comment: tells a taken id (409) from a missing comment (404). */
@@ -172,7 +190,7 @@ export async function addReply(
       editedAt === null ? null : toDate(editedAt),
     ],
   );
-  if (rows[0]) return done(toReply(rows[0], workspaceId, author.userId));
+  if (rows[0]) return done(toReply(rows[0], avatarSources(workspaceId), author.userId));
   return refuse(
     (await commentExists(db, workspaceId, projectId, commentId)) ? "exists" : "not-found",
   );
@@ -212,7 +230,7 @@ export async function updateReply(
       actor.userId,
     ],
   );
-  return rows[0] ? toReply(rows[0], workspaceId, actor.userId) : null;
+  return rows[0] ? toReply(rows[0], avatarSources(workspaceId), actor.userId) : null;
 }
 
 /**
