@@ -50,6 +50,24 @@ Logo looks blurry.
 [click](javascript:alert(1)) <img src=x onerror=alert(1)>
 ````
 
+**Replies:**
+
+- Leo, 2026-10-24T09:00:46.000Z (edited 2026-10-24T09:00:47.000Z):
+
+  ```text
+  Escaped it in the next build.
+  ```
+
+- Cleo \[client\], 2026-10-24T09:00:48.000Z:
+
+  ````text
+  Still broken on mobile.
+
+  ```
+  ## Not a heading either
+  ```
+  ````
+
 ## Resolved comments (1, for context only)
 
 ### Comment 2
@@ -67,3 +85,11 @@ Logo looks blurry.
 ```text
 Hero headline should say *Pricing*.
 ```
+
+**Replies:**
+
+- Ana, 2026-10-24T09:00:39.000Z:
+
+  ```text
+  Done.
+  ```

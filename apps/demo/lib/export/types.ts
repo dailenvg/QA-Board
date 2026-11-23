@@ -28,6 +28,20 @@ export interface ExportLocation {
   surfaceHeight: number | null;
 }
 
+/** A reply in a comment's thread, as exported: oldest first under its comment. */
+export interface ExportReply {
+  id: string;
+  author: string;
+  body: string;
+  createdAt: number;
+  /** When its words last changed; null while they never have. */
+  editedAt: number | null;
+  /** Posted by a client on the review link. */
+  fromClient: boolean;
+  /** The browser it was posted from, as recorded; null when not. In the JSON only, as a comment's. */
+  clientInfo: ClientInfo | null;
+}
+
 export interface ExportComment {
   number: number;
   id: string;
@@ -46,6 +60,8 @@ export interface ExportComment {
    * before. In the JSON only: the Markdown is for reading, not debugging.
    */
   clientInfo: ClientInfo | null;
+  /** Its thread, oldest first; empty without replies. */
+  replies: ExportReply[];
 }
 
 export interface ExportSnapshot {

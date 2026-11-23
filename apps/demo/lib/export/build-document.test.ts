@@ -42,6 +42,23 @@ describe("buildExportDocument", () => {
     ]);
   });
 
+  it("puts each reply under its comment, oldest first, and none under a comment without", () => {
+    expect(document.comments.map((comment) => comment.replies.map((reply) => reply.id))).toEqual([
+      [],
+      ["r-team", "r-client"],
+      ["r-resolved"],
+    ]);
+    expect(document.comments[1]?.replies[1]).toEqual({
+      id: "r-client",
+      author: "Cleo [client]",
+      body: "Still broken on mobile.\n\n```\n## Not a heading either\n```",
+      createdAt: Date.UTC(2026, 9, 24, 9, 0, 48),
+      editedAt: null,
+      fromClient: true,
+      clientInfo: null,
+    });
+  });
+
   it("drops the screenshot link when the crop isn't stored", () => {
     const missing = buildExportDocument({
       ...URL_EXPORT,

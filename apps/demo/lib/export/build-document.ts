@@ -1,12 +1,13 @@
 import { pagesOf } from "../store/pages";
 import { pinNumbers } from "../store/selectors";
-import type { Comment, Project, Snapshot } from "../store/types";
+import type { Comment, Project, Reply, Snapshot } from "../store/types";
 import { screenshotPath } from "./paths";
 import type {
   ExportComment,
   ExportDocument,
   ExportLocation,
   ExportPage,
+  ExportReply,
   ExportSnapshot,
   ExportSource,
   OmittedReason,
@@ -30,6 +31,8 @@ export interface ExportInput {
   project: Project;
   /** The project's comments, oldest first (pin order). */
   comments: readonly Comment[];
+  /** The project's replies, in any order: each goes under its comment, oldest first. */
+  replies: readonly Reply[];
   snapshots: readonly Snapshot[];
   assets: ExportAssets;
   exportedAt: number;
@@ -108,15 +111,39 @@ function exportSnapshot(snapshot: Snapshot, asset: SnapshotAsset | undefined): E
   };
 }
 
+function exportReply(reply: Reply): ExportReply {
+  return {
+    id: reply.id,
+    author: reply.author,
+    body: reply.body,
+    createdAt: reply.createdAt,
+    editedAt: reply.editedAt ?? null,
+    fromClient: reply.fromClient === true,
+    clientInfo: reply.clientInfo ?? null,
+  };
+}
+
+/** Each comment's replies as exported, oldest first, by comment id. */
+function threads(replies: readonly Reply[]): Map<string, ExportReply[]> {
+  const byComment = new Map<string, ExportReply[]>();
+  const oldestFirst = [...replies].sort((a, b) => a.createdAt - b.createdAt);
+  for (const reply of oldestFirst) {
+    byComment.set(reply.commentId, [...(byComment.get(reply.commentId) ?? []), exportReply(reply)]);
+  }
+  return byComment;
+}
+
 /** Turns a project's comments into the export model: numbered, located and linked to files. */
 export function buildExportDocument({
   project,
   comments,
+  replies,
   snapshots,
   assets,
   exportedAt,
 }: ExportInput): ExportDocument {
   const numbers = pinNumbers(comments);
+  const repliesOf = threads(replies);
   const byId = new Map(snapshots.map((snapshot) => [snapshot.id, snapshot]));
   const pages = exportPages(project, assets.pages);
   const pagesById = new Map(pages.map((page) => [page.id, page]));
@@ -145,6 +172,7 @@ export function buildExportDocument({
             }
           : null,
       clientInfo: comment.clientInfo ?? null,
+      replies: repliesOf.get(comment.id) ?? [],
     };
   });
   const order = (entry: ExportComment) => (entry.status === "active" ? 0 : 1);

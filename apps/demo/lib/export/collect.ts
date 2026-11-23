@@ -134,9 +134,11 @@ export async function collectExport(
   const crops = await readCrops(comments, blobs);
   const pages = await readPages(project, comments, blobs, budget);
   const stored = await readSnapshots(snapshots, blobs, budget);
+  const replies = data.replies.filter((reply) => reply.projectId === project.id);
   const document = buildExportDocument({
     project,
     comments,
+    replies,
     snapshots,
     assets: {
       crops: new Map([...crops].map(([id, blob]) => [id, blob.type])),
