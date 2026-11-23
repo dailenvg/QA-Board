@@ -40,6 +40,7 @@ const data: SquintData = {
     },
   ],
   snapshots: [],
+  replies: [],
   authorName: null,
 };
 

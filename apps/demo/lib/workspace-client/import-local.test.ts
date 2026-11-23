@@ -97,6 +97,7 @@ function browserData(overrides: Partial<SquintData> = {}): SquintData {
       comment("c2", "site", { snapshotId: "s1", author: "Client" }),
       comment("c3", "deck", { pageId: "gone" }),
     ],
+    replies: [],
     authorName: "Dailen",
     ...overrides,
   };

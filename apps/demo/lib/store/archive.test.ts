@@ -32,6 +32,7 @@ const DATA: SquintData = {
   projects: [project("p1"), project("p2", { label: "Urgent" })],
   comments: [comment("c1", "p1"), comment("c2", "p2")],
   snapshots: [],
+  replies: [],
   authorName: null,
 };
 

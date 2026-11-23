@@ -66,6 +66,7 @@ function data(parts: Partial<SquintData>): SquintData {
     projects: [],
     comments: [],
     snapshots: [],
+    replies: [],
     authorName: null,
     ...parts,
   };

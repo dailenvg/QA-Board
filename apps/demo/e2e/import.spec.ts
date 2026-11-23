@@ -100,6 +100,7 @@ function localData(share?: Project["share"], extra: Project[] = []): SquintData 
       comment("c-site", "site", { snapshotId: "snap-1", crop: crop("c-site") }),
       comment("c-deck", "deck", { pageId: "deck-2", author: "Client" }),
     ],
+    replies: [],
     authorName: "Dailen",
   };
 }

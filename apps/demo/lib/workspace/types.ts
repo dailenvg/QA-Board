@@ -1,6 +1,6 @@
 import type { MembershipRole } from "../auth/memberships";
 import type { MemberSwitch } from "../auth/permissions";
-import type { Comment, Folder, ProjectSource, Snapshot } from "../store/types";
+import type { Comment, Folder, ProjectSource, Reply, Snapshot } from "../store/types";
 
 /**
  * What the workspace API sends and takes. The shapes are the browser store's
@@ -150,6 +150,8 @@ export interface WorkspaceData {
   projects: WorkspaceProject[];
   snapshots: Snapshot[];
   comments: Comment[];
+  /** Every comment's replies, oldest first. */
+  replies: Reply[];
   /** Projects with any client comment, for the Overview. */
   clientActivity: ClientCommentActivity[];
   storage: StorageSummary;

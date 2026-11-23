@@ -256,6 +256,11 @@ export interface SquintData {
   folders: Folder[];
   projects: Project[];
   comments: Comment[];
+  /**
+   * Every comment's replies, flat, each naming its comment (`commentId`).
+   * Only the workspace has them: data saved in a browser loads with none.
+   */
+  replies: Reply[];
   /** Added after version 1 shipped; saved data without it loads with none. */
   snapshots: Snapshot[];
   /** Name used for new comments; asked once, then remembered. */

@@ -34,6 +34,7 @@ import type {
   Project,
   ProjectShare,
   ProjectSource,
+  Reply,
   Snapshot,
 } from "./types";
 
@@ -65,7 +66,7 @@ function storageFailed<T>(error: string): Result<T> {
 }
 
 /** A delete that went through: Squiggy is surprised. */
-function deleted(item: "project" | "folder" | "comment", result: Result): Result {
+function deleted(item: "project" | "folder" | "comment" | "reply", result: Result): Result {
   if (result.ok) emitSquiggy({ type: "item-deleted", item });
   return result;
 }
@@ -341,9 +342,13 @@ export function setProjectLabel(id: string, label: string | null): Result {
 export const deleteProject = (id: string) =>
   deleted("project", commit({ type: "project/delete", id, at: Date.now() }));
 
-/** Undo for `deleteProject`: pass the project and the comments and snapshots it had. */
-export const restoreProject = (project: Project, comments: Comment[], snapshots: Snapshot[]) =>
-  dispatch({ type: "project/restore", project, comments, snapshots });
+/** Undo for `deleteProject`: pass the project and the comments, snapshots and replies it had. */
+export const restoreProject = (
+  project: Project,
+  comments: Comment[],
+  snapshots: Snapshot[],
+  replies: Reply[],
+) => dispatch({ type: "project/restore", project, comments, replies, snapshots });
 
 /** Adds a comment and resolves once the server has it; on a refusal it's gone again. */
 export function addComment(input: {
@@ -410,8 +415,12 @@ export function addSnapshot(snapshot: Omit<Snapshot, "createdAt">): Result<Snaps
   return withValue(commit({ type: "snapshot/add", snapshot: saved }), saved);
 }
 
-/** Undo for `deleteComment`. */
-export const restoreComment = (comment: Comment) => dispatch({ type: "comment/restore", comment });
+/**
+ * Undo for `deleteComment`: the comment, then its replies, which are only
+ * ever the member's own (`commentDeleteMode`, D25).
+ */
+export const restoreComment = (comment: Comment, replies: Reply[] = []) =>
+  dispatch({ type: "comment/restore", comment, replies });
 
 /**
  * How deleting someone else's comment ended: deleted, already gone, refused
@@ -420,23 +429,23 @@ export const restoreComment = (comment: Comment) => dispatch({ type: "comment/re
 export type ModeratedDelete = "deleted" | "gone" | "owner-only" | "offline" | "failed";
 
 /**
- * Deletes someone else's comment (the owner moderating). There's no Undo, so
- * it waits for the server: the comment leaves the list only once it's gone
- * there. One already gone elsewhere leaves too, and the list is read again.
+ * Deletes for good at `path` (below the workspace), waiting for the server,
+ * then takes the item out with `removed`. One already gone elsewhere leaves
+ * too, and the workspace is read again.
  */
-export async function deleteOthersComment(comment: Comment): Promise<ModeratedDelete> {
-  const result = await requestDirect(
-    "DELETE",
-    `/projects/${encodeURIComponent(comment.projectId)}/comments/${encodeURIComponent(comment.id)}`,
-    {},
-  );
+async function deleteForGood(
+  path: string,
+  removed: Action,
+  item: "comment" | "reply",
+): Promise<ModeratedDelete> {
+  const result = await requestDirect("DELETE", path, {});
   if (result.ok || result.status === 404) {
-    dispatch({ type: "comment/removed", id: comment.id });
+    dispatch(removed);
     if (!result.ok) {
       void refresh();
       return "gone";
     }
-    emitSquiggy({ type: "item-deleted", item: "comment" });
+    emitSquiggy({ type: "item-deleted", item });
     return "deleted";
   }
   if (result.status === 403) {
@@ -445,6 +454,62 @@ export async function deleteOthersComment(comment: Comment): Promise<ModeratedDe
   }
   return result.status === 0 ? "offline" : "failed";
 }
+
+const commentApiPath = (comment: Pick<Comment, "projectId" | "id">) =>
+  `/projects/${encodeURIComponent(comment.projectId)}/comments/${encodeURIComponent(comment.id)}`;
+
+/**
+ * Deletes a comment without Undo: someone else's (the owner moderating), or
+ * one others replied to (D25), with its replies. It waits for the server: the
+ * comment leaves the list only once it's gone there.
+ */
+export const deleteOthersComment = (comment: Comment): Promise<ModeratedDelete> =>
+  deleteForGood(commentApiPath(comment), { type: "comment/removed", id: comment.id }, "comment");
+
+/** Posts a reply and resolves once the server has it; on a refusal it's gone again. */
+export function addReply(input: {
+  id?: string;
+  projectId: string;
+  commentId: string;
+  body: string;
+  author: string;
+  clientInfo?: ClientInfo;
+}): Promise<Result<Reply>> {
+  const avatar = ownAvatarSrc();
+  const reply: Reply = {
+    id: input.id ?? newId(),
+    projectId: input.projectId,
+    commentId: input.commentId,
+    body: input.body.trim(),
+    author: cleanName(input.author),
+    createdAt: Date.now(),
+    ...(input.clientInfo ? { clientInfo: input.clientInfo } : {}),
+    mine: true,
+    ...(avatar ? { authorAvatar: avatar } : {}),
+  };
+  return dispatchConfirmed({ type: "reply/add", reply }).then((result) => withValue(result, reply));
+}
+
+/** New words for the member's own reply. */
+export const editReply = (id: string, body: string) =>
+  commit({ type: "reply/edit", id, body: body.trim(), at: Date.now() });
+
+/** Deletes the member's own reply; `restoreReply` is its Undo. */
+export const deleteReply = (id: string) => deleted("reply", commit({ type: "reply/delete", id }));
+
+/** Undo for `deleteReply`: back as the member's own, with its times. */
+export const restoreReply = (reply: Reply) => dispatch({ type: "reply/restore", reply });
+
+/**
+ * Deletes someone else's reply (the owner moderating), without Undo: it
+ * leaves the thread only once the server has deleted it.
+ */
+export const deleteOthersReply = (reply: Reply): Promise<ModeratedDelete> =>
+  deleteForGood(
+    `${commentApiPath({ projectId: reply.projectId, id: reply.commentId })}/replies/${encodeURIComponent(reply.id)}`,
+    { type: "reply/removed", id: reply.id },
+    "reply",
+  );
 
 export const setAuthorName = (name: string) =>
   commit({ type: "author/set", name: cleanName(name) });

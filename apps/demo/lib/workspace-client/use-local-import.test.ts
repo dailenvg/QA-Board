@@ -35,6 +35,7 @@ const FOUND: LocalData = {
     projects: [],
     comments: [],
     snapshots: [],
+    replies: [],
     authorName: null,
   },
   pendingImages: [],

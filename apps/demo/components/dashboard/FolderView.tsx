@@ -221,6 +221,7 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
           const snapshots = allData.snapshots.filter(
             (snapshot) => snapshot.projectId === project.id,
           );
+          const replies = allData.replies.filter((reply) => reply.projectId === project.id);
           // The project goes to the workspace's trash, so Undo brings it back whole.
           if (!report(deleteProject(project.id))) return;
           toast({
@@ -230,7 +231,7 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
               // Focus goes to the restored card, not to the page as the toast leaves.
               onAction: () => {
                 const restored = report(
-                  restoreProject(project, comments, snapshots),
+                  restoreProject(project, comments, snapshots, replies),
                   `Restored ${project.name}`,
                 );
                 if (restored) focusProjectCard(project.id);

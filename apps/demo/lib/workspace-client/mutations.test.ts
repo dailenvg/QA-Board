@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { reduce, type Action } from "../store/reducer";
-import type { Comment, Project, SquintData } from "../store/types";
+import type { Comment, Project, Reply, SquintData } from "../store/types";
 import { passwordRefusal, refusalMessage, SAVE_FAILED, writesFor } from "./mutations";
 
 const project = (id: string, folderId: string): Project => ({
@@ -49,6 +49,7 @@ const DATA: SquintData = {
   ],
   comments: [comment],
   snapshots: [],
+  replies: [],
   authorName: null,
 };
 
@@ -237,6 +238,90 @@ describe("writesFor", () => {
   });
 });
 
+describe("reply writes", () => {
+  const reply: Reply = {
+    id: "r1",
+    projectId: "p1",
+    commentId: "c1",
+    body: "On it",
+    author: "Ana",
+    createdAt: 6,
+    mine: true,
+  };
+  const threaded: SquintData = { ...DATA, replies: [reply] };
+  const replyWrites = (action: Action, data = threaded) =>
+    writesFor(action, data, reduce(data, action));
+  const PATH = "/projects/p1/comments/c1/replies";
+
+  it("posts a new reply under its comment, never saying whose it is nor its user agent", () => {
+    const clientInfo = { userAgent: "Posted from here", dpr: 2 };
+    const stamped: Reply = {
+      ...reply,
+      id: "r2",
+      team: true,
+      authorAvatar: "/api/w/w1/people/AAAAAAAAAAAAAAAAAAAAAA/avatar?v=1",
+      clientInfo,
+    };
+    expect(replyWrites({ type: "reply/add", reply: stamped })).toEqual([
+      {
+        method: "POST",
+        path: PATH,
+        body: { id: "r2", body: "On it", author: "Ana", createdAt: 6, clientInfo: { dpr: 2 } },
+      },
+    ]);
+  });
+
+  it("sends an edit or a delete to where the reply is, and nothing for one it doesn't know", () => {
+    expect(replyWrites({ type: "reply/edit", id: "r1", body: "Done", at: 9 })).toEqual([
+      { method: "PATCH", path: `${PATH}/r1`, body: { body: "Done" } },
+    ]);
+    expect(replyWrites({ type: "reply/delete", id: "r1" })).toEqual([
+      { method: "DELETE", path: `${PATH}/r1`, body: {}, tolerate: [404] },
+    ]);
+    expect(replyWrites({ type: "reply/edit", id: "nope", body: "Done", at: 9 })).toEqual([]);
+    expect(replyWrites({ type: "reply/delete", id: "nope" })).toEqual([]);
+    expect(replyWrites({ type: "reply/removed", id: "r1" })).toEqual([]);
+  });
+
+  it("undoes the delete of one's own reply with its times and recorded browser details", () => {
+    const clientInfo = { userAgent: "Posted from here", dpr: 2 };
+    const own: Reply = { ...reply, editedAt: 8, clientInfo };
+    expect(replyWrites({ type: "reply/restore", reply: own }, DATA)).toEqual([
+      {
+        method: "POST",
+        path: PATH,
+        body: { id: "r1", body: "On it", author: "Ana", createdAt: 6, editedAt: 8, clientInfo },
+        tolerate: [409],
+      },
+    ]);
+  });
+
+  it("undoes a comment's delete with the comment first, then its replies (D25)", () => {
+    const deleted = reduce(threaded, { type: "comment/delete", id: "c1" });
+    expect(deleted.replies).toEqual([]);
+    const second: Reply = { ...reply, id: "r2", createdAt: 7 };
+    const action: Action = { type: "comment/restore", comment, replies: [reply, second] };
+    const result = writesFor(action, deleted, reduce(deleted, action));
+    expect(
+      result.map(({ method, path, body }) => `${method} ${path} ${(body as Reply).id}`),
+    ).toEqual(["POST /projects/p1/comments c1", `POST ${PATH} r1`, `POST ${PATH} r2`]);
+    expect(result.every((write) => write.tolerate?.includes(409))).toBe(true);
+  });
+
+  it("says the comment is gone when a reply can't be posted under it, and the reply when it can't change", () => {
+    const add: Action = { type: "reply/add", reply };
+    expect(refusalMessage(add, 404, null, CONTEXT)).toMatch(/This comment is no longer here/);
+    expect(refusalMessage({ type: "reply/restore", reply }, 404, null, CONTEXT)).toMatch(
+      /This comment is no longer here/,
+    );
+    const edit: Action = { type: "reply/edit", id: "r1", body: "Done", at: 9 };
+    expect(refusalMessage(edit, 404, null, CONTEXT)).toBe(
+      "This reply is no longer here. It may have been deleted in another tab.",
+    );
+    expect(refusalMessage(edit, 500, null, CONTEXT)).toBe(SAVE_FAILED);
+  });
+});
+
 describe("review window writes", () => {
   it("sends the window by name to the link's settings, no limit as none", () => {
     expect(writes({ type: "share/window", id: "p3", hours: 168 })).toEqual([
@@ -325,6 +410,7 @@ describe("refusals from a switch turned off since the page loaded", () => {
     const restore: Action = {
       type: "project/restore",
       project: project("p9", "f1"),
+      replies: [],
       comments: [],
       snapshots: [],
     };

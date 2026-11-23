@@ -8,6 +8,7 @@ import { storageSummary } from "./blobs";
 import { listComments } from "./comments";
 import { listFolders } from "./folders";
 import { listProjects } from "./projects";
+import { listReplies } from "./replies";
 import { listSnapshots } from "./snapshots";
 import { personKey } from "./members/person-key";
 import type { WorkspaceData } from "./types";
@@ -92,7 +93,7 @@ async function ownerNameOf(db: Queryable, workspaceId: string): Promise<string |
 /**
  * Everything a signed-in browser shows for the workspace, in one read: its
  * folders, live projects (archived included, trash not), and their pages,
- * snapshots and comments, and what clients have said on them (pulled or
+ * snapshots, comments and replies, and what clients have said on them (pulled or
  * still on their review links), and what the member may do there (their
  * role and switches, as of this read). Review link secrets aren't in it.
  */
@@ -102,18 +103,29 @@ export async function loadWorkspace(
   userId: string,
 ): Promise<WorkspaceData> {
   const { workspaceId } = membership;
-  const [folders, projects, snapshots, comments, clients, storage, author, brand, ownerName] =
-    await Promise.all([
-      listFolders(db, workspaceId),
-      listProjects(db, workspaceId),
-      listSnapshots(db, workspaceId),
-      listComments(db, workspaceId, undefined, userId),
-      clientActivity(db, workspaceId),
-      storageSummary(db, workspaceId),
-      authorOf(db, userId, workspaceId),
-      brandOf(db, workspaceId),
-      ownerNameOf(db, workspaceId),
-    ]);
+  const [
+    folders,
+    projects,
+    snapshots,
+    comments,
+    replies,
+    clients,
+    storage,
+    author,
+    brand,
+    ownerName,
+  ] = await Promise.all([
+    listFolders(db, workspaceId),
+    listProjects(db, workspaceId),
+    listSnapshots(db, workspaceId),
+    listComments(db, workspaceId, undefined, userId),
+    listReplies(db, workspaceId, undefined, userId),
+    clientActivity(db, workspaceId),
+    storageSummary(db, workspaceId),
+    authorOf(db, userId, workspaceId),
+    brandOf(db, workspaceId),
+    ownerNameOf(db, workspaceId),
+  ]);
   return {
     workspace: {
       id: workspaceId,
@@ -129,6 +141,7 @@ export async function loadWorkspace(
     projects,
     snapshots,
     comments,
+    replies,
     clientActivity: clients,
     storage,
     authorName: author.name,
