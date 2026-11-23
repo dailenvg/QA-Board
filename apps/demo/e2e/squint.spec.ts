@@ -359,11 +359,11 @@ test("Get info shows the browser a comment was posted from, kept through Undo an
     ]);
   };
 
-  await card.getByRole("button", { name: "More actions for comment 1" }).click();
+  await card.getByRole("button", { name: "Actions for comment 1" }).click();
   await page.getByRole("menuitem", { name: "Get info" }).click();
   await expectDetails();
   await dialog.getByRole("button", { name: "Copy details" }).click();
-  await expect(page.getByTestId("toast").filter({ hasText: "Details copied" })).toBeVisible();
+  await expect(page.getByTestId("toast").filter({ hasText: "Details copied." })).toBeVisible();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(
     /^Browser: Chrome \d+\n[\s\S]*\nPosted from: Squint\nUser agent: Mozilla\/5\.0 /,
   );
@@ -389,7 +389,7 @@ test("Get info shows the browser a comment was posted from, kept through Undo an
   // From the pin's popover too; Escape closes the dialog and leaves the popover open.
   await page.getByRole("button", { name: "Comment 1 by Ana", exact: true }).click();
   const popover = page.getByTestId("pin-popover");
-  await popover.getByRole("button", { name: "More actions for comment 1" }).click();
+  await popover.getByRole("button", { name: "Actions for comment 1" }).click();
   await popover.getByRole("menuitem", { name: "Get info" }).click();
   await expectDetails();
   await page.keyboard.press("Escape");
@@ -397,7 +397,7 @@ test("Get info shows the browser a comment was posted from, kept through Undo an
   await expect(popover).toBeVisible();
 
   // Escape closes the open menu first, then the popover.
-  await popover.getByRole("button", { name: "More actions for comment 1" }).click();
+  await popover.getByRole("button", { name: "Actions for comment 1" }).click();
   await expect(popover.getByRole("menu")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(popover.getByRole("menu")).toHaveCount(0);
@@ -432,7 +432,7 @@ test("a client's comment opens its More menu inside the list, and says its detai
   // Not the member's own: no Edit, so More sits right after Resolve.
   await expect(card.getByRole("button", { name: /^Edit/ })).toHaveCount(0);
 
-  await card.getByRole("button", { name: "More actions for comment 1" }).click();
+  await card.getByRole("button", { name: "Actions for comment 1" }).click();
   const menu = card.getByRole("menu");
   await expect(menu).toBeVisible();
   const list = page.getByRole("list", { name: "Active comments" });

@@ -71,7 +71,7 @@ export function GetInfoDialog({ open, comment, number, onClose }: GetInfoDialogP
     const copied = await copy(clientInfoText(rows, info));
     toast(
       copied
-        ? { message: "Details copied" }
+        ? { message: "Details copied." }
         : { tone: "error", message: "Couldn't copy the details." },
     );
   };

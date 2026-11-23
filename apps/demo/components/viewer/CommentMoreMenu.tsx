@@ -24,7 +24,7 @@ function commentMenuItems({ onGetInfo }: Pick<CommentMoreMenuProps, "onGetInfo">
 export function CommentMoreMenu({ number, onGetInfo }: CommentMoreMenuProps) {
   return (
     <Menu
-      label={`More actions for comment ${number}`}
+      label={`Actions for comment ${number}`}
       items={commentMenuItems({ onGetInfo })}
       testId="comment-more"
     />
