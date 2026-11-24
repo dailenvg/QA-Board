@@ -610,7 +610,7 @@ export function ViewerView({
     return result.ok ? null : result.error;
   };
 
-  // The threads reach the popover and the cards through context (U1); none on a review link.
+  // The threads reach the popover and the cards through context (U1); a review link's guest reads them.
   const popover = openComment ? (
     <CommentThreadsContext key={openComment.id} value={replyThreads.value}>
       <PinPopover

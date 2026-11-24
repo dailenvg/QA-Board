@@ -139,7 +139,9 @@ export function CommentCard({
   // The thread and its box show in one place at a time: the popover, while it's open.
   const threadHere = selected && !threadInPopover;
   const summary = threads && !threadHere ? threadSummary(replies, now) : null;
-  const showThread = Boolean(threads) && threadHere && !editing;
+  // A guest, who has no reply box, gets nothing here until there's a reply to read.
+  const showThread =
+    threads !== null && threadHere && !editing && (replies.length > 0 || canReply(threads.viewer));
   /**
    * The reply box shows, rather than its Reply button: once there's a thread, a draft, or the
    * button was pressed. It then stays while the card is selected (deleting the last reply, or
