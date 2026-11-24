@@ -68,6 +68,8 @@ describe("deleting a comment (D25)", () => {
     actions.remove(COMMENT, [reply("r-1", true), reply("r-2", false)]);
     expect(restoreComment).not.toHaveBeenCalled();
     expect(deleteComment).toHaveBeenCalledWith("c-1");
-    expect(toasts).toEqual([{ message: "Comment deleted." }]);
+    expect(toasts).toEqual([
+      { message: "Comment deleted. Someone replied just before, so it can't be undone." },
+    ]);
   });
 });

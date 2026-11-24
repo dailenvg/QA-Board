@@ -63,7 +63,7 @@ export function useCommentActions({
       // Its screenshot stays stored, so Undo brings the comment back whole.
       if (!report(backend.deleteComment(target.id))) return;
       if (commentDeleteMode(replies) !== "undo") {
-        toast({ message: "Comment deleted." });
+        toast({ message: "Comment deleted. Someone replied just before, so it can't be undone." });
         return;
       }
       const thread = [...replies];
