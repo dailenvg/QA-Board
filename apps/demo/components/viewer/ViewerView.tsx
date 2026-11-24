@@ -18,6 +18,7 @@ import {
 } from "@/lib/store/breakpoints";
 import { newId } from "@/lib/store/id";
 import { pagesOf } from "@/lib/store/pages";
+import { commentDeleteMode } from "@/lib/store/replies";
 import { commentsFor, pageCounts, pinNumbers } from "@/lib/store/selectors";
 import { countComments, deriveStatus } from "@/lib/store/status";
 import type { Comment, Project, Reply, SquintData } from "@/lib/store/types";
@@ -42,7 +43,7 @@ import { CommentsBody } from "./CommentsBody";
 import { CommentsPanel } from "./CommentsPanel";
 import { commentRights } from "./comment-rights";
 import { CommentThreadsContext } from "./comment-threads";
-import { DeleteOthersCommentDialog } from "./DeleteOthersCommentDialog";
+import { DeleteOthersCommentDialog, type ForGoodComment } from "./DeleteOthersCommentDialog";
 import { DeleteOthersReplyDialog } from "./DeleteOthersReplyDialog";
 import { ExportMenu } from "./ExportMenu";
 import { GetInfoDialog, type InfoSubject } from "./GetInfoDialog";
@@ -175,7 +176,7 @@ export function ViewerView({
   const [stageVersion, setStageVersion] = useState(0);
   const [celebrating, celebrate] = useTimedFlag(CELEBRATION_MS);
   const deleting = useDialogState<Comment>();
-  const moderating = useDialogState<Comment>();
+  const moderating = useDialogState<ForGoodComment>();
   /** Whose browser details are open (Get info, the team's), named as when it opened. */
   const inspecting = useDialogState<Inspected>();
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -540,10 +541,17 @@ export function ViewerView({
     },
   });
 
-  /** Someone else's comment asks first and has no Undo (`commentRights`); the rest have Undo. */
+  /**
+   * Someone else's comment (`commentRights`), or one anyone else replied to (D25), asks first
+   * and has no Undo; the rest have Undo, which brings their own replies back too.
+   */
   const askToDelete = (comment: Comment) => {
+    const replies = replyThreads.byComment.get(comment.id) ?? [];
+    const forGood = { comment, number: numbers.get(comment.id) ?? 0, replyCount: replies.length };
     if (commentRights(comment, viewer).delete === "confirm") {
-      moderating.show(comment);
+      moderating.show({ ...forGood, reason: "others" });
+    } else if (commentDeleteMode(replies) === "confirm") {
+      moderating.show({ ...forGood, reason: "replied" });
     } else deleting.show(comment);
   };
 
@@ -847,7 +855,7 @@ export function ViewerView({
         onConfirm={() => {
           const target = deleting.payload;
           deleting.close();
-          if (target) commentActions.remove(target);
+          if (target) commentActions.remove(target, replyThreads.byComment.get(target.id));
         }}
       />
       <GetInfoDialog
@@ -857,7 +865,7 @@ export function ViewerView({
       />
       <DeleteOthersCommentDialog
         open={moderating.open}
-        comment={moderating.payload}
+        target={moderating.payload}
         ownerName={access?.ownerName ?? null}
         onClose={moderating.close}
         onDeleted={focusAfterRemoval}
