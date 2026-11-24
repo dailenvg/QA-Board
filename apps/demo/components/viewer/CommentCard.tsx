@@ -70,6 +70,11 @@ interface CommentCardProps extends CommentCardActions {
   /** Its editor opened or closed, so the list can keep the card in place meanwhile. */
   onEditing?: (comment: Comment, open: boolean) => void;
   selected: boolean;
+  /**
+   * Its pin's popover is open, with the thread and the reply box: selected, the card then sums
+   * the thread up in a line, as unselected, so one comment never has two boxes on screen.
+   */
+  threadInPopover?: boolean;
   now: number;
 }
 
@@ -90,7 +95,8 @@ const RESOLVED_NOTE = "The team resolved this, so it can't be edited.";
  * One comment: select it to find its pin (switching to its snapshot if
  * needed); see what the commenter saw; resolve or reopen it, and edit or
  * delete it where that's the member's to do. Unselected, it sums up its
- * thread in a line; selected, it shows the thread and the reply box (U1).
+ * thread in a line; selected, it shows the thread and the reply box (U1),
+ * unless its pin's popover has them open.
  */
 export function CommentCard({
   comment,
@@ -105,6 +111,7 @@ export function CommentCard({
   resolvedNote,
   onEditing,
   selected,
+  threadInPopover = false,
   now,
   onSelect,
   onEdit,
@@ -129,8 +136,10 @@ export function CommentCard({
   const summaryId = useId();
   const threads = useCommentThreads();
   const replies = threads?.repliesOf(comment.id) ?? NO_REPLIES;
-  const summary = threads && !selected ? threadSummary(replies, now) : null;
-  const showThread = Boolean(threads) && selected && !editing;
+  // The thread and its box show in one place at a time: the popover, while it's open.
+  const threadHere = selected && !threadInPopover;
+  const summary = threads && !threadHere ? threadSummary(replies, now) : null;
+  const showThread = Boolean(threads) && threadHere && !editing;
   const shotPending = !comment.crop && isScreenshotPending(comment);
   const described = [
     bodyId,

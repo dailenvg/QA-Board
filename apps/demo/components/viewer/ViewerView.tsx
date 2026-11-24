@@ -685,6 +685,7 @@ export function ViewerView({
         placements={placements}
         tab={tab}
         selectedId={selectedId}
+        openId={openComment?.id ?? null}
         now={now}
         listRef={listRef}
         // With comments at another breakpoint (or page) left out, an empty list names this one.

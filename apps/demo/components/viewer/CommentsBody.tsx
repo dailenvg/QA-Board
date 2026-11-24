@@ -25,6 +25,8 @@ interface CommentsBodyProps extends CommentCardActions {
   /** Picked in the panel's header (`PanelHeading`). */
   tab: CommentTab;
   selectedId: string | null;
+  /** The comment whose pin's popover is open: its card leaves the thread to the popover. */
+  openId?: string | null;
   now: number;
   listRef: RefObject<HTMLUListElement | null>;
   /**
@@ -102,6 +104,7 @@ export function CommentsBody({
   reviewOpen,
   tab,
   selectedId,
+  openId = null,
   now,
   listRef,
   scope,
@@ -158,6 +161,7 @@ export function CommentsBody({
                 resolvedNote={rights.resolvedNote}
                 onEditing={onEditing}
                 selected={comment.id === selectedId}
+                threadInPopover={comment.id === openId}
                 now={now}
                 {...actions}
               />

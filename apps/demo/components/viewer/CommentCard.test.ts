@@ -296,7 +296,7 @@ describe("the thread (U1)", () => {
   });
   const withThreads = (element: ReactElement, value: CommentThreads | null) =>
     renderToStaticMarkup(createElement(CommentThreadsContext, { value }, element));
-  const cardWith = (value: CommentThreads | null, selected = false) => {
+  const cardWith = (value: CommentThreads | null, selected = false, threadInPopover = false) => {
     const rights = commentRights(COMMENT, member);
     return withThreads(
       createElement(CommentCard, {
@@ -311,6 +311,7 @@ describe("the thread (U1)", () => {
         canDelete: rights.delete !== null,
         resolvedNote: false,
         selected,
+        threadInPopover,
         now: NOW,
         onSelect: noop,
         onEdit: noop,
@@ -346,6 +347,14 @@ describe("the thread (U1)", () => {
     expect(html).toContain('placeholder="Reply…"');
     expect(html).toContain("Enter to send · Shift+Enter for a new line");
     expect(html).toContain('aria-label="Actions for reply by Ana"');
+  });
+
+  it("leaves the thread and the box to the pin's popover while it's open, with the line instead", () => {
+    const html = cardWith(threads(REPLIES), true, true);
+    expect(html).toContain('data-testid="reply-summary"');
+    expect(html).not.toContain('data-testid="comment-thread"');
+    expect(html).not.toContain('data-testid="reply-composer"');
+    expect(cardWith(threads([]), true, true)).not.toContain("reply-composer");
   });
 
   it("shows a selected card's reply box even before anyone replied", () => {
