@@ -462,6 +462,37 @@ test("a guest reads the team's reply under a comment, and can't reply, edit or d
   await expect(popover.getByTestId("reply")).toHaveCount(1);
   await expect(popover.getByTestId("reply-composer")).toHaveCount(0);
   await expect(popover.getByTestId("reply-more")).toHaveCount(0);
+
+  // The team replies more while the guest reads, through the refresh. Once the popover's thread
+  // scrolls, a reply arriving never moves it, though the popover has focus.
+  if (!(await box.isVisible())) await ownerCard.locator("[data-card-select]").click();
+  const teamReplies = async (words: string[]) => {
+    const pushed = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname.startsWith("/api/shares/") &&
+        response.request().method() === "PATCH" &&
+        (response.request().postData() ?? "").includes(words.at(-1) ?? ""),
+    );
+    for (const body of words) {
+      await box.fill(body);
+      await box.press("Enter");
+    }
+    expect((await pushed).status()).toBe(200);
+    await client.evaluate(() => window.dispatchEvent(new Event("focus")));
+  };
+  const long = (index: number) => `Late note ${index}. ${"More. ".repeat(40).trim()}`;
+  await teamReplies([1, 2, 3, 4].map(long));
+  await expect(popover.getByTestId("reply")).toHaveCount(5);
+  const scroller = popover.locator("[data-menu-bounds]");
+  await expect
+    .poll(() => scroller.evaluate((node) => node.scrollHeight > node.clientHeight + 100))
+    .toBe(true);
+  await scroller.evaluate((node) => node.scrollTo({ top: 0 }));
+  await teamReplies(["Last note."]);
+  await expect(popover.getByTestId("reply")).toHaveCount(6);
+  // Long enough for a smooth scroll to have moved it.
+  await client.waitForTimeout(800);
+  expect(await scroller.evaluate((node) => node.scrollTop)).toBe(0);
   await context.close();
 });
 

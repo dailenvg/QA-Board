@@ -6,8 +6,9 @@ import { duration, staggerGroup } from "@/lib/motion";
 import type { Reply } from "@/lib/store/types";
 import type { AvatarSurface } from "../ui/PersonAvatar";
 import type { CommentThreads } from "./comment-threads";
-import { canReply, replyRights } from "./reply-rights";
+import { replyRights } from "./reply-rights";
 import { REPLY_MORE, ReplyItem } from "./ReplyItem";
+import { revealsNewReply } from "./thread-scroll";
 
 /**
  * What holds a thread and its reply box (a card, the pin's popover): marked
@@ -76,32 +77,28 @@ export function CommentThread({
   const latestId = latest?.id;
   const latestMine = latest?.mine === true;
   const shownLatest = useRef(latestId);
-  const replying = canReply(threads.viewer);
 
-  // A reply arriving at the end (one just sent, most often) scrolls into view, for its author or
-  // whoever is replying in this thread: one from elsewhere never moves the list or popover being
-  // read. A review link's guest only reads (no box), so the team's replies arriving on the 15s
-  // refresh never move them, even with focus on the popover itself.
+  // A reply arriving at the end scrolls into view for its author, or for whoever is typing in this
+  // thread's reply box (`revealsNewReply`): one a sync brings never moves a thread being read.
   useEffect(() => {
     if (latestId === shownLatest.current) return;
     shownLatest.current = latestId;
     const list = listRef.current;
     if (!latestId || !list) return;
     const scope = list.closest(THREAD_SCOPE);
-    const active = document.activeElement;
-    if (!latestMine && !(replying && active && scope?.contains(active))) return;
+    const box = scope?.querySelector('[data-testid="reply-composer"]') ?? null;
+    if (!revealsNewReply(latestMine, box, document.activeElement)) return;
     const reply = list.querySelector(`[data-reply-id="${CSS.escape(latestId)}"]`);
     // Where the box scrolls with the thread (a card in the list), the box comes into view: the
     // reply sits just above it, so both show, and the field being typed in never ends below the
     // fold. The popover's box is pinned under its scroller, so there the reply does.
-    const box = scope?.querySelector('[data-testid="reply-composer"]') ?? null;
     const together =
       box !== null && box.closest("[data-menu-bounds]") === list.closest("[data-menu-bounds]");
     (together ? box : reply)?.scrollIntoView({
       block: "nearest",
       behavior: reduce ? "auto" : "smooth",
     });
-  }, [latestId, latestMine, replying, reduce]);
+  }, [latestId, latestMine, reduce]);
 
   // Never `initial={false}`: a thread shown on selecting a card staggers in.
   return (
