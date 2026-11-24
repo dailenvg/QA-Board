@@ -419,9 +419,13 @@ test("a thread takes replies, an edit, a delete with Undo, and is all there afte
   const box = card.getByRole("textbox", { name: "Reply", exact: true });
   const activeTab = await page.getByTestId("tab-active").textContent();
 
-  // The new comment's card is selected, so its thread is open: an empty reply says why, Enter
-  // sends, Shift+Enter breaks the line.
+  // The new comment's card is selected, with a Reply button where its box will be; pressing it
+  // opens the box with focus in it. An empty reply says why, Enter sends, Shift+Enter breaks
+  // the line.
   await expect(card.locator("[data-card-select]")).toHaveAttribute("aria-pressed", "true");
+  await expect(box).toHaveCount(0);
+  await card.getByRole("button", { name: "Reply", exact: true }).click();
+  await expect(box).toBeFocused();
   await box.press("Enter");
   await expect(card.getByText("Write a reply first.")).toBeVisible();
   await box.fill("On it.");

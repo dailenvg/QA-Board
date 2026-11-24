@@ -22,6 +22,11 @@ interface ReplyComposerProps {
   initialBody?: string;
   /** The words as typed, so they outlive this box. */
   onDraftChange?: (body: string) => void;
+  /**
+   * Takes focus on mounting (opened from a Reply button): the name field when it's asked,
+   * else the reply.
+   */
+  autoFocus?: boolean;
 }
 
 const EMPTY = "Write a reply first.";
@@ -41,6 +46,7 @@ export function ReplyComposer({
   onSend,
   initialBody = "",
   onDraftChange,
+  autoFocus = false,
 }: ReplyComposerProps) {
   const [body, setBody] = useState(initialBody);
   const [author, setAuthor] = useState(authorName ?? "");
@@ -123,6 +129,7 @@ export function ReplyComposer({
             maxLength={80}
             required
             autoComplete="name"
+            autoFocus={autoFocus}
             readOnly={sending}
             aria-invalid={nameError ? true : undefined}
             aria-describedby={nameErrorId}
@@ -152,6 +159,7 @@ export function ReplyComposer({
           rows={2}
           maxLength={SHARE_LIMITS.body}
           required
+          autoFocus={autoFocus && !askName}
           // The post already carries the words: any typed while it's sent would be lost.
           readOnly={sending}
           placeholder="Reply…"

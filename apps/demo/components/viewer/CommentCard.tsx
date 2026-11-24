@@ -22,7 +22,7 @@ import { CommentThread } from "./CommentThread";
 import { useCommentThreads } from "./comment-threads";
 import { PlacementChip } from "./PlacementChip";
 import { canReply } from "./reply-rights";
-import { ReplyComposer } from "./ReplyComposer";
+import { CardReplyBox } from "./CardReplyBox";
 import { isScreenshotPending } from "./screenshot-pending";
 import { ScreenshotPending } from "./ScreenshotPending";
 import type { Placement } from "./surface";
@@ -140,6 +140,19 @@ export function CommentCard({
   const threadHere = selected && !threadInPopover;
   const summary = threads && !threadHere ? threadSummary(replies, now) : null;
   const showThread = Boolean(threads) && threadHere && !editing;
+  /**
+   * The reply box shows, rather than its Reply button: once there's a thread, a draft, or the
+   * button was pressed. It then stays while the card is selected (deleting the last reply, or
+   * leaving the box, never folds it back under focus); deselected, the button comes back.
+   */
+  const [replyOpen, setReplyOpen] = useState(false);
+  const [wasSelected, setWasSelected] = useState(selected);
+  if (wasSelected !== selected) {
+    setWasSelected(selected);
+    if (!selected) setReplyOpen(false);
+  }
+  const draft = threads?.draftOf(comment.id) ?? "";
+  if (threadHere && !replyOpen && (replies.length > 0 || draft !== "")) setReplyOpen(true);
   const shotPending = !comment.crop && isScreenshotPending(comment);
   const described = [
     bodyId,
@@ -399,10 +412,12 @@ export function CommentCard({
               now={now}
             />
             {canReply(threads.viewer) ? (
-              <ReplyComposer
+              <CardReplyBox
+                open={replyOpen || replies.length > 0 || draft !== ""}
+                onOpen={() => setReplyOpen(true)}
                 authorName={threads.authorName}
-                onSend={(draft) => threads.send(comment, draft)}
-                initialBody={threads.draftOf(comment.id)}
+                onSend={(reply) => threads.send(comment, reply)}
+                initialBody={draft}
                 onDraftChange={(body) => threads.keepDraft(comment.id, body)}
               />
             ) : null}
