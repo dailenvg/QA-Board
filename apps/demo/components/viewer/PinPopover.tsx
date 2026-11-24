@@ -5,6 +5,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { usePopVariants } from "@/lib/motion";
 import { absoluteTime, relativeTime } from "@/lib/relative-time";
 import type { Comment, Reply } from "@/lib/store/types";
+import { useDockAboveKeyboard } from "@/lib/use-fit-above-keyboard";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
@@ -54,6 +55,12 @@ const PIN_WIDTH = 44;
 const PIN_HEAD = 36;
 
 const NO_REPLIES: readonly Reply[] = [];
+
+/** The docked popover's cap (`max-h-[50dvh]`), which the keyboard can only lower. */
+const DOCKED_MAX = "50dvh";
+
+/** The thread's hairline (`CommentThread`'s), over the reply box while there's no thread yet. */
+const BOX_RULE = "mt-1 border-t border-line pt-3";
 
 const TRANSLATE = {
   right: "2.75rem",
@@ -138,6 +145,8 @@ export function PinPopover({
   const threads = useCommentThreads();
   const replies = threads?.repliesOf(comment.id) ?? NO_REPLIES;
   const { boxRef, contentRef, overflowing } = useOverflowing();
+  // Docked, the reply box sits at the bottom of the screen, where a phone's keyboard opens.
+  useDockAboveKeyboard(ref, docked, DOCKED_MAX);
   const onCloseRef = useRef(onClose);
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -334,7 +343,8 @@ export function PinPopover({
         </div>
       </div>
       {threads && canReply(threads.viewer) ? (
-        <div className="shrink-0 pt-1">
+        // Before any reply, the thread's rule (12px either side) sits over the box, as on a card.
+        <div className={`shrink-0 ${replies.length > 0 ? "pt-1" : BOX_RULE}`}>
           <ReplyComposer
             authorName={threads.authorName}
             onSend={(draft) => threads.send(comment, draft)}

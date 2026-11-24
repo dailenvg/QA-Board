@@ -59,6 +59,47 @@ export function keyboardOverlap(
   return Math.max(0, Math.round(layoutHeight - (visibleTop + visibleHeight)));
 }
 
+/** Lifts a docked panel `covered` px (0: back to its CSS), capped to `cssMax` or what's visible. */
+function dockAbove(node: HTMLElement, covered: number, visible: number, cssMax: string): void {
+  node.style.bottom = covered ? `${covered + GAP}px` : "";
+  node.style.maxHeight = covered
+    ? `min(${cssMax}, ${Math.max(MIN_HEIGHT, visible - 2 * GAP)}px)`
+    : "";
+}
+
+/**
+ * While `active`, keeps a `position: fixed` panel docked to the bottom of the screen (`dock`,
+ * such as the pin's popover on a phone) above an on-screen keyboard: its bottom edge lifted past
+ * the part of the layout viewport the keyboard covers, and its height capped to `cssMax` or to
+ * what's left visible, whichever is less. Without a keyboard it keeps its CSS.
+ */
+export function useDockAboveKeyboard(
+  dock: RefObject<HTMLElement | null>,
+  active: boolean,
+  cssMax: string,
+): void {
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const node = dock.current;
+    if (!active || !viewport || !node) return;
+    const fit = () =>
+      dockAbove(
+        node,
+        keyboardOverlap(window.innerHeight, viewport.offsetTop, viewport.height),
+        viewport.height,
+        cssMax,
+      );
+    fit();
+    viewport.addEventListener("resize", fit);
+    viewport.addEventListener("scroll", fit);
+    return () => {
+      viewport.removeEventListener("resize", fit);
+      viewport.removeEventListener("scroll", fit);
+      dockAbove(node, 0, viewport.height, cssMax);
+    };
+  }, [dock, active, cssMax]);
+}
+
 /**
  * While `active`, lifts a bottom-anchored overlay (the returned `container`, such as a dialog's
  * backdrop grid) above an on-screen keyboard and caps its `panel` to the part of the screen left
