@@ -59,6 +59,13 @@ const NO_REPLIES: readonly Reply[] = [];
 /** The docked popover's cap (`max-h-[50dvh]`), which the keyboard can only lower. */
 const DOCKED_MAX = "50dvh";
 
+/**
+ * The least the docked popover's scroller keeps, in px (its content's height when that's less):
+ * a reply box with its name field and an error can't squeeze the comment and thread out of
+ * sight. The popover itself scrolls should both not fit.
+ */
+const DOCKED_SCROLL_MIN = 96;
+
 /** The thread's hairline (`CommentThread`'s), over the reply box while there's no thread yet. */
 const BOX_RULE = "mt-1 border-t border-line pt-3";
 
@@ -144,7 +151,7 @@ export function PinPopover({
   const resolved = comment.status === "resolved";
   const threads = useCommentThreads();
   const replies = threads?.repliesOf(comment.id) ?? NO_REPLIES;
-  const { boxRef, contentRef, overflowing } = useOverflowing();
+  const { boxRef, contentRef, overflowing, contentHeight } = useOverflowing();
   // Docked, the reply box sits at the bottom of the screen, where a phone's keyboard opens.
   useDockAboveKeyboard(ref, docked, DOCKED_MAX);
   const onCloseRef = useRef(onClose);
@@ -251,7 +258,7 @@ export function PinPopover({
       data-thread-scope
       className={`${present ? "pointer-events-auto" : "pointer-events-none"} z-40 flex flex-col gap-2 rounded-card bg-panel p-4 pt-2 shadow-pop ring-1 ring-line focus:outline-none ${
         docked
-          ? "fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] max-h-[50dvh]"
+          ? "fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] max-h-[50dvh] overflow-y-auto"
           : "absolute max-h-[min(36rem,calc(100dvh-6rem))] w-76"
       }`}
     >
@@ -308,6 +315,7 @@ export function PinPopover({
       <div
         ref={boxRef}
         data-menu-bounds
+        style={docked ? { minHeight: Math.min(contentHeight, DOCKED_SCROLL_MIN) } : undefined}
         className={`-mx-4 -my-1 min-h-0 ${overflowing ? "overflow-y-auto" : "overflow-visible"}`}
       >
         <div ref={contentRef} className="flex flex-col gap-2 px-4 py-1">

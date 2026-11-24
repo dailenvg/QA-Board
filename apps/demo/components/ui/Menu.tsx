@@ -16,6 +16,7 @@ import {
 import { instant, spring, usePopVariants } from "@/lib/motion";
 import { Icon, type IconName } from "./Icon";
 import { closesOnSelect, itemRole, ITEM_SELECTOR, type MenuItem } from "./menu-item";
+import { chooseSide, type MenuPlacement } from "./menu-side";
 
 export type { MenuItem } from "./menu-item";
 
@@ -28,9 +29,6 @@ export interface MenuHandle {
 }
 
 const ENABLED_ITEM = `${ITEM_SELECTOR}:not([aria-disabled="true"])`;
-
-/** Below the trigger, or above it for a trigger at the foot of the screen. */
-type MenuPlacement = "below" | "above";
 
 const PLACEMENT_CLASS: Record<MenuPlacement, string> = {
   below: "top-full mt-1",
@@ -97,7 +95,8 @@ function menuBounds(anchor: HTMLElement): Bounds | DOMRect | null {
 
 /**
  * `preferred`, unless the menu would cross the screen's (or its `menuBounds`') edge on that side and
- * fits on the other: a menu above a trigger scrolled to the top of a phone opens below it.
+ * fits on the other: a menu above a trigger scrolled to the top of a phone opens below it. Fitting
+ * neither, it takes the side with more room (`chooseSide`).
  */
 function fittingSide(
   preferred: MenuPlacement,
@@ -111,12 +110,8 @@ function fittingSide(
   const bounds = menuBounds(anchor) ?? { top: 0, bottom: window.innerHeight };
   // offsetHeight ignores the pop-in's scale, so this is the menu's full height.
   const needed = menu.offsetHeight + GAP + EDGE;
-  const fits: Record<MenuPlacement, boolean> = {
-    above: box.top - bounds.top >= needed,
-    below: bounds.bottom - box.bottom >= needed,
-  };
-  const other: MenuPlacement = preferred === "above" ? "below" : "above";
-  return !fits[preferred] && fits[other] ? other : preferred;
+  const room = { above: box.top - bounds.top, below: bounds.bottom - box.bottom };
+  return chooseSide(preferred, room, needed);
 }
 
 /**

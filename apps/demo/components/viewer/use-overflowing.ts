@@ -12,16 +12,22 @@ export function useOverflowing(): {
   boxRef: RefObject<HTMLDivElement | null>;
   contentRef: RefObject<HTMLDivElement | null>;
   overflowing: boolean;
+  /** The content's own height, in px: 0 until measured. */
+  contentHeight: number;
 } {
   const boxRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [overflowing, setOverflowing] = useState(false);
+  const [contentHeight, setContentHeight] = useState(0);
 
   useLayoutEffect(() => {
     const outer = boxRef.current;
     const inner = contentRef.current;
     if (!outer || !inner) return;
-    const measure = () => setOverflowing(inner.offsetHeight > outer.clientHeight + 1);
+    const measure = () => {
+      setOverflowing(inner.offsetHeight > outer.clientHeight + 1);
+      setContentHeight(inner.offsetHeight);
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(outer);
@@ -29,5 +35,5 @@ export function useOverflowing(): {
     return () => observer.disconnect();
   }, []);
 
-  return { boxRef, contentRef, overflowing };
+  return { boxRef, contentRef, overflowing, contentHeight };
 }
