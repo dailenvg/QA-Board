@@ -15,6 +15,22 @@ export function repliesFor(data: SquintData, comment: Pick<Comment, "id" | "proj
 }
 
 /**
+ * A project's threads, each comment's replies oldest first, by comment id: one
+ * pass over the workspace's replies for a viewer that shows many comments.
+ */
+export function threadsOf(replies: readonly Reply[], projectId: string): Map<string, Reply[]> {
+  const threads = new Map<string, Reply[]>();
+  for (const reply of replies) {
+    if (reply.projectId !== projectId) continue;
+    const thread = threads.get(reply.commentId);
+    if (thread) thread.push(reply);
+    else threads.set(reply.commentId, [reply]);
+  }
+  for (const thread of threads.values()) thread.sort((a, b) => a.createdAt - b.createdAt);
+  return threads;
+}
+
+/**
  * Deleting a comment with `replies`: with Undo while every reply is the
  * member's own (or there's none), since the server would make whoever posts
  * them back their author; once anyone else replied, a confirm and no Undo.

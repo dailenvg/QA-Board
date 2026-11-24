@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commentDeleteMode, repliesFor, replyDeleteMode } from "./replies";
+import { commentDeleteMode, repliesFor, replyDeleteMode, threadsOf } from "./replies";
 import type { Reply, SquintData } from "./types";
 
 const reply = (id: string, extra: Partial<Reply> = {}): Reply => ({
@@ -10,6 +10,24 @@ const reply = (id: string, extra: Partial<Reply> = {}): Reply => ({
   author: "Ana",
   createdAt: 1,
   ...extra,
+});
+
+describe("threadsOf", () => {
+  it("groups a project's replies by comment, each oldest first, leaving other projects out", () => {
+    const threads = threadsOf(
+      [
+        reply("late", { createdAt: 9 }),
+        reply("other-comment", { commentId: "c2" }),
+        reply("early", { createdAt: 2 }),
+        reply("other-project", { projectId: "p2", commentId: "c3" }),
+      ],
+      "p1",
+    );
+    expect([...threads.keys()]).toEqual(["c1", "c2"]);
+    expect(threads.get("c1")?.map((entry) => entry.id)).toEqual(["early", "late"]);
+    expect(threads.get("c2")?.map((entry) => entry.id)).toEqual(["other-comment"]);
+    expect(threads.has("c3")).toBe(false);
+  });
 });
 
 describe("repliesFor", () => {
