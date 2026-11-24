@@ -261,6 +261,11 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
     },
     deleteComment: ownerOnly,
     restoreComment: ownerOnly,
+    // Review links carry no replies: a guest has none to add, change or put back.
+    addReply: () => Promise.resolve(ownerOnly()),
+    editReply: ownerOnly,
+    deleteReply: ownerOnly,
+    restoreReply: ownerOnly,
     replaceWithImage: () => Promise.resolve(ownerOnly()),
     async captureSnapshot(_projectId, _url, width, signal): Promise<CaptureOutcome | null> {
       const result = await api.capture(width, signal);

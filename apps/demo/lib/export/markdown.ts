@@ -178,6 +178,31 @@ function snapshotLine(snapshot: ExportSnapshot | undefined, options: MarkdownOpt
   return [`- **Full page:** not included (${omittedText(snapshot.omitted)})`];
 }
 
+/** `text` as lines inside a list item: indented under its bullet, blank lines left empty. */
+const indented = (text: string) => text.split("\n").map((line) => (line ? `  ${line}` : line));
+
+/**
+ * A comment's thread, oldest first: a list with each reply's author and time,
+ * its words fenced and indented under it, so they stay verbatim.
+ */
+function repliesLines(comment: ExportComment): string[] {
+  if (comment.replies.length === 0) return [];
+  const items = comment.replies.map((reply) => {
+    const edited = reply.editedAt === null ? "" : ` (edited ${iso(reply.editedAt)})`;
+    return [
+      `- ${inlineText(reply.author)}, ${iso(reply.createdAt)}${edited}:`,
+      "",
+      ...indented(fencedText(reply.body)),
+    ];
+  });
+  return [
+    "",
+    "**Replies:**",
+    "",
+    ...items.flatMap((item, index) => (index ? ["", ...item] : item)),
+  ];
+}
+
 function commentSection(
   comment: ExportComment,
   snapshots: ReadonlyMap<string, ExportSnapshot>,
@@ -206,6 +231,7 @@ function commentSection(
     "**Request:**",
     "",
     fencedText(comment.body),
+    ...repliesLines(comment),
   ];
 }
 

@@ -196,6 +196,7 @@ export function createInitialData(): SquintData {
     projects: [],
     comments: [],
     snapshots: [],
+    replies: [],
     authorName: null,
   };
 }
@@ -428,6 +429,7 @@ export function parseData(raw: string): ParseResult {
     projects,
     comments: storedVersion < 3 ? upgradeComments(comments, projects) : comments,
     snapshots: read.snapshots,
+    replies: [],
     authorName,
   });
   const kept = new Set(result.data.projects.map((project) => projectImageKey(project.id)));

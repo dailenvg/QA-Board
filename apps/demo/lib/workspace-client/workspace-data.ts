@@ -67,6 +67,8 @@ export function toSquintData(
     folders: workspace.folders,
     projects: workspace.projects.map((project) => toProject(project, links)),
     comments: workspace.comments,
+    // A server from before replies (mid-deploy) sends none.
+    replies: workspace.replies ?? [],
     snapshots: workspace.snapshots,
     authorName: workspace.authorName,
   };

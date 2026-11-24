@@ -213,6 +213,33 @@ export interface Comment {
   clientInfo?: ClientInfo;
 }
 
+/**
+ * A reply in a comment's thread (053), oldest first under it. A reply never
+ * reopens its comment, and replies don't count anywhere comments do (pins,
+ * cards, waiting, Squiggy).
+ */
+export interface Reply {
+  id: string;
+  projectId: string;
+  commentId: string;
+  body: string;
+  /** On a team reply, its author's name as it is now; on a client's, as posted. */
+  author: string;
+  createdAt: number;
+  /** When its words last changed (epoch ms); missing while they never have. */
+  editedAt?: number;
+  /** Posted by a client on the project's review link, then pulled into the workspace. */
+  fromClient?: true;
+  /** Written by the signed-in member (the server says so on every read). Only they edit it. */
+  mine?: true;
+  /** The author's photo, as on `Comment.authorAvatar`. Set by the server only; never pushed. */
+  authorAvatar?: string;
+  /** On a review link: written by someone on the company's team, as on `Comment.team`. Never pushed. */
+  team?: true;
+  /** The browser it was posted from, as on `Comment.clientInfo`. Team only: never pushed. */
+  clientInfo?: ClientInfo;
+}
+
 /** A client's edit to their comment, pulled from its review link (4.12): new words, and when. */
 export interface ClientEdit {
   id: string;
@@ -229,6 +256,11 @@ export interface SquintData {
   folders: Folder[];
   projects: Project[];
   comments: Comment[];
+  /**
+   * Every comment's replies, flat, each naming its comment (`commentId`).
+   * Only the workspace has them: data saved in a browser loads with none.
+   */
+  replies: Reply[];
   /** Added after version 1 shipped; saved data without it loads with none. */
   snapshots: Snapshot[];
   /** Name used for new comments; asked once, then remembered. */

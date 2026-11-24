@@ -1,7 +1,7 @@
 import { sentPart } from "../client-info/schema";
 import { windowChoice } from "../share/review-window";
 import type { Action } from "../store/reducer";
-import type { Comment, Snapshot, SquintData } from "../store/types";
+import type { Comment, Reply, Snapshot, SquintData } from "../store/types";
 import {
   CLIENT_COMMENT_GONE,
   notAllowedMessage,
@@ -29,6 +29,7 @@ export interface ServerWrite {
 const PROJECT_GONE = "This project is no longer here. It may have been deleted in another tab.";
 const FOLDER_GONE = "This folder is no longer here. It may have been deleted in another tab.";
 const COMMENT_GONE = "This comment is no longer here. It may have been deleted in another tab.";
+const REPLY_GONE = "This reply is no longer here. It may have been deleted in another tab.";
 const LINK_GONE = "This share link is no longer here. It may have been revoked in another tab.";
 export const SAVE_FAILED =
   "That change didn't save and was undone. Check your connection and try again.";
@@ -38,6 +39,10 @@ const folderPath = (id: string) => `/folders/${segment(id)}`;
 const projectPath = (id: string) => `/projects/${segment(id)}`;
 const commentsPath = (projectId: string) => `${projectPath(projectId)}/comments`;
 const commentPath = (projectId: string, id: string) => `${commentsPath(projectId)}/${segment(id)}`;
+const repliesPath = (reply: Pick<Reply, "projectId" | "commentId">) =>
+  `${commentPath(reply.projectId, reply.commentId)}/replies`;
+const replyPath = (reply: Pick<Reply, "projectId" | "commentId" | "id">) =>
+  `${repliesPath(reply)}/${segment(reply.id)}`;
 const snapshotsPath = (projectId: string) => `${projectPath(projectId)}/snapshots`;
 const linkPath = (projectId: string) => `${projectPath(projectId)}/share-link`;
 
@@ -83,6 +88,29 @@ function guestCommentBody(comment: Comment) {
   return { ...body, fromShare: true };
 }
 
+/**
+ * The reply as the API takes it: where it goes is in the path, and whose it
+ * is and the author's photo come from the server, as for comments.
+ */
+function replyBody(reply: Reply) {
+  const {
+    projectId: _project,
+    commentId: _comment,
+    fromClient: _client,
+    mine: _mine,
+    authorAvatar: _avatar,
+    team: _team,
+    ...body
+  } = reply;
+  return body;
+}
+
+/** A new reply: its browser details go without the user agent, which the server reads itself. */
+function newReplyBody(reply: Reply) {
+  const { clientInfo, ...body } = replyBody(reply);
+  return clientInfo ? { ...body, clientInfo: sentPart(clientInfo) } : body;
+}
+
 function snapshotBody(snapshot: Snapshot) {
   const { projectId: _project, ...body } = snapshot;
   return body;
@@ -126,6 +154,29 @@ function restoreWrites(comment: Comment): ServerWrite[] {
     ? [write("POST", path, guestCommentBody(comment), [409])]
     : [write("POST", path, commentBody(comment), [409])];
 }
+
+/**
+ * Undoing the delete of the member's own reply, or of a comment with only
+ * their replies (D25): posted again as theirs, with when it was posted and
+ * last edited (the server keeps `editedAt` between the two and now) and the
+ * browser details recorded then.
+ */
+const restoreReplyWrite = (reply: Reply): ServerWrite =>
+  write("POST", repliesPath(reply), replyBody(reply), [409]);
+
+/** A reply change, sent where the reply was before the action; nothing for one that isn't there. */
+function replyWrite(
+  data: SquintData,
+  id: string,
+  change: (reply: Reply) => ServerWrite,
+): ServerWrite[] {
+  const reply = data.replies.find((entry) => entry.id === id);
+  return reply ? [change(reply)] : [];
+}
+
+/** Replies the action put back: those in `after` that `before` didn't have. */
+const restoredReplies = (before: SquintData, after: SquintData) =>
+  added(before.replies, after.replies);
 
 /** Comments whose client edited their words since `before` (4.12). */
 function clientEdited(before: SquintData, after: SquintData): Comment[] {
@@ -211,7 +262,10 @@ export function writesFor(action: Action, before: SquintData, after: SquintData)
         write("POST", commentsPath(action.comment.projectId), newCommentBody(action.comment)),
       ];
     case "comment/restore":
-      return restoreWrites(action.comment);
+      return [
+        ...restoreWrites(action.comment),
+        ...restoredReplies(before, after).map(restoreReplyWrite),
+      ];
     case "comment/edit":
       return commentWrite(before, action.id, (projectId) =>
         write("PATCH", commentPath(projectId, action.id), { body: action.body }),
@@ -229,6 +283,18 @@ export function writesFor(action: Action, before: SquintData, after: SquintData)
         write("DELETE", commentPath(projectId, action.id), {}, [404]),
       );
     case "comment/removed":
+      return [];
+    case "reply/add":
+      return [write("POST", repliesPath(action.reply), newReplyBody(action.reply))];
+    case "reply/restore":
+      return [restoreReplyWrite(action.reply)];
+    case "reply/edit":
+      return replyWrite(before, action.id, (reply) =>
+        write("PATCH", replyPath(reply), { body: action.body }),
+      );
+    case "reply/delete":
+      return replyWrite(before, action.id, (reply) => write("DELETE", replyPath(reply), {}, [404]));
+    case "reply/removed":
       return [];
     case "snapshot/add":
       return [
@@ -314,6 +380,10 @@ export function refusalMessage(
   if (action.type.startsWith("comment/") && action.type !== "comment/add") {
     return status === 404 ? COMMENT_GONE : SAVE_FAILED;
   }
+  if (action.type === "reply/add" || action.type === "reply/restore") {
+    return status === 404 ? COMMENT_GONE : SAVE_FAILED;
+  }
+  if (action.type.startsWith("reply/")) return status === 404 ? REPLY_GONE : SAVE_FAILED;
   if (action.type === "share/window" || action.type === "share/client") return LINK_GONE;
   return PROJECT_GONE;
 }

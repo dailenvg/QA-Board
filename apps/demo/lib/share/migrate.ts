@@ -50,6 +50,7 @@ import authVerifications from "../../migrations/049_auth_verifications.sql";
 import authOrganizations from "../../migrations/050_auth_organizations.sql";
 import dropPasswordResets from "../../migrations/051_drop_password_resets.sql";
 import clientInfo from "../../migrations/052_client_info.sql";
+import commentReplies from "../../migrations/053_comment_replies.sql";
 
 /** The slice of `pg.Pool` the stores use (PGlite matches it in tests). */
 export interface Queryable {
@@ -110,6 +111,7 @@ export const MIGRATIONS: ReadonlyArray<{ id: string; sql: string }> = [
   { id: "050_auth_organizations", sql: authOrganizations },
   { id: "051_drop_password_resets", sql: dropPasswordResets },
   { id: "052_client_info", sql: clientInfo },
+  { id: "053_comment_replies", sql: commentReplies },
 ];
 
 type Migration = (typeof MIGRATIONS)[number];

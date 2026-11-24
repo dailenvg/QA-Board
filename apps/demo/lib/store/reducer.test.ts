@@ -8,7 +8,7 @@ import {
   referencedBlobKeys,
   snapshotsFor,
 } from "./snapshots";
-import type { Comment, Snapshot, SquintData } from "./types";
+import type { Comment, Reply, Snapshot, SquintData } from "./types";
 
 function legacy(): SquintData {
   const result = parseData(JSON.stringify(LEGACY_V1));
@@ -99,6 +99,7 @@ describe("snapshots in the reducer", () => {
     const restored = reduce(deleted, {
       type: "project/restore",
       project,
+      replies: [],
       comments: data.comments.filter((entry) => entry.projectId === "site"),
       snapshots: data.snapshots.filter((entry) => entry.projectId === "site"),
     });
@@ -158,6 +159,7 @@ describe("snapshots in the reducer", () => {
     const restored = reduce(deleted, {
       type: "project/restore",
       project,
+      replies: [],
       comments: [],
       snapshots: [],
     });
@@ -309,5 +311,93 @@ describe("sharing in the reducer", () => {
     expect(reduce(legacy(), merge)).toEqual(legacy());
     const unshared = reduce(shared(), { type: "project/unshare", id: "site" });
     expect(unshared.projects.find((p) => p.id === "site")).not.toHaveProperty("share");
+  });
+});
+
+describe("replies in the reducer", () => {
+  const reply = (id: string, commentId = "c1", projectId = "site"): Reply => ({
+    id,
+    projectId,
+    commentId,
+    body: "On it",
+    author: "Ana",
+    createdAt: 5,
+    mine: true,
+  });
+
+  /** The legacy data (comments c1 on site, c2 on mock) with replies r1, r2 on c1 and r3 on c2. */
+  function threaded(): SquintData {
+    return [reply("r1"), reply("r2"), reply("r3", "c2", "mock")].reduce(
+      (data, entry) => reduce(data, { type: "reply/add", reply: entry }),
+      legacy(),
+    );
+  }
+  const ids = (data: SquintData) => data.replies.map((entry) => entry.id);
+
+  it("adds a reply only under a comment it has, once, leaving the comment and project as they were", () => {
+    const data = threaded();
+    expect(ids(data)).toEqual(["r1", "r2", "r3"]);
+    expect(data.comments).toEqual(legacy().comments);
+    expect(data.projects).toEqual(legacy().projects);
+    expect(reduce(data, { type: "reply/add", reply: reply("r1") })).toBe(data);
+    expect(reduce(data, { type: "reply/add", reply: reply("r9", "gone") })).toBe(data);
+    expect(reduce(data, { type: "reply/add", reply: reply("r9", "c1", "mock") })).toBe(data);
+  });
+
+  it("marks a reply edited only when its words change", () => {
+    const data = threaded();
+    expect(reduce(data, { type: "reply/edit", id: "r1", body: "On it", at: 9 })).toBe(data);
+    const edited = reduce(data, { type: "reply/edit", id: "r1", body: "Done", at: 9 });
+    expect(edited.replies[0]).toMatchObject({ body: "Done", editedAt: 9 });
+    expect(reduce(data, { type: "reply/edit", id: "nope", body: "Done", at: 9 })).toBe(data);
+  });
+
+  it("deletes a reply, and its Undo puts it back as it was", () => {
+    const data = threaded();
+    const deleted = reduce(data, { type: "reply/delete", id: "r2" });
+    expect(ids(deleted)).toEqual(["r1", "r3"]);
+    expect(ids(reduce(data, { type: "reply/removed", id: "r2" }))).toEqual(["r1", "r3"]);
+    const restored = reduce(deleted, { type: "reply/restore", reply: reply("r2") });
+    expect(restored.replies).toContainEqual(reply("r2"));
+    expect(reduce(restored, { type: "reply/restore", reply: reply("r2") })).toBe(restored);
+  });
+
+  it("drops a comment's replies with it, deleted or removed, and its Undo brings them back", () => {
+    const data = threaded();
+    for (const type of ["comment/delete", "comment/removed"] as const) {
+      expect(ids(reduce(data, { type, id: "c1" }))).toEqual(["r3"]);
+    }
+    const comment = data.comments.find((entry) => entry.id === "c1");
+    if (!comment) throw new Error("fixture");
+    const deleted = reduce(data, { type: "comment/delete", id: "c1" });
+    const back = reduce(deleted, {
+      type: "comment/restore",
+      comment,
+      replies: [reply("r1"), reply("r2")],
+    });
+    expect(ids(back).sort()).toEqual(["r1", "r2", "r3"]);
+    expect(ids(reduce(deleted, { type: "comment/restore", comment }))).toEqual(["r3"]);
+  });
+
+  it("drops a project's replies with it, in a folder or alone, and its Undo carries them", () => {
+    const data = threaded();
+    const deleted = reduce(data, { type: "project/delete", id: "site", at: 0 });
+    expect(ids(deleted)).toEqual(["r3"]);
+    expect(ids(reduce(data, { type: "project/abandon", id: "mock" }))).toEqual(["r1", "r2"]);
+    const project = data.projects.find((entry) => entry.id === "site");
+    if (!project) throw new Error("fixture");
+    const restored = reduce(deleted, {
+      type: "project/restore",
+      project,
+      comments: data.comments.filter((entry) => entry.projectId === "site"),
+      replies: data.replies.filter((entry) => entry.projectId === "site"),
+      snapshots: [],
+    });
+    expect(ids(restored).sort()).toEqual(["r1", "r2", "r3"]);
+    const other = reduce(data, {
+      type: "folder/create",
+      folder: { id: "other", name: "Other", createdAt: 1, parentId: null },
+    });
+    expect(ids(reduce(other, { type: "folder/delete", id: "default", at: 0 }))).toEqual([]);
   });
 });

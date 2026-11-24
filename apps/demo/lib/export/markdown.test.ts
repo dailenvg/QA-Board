@@ -28,13 +28,28 @@ describe("toMarkdown", () => {
     await expect(zipMarkdown).toMatchFileSnapshot("__snapshots__/comments.example.md.snap");
   });
 
-  it("leaves browser details out", () => {
+  it("leaves browser details out, of comments and replies", () => {
     const clientInfo = { userAgent: "Mozilla/5.0 (Test UA)", dpr: 2 };
     const comments = URL_EXPORT.comments.map((comment) => ({ ...comment, clientInfo }));
-    const markdown = toMarkdown(buildExportDocument({ ...URL_EXPORT, comments }), {
+    const replies = URL_EXPORT.replies.map((reply) => ({ ...reply, clientInfo }));
+    const markdown = toMarkdown(buildExportDocument({ ...URL_EXPORT, comments, replies }), {
       withFiles: true,
     });
     expect(markdown).toBe(zipMarkdown);
+  });
+
+  it("lists each comment's replies under its request, oldest first, their words verbatim", () => {
+    expect(zipMarkdown).toContain(
+      "**Replies:**\n\n- Leo, 2026-10-24T09:00:46.000Z (edited 2026-10-24T09:00:47.000Z):\n\n  ```text\n  Escaped it in the next build.\n  ```\n\n- Cleo \\[client\\], 2026-10-24T09:00:48.000Z:",
+    );
+    // The reply's own fence and heading stay inside a longer fence, indented under its item.
+    expect(zipMarkdown).toContain(
+      "  ````text\n  Still broken on mobile.\n\n  ```\n  ## Not a heading either\n  ```\n  ````",
+    );
+    const bare = toMarkdown(buildExportDocument({ ...URL_EXPORT, replies: [] }), {
+      withFiles: true,
+    });
+    expect(bare).not.toContain("**Replies:**");
   });
 
   it("keeps hostile comment text from changing the document's structure", () => {

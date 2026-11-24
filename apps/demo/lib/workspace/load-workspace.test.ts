@@ -13,8 +13,11 @@ import { iconVersionOf } from "../share/brand";
 import { addComment } from "./comments";
 import { authorName, loadWorkspace, setAuthorName } from "./load-workspace";
 import { createProject, trashProject } from "./projects";
+import { addReply } from "./replies";
 import { addSnapshot } from "./snapshots";
 import { storeInline } from "./uploads";
+
+const team = (userId: string) => ({ kind: "team" as const, userId });
 
 describe("loadWorkspace", () => {
   it("reads the whole workspace, without trashed projects or anything of another workspace", async () => {
@@ -48,6 +51,13 @@ describe("loadWorkspace", () => {
       a.userId,
       NOW,
     );
+    for (const [projectId, commentId] of [
+      ["deck", "c1"],
+      ["old", "c2"],
+    ] as const) {
+      const reply = { id: `${commentId}-r`, body: "On it", author: "Ana" };
+      await addReply(db, a.workspaceId, projectId, commentId, reply, team(a.userId), NOW);
+    }
     await storeInline(db, a.workspaceId, { projectId: "web", key: "snapshot:s1" }, PNG);
     await trashProject(db, a.workspaceId, "old", NOW);
     await setAuthorName(db, a.userId, "Ana");
@@ -72,6 +82,9 @@ describe("loadWorkspace", () => {
     expect(data.projects.map((project) => project.id).sort()).toEqual(["deck", "web"]);
     expect(data.snapshots.map((snapshot) => snapshot.id)).toEqual(["s1"]);
     expect(data.comments.map((comment) => [comment.id, comment.mine])).toEqual([["c1", true]]);
+    expect(data.replies.map((reply) => [reply.id, reply.commentId, reply.mine])).toEqual([
+      ["c1-r", "c1", true],
+    ]);
     expect(data.clientActivity).toEqual([]);
     expect(data.storage).toEqual({ bytes: PNG.length, blobCount: 1, quotaBytes: 5 * 1024 ** 3 });
     expect(data.authorName).toBe("Ana");

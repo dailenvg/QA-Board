@@ -30,6 +30,7 @@ const DATA: SquintData = {
   projects: [project("ready", "alpha", 1), project("busy", "beta", 2), project("done", "gamma", 3)],
   comments: [comment("c1", "busy", "active"), comment("c2", "done", "resolved")],
   snapshots: [],
+  replies: [],
   authorName: null,
 };
 const TOP = DATA.folders.filter((entry) => entry.parentId === null);

@@ -1,5 +1,5 @@
 import type { ExportInput } from "@/lib/export/build-document";
-import type { Comment, Project, Snapshot } from "@/lib/store/types";
+import type { Comment, Project, Reply, Snapshot } from "@/lib/store/types";
 
 const T0 = Date.UTC(2026, 9, 24, 9, 0, 0);
 
@@ -74,10 +74,45 @@ export const URL_COMMENTS: Comment[] = [
   },
 ];
 
+/**
+ * A thread on the hostile comment (a team reply, edited, then a client's with
+ * markup of its own, posted first in the list but later in time) and one on
+ * the resolved comment.
+ */
+export const URL_REPLIES: Reply[] = [
+  {
+    id: "r-client",
+    projectId: "proj-1",
+    commentId: "cccc3333-new",
+    body: "Still broken on mobile.\n\n```\n## Not a heading either\n```",
+    author: "Cleo [client]",
+    createdAt: T0 + 48_000,
+    fromClient: true,
+  },
+  {
+    id: "r-team",
+    projectId: "proj-1",
+    commentId: "cccc3333-new",
+    body: "Escaped it in the next build.",
+    author: "Leo",
+    createdAt: T0 + 46_000,
+    editedAt: T0 + 47_000,
+  },
+  {
+    id: "r-resolved",
+    projectId: "proj-1",
+    commentId: "bbbb2222-old",
+    body: "Done.",
+    author: "Ana",
+    createdAt: T0 + 39_000,
+  },
+];
+
 /** The ZIP case: every crop and snapshot stored, and the old snapshot too big to include. */
 export const URL_EXPORT: ExportInput = {
   project: URL_PROJECT,
   comments: URL_COMMENTS,
+  replies: URL_REPLIES,
   snapshots: [NEW_SNAPSHOT, OLD_SNAPSHOT],
   assets: {
     crops: new Map([
@@ -122,6 +157,7 @@ export const IMAGE_EXPORT: ExportInput = {
       pageId: "page-1",
     },
   ],
+  replies: [],
   snapshots: [],
   assets: {
     crops: new Map(),
@@ -165,6 +201,7 @@ export const PAGES_EXPORT: ExportInput = {
     updatedAt: T0,
   },
   comments: [pageComment("eeee5555", "c3", T0 + 100), pageComment("ffff6666", "b2", T0 + 200)],
+  replies: [],
   snapshots: [],
   assets: {
     crops: new Map([

@@ -12,7 +12,7 @@ export type SquiggyEvent =
   | { type: "joined"; workspace: string }
   | { type: "comment-resolved" }
   | { type: "project-created"; projectName: string }
-  | { type: "item-deleted"; item: "project" | "folder" | "comment" }
+  | { type: "item-deleted"; item: "project" | "folder" | "comment" | "reply" }
   | { type: "project-archived" }
   | { type: "save-failed" }
   | { type: "imported"; partial: boolean };

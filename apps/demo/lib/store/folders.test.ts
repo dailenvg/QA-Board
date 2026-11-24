@@ -71,6 +71,7 @@ const DATA: SquintData = {
   ],
   comments: [comment("1", "p-b"), comment("2", "p-c"), comment("3", "p-c"), comment("4", "p-d")],
   snapshots: [],
+  replies: [],
   authorName: null,
 };
 

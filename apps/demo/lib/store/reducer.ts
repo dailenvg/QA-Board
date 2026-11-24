@@ -12,6 +12,7 @@ import type {
   Project,
   ProjectShare,
   ProjectSource,
+  Reply,
   Snapshot,
   SquintData,
 } from "./types";
@@ -37,18 +38,43 @@ export type Action =
   | { type: "project/archive"; id: string; archived: boolean; at: number }
   /** Gives a project a label, or takes it away (null). */
   | { type: "project/label"; id: string; label: string | null }
-  /** Undo for a delete: puts the project, its comments and snapshots back exactly as they were. */
-  | { type: "project/restore"; project: Project; comments: Comment[]; snapshots: Snapshot[] }
+  /**
+   * Undo for a delete: puts the project, its comments, their replies and its
+   * snapshots back exactly as they were.
+   */
+  | {
+      type: "project/restore";
+      project: Project;
+      comments: Comment[];
+      replies: Reply[];
+      snapshots: Snapshot[];
+    }
   | { type: "comment/add"; comment: Comment }
-  /** Undo for a delete: puts the comment back with its original id, number and timestamps. */
-  | { type: "comment/restore"; comment: Comment }
+  /**
+   * Undo for a delete: puts the comment back with its original id, number and
+   * timestamps, then its `replies` (only ever the member's own, D25).
+   */
+  | { type: "comment/restore"; comment: Comment; replies?: Reply[] }
   | { type: "comment/edit"; id: string; body: string; at: number }
   | { type: "comment/set-status"; id: string; status: CommentStatus; at: number }
+  /** Deletes a comment, and its replies with it. */
   | { type: "comment/delete"; id: string }
-  /** Takes out a comment the server has already deleted (someone else's, after a confirm); sends nothing. */
+  /**
+   * Takes out a comment the server has already deleted (someone else's, or one
+   * others replied to, after a confirm), and its replies; sends nothing.
+   */
   | { type: "comment/removed"; id: string }
   /** Attaches the picture saved after posting. Not an edit: timestamps stay as they are. */
   | { type: "comment/set-crop"; id: string; crop: CommentCrop }
+  /** A reply under its comment (`commentId`). It never reopens the comment (D5). */
+  | { type: "reply/add"; reply: Reply }
+  /** Undo for a delete of the member's own reply: back with its id and times. */
+  | { type: "reply/restore"; reply: Reply }
+  /** New words for a reply; different ones mark it edited. */
+  | { type: "reply/edit"; id: string; body: string; at: number }
+  | { type: "reply/delete"; id: string }
+  /** Takes out a reply the server has already deleted (someone else's, after a confirm); sends nothing. */
+  | { type: "reply/removed"; id: string }
   | { type: "snapshot/add"; snapshot: Snapshot }
   /**
    * Drops snapshots that are neither a project's latest nor under any comment,
@@ -216,6 +242,43 @@ function updateComment(
   };
 }
 
+/**
+ * Adds replies under comments the data has (a reply whose comment is gone has
+ * nowhere to show); ids already here are skipped. Null when none was added.
+ */
+function addReplies(data: SquintData, replies: readonly Reply[]): SquintData | null {
+  const commentKeys = new Set(data.comments.map((comment) => `${comment.projectId}/${comment.id}`));
+  const replyIds = new Set(data.replies.map((reply) => reply.id));
+  const added = replies.filter(
+    (reply) => commentKeys.has(`${reply.projectId}/${reply.commentId}`) && !replyIds.has(reply.id),
+  );
+  return added.length > 0 ? { ...data, replies: [...data.replies, ...added] } : null;
+}
+
+/** Takes out a comment and its replies. */
+function removeComment(data: SquintData, id: string): SquintData {
+  const target = data.comments.find((comment) => comment.id === id);
+  if (!target) return data;
+  return {
+    ...data,
+    comments: data.comments.filter((comment) => comment.id !== id),
+    replies: data.replies.filter(
+      (reply) => reply.commentId !== id || reply.projectId !== target.projectId,
+    ),
+  };
+}
+
+/** Takes out the projects `ids` with everything in them. */
+function removeProjects(data: SquintData, ids: ReadonlySet<string>): SquintData {
+  return {
+    ...data,
+    projects: data.projects.filter((project) => !ids.has(project.id)),
+    comments: data.comments.filter((comment) => !ids.has(comment.projectId)),
+    replies: data.replies.filter((reply) => !ids.has(reply.projectId)),
+    snapshots: data.snapshots.filter((snapshot) => !ids.has(snapshot.projectId)),
+  };
+}
+
 /** Pure state transitions. Unknown ids are no-ops, so stale UI can never corrupt data. */
 export function reduce(data: SquintData, action: Action): SquintData {
   switch (action.type) {
@@ -247,11 +310,8 @@ export function reduce(data: SquintData, action: Action): SquintData {
       const removedProjects = data.projects.filter((project) => folderIds.has(project.folderId));
       const removed = new Set(removedProjects.map((p) => p.id));
       return {
-        ...data,
+        ...removeProjects(data, removed),
         folders: data.folders.filter((folder) => !folderIds.has(folder.id)),
-        projects: data.projects.filter((project) => !removed.has(project.id)),
-        comments: data.comments.filter((comment) => !removed.has(comment.projectId)),
-        snapshots: data.snapshots.filter((snapshot) => !removed.has(snapshot.projectId)),
       };
     }
     case "project/create":
@@ -283,12 +343,7 @@ export function reduce(data: SquintData, action: Action): SquintData {
       return replaceSource(data, action);
     case "project/delete":
     case "project/abandon":
-      return {
-        ...data,
-        projects: data.projects.filter((project) => project.id !== action.id),
-        comments: data.comments.filter((comment) => comment.projectId !== action.id),
-        snapshots: data.snapshots.filter((snapshot) => snapshot.projectId !== action.id),
-      };
+      return removeProjects(data, new Set([action.id]));
     case "project/archive":
       return updateProject(data, action.id, (project) =>
         isArchived(project) === action.archived
@@ -306,11 +361,14 @@ export function reduce(data: SquintData, action: Action): SquintData {
         ...data,
         projects: [...data.projects, action.project],
         comments: [...data.comments, ...action.comments],
+        replies: [...data.replies, ...action.replies],
         snapshots: [...data.snapshots, ...action.snapshots],
       };
-    case "comment/restore":
+    case "comment/restore": {
       if (data.comments.some((comment) => comment.id === action.comment.id)) return data;
-      return addComment(data, action.comment) ?? data;
+      const restored = addComment(data, action.comment);
+      return restored ? (addReplies(restored, action.replies ?? []) ?? restored) : data;
+    }
     case "comment/add": {
       const added = addComment(data, action.comment);
       if (!added) return data;
@@ -334,7 +392,7 @@ export function reduce(data: SquintData, action: Action): SquintData {
       });
     case "comment/delete":
     case "comment/removed":
-      return { ...data, comments: data.comments.filter((comment) => comment.id !== action.id) };
+      return removeComment(data, action.id);
     case "comment/set-crop":
       if (!data.comments.some((comment) => comment.id === action.id)) return data;
       return {
@@ -343,6 +401,23 @@ export function reduce(data: SquintData, action: Action): SquintData {
           comment.id === action.id ? { ...comment, crop: action.crop } : comment,
         ),
       };
+    case "reply/add":
+    case "reply/restore":
+      return addReplies(data, [action.reply]) ?? data;
+    case "reply/edit":
+      if (!data.replies.some((reply) => reply.id === action.id && reply.body !== action.body)) {
+        return data;
+      }
+      return {
+        ...data,
+        replies: data.replies.map((reply) =>
+          reply.id === action.id ? { ...reply, body: action.body, editedAt: action.at } : reply,
+        ),
+      };
+    case "reply/delete":
+    case "reply/removed":
+      if (!data.replies.some((reply) => reply.id === action.id)) return data;
+      return { ...data, replies: data.replies.filter((reply) => reply.id !== action.id) };
     case "snapshot/add":
       if (!data.projects.some((project) => project.id === action.snapshot.projectId)) return data;
       if (data.snapshots.some((snapshot) => snapshot.id === action.snapshot.id)) return data;

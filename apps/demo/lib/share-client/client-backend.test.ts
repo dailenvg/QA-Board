@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { namesInMemory, VIEW } from "@/test/share-fixture";
 import { captureFailed } from "../capture/messages";
 import { CROP_ATTEMPTS, CROP_BACKOFF_MS } from "../crop/crop-retry";
+import { OWNER_ONLY } from "../viewer-backend/backend";
 import { createClientBackend } from "./client-backend";
 import { createClientStore } from "./client-store";
 import { linkEditKeys } from "./edit-keys";
@@ -65,6 +66,21 @@ const cropsSent = (sent: RequestInit[]) =>
   sent
     .filter((init) => init.body instanceof FormData)
     .map((init) => (init.body as FormData).has("crop"));
+
+describe("replies on a review link", () => {
+  it("are refused, sending nothing: review links carry none yet", async () => {
+    const { backend, calls } = setup([]);
+    const reply = { id: "r1", projectId: "shared", commentId: "c1", body: "Hi", author: "Cleo" };
+    expect(await backend.addReply(reply)).toEqual({ ok: false, error: OWNER_ONLY });
+    expect(backend.editReply("r1", "Hi")).toEqual({ ok: false, error: OWNER_ONLY });
+    expect(backend.deleteReply("r1")).toEqual({ ok: false, error: OWNER_ONLY });
+    expect(backend.restoreReply({ ...reply, createdAt: 1 })).toEqual({
+      ok: false,
+      error: OWNER_ONLY,
+    });
+    expect(calls).toEqual([]);
+  });
+});
 
 describe("a comment's browser details", () => {
   it("go with the comment without the user agent, which the server reads from the request", async () => {

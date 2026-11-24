@@ -3,7 +3,7 @@ import type { ClientInfo } from "../client-info/schema";
 import type { CaptureFailure } from "../capture/messages";
 import type { ImageUpload } from "../store/actions";
 import type { Result } from "../store/store";
-import type { Comment, CommentStatus, Rect, Snapshot } from "../store/types";
+import type { Comment, CommentStatus, Rect, Reply, Snapshot } from "../store/types";
 
 export type ViewerRole = "owner" | "client";
 
@@ -18,6 +18,17 @@ export interface NewComment {
   snapshotId?: string;
   /** The page the pin is on (page projects, when not on a snapshot). */
   pageId?: string;
+  /** The browser posting it (`captureClientInfo`), when it could be read. */
+  clientInfo?: ClientInfo;
+}
+
+export interface NewReply {
+  /** Chosen when the reply is written, so sending again after a failure can't post it twice. */
+  id: string;
+  projectId: string;
+  commentId: string;
+  body: string;
+  author: string;
   /** The browser posting it (`captureClientInfo`), when it could be read. */
   clientInfo?: ClientInfo;
 }
@@ -80,7 +91,18 @@ export interface ViewerBackend {
    */
   editOwnComment?(id: string, body: string): Promise<EditOutcome>;
   deleteComment(id: string): Result;
-  restoreComment(comment: Comment): Result;
+  /** Undo for `deleteComment`, with the comment's replies when they're all the member's own (D25). */
+  restoreComment(comment: Comment, replies?: Reply[]): Result;
+  /**
+   * Resolves once the reply is saved, never rejecting; on failure the caller
+   * keeps the text. A reply never reopens its comment.
+   */
+  addReply(input: NewReply): Promise<Result<Reply>>;
+  /** New words for the member's own reply. */
+  editReply(id: string, body: string): Result;
+  /** Deletes the member's own reply; `restoreReply` is its Undo. */
+  deleteReply(id: string): Result;
+  restoreReply(reply: Reply): Result;
   /** See `replaceWithImage` in `lib/store/actions`. */
   replaceWithImage(
     projectId: string,

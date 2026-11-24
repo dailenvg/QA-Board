@@ -20,7 +20,15 @@ function manyFolders(): SquintData {
     createdAt: now + index,
     updatedAt: now + index,
   }));
-  return { version: 3, folders, projects, comments: [], snapshots: [], authorName: null };
+  return {
+    version: 3,
+    folders,
+    projects,
+    comments: [],
+    replies: [],
+    snapshots: [],
+    authorName: null,
+  };
 }
 
 function block(page: Page, name: "brand" | "nav" | "account"): Locator {

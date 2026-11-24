@@ -148,6 +148,7 @@ async function hit(method: string, path: string, who: Seat): Promise<Response> {
     projectId: "p1",
     folderId: "f1",
     commentId: "c1",
+    replyId: "r1",
     snapshotId: "s1",
     key: "page:p1",
     shareId: share.shareId,

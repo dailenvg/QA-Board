@@ -12,7 +12,9 @@ import type { ExportDocument } from "./types";
  *   A screenshot of a pin on a page is `screenshots/<NN>-p<PP>-<id>.<ext>`
  *   (`.jpg` for newer screenshots, `.png` for older ones). Added since,
  *   without a new version: each comment's `clientInfo`, the browser it was
- *   posted from as recorded (`userAgent`, `viewport`, `dpr`, `platform`), or null.
+ *   posted from as recorded (`userAgent`, `viewport`, `dpr`, `platform`), or null;
+ *   and its `replies`, oldest first, each with `id`, `author`, `body`,
+ *   `createdAt`, `editedAt` (null if never), `fromClient` and `clientInfo`.
  * - `squint.comments/1`: the first version.
  */
 export const JSON_SCHEMA = "squint.comments/2";
@@ -49,6 +51,11 @@ export function toJson(document: ExportDocument, options: { withFiles: boolean }
       createdAt: iso(comment.createdAt),
       updatedAt: iso(comment.updatedAt),
       resolvedAt: isoOrNull(comment.resolvedAt),
+      replies: comment.replies.map((reply) => ({
+        ...reply,
+        createdAt: iso(reply.createdAt),
+        editedAt: isoOrNull(reply.editedAt),
+      })),
       edited: comment.updatedAt > comment.createdAt,
     })),
   };

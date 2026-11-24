@@ -190,6 +190,7 @@ export function toViewerData(state: ClientState): { data: SquintData; project: P
       projects: [project],
       comments: view.comments.map((comment) => toComment(comment, state.ownComments)),
       snapshots: view.snapshots.map(toSnapshot),
+      replies: [],
       authorName: state.authorName,
     },
   };

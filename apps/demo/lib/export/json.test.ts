@@ -54,8 +54,41 @@ describe("toJson", () => {
       "pageUrl",
       "screenshot",
       "clientInfo",
+      "replies",
       "edited",
     ]);
+  });
+
+  it("gives each comment's replies oldest first, with ISO dates and browser details", () => {
+    const clientInfo = { userAgent: "Mozilla/5.0", dpr: 2 };
+    const replies = URL_EXPORT.replies.map((reply) =>
+      reply.id === "r-team" ? { ...reply, clientInfo } : reply,
+    );
+    const withInfo = JSON.parse(
+      toJson(buildExportDocument({ ...URL_EXPORT, replies }), { withFiles: true }),
+    ) as { comments: Array<{ id: string; replies: unknown[] }> };
+    const thread = withInfo.comments.find((comment) => comment.id === "cccc3333-new")?.replies;
+    expect(thread).toEqual([
+      {
+        id: "r-team",
+        author: "Leo",
+        body: "Escaped it in the next build.",
+        createdAt: "2026-10-24T09:00:46.000Z",
+        editedAt: "2026-10-24T09:00:47.000Z",
+        fromClient: false,
+        clientInfo,
+      },
+      {
+        id: "r-client",
+        author: "Cleo [client]",
+        body: "Still broken on mobile.\n\n```\n## Not a heading either\n```",
+        createdAt: "2026-10-24T09:00:48.000Z",
+        editedAt: null,
+        fromClient: true,
+        clientInfo: null,
+      },
+    ]);
+    expect(parsed.comments[0]?.replies).toEqual([]);
   });
 
   it("gives each comment's browser details as recorded, or null", () => {

@@ -9,13 +9,17 @@ import { emitSquiggy } from "../squiggy/events";
 import { BREAKPOINT_WIDTH } from "../store/breakpoints";
 import {
   addComment,
+  addReply,
   addSnapshot,
   attachCrop,
   deleteComment,
+  deleteReply,
   editComment,
+  editReply,
   hasProject,
   replaceWithImage,
   restoreComment,
+  restoreReply,
   setAuthorName,
   setCommentStatus,
 } from "../store/actions";
@@ -124,6 +128,10 @@ export const serverBackend: ViewerBackend = {
   editComment,
   deleteComment,
   restoreComment,
+  addReply,
+  editReply,
+  deleteReply,
+  restoreReply,
   replaceWithImage,
   // Joins a new project's first snapshot if it's still being taken; leaving stops only the wait.
   captureSnapshot(projectId, url, width, signal) {

@@ -375,6 +375,7 @@ test("folder sheets are previews, never tiny targets, at rest or fanned", async 
     ],
     comments: [],
     snapshots: [],
+    replies: [],
     authorName: null,
   };
   await seedWorkspace(page, data);
