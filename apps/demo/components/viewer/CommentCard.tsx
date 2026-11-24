@@ -170,8 +170,10 @@ export function CommentCard({
     .join(" ");
   const resolved = comment.status === "resolved";
   const actions = canModerate || canEdit || Boolean(onGetInfo);
-  // Without the action row (shared link), this keeps the card's bottom inset at 16px.
-  const bottomInset = actions ? "" : "pb-2";
+  const summaryShown = summary !== null && !editing;
+  // Without the action row (shared link), this keeps the card's bottom inset at 16px. The summary
+  // line (12px under it) and the thread (16px) bring their own, as on the team's cards.
+  const bottomInset = actions || summaryShown || showThread ? "" : "pb-2";
 
   const startEditing = () => {
     setEditing(true);
@@ -426,7 +428,7 @@ export function CommentCard({
           </motion.div>
         ) : null}
       </AnimatePresence>
-      {summary && !editing ? <ThreadSummaryLine id={summaryId} summary={summary} /> : null}
+      {summaryShown && summary ? <ThreadSummaryLine id={summaryId} summary={summary} /> : null}
     </motion.li>
   );
 }

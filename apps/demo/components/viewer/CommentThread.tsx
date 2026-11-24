@@ -6,7 +6,7 @@ import { duration, staggerGroup } from "@/lib/motion";
 import type { Reply } from "@/lib/store/types";
 import type { AvatarSurface } from "../ui/PersonAvatar";
 import type { CommentThreads } from "./comment-threads";
-import { replyRights } from "./reply-rights";
+import { canReply, replyRights } from "./reply-rights";
 import { REPLY_MORE, ReplyItem } from "./ReplyItem";
 
 /**
@@ -76,9 +76,12 @@ export function CommentThread({
   const latestId = latest?.id;
   const latestMine = latest?.mine === true;
   const shownLatest = useRef(latestId);
+  const replying = canReply(threads.viewer);
 
   // A reply arriving at the end (one just sent, most often) scrolls into view, for its author or
-  // whoever is in this thread: one from elsewhere never moves the list or popover being read.
+  // whoever is replying in this thread: one from elsewhere never moves the list or popover being
+  // read. A review link's guest only reads (no box), so the team's replies arriving on the 15s
+  // refresh never move them, even with focus on the popover itself.
   useEffect(() => {
     if (latestId === shownLatest.current) return;
     shownLatest.current = latestId;
@@ -86,7 +89,7 @@ export function CommentThread({
     if (!latestId || !list) return;
     const scope = list.closest(THREAD_SCOPE);
     const active = document.activeElement;
-    if (!latestMine && !(active && scope?.contains(active))) return;
+    if (!latestMine && !(replying && active && scope?.contains(active))) return;
     const reply = list.querySelector(`[data-reply-id="${CSS.escape(latestId)}"]`);
     // Where the box scrolls with the thread (a card in the list), the box comes into view: the
     // reply sits just above it, so both show, and the field being typed in never ends below the
@@ -98,7 +101,7 @@ export function CommentThread({
       block: "nearest",
       behavior: reduce ? "auto" : "smooth",
     });
-  }, [latestId, latestMine, reduce]);
+  }, [latestId, latestMine, replying, reduce]);
 
   // Never `initial={false}`: a thread shown on selecting a card staggers in.
   return (
