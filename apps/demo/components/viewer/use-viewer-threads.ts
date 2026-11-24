@@ -7,7 +7,7 @@ import type { ViewerBackend } from "@/lib/viewer-backend/backend";
 import type { ToastInput } from "../ui/ToastProvider";
 import type { CommentViewer } from "./comment-rights";
 import type { CommentThreads, ReplyDraft } from "./comment-threads";
-import { createReplyDrafts } from "./reply-drafts";
+import { createReplyDrafts, sendReplyDraft } from "./reply-drafts";
 import { replyRights } from "./reply-rights";
 import { useReplyActions } from "./use-reply-actions";
 
@@ -49,19 +49,23 @@ export function useViewerThreads({
   // Unsent words outlive the box they were typed in (a card's, the popover's).
   const [drafts] = useState(createReplyDrafts);
 
-  /** Posts with the browser as it is when Reply is pressed, as a new comment does. */
-  const send = async (comment: Comment, draft: ReplyDraft) => {
-    if (draft.author.trim() !== data.authorName) backend.setAuthorName(draft.author);
-    const clientInfo = await captureClientInfo();
-    return backend.addReply({
-      id: draft.id,
-      projectId: comment.projectId,
-      commentId: comment.id,
-      body: draft.body,
-      author: draft.author,
-      ...(clientInfo ? { clientInfo } : {}),
+  /**
+   * Posts with the browser as it is when Reply is pressed, as a new comment does. The words
+   * leave the comment's draft while they're sent (`sendReplyDraft`).
+   */
+  const send = (comment: Comment, draft: ReplyDraft) =>
+    sendReplyDraft(drafts, comment.id, draft.body, async () => {
+      if (draft.author.trim() !== data.authorName) backend.setAuthorName(draft.author);
+      const clientInfo = await captureClientInfo();
+      return backend.addReply({
+        id: draft.id,
+        projectId: comment.projectId,
+        commentId: comment.id,
+        body: draft.body,
+        author: draft.author,
+        ...(clientInfo ? { clientInfo } : {}),
+      });
     });
-  };
 
   const value: CommentThreads | null = viewer.team
     ? {

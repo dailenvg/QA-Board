@@ -1,3 +1,5 @@
+import type { Result } from "@/lib/store/store";
+
 /** Words typed in reply boxes and not sent yet, by comment id, kept in memory only. */
 export interface ReplyDrafts {
   /** The comment's unsent reply; empty without one. */
@@ -21,4 +23,22 @@ export function createReplyDrafts(): ReplyDrafts {
       else drafts.delete(commentId);
     },
   };
+}
+
+/**
+ * Sends a comment's reply through `post`, its words leaving the draft as the
+ * send starts: a box that mounts meanwhile (the thread moved between the card
+ * and the popover) starts empty, so it can't post the same words again under
+ * a new id. A refusal puts them back, unless something new was typed since.
+ */
+export async function sendReplyDraft<T>(
+  drafts: ReplyDrafts,
+  commentId: string,
+  body: string,
+  post: () => Promise<Result<T>>,
+): Promise<Result<T>> {
+  drafts.keepDraft(commentId, "");
+  const result = await post();
+  if (!result.ok && !drafts.draftOf(commentId)) drafts.keepDraft(commentId, body);
+  return result;
 }

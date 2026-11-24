@@ -20,7 +20,7 @@ interface ReplyComposerProps {
   onSend: (draft: ReplyDraft) => Promise<Result<unknown>>;
   /** Words typed earlier and not sent, such as in the card before its popover opened. */
   initialBody?: string;
-  /** The words as typed, so they outlive this box; empty once sent. */
+  /** The words as typed, so they outlive this box. */
   onDraftChange?: (body: string) => void;
 }
 
@@ -89,8 +89,8 @@ export function ReplyComposer({
       setSendError(result.error);
       return;
     }
+    // The send took the words out of the draft as it started (`sendReplyDraft`).
     setBody("");
-    onDraftChange?.("");
     setId(newId());
     setStatus("Reply sent.");
   };
