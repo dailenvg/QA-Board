@@ -29,6 +29,7 @@ const STATE: ShareState = {
     sourceUrl: SITE,
   })),
   comments: [],
+  replies: [],
 };
 
 /** An 8 MB JPEG: five of them fill a share's 40 MB. */
@@ -272,7 +273,7 @@ describe("sharing a page project", () => {
     };
     const { toShareState } = await import("./share-state");
     const { share, created, sync, data, store } = await sharedWorkspace(project, {
-      ...toShareState(project, [], []),
+      ...toShareState(project, [], [], []),
       comments: [],
     });
     expect(created.missingBlobs).toEqual(["page:page-1", "page:pg2"]);
@@ -379,7 +380,7 @@ describe("a client's comment posted without its screenshot", () => {
     const { toShareState } = await import("./share-state");
     const { share, sync, data, store, db, owner } = await sharedWorkspace(
       project,
-      toShareState(project, [], []),
+      toShareState(project, [], [], []),
     );
     const { clientApi } = await import("./api");
     const client = clientApi(share.token);
@@ -411,5 +412,62 @@ describe("a client's comment posted without its screenshot", () => {
     sent.length = 0;
     await sync.pushNow("p1");
     expect(await shareRequests("PATCH")).toEqual([]);
+  }, 60_000);
+});
+
+describe("the team's replies, end to end", () => {
+  it("reach the link after their comment, follow edits and deletes, and never carry browser details", async () => {
+    const { share, sync, actions } = await sharedWorkspace(SITE_PROJECT, {
+      ...STATE,
+      snapshots: [],
+    });
+    const clientInfo = { userAgent: "Mozilla/5.0", viewport: { width: 1440, height: 900 }, dpr: 2 };
+    const comment = await actions.addComment({
+      id: "c-team",
+      projectId: "p1",
+      x: 1,
+      y: 1,
+      body: "Bigger logo",
+      author: "Ana",
+      clientInfo,
+    });
+    const reply = await actions.addReply({
+      id: "r-team",
+      projectId: "p1",
+      commentId: "c-team",
+      body: "On it.",
+      author: "Ana",
+      clientInfo,
+    });
+    expect([comment.ok, reply.ok]).toEqual([true, true]);
+    sent.length = 0;
+    await sync.pushNow("p1");
+    const [push, ...more] = await shareRequests("PATCH");
+    expect(more).toEqual([]);
+    expect(push).toBeDefined();
+
+    const { clientApi } = await import("./api");
+    const guest = clientApi(share.token);
+    const read = async () => {
+      const view = await guest.view();
+      if (!view.ok) throw new Error(view.error);
+      return view.value;
+    };
+    const view = await read();
+    expect(view.comments.map((c) => c.id)).toEqual(["c-team"]);
+    expect(view.replies).toEqual([
+      expect.objectContaining({ id: "r-team", commentId: "c-team", body: "On it.", team: true }),
+    ]);
+    expect(JSON.stringify(view)).not.toMatch(/clientInfo|Mozilla|viewport|dpr/);
+
+    actions.editReply("r-team", "Done.");
+    await sync.pushNow("p1");
+    const [edited, ...others] = (await read()).replies;
+    expect(others).toEqual([]);
+    expect(edited).toMatchObject({ id: "r-team", body: "Done." });
+    expect(edited?.editedAt).toBeGreaterThan(0);
+    actions.deleteReply("r-team");
+    await sync.pushNow("p1");
+    expect((await read()).replies).toEqual([]);
   }, 60_000);
 });

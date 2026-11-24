@@ -93,6 +93,33 @@ export interface ClientComment extends SharedComment {
   screenshotPending?: true;
 }
 
+/**
+ * A reply in a comment's thread (054), as it travels between browsers and the
+ * server: the team's, pushed by the owner, or a guest's. Never the browser it
+ * was posted from: that's kept beside it (`Sequenced.clientInfo`), team only.
+ */
+export interface SharedReply {
+  id: string;
+  /** The comment it answers, on the same link. */
+  commentId: string;
+  body: string;
+  author: string;
+  createdAt: number;
+  /** When its words last changed after posting (epoch ms); missing while they never have. */
+  editedAt?: number;
+}
+
+/**
+ * A reply as a guest reads it: a team member's says so, with their avatar on
+ * this link when they have one, as on `ClientComment`. A push never sets it.
+ */
+export interface ClientReply extends SharedReply {
+  /** Their avatar (`/api/s/<token>/people/<key>/avatar?v=`); missing without one, or once they've left. */
+  authorAvatar?: string;
+  /** Written by someone on the company's team; missing on a client's. */
+  team?: true;
+}
+
 /** A team member's avatar on one link: their key and its version there (`share-people.ts`). */
 export interface TeamAvatar {
   key: string;
@@ -104,9 +131,11 @@ export interface ShareState {
   project: SharedProject;
   snapshots: SharedSnapshot[];
   comments: SharedComment[];
+  /** The replies to the comments above, never to one that isn't shared. */
+  replies: SharedReply[];
 }
 
-/** Who added a snapshot or comment. Client additions are what the owner pulls. */
+/** Who added a snapshot, comment or reply. Client additions are what the owner pulls. */
 export type Origin = "owner" | "client";
 
 export interface Sequenced<T> {
@@ -126,9 +155,9 @@ export interface Sequenced<T> {
    */
   editSeq?: number;
   /**
-   * Comments only: the browser a client posted from (052), kept beside the
-   * comment, never in it (`item`), so the manifest's digest and the guest's
-   * view never have it. Only the owner's pull carries it.
+   * Comments (052) and replies (054) only: the browser a client posted from,
+   * kept beside it, never in it (`item`), so the manifest's digest and the
+   * guest's view never have it. Only the owner's pull carries it.
    */
   clientInfo?: ClientInfo;
 }
@@ -230,6 +259,8 @@ export interface ClientView {
   clientName: string | null;
   snapshots: SharedSnapshot[];
   comments: ClientComment[];
+  /** Every comment's replies, flat, each naming its comment (`commentId`). */
+  replies: ClientReply[];
   /** When the review window closes (epoch ms): after it, clients can only read. Null: never. */
   reviewEndsAt: number | null;
   /** How long the review window is, in hours from the link's creation; null for no limit. */
@@ -296,6 +327,7 @@ export interface ShareManifest {
   project: string;
   snapshots: Array<{ id: string; digest: string }>;
   comments: Array<{ id: string; digest: string }>;
+  replies: Array<{ id: string; digest: string }>;
   missingBlobs: string[];
   /** When the share is deleted for good (epoch ms); null when it never expires on its own. */
   expiresAt: number | null;
@@ -306,7 +338,10 @@ export interface ShareChange {
   project?: SharedProject;
   snapshots: SharedSnapshot[];
   comments: SharedComment[];
+  /** Upserted after `comments`, so a reply's comment is there first. */
+  replies: SharedReply[];
   deleteSnapshots: string[];
   deleteComments: string[];
+  deleteReplies: string[];
   cursor: number;
 }

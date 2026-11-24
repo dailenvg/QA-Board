@@ -10,9 +10,11 @@ import type {
   Sequenced,
   SharedComment,
   SharedProject,
+  SharedReply,
   SharedSnapshot,
   ShareRecord,
   StoredBlob,
+  TeamAvatar,
 } from "./types";
 
 interface ShareRow {
@@ -125,9 +127,18 @@ const AVATAR_JOIN = (user: string) => `user_blobs AS avatar
     AND starts_with(avatar.key, 'user/' || ${user}.id::text || '/avatar/')`;
 
 /**
+ * The author of `post` (a workspace comment or reply) while they're still an
+ * active member of the share's workspace, and their avatar's key when they have one.
+ */
+const TEAM_AUTHOR = (post: string) => `LEFT JOIN memberships AS member
+    ON member.workspace_id = squint_shares.workspace_id
+    AND member.user_id = ${post}.author_user_id
+  LEFT JOIN users AS author ON author.id = member.user_id AND author.deleted_at IS NULL
+  LEFT JOIN ${AVATAR_JOIN("author")}`;
+
+/**
  * Each comment the owner pushed whose workspace comment (same project, same
- * id) is a team one, with its author while they're still an active member of
- * the share's workspace, and their avatar's key when they have one.
+ * id) is a team one, with its author (`TEAM_AUTHOR`).
  */
 const TEAM_COMMENTS = `squint_shares
   JOIN squint_share_comments AS shared
@@ -135,14 +146,22 @@ const TEAM_COMMENTS = `squint_shares
   JOIN comments AS comment
     ON comment.project_id = squint_shares.project_id AND comment.id = shared.id
     AND comment.origin = 'team'
-  LEFT JOIN memberships AS member
-    ON member.workspace_id = squint_shares.workspace_id
-    AND member.user_id = comment.author_user_id
-  LEFT JOIN users AS author ON author.id = member.user_id AND author.deleted_at IS NULL
-  LEFT JOIN ${AVATAR_JOIN("author")}`;
+  ${TEAM_AUTHOR("comment")}`;
 
-interface TeamCommentRow {
-  comment_id: string;
+/**
+ * `TEAM_COMMENTS` for replies: each reply the owner pushed whose workspace
+ * reply (same project, same id, under the same comment) is a team one.
+ */
+const TEAM_REPLIES = `squint_shares
+  JOIN squint_share_replies AS shared
+    ON shared.share_id = squint_shares.id AND shared.origin = 'owner'
+  JOIN comment_replies AS reply
+    ON reply.project_id = squint_shares.project_id AND reply.id = shared.id
+    AND reply.comment_id = shared.comment_id AND reply.origin = 'team'
+  ${TEAM_AUTHOR("reply")}`;
+
+interface TeamPostRow {
+  post_id: string;
   /** Null once the author has left, and null with `avatar_key` without a photo. */
   user_id: string | null;
   avatar_key: string | null;
@@ -213,6 +232,20 @@ const UPSERT_COMMENT = `INSERT INTO squint_share_comments AS t (share_id, id, da
     ELSE EXCLUDED.data
   END`;
 
+/**
+ * The owner's reply, only under a visible comment of the link: an owner's row
+ * takes it whole; a client's row, or a reply that would move to another
+ * comment, stays as it is.
+ */
+const UPSERT_REPLY = `INSERT INTO squint_share_replies AS t (share_id, comment_id, id, data, origin)
+  SELECT $1, $2, $3, $4::jsonb, 'owner'
+  WHERE EXISTS (
+    SELECT 1 FROM squint_share_comments
+    WHERE share_id = $1 AND id = $2 AND NOT pending
+  )
+  ON CONFLICT (share_id, id) DO UPDATE SET data = EXCLUDED.data
+    WHERE t.origin = 'owner' AND t.comment_id = EXCLUDED.comment_id`;
+
 /** A visible client comment, by share and id. */
 const CLIENT_ROW = "share_id = $1 AND id = $2 AND origin = 'client' AND NOT pending";
 
@@ -231,6 +264,25 @@ export function createPostgresStore(db: Queryable): ShareStore {
       [id],
     );
     return rows.map(toSequenced);
+  };
+  /** `TEAM_COMMENTS` or `TEAM_REPLIES` as a map of each post to its author's avatar on the link. */
+  const teamOf = async (id: string, from: string) => {
+    const { rows } = await db.query<TeamPostRow>(
+      `SELECT shared.id AS post_id, author.id AS user_id, avatar.key AS avatar_key
+       FROM ${from} WHERE squint_shares.id = $1 AND ${SHARE_ANSWERS}`,
+      [id],
+    );
+    return new Map<string, TeamAvatar | null>(
+      rows.map((row) => [
+        row.post_id,
+        row.user_id && row.avatar_key
+          ? {
+              key: sharePersonKey(id, row.user_id),
+              version: shareAvatarVersion(id, row.avatar_key),
+            }
+          : null,
+      ]),
+    );
   };
   const locations = async (id: string, keys?: readonly string[]) => {
     const { rows } = await db.query<BlobRow>(
@@ -318,24 +370,8 @@ export function createPostgresStore(db: Queryable): ShareStore {
       );
       return rows[0] ? toStoredBlob(rows[0]) : null;
     },
-    async teamAuthors(id) {
-      const { rows } = await db.query<TeamCommentRow>(
-        `SELECT shared.id AS comment_id, author.id AS user_id, avatar.key AS avatar_key
-         FROM ${TEAM_COMMENTS} WHERE squint_shares.id = $1 AND ${SHARE_ANSWERS}`,
-        [id],
-      );
-      return new Map(
-        rows.map((row) => [
-          row.comment_id,
-          row.user_id && row.avatar_key
-            ? {
-                key: sharePersonKey(id, row.user_id),
-                version: shareAvatarVersion(id, row.avatar_key),
-              }
-            : null,
-        ]),
-      );
-    },
+    teamAuthors: (id) => teamOf(id, TEAM_COMMENTS),
+    teamReplyAuthors: (id) => teamOf(id, TEAM_REPLIES),
     async teamAvatar(id, key) {
       if (!SHARE_PERSON_KEY.test(key)) return null;
       // One HMAC per member with a photo: a handful at most.
@@ -510,6 +546,36 @@ export function createPostgresStore(db: Queryable): ShareStore {
     },
     async deleteComments(id, ids) {
       await db.query("DELETE FROM squint_share_comments WHERE share_id = $1 AND id = ANY($2)", [
+        id,
+        [...ids],
+      ]);
+    },
+    replies: (id) => list<SharedReply>("squint_share_replies", id, "", ", client_info"),
+    async upsertReply(id, reply) {
+      await db.query(UPSERT_REPLY, [id, reply.commentId, reply.id, JSON.stringify(reply)]);
+    },
+    async insertReply(id, reply, origin, clientInfo) {
+      const { rows } = await db.query(
+        `INSERT INTO squint_share_replies (share_id, comment_id, id, data, origin, client_info)
+         SELECT $1, $2, $3, $4::jsonb, $5, $6::jsonb
+         WHERE EXISTS (
+           SELECT 1 FROM squint_share_comments
+           WHERE share_id = $1 AND id = $2 AND NOT pending
+         )
+         ON CONFLICT (share_id, id) DO NOTHING RETURNING id`,
+        [
+          id,
+          reply.commentId,
+          reply.id,
+          JSON.stringify(reply),
+          origin,
+          clientInfo ? JSON.stringify(clientInfo) : null,
+        ],
+      );
+      return rows.length === 1;
+    },
+    async deleteReplies(id, ids) {
+      await db.query("DELETE FROM squint_share_replies WHERE share_id = $1 AND id = ANY($2)", [
         id,
         [...ids],
       ]);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COMMENT, STATE } from "@/test/share-fixture";
+import { COMMENT, REPLY, STATE } from "@/test/share-fixture";
 import {
   blobKeySchema,
   changeSchema,
@@ -57,6 +57,48 @@ describe("share schemas", () => {
         expect(comment).not.toHaveProperty(field);
       }
     }
+  });
+
+  it("cap a reply's words, author and ids, and how many replies a link holds", () => {
+    expect(valid({ ...STATE, replies: [REPLY] })).toBe(true);
+    for (const reply of [
+      { ...REPLY, body: "x".repeat(SHARE_LIMITS.body + 1) },
+      { ...REPLY, body: "  " },
+      { ...REPLY, author: "x".repeat(SHARE_LIMITS.author + 1) },
+      { ...REPLY, commentId: "../x" },
+      { ...REPLY, createdAt: -1 },
+    ]) {
+      expect(valid({ ...STATE, replies: [reply] })).toBe(false);
+    }
+    const replies = Array.from({ length: SHARE_LIMITS.replies + 1 }, (_, index) => ({
+      ...REPLY,
+      id: `r${index}`,
+    }));
+    expect(valid({ ...STATE, replies })).toBe(false);
+    expect(changeSchema.safeParse({ replies, cursor: 0 }).success).toBe(false);
+  });
+
+  it("strip whose a reply is and the browser it was posted from from anything pushed", () => {
+    const planted = {
+      ...REPLY,
+      projectId: "p1",
+      mine: true,
+      team: true,
+      fromClient: true,
+      authorAvatar: "/api/w/ws-1/people/AAAAAAAAAAAAAAAAAAAAAA/avatar?v=1",
+      clientInfo: { userAgent: "Mozilla/5.0", viewport: { width: 1440, height: 900 } },
+    };
+    const pushed = [
+      stateSchema.parse({ ...STATE, replies: [planted] }).replies[0],
+      changeSchema.parse({ replies: [planted], cursor: 0 }).replies[0],
+    ];
+    for (const reply of pushed) expect(reply).toEqual(REPLY);
+  });
+
+  it("read a push from a browser that predates replies as having none", () => {
+    const { replies: _none, ...older } = STATE;
+    expect(stateSchema.parse(older).replies).toEqual([]);
+    expect(changeSchema.parse({ cursor: 0 })).toMatchObject({ replies: [], deleteReplies: [] });
   });
 
   it("let clients set neither status nor timestamps", () => {

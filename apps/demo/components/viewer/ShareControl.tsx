@@ -143,7 +143,13 @@ export function ShareControl({ data, project }: ShareControlProps) {
   const [returnFocus, setReturnFocus] = useState<"window" | "revoke" | null>(null);
   const { share } = project;
   const state = useMemo(
-    () => toShareState(project, commentsFor(data, project.id), snapshotsFor(data, project.id)),
+    () =>
+      toShareState(
+        project,
+        commentsFor(data, project.id),
+        snapshotsFor(data, project.id),
+        data.replies,
+      ),
     [data, project],
   );
   const status = useShareSync(project, share ? JSON.stringify(state) : null);
@@ -178,7 +184,8 @@ export function ShareControl({ data, project }: ShareControlProps) {
         return unshared;
       },
       // Just the project: the sync that follows sends everything else in batches.
-      create: () => ownerApi.create({ project: state.project, snapshots: [], comments: [] }),
+      create: () =>
+        ownerApi.create({ project: state.project, snapshots: [], comments: [], replies: [] }),
       // The server's creation time: the review window counts from it, whatever this clock says.
       attach: ({ shareId, token, ownerKey, createdAt }) =>
         shareProject(project.id, {

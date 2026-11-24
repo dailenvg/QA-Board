@@ -8,6 +8,7 @@ import type {
   Sequenced,
   SharedComment,
   SharedProject,
+  SharedReply,
   SharedSnapshot,
   ShareRecord,
   StoredBlob,
@@ -17,7 +18,8 @@ import type {
 /**
  * Persistence for shares. Implementations: in memory (local dev, e2e; one per
  * server instance) and Postgres (`DATABASE_URL`). Deleting a share removes its
- * snapshots, comments and blob rows; callers clean up remote blob files.
+ * snapshots, comments, replies and blob rows; callers clean up remote blob
+ * files. Deleting a comment, by any means, removes its replies.
  */
 export interface ShareStore {
   create(record: ShareRecord): Promise<void>;
@@ -74,6 +76,11 @@ export interface ShareStore {
    * in the memory store, which has no workspaces.
    */
   teamAuthors(id: string): Promise<Map<string, TeamAvatar | null>>;
+  /**
+   * `teamAuthors` for replies, by reply id: each reply the owner pushed whose
+   * workspace reply (same project, same id) is a team one, under the same rules.
+   */
+  teamReplyAuthors(id: string): Promise<Map<string, TeamAvatar | null>>;
   /**
    * The avatar of the active member of the share's workspace whose key on
    * this link is `key` (`sharePersonKey`), with its version on this link
@@ -174,6 +181,28 @@ export interface ShareStore {
   cropKeyOf(id: string, commentId: string): Promise<string | null>;
   deleteSnapshots(id: string, ids: readonly string[]): Promise<void>;
   deleteComments(id: string, ids: readonly string[]): Promise<void>;
+
+  /** Every reply, in seq order, with the browser a client posted from (`clientInfo`). */
+  replies(id: string): Promise<Sequenced<SharedReply>[]>;
+  /**
+   * The owner's reply: inserted under its comment, or replacing an owner
+   * row's data (keeping its seq). A client's row with that id is left as it
+   * is, and so is a reply that would move to another comment. Nothing while
+   * the comment isn't visible on the link: a reply never outlives it.
+   */
+  upsertReply(id: string, reply: SharedReply): Promise<void>;
+  /**
+   * Inserts only, under a visible comment; false when the id is taken or the
+   * comment isn't there. `clientInfo` is kept beside the reply, for the
+   * owner's pull only.
+   */
+  insertReply(
+    id: string,
+    reply: SharedReply,
+    origin: Origin,
+    clientInfo?: ClientInfo,
+  ): Promise<boolean>;
+  deleteReplies(id: string, ids: readonly string[]): Promise<void>;
 
   /** Keys and sizes of stored blobs, without their bytes. */
   blobSizes(id: string): Promise<Array<{ key: string; size: number }>>;

@@ -5,12 +5,13 @@ import type {
   PulledComment,
   SharedComment,
   SharedPage,
+  SharedReply,
   SharedSnapshot,
   SharedSource,
   ShareState,
 } from "../share/types";
 import { pagesOf } from "../store/pages";
-import type { Comment, Page, Project, Snapshot } from "../store/types";
+import type { Comment, Page, Project, Reply, Snapshot } from "../store/types";
 
 /**
  * Trimmed and capped exactly as the server's schema stores it, so content
@@ -34,6 +35,17 @@ function sharedComment(comment: Comment): SharedComment {
     ...(comment.snapshotId ? { snapshotId: comment.snapshotId } : {}),
     ...(comment.pageId ? { pageId: comment.pageId } : {}),
     ...(comment.crop ? { crop: { rect: comment.crop.rect } } : {}),
+  };
+}
+
+function sharedReply(reply: Reply): SharedReply {
+  return {
+    id: reply.id,
+    commentId: reply.commentId,
+    body: cap(reply.body, SHARE_LIMITS.body),
+    author: cap(reply.author, SHARE_LIMITS.author) || "Reviewer",
+    createdAt: reply.createdAt,
+    ...(reply.editedAt !== undefined ? { editedAt: reply.editedAt } : {}),
   };
 }
 
@@ -70,16 +82,20 @@ function sharedSnapshot({
 }
 
 /**
- * What the owner pushes: the project's metadata, snapshots and comments,
- * without local keys. The one place that decides what of a comment reaches a
- * review link: whose it is, the author's photo and the browser it was posted
- * from (`clientInfo`, team only) never do.
+ * What the owner pushes: the project's metadata, snapshots, comments and the
+ * replies to those comments, without local keys. The one place that decides
+ * what reaches a review link (D21): a reply only under a comment it carries;
+ * of a comment or a reply, whose it is, the author's photo and the browser it
+ * was posted from (`clientInfo`, team only) never do. `replies` may be the
+ * workspace's: only this project's are taken.
  */
 export function toShareState(
   project: Project,
   comments: readonly Comment[],
   snapshots: readonly Snapshot[],
+  replies: readonly Reply[],
 ): ShareState {
+  const shared = new Set(comments.map((comment) => comment.id));
   return {
     project: {
       name: cap(project.name, SHARE_LIMITS.projectName) || "Untitled",
@@ -88,6 +104,9 @@ export function toShareState(
     },
     snapshots: snapshots.map(sharedSnapshot),
     comments: comments.map(sharedComment),
+    replies: replies
+      .filter((reply) => reply.projectId === project.id && shared.has(reply.commentId))
+      .map(sharedReply),
   };
 }
 

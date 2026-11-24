@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { stateSchema } from "../share/schemas";
-import type { Comment, Project, Snapshot } from "../store/types";
+import type { Comment, Project, Reply, Snapshot } from "../store/types";
 import { fromSharedComment, fromSharedSnapshot, localBlobKey, toShareState } from "./share-state";
 
 const project: Project = {
@@ -68,8 +68,55 @@ const comment: Comment = {
   crop: { blobKey: "crop:c1", rect: { x: 0, y: 0, width: 10, height: 10 } },
 };
 
+/** A reply to `comment` with everything the workspace knows of it, by Ben. */
+const reply: Reply = {
+  id: "r1",
+  projectId: "p1",
+  commentId: "c1",
+  body: "  On it.  ",
+  author: "Ben",
+  createdAt: 7,
+  editedAt: 8,
+  mine: true,
+  authorAvatar: "/api/w/ws-1/people/AAAAAAAAAAAAAAAAAAAAAA/avatar?v=1",
+  clientInfo: { userAgent: "Mozilla/5.0", viewport: { width: 1440, height: 900 }, dpr: 2 },
+};
+
+describe("toShareState's replies", () => {
+  it("pushes the replies to the comments it pushes, of this project only, and nothing else", () => {
+    const replies: Reply[] = [
+      reply,
+      { ...reply, id: "r2", commentId: "c2", fromClient: true, mine: undefined, createdAt: 9 },
+      { ...reply, id: "r3", commentId: "not-shared" },
+      { ...reply, id: "r4", projectId: "p2" },
+    ];
+    const state = toShareState(project, [comment], [], replies);
+    expect(state.replies).toEqual([
+      { id: "r1", commentId: "c1", body: "On it.", author: "Ben", createdAt: 7, editedAt: 8 },
+    ]);
+    expect(toShareState(project, [comment, pageComment], [], replies).replies).toEqual([
+      expect.objectContaining({ id: "r1" }),
+      { id: "r2", commentId: "c2", body: "On it.", author: "Ben", createdAt: 9, editedAt: 8 },
+    ]);
+  });
+
+  it("never pushes a reply's browser details, so they never reach a link", () => {
+    const pushed = toShareState(project, [comment], [], [reply]);
+    expect(JSON.stringify(pushed)).not.toMatch(/clientInfo|Mozilla|viewport|dpr/);
+    const { clientInfo: _info, ...without } = reply;
+    expect(pushed).toEqual(toShareState(project, [comment], [], [without]));
+  });
+
+  it("trims and caps a reply as the server stores it, so its digest matches", () => {
+    const long = { ...reply, body: "x".repeat(6000), author: "   " };
+    const state = toShareState(project, [comment], [], [long]);
+    expect(state.replies[0]).toMatchObject({ body: "x".repeat(5000), author: "Reviewer" });
+    expect(stateSchema.parse(state).replies).toEqual(state.replies);
+  });
+});
+
 describe("toShareState", () => {
-  const state = toShareState(project, [comment], [snapshot]);
+  const state = toShareState(project, [comment], [snapshot], []);
 
   it("sends no secrets or local keys, and fits the server's schema", () => {
     expect(JSON.stringify(state)).not.toMatch(/blobKey|ownerKey|token|projectId/);
@@ -79,6 +126,7 @@ describe("toShareState", () => {
       project,
       [{ ...comment, mine: true, team: true, authorAvatar: avatar }],
       [snapshot],
+      [],
     );
     for (const field of ["mine", "team", "authorAvatar"]) {
       expect(own.comments[0]).not.toHaveProperty(field);
@@ -111,6 +159,7 @@ describe("toShareState", () => {
         { ...pageComment, fromClient: true, clientInfo },
       ],
       [snapshot],
+      [],
     );
     expect(JSON.stringify(pushed)).not.toMatch(/clientInfo|Mozilla/);
     // The same push as without them, so the manifest's digests don't change either.
@@ -118,13 +167,14 @@ describe("toShareState", () => {
       project,
       [comment, { ...pageComment, fromClient: true }],
       [snapshot],
+      [],
     );
     expect(pushed).toEqual(without);
   });
 
   it("keeps a pulled comment's browser details in the workspace", () => {
     const clientInfo = { userAgent: "Mozilla/5.0", dpr: 3 };
-    const [shared] = toShareState(project, [pageComment], []).comments;
+    const [shared] = toShareState(project, [pageComment], [], []).comments;
     if (!shared) throw new Error("no comment");
     expect(fromSharedComment({ ...shared, clientInfo }, "p1")).toEqual({
       ...pageComment,
@@ -133,7 +183,7 @@ describe("toShareState", () => {
   });
 
   it("carries each comment's page", () => {
-    const [shared] = toShareState(project, [pageComment], []).comments;
+    const [shared] = toShareState(project, [pageComment], [], []).comments;
     expect(shared).toMatchObject({ id: "c2", pageId: "pg2" });
     if (!shared) throw new Error("no comment");
     expect(fromSharedComment(shared, "p1")).toEqual(pageComment);
@@ -167,7 +217,7 @@ describe("toShareState", () => {
       ...project,
       source: { ...project.source, pages: [first, { ...second, rev: 2 }] },
     };
-    expect(toShareState(replaced, [], []).project.source).toMatchObject({
+    expect(toShareState(replaced, [], [], []).project.source).toMatchObject({
       pages: [{ id: "page-1" }, { id: "pg2", rev: 2 }],
     });
     expect(localBlobKey("page:pg2:2", replaced)).toBe("page:pg2");

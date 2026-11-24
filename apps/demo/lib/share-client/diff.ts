@@ -4,6 +4,10 @@ import type { ShareChange, ShareManifest, ShareState } from "../share/types";
 
 type Changes = Omit<ShareChange, "cursor">;
 
+/** What a batch upserts, in the order they're sent. */
+const UPSERTS = ["snapshots", "comments", "replies"] as const;
+type Upserts = (typeof UPSERTS)[number];
+
 /** What differs between the owner's state and the server's manifest. */
 export function diffState(local: ShareState, manifest: ShareManifest): Changes {
   const changed = <T extends { id: string }>(
@@ -21,8 +25,10 @@ export function diffState(local: ShareState, manifest: ShareManifest): Changes {
     ...(digest(local.project) !== manifest.project ? { project: local.project } : {}),
     snapshots: changed(local.snapshots, manifest.snapshots),
     comments: changed(local.comments, manifest.comments),
+    replies: changed(local.replies, manifest.replies),
     deleteSnapshots: gone(local.snapshots, manifest.snapshots),
     deleteComments: gone(local.comments, manifest.comments),
+    deleteReplies: gone(local.replies, manifest.replies),
   };
 }
 
@@ -31,15 +37,18 @@ export function isEmpty(changes: Changes): boolean {
     !changes.project &&
     changes.snapshots.length === 0 &&
     changes.comments.length === 0 &&
+    changes.replies.length === 0 &&
     changes.deleteSnapshots.length === 0 &&
-    changes.deleteComments.length === 0
+    changes.deleteComments.length === 0 &&
+    changes.deleteReplies.length === 0
   );
 }
 
 /**
  * Splits changes into requests of at most `maxBytes` of JSON each. The first
  * carries the project and every delete (ids are small); upserts fill batches
- * in order. None when nothing changed.
+ * in order: snapshots, comments, then replies, so a reply's comment always
+ * reaches the server in the same batch or an earlier one. None when nothing changed.
  */
 export function batchChange(
   changes: Changes,
@@ -50,8 +59,10 @@ export function batchChange(
   const empty = (): ShareChange => ({
     snapshots: [],
     comments: [],
+    replies: [],
     deleteSnapshots: [],
     deleteComments: [],
+    deleteReplies: [],
     cursor,
   });
   const first: ShareChange = {
@@ -59,16 +70,14 @@ export function batchChange(
     ...(changes.project ? { project: changes.project } : {}),
     deleteSnapshots: changes.deleteSnapshots,
     deleteComments: changes.deleteComments,
+    deleteReplies: changes.deleteReplies,
   };
   const batches = [first];
   let size = JSON.stringify(first).length;
-  const add = (
-    kind: "snapshots" | "comments",
-    item: ShareChange["comments"][number] | ShareChange["snapshots"][number],
-  ) => {
+  const add = <Kind extends Upserts>(kind: Kind, item: ShareChange[Kind][number]) => {
     const itemSize = JSON.stringify(item).length + 1;
     let batch = batches[batches.length - 1] ?? first;
-    if (size + itemSize > maxBytes && (batch.snapshots.length || batch.comments.length)) {
+    if (size + itemSize > maxBytes && UPSERTS.some((upserts) => batch[upserts].length)) {
       batch = empty();
       batches.push(batch);
       size = JSON.stringify(batch).length;
@@ -78,5 +87,6 @@ export function batchChange(
   };
   for (const snapshot of changes.snapshots) add("snapshots", snapshot);
   for (const comment of changes.comments) add("comments", comment);
+  for (const reply of changes.replies) add("replies", reply);
   return batches;
 }

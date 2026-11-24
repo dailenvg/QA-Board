@@ -98,10 +98,28 @@ export const commentSchema = z.object({
   editedAt: time.optional(),
 });
 
+/**
+ * A reply as the owner pushes it, the owner's timestamps included. Nothing
+ * else of it ever reaches a link: unknown keys (whose it is, the author's
+ * photo, the browser it was posted from) are dropped.
+ */
+export const replySchema = z.object({
+  id,
+  commentId: id,
+  body: text(SHARE_LIMITS.body),
+  author: text(SHARE_LIMITS.author),
+  createdAt: time,
+  editedAt: time.optional(),
+});
+
+/** Replies a push carries; none from a browser that predates them. */
+const repliesSchema = z.array(replySchema).max(SHARE_LIMITS.replies).default([]);
+
 export const stateSchema = z.object({
   project: projectSchema,
   snapshots: z.array(snapshotSchema).max(SHARE_LIMITS.snapshots),
   comments: z.array(commentSchema).max(SHARE_LIMITS.comments),
+  replies: repliesSchema,
 });
 
 /**
@@ -112,8 +130,10 @@ export const changeSchema = z.object({
   project: projectSchema.optional(),
   snapshots: z.array(snapshotSchema).max(SHARE_LIMITS.snapshots).default([]),
   comments: z.array(commentSchema).max(SHARE_LIMITS.comments).default([]),
+  replies: repliesSchema,
   deleteSnapshots: z.array(id).max(SHARE_LIMITS.snapshots).default([]),
   deleteComments: z.array(id).max(SHARE_LIMITS.comments).default([]),
+  deleteReplies: z.array(id).max(SHARE_LIMITS.replies).default([]),
   cursor: z.number().int().nonnegative(),
 });
 

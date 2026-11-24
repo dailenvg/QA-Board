@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COMMENT, JPEG, PNG, SNAPSHOT, STATE } from "@/test/share-fixture";
+import { COMMENT, JPEG, PNG, REPLY, SNAPSHOT, STATE } from "@/test/share-fixture";
 import { inlineBackend } from "./blob-backend";
 import { createMemoryStore } from "./memory-store";
 import { DELETION_NOTICE_MS, RETENTION_MS } from "./retention";
@@ -688,6 +688,156 @@ describe("owner changes", () => {
   });
 });
 
+describe("replies", () => {
+  const WITH_REPLY: ShareState = { ...STATE, replies: [REPLY] };
+
+  async function withReply() {
+    const services: ShareServices = { store: createMemoryStore(), blobs: inlineBackend };
+    const created = await createShare(services, WITH_REPLY, 100);
+    const share = await ownerShare(services.store, created.shareId, created.ownerKey, 100);
+    if (!share) throw new Error("no share");
+    return { services, share };
+  }
+
+  const viewReplies = async ({ services, share }: Awaited<ReturnType<typeof withReply>>) =>
+    (await clientView(services.store, share, GUEST_TOKEN)).replies;
+
+  const manifestOf = ({ services, share }: Awaited<ReturnType<typeof withReply>>) =>
+    shareManifest(services.store, share);
+  const emptyChange = () => ({
+    snapshots: [],
+    comments: [],
+    replies: [],
+    deleteSnapshots: [],
+    deleteComments: [],
+    deleteReplies: [],
+    cursor: 0,
+  });
+
+  /** A guest's reply as the store keeps one: beside its browser details. */
+  const clientInfo = { userAgent: "Mozilla/5.0 (Guest)", viewport: { width: 390, height: 844 } };
+  async function guestReply(services: ShareServices, share: ShareRecord, id: string) {
+    const reply = { ...REPLY, id, author: "Cleo", body: "Thanks!" };
+    expect(await services.store.insertReply(share.id, reply, "client", clientInfo)).toBe(true);
+    return reply;
+  }
+
+  it("come with a new link, and its manifest digests them as the owner's browser does", async () => {
+    const shared = await withReply();
+    expect(await viewReplies(shared)).toEqual([REPLY]);
+    const manifest = await shareManifest(shared.services.store, shared.share);
+    expect(manifest.replies).toHaveLength(1);
+    expect(batchChange(diffState(WITH_REPLY, manifest), 0)).toEqual([]);
+    const edited = { ...WITH_REPLY, replies: [{ ...REPLY, body: "Done.", editedAt: 4_000 }] };
+    const [batch, ...rest] = batchChange(diffState(edited, manifest), 0);
+    expect(rest).toEqual([]);
+    expect(batch?.replies.map((reply) => reply.body)).toEqual(["Done."]);
+    expect(batch?.comments).toEqual([]);
+  });
+
+  it("go after their comments, in one batch or a later one, so a new comment's reply lands", async () => {
+    const shared = await withReply();
+    const comment = { ...COMMENT, id: "c-2", body: "x".repeat(2000) };
+    const reply = { ...REPLY, id: "r-2", commentId: "c-2" };
+    const state = { ...WITH_REPLY, comments: [COMMENT, comment], replies: [REPLY, reply] };
+    const manifest = await shareManifest(shared.services.store, shared.share);
+    const changes = diffState(state, manifest);
+    const [one] = batchChange(changes, 0);
+    expect(one).toMatchObject({ comments: [comment], replies: [reply] });
+    // Room for the comment alone: its reply goes in the next batch.
+    const small = batchChange(changes, 0, JSON.stringify({ ...one, replies: [] }).length + 1);
+    expect(small.map((batch) => [batch.comments.length, batch.replies.length])).toEqual([
+      [1, 0],
+      [0, 1],
+    ]);
+    for (const batch of small) {
+      expect((await applyChanges(shared.services, shared.share, batch, 200)).ok).toBe(true);
+    }
+    expect(await viewReplies(shared)).toEqual([REPLY, reply]);
+  });
+
+  it("never outlive their comment, and never land without it", async () => {
+    const shared = await withReply();
+    const orphan = { ...REPLY, id: "r-2", commentId: "not-shared" };
+    const pushed = await pushState(
+      shared.services,
+      shared.share,
+      { ...WITH_REPLY, replies: [REPLY, orphan] },
+      0,
+      200,
+    );
+    expect(pushed.ok).toBe(true);
+    expect(await viewReplies(shared)).toEqual([REPLY]);
+    await pushState(shared.services, shared.share, { ...STATE, comments: [] }, 0, 300);
+    expect(await viewReplies(shared)).toEqual([]);
+  });
+
+  it("delete the owner's left out, and a client's only once pulled, as comments do", async () => {
+    const shared = await withReply();
+    const { services, share } = shared;
+    const posted = await guestReply(services, share, "k-1");
+    const [row] = (await services.store.replies(share.id)).filter((r) => r.item.id === "k-1");
+    const seq = row?.seq ?? Infinity;
+    // Pushed before pulling, without either: the owner's goes, the client's stays.
+    await pushState(services, share, STATE, seq - 1, 200);
+    expect(await viewReplies(shared)).toEqual([posted]);
+    // Pushed after pulling, without it: the owner deleted it.
+    await pushState(services, share, STATE, seq, 300);
+    expect(await viewReplies(shared)).toEqual([]);
+  });
+
+  it("never change a client's reply, whatever a tab pushes", async () => {
+    const shared = await withReply();
+    const posted = await guestReply(shared.services, shared.share, "k-1");
+    const stale = { ...posted, body: "Words the client never wrote", author: "Someone" };
+    const state = { ...WITH_REPLY, replies: [REPLY, stale] };
+    expect((await pushState(shared.services, shared.share, state, 0, 200)).ok).toBe(true);
+    expect(await viewReplies(shared)).toEqual([REPLY, posted]);
+  });
+
+  it("go by the last push: a stale tab brings back a reply deleted in another (R1)", async () => {
+    const shared = await withReply();
+    await pushState(shared.services, shared.share, STATE, 0, 200);
+    expect(await viewReplies(shared)).toEqual([]);
+    await pushState(shared.services, shared.share, WITH_REPLY, 0, 300);
+    expect(await viewReplies(shared)).toEqual([REPLY]);
+  });
+
+  it("refuse a push that would take a link past 5000 replies, deletes counted", async () => {
+    const shared = await withReply();
+    const replies = Array.from({ length: SHARE_LIMITS.replies }, (_, index) => ({
+      ...REPLY,
+      id: `n-${index}`,
+    }));
+    const [leftOut] = batchChange(diffState(STATE, await manifestOf(shared)), 0);
+    const full = { ...emptyChange(), replies };
+    expect(await applyChanges(shared.services, shared.share, full, 200)).toMatchObject({
+      ok: false,
+      status: 413,
+      error: "share-full",
+    });
+    expect(await viewReplies(shared)).toEqual([REPLY]);
+    // The same replies, with the one there now left out of the push: the link stays at 5000.
+    expect(leftOut?.deleteReplies).toEqual(["r-1"]);
+    const replacing = { ...full, deleteReplies: leftOut?.deleteReplies ?? [] };
+    expect((await applyChanges(shared.services, shared.share, replacing, 200)).ok).toBe(true);
+    expect(await viewReplies(shared)).toHaveLength(SHARE_LIMITS.replies);
+  });
+
+  it("reach the guest without browser details, and a client's says nothing of the team", async () => {
+    const shared = await withReply();
+    await guestReply(shared.services, shared.share, "k-1");
+    const replies = await viewReplies(shared);
+    expect(replies.map((reply) => reply.id)).toEqual(["r-1", "k-1"]);
+    expect(JSON.stringify(replies)).not.toMatch(/clientInfo|Mozilla|viewport/);
+    for (const reply of replies) {
+      for (const field of ["team", "authorAvatar", "clientInfo"]) {
+        expect(reply).not.toHaveProperty(field);
+      }
+    }
+  });
+});
+
 describe("page projects", () => {
   const PAGES: ShareState = {
     project: {
@@ -704,6 +854,7 @@ describe("page projects", () => {
     },
     snapshots: [SNAPSHOT],
     comments: [{ ...COMMENT, id: "o-1", snapshotId: undefined, crop: undefined, pageId: "p2" }],
+    replies: [],
   };
 
   async function pagesShared() {

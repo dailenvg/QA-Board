@@ -17,6 +17,7 @@ import { addFolder, NOW, PNG, TEST_AUTH_SECRET, URL_PROJECT } from "@/test/works
 import { call } from "@/test/workspace-routes";
 import type { Database } from "../db/database";
 import { addComment } from "../workspace/comments";
+import { addReply } from "../workspace/replies";
 import { personKey } from "../workspace/members/person-key";
 import { createProject, trashProject } from "../workspace/projects";
 import { attachShare } from "../workspace/share-links";
@@ -27,7 +28,7 @@ import { OWNER_KEY_HEADER } from "./http-headers";
 import { createPostgresStore } from "./postgres-store";
 import { addClientComment, clientShare, clientView, createShare } from "./service";
 import { SHARE_PERSON_KEY, shareAvatarVersion, sharePersonKey } from "./share-people";
-import type { ClientComment, CreatedShare, SharedComment } from "./types";
+import type { ClientComment, CreatedShare, SharedComment, SharedReply } from "./types";
 
 /**
  * The team on a review link (4.11): which comments say they're the team's,
@@ -273,6 +274,119 @@ describe("a review link's team", () => {
     await trashProject(world.db, world.workspaceId, "p1", NOW);
     expect(await store.teamAuthors(created.shareId)).toEqual(new Map());
     expect(await createMemoryStore().teamAuthors("any")).toEqual(new Map());
+  });
+});
+
+describe("a review link's team, in replies", () => {
+  const sharedReply = (id: string, commentId: string): SharedReply => ({
+    id,
+    commentId,
+    body: `Reply ${id}`,
+    author: "Someone",
+    createdAt: NOW,
+  });
+
+  /**
+   * On project p1's link (comments c-ana and c-k): Ben's reply r-ben, a
+   * client's reply r-k pulled into the workspace, and r-new, which the
+   * workspace doesn't have, all pushed by the owner.
+   */
+  async function linkedReplies() {
+    const created = await linkedProject("p1", { "c-ana": world.owner, "c-k": null });
+    const posted = await addReply(
+      world.db,
+      world.workspaceId,
+      "p1",
+      "c-k",
+      { id: "r-ben", body: "On it", author: "Ben" },
+      { kind: "team", userId: ben.user.id },
+      NOW,
+    );
+    expect(posted.ok).toBe(true);
+    await world.db.query(
+      `INSERT INTO comment_replies (project_id, comment_id, id, body, author_name, origin)
+       VALUES ('p1', 'c-ana', 'r-k', 'Thanks', 'Cleo', 'client')`,
+    );
+    const { store } = services();
+    const pushed = [
+      sharedReply("r-ben", "c-k"),
+      sharedReply("r-k", "c-ana"),
+      sharedReply("r-new", "c-ana"),
+    ];
+    for (const reply of pushed) await store.upsertReply(created.shareId, reply);
+    return created;
+  }
+
+  it("marks the team's replies, with an avatar for members who have one, and no one else's", async () => {
+    const benAvatar = await inlineAvatar(ben);
+    const created = await linkedReplies();
+    const { replies } = await guestView(created);
+    const benReply = replies.find((reply) => reply.id === "r-ben");
+    expect(benReply).toMatchObject({ team: true });
+    expect(avatarParts(benReply?.authorAvatar)).toEqual({
+      key: sharePersonKey(created.shareId, ben.user.id),
+      version: shareAvatarVersion(created.shareId, benAvatar),
+    });
+    // A client's reply, even pushed back by the owner, and one the workspace doesn't know.
+    expect(replies.find((reply) => reply.id === "r-k")).toEqual(sharedReply("r-k", "c-ana"));
+    expect(replies.find((reply) => reply.id === "r-new")).toEqual(sharedReply("r-new", "c-ana"));
+    const wire = JSON.stringify(replies);
+    for (const secret of [ben.user.id, ben.user.email, benAvatar, world.workspaceId]) {
+      expect(wire).not.toContain(secret);
+    }
+  });
+
+  it("keeps a removed author on the team without an avatar, and is empty once the project is in the trash", async () => {
+    await inlineAvatar(ben);
+    const created = await linkedReplies();
+    await removeMember(world.db, ben.user.id, world.workspaceId, Date.now());
+    const { replies } = await guestView(created);
+    expect(replies.find((reply) => reply.id === "r-ben")).toEqual({
+      ...sharedReply("r-ben", "c-k"),
+      team: true,
+    });
+    const { store } = services();
+    expect([...(await store.teamReplyAuthors(created.shareId)).keys()]).toEqual(["r-ben"]);
+    await trashProject(world.db, world.workspaceId, "p1", NOW);
+    expect(await store.teamReplyAuthors(created.shareId)).toEqual(new Map());
+  });
+
+  it("can't be planted by the owner's push: what it says of a reply's author is dropped", async () => {
+    const created = await linkedReplies();
+    const planted = {
+      ...sharedReply("r-new", "c-ana"),
+      body: "Pushed again",
+      team: true,
+      authorAvatar: `/api/s/${created.token}/people/${"A".repeat(22)}/avatar?v=1`,
+      clientInfo: { userAgent: "Mozilla/5.0" },
+    };
+    const pushed = await pushRoute.PATCH(
+      new Request(`http://localhost:3000/api/shares/${created.shareId}`, {
+        method: "PATCH",
+        headers: {
+          host: "localhost:3000",
+          origin: "http://localhost:3000",
+          "content-type": "application/json",
+          "x-forwarded-for": "203.0.113.248",
+          cookie: world.owner.cookie,
+          [OWNER_KEY_HEADER]: created.ownerKey,
+        },
+        body: JSON.stringify({ replies: [planted], cursor: 0 }),
+      }),
+      { params: Promise.resolve({ shareId: created.shareId }) },
+    );
+    expect(pushed.status).toBe(200);
+    const { replies } = await guestView(created);
+    expect(replies.find((reply) => reply.id === "r-new")).toEqual({
+      ...sharedReply("r-new", "c-ana"),
+      body: "Pushed again",
+    });
+    const { rows } = await world.db.query<{ data: unknown; client_info: unknown }>(
+      "SELECT data, client_info FROM squint_share_replies WHERE id = 'r-new'",
+    );
+    expect(rows).toEqual([
+      { data: { ...sharedReply("r-new", "c-ana"), body: "Pushed again" }, client_info: null },
+    ]);
   });
 });
 

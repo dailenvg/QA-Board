@@ -1,7 +1,7 @@
 import { PGlite } from "@electric-sql/pglite";
 import { describe, expect, it } from "vitest";
 import { readdirSync } from "node:fs";
-import { COMMENT, JPEG, PNG, RECORD, SNAPSHOT, STATE } from "@/test/share-fixture";
+import { COMMENT, JPEG, PNG, RECORD, REPLY, SNAPSHOT, STATE } from "@/test/share-fixture";
 import { storeBefore035 } from "@/test/legacy-share-store";
 import { adaptPglite, migratedPglite } from "@/test/pglite";
 import { toShareState } from "../share-client/share-state";
@@ -261,10 +261,103 @@ describe.each(stores)("%s share store", (_name, make) => {
     const store = await make();
     await store.create(RECORD);
     await store.upsertComment(RECORD.id, COMMENT, "owner");
+    await store.upsertReply(RECORD.id, REPLY);
     expect(await store.teamAuthors(RECORD.id)).toEqual(new Map());
     expect(await store.teamAuthors("no-such-share")).toEqual(new Map());
+    expect(await store.teamReplyAuthors(RECORD.id)).toEqual(new Map());
     expect(await store.teamAvatar(RECORD.id, "A".repeat(22))).toBeNull();
     expect(await store.teamAvatar(RECORD.id, "not-a-key")).toBeNull();
+  });
+
+  it("keeps an owner's reply under its comment, on the share's sequence, replaced in place", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    await store.upsertComment(RECORD.id, COMMENT, "owner");
+    await store.upsertReply(RECORD.id, REPLY);
+    const [comment] = await store.comments(RECORD.id);
+    const [before] = await store.replies(RECORD.id);
+    expect({ ...before, seq: 0 }).toEqual({ item: REPLY, origin: "owner", seq: 0 });
+    expect(before?.seq).toBeGreaterThan(comment?.seq ?? Infinity);
+    const edited = { ...REPLY, body: "Done.", editedAt: 4_000 };
+    await store.upsertReply(RECORD.id, edited);
+    expect(await store.replies(RECORD.id)).toEqual([{ ...before, item: edited }]);
+    await store.upsertReply(RECORD.id, { ...REPLY, id: "r-2", createdAt: 3_500 });
+    expect((await store.replies(RECORD.id)).map((row) => row.item.id)).toEqual(["r-1", "r-2"]);
+  });
+
+  it("never lets an owner's push change a client's reply, or move a reply to another comment", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    await store.upsertComment(RECORD.id, COMMENT, "owner");
+    await store.upsertComment(RECORD.id, { ...COMMENT, id: "c-2" }, "owner");
+    const posted = { ...REPLY, id: "k-1", author: "Cleo" };
+    expect(await store.insertReply(RECORD.id, posted, "client")).toBe(true);
+    await store.upsertReply(RECORD.id, REPLY);
+    const before = await store.replies(RECORD.id);
+    await store.upsertReply(RECORD.id, { ...posted, body: "Old words", author: "Someone" });
+    await store.upsertReply(RECORD.id, { ...REPLY, commentId: "c-2", body: "Moved" });
+    expect(await store.replies(RECORD.id)).toEqual(before);
+    expect(before.map((row) => [row.item.id, row.origin])).toEqual([
+      ["k-1", "client"],
+      ["r-1", "owner"],
+    ]);
+    expect(await store.insertReply(RECORD.id, { ...posted, commentId: "c-2" }, "client")).toBe(
+      false,
+    );
+  });
+
+  it("refuses a reply without its comment: unknown, or still being posted", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    await store.upsertReply(RECORD.id, REPLY);
+    expect(await store.insertReply(RECORD.id, REPLY, "client")).toBe(false);
+    const claim = { claim: "n-1", cropKey: "crop:c-1:n-1" };
+    await store.insertComment(RECORD.id, COMMENT, "client", claim);
+    await store.upsertReply(RECORD.id, REPLY);
+    expect(await store.insertReply(RECORD.id, REPLY, "client")).toBe(false);
+    expect(await store.replies(RECORD.id)).toEqual([]);
+    await store.confirmComment(RECORD.id, COMMENT.id, "n-1");
+    expect(await store.insertReply(RECORD.id, REPLY, "client")).toBe(true);
+    expect(await store.replies("no-such-share")).toEqual([]);
+  });
+
+  it("deletes replies by id, with their comment, and with the share", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    for (const id of ["c-1", "c-2"]) {
+      await store.upsertComment(RECORD.id, { ...COMMENT, id }, "owner");
+    }
+    for (const [id, commentId] of [
+      ["r-1", "c-1"],
+      ["r-2", "c-1"],
+      ["r-3", "c-2"],
+      ["r-4", "c-2"],
+    ] as const) {
+      await store.upsertReply(RECORD.id, { ...REPLY, id, commentId });
+    }
+    const ids = async () => (await store.replies(RECORD.id)).map((row) => row.item.id);
+    await store.deleteReplies(RECORD.id, ["r-2", "unknown"]);
+    expect(await ids()).toEqual(["r-1", "r-3", "r-4"]);
+    await store.deleteComments(RECORD.id, ["c-1"]);
+    expect(await ids()).toEqual(["r-3", "r-4"]);
+    // A comment that comes back has no replies until they're pushed again.
+    await store.upsertComment(RECORD.id, COMMENT, "owner");
+    expect(await ids()).toEqual(["r-3", "r-4"]);
+    await store.remove(RECORD.id);
+    expect(await store.replies(RECORD.id)).toEqual([]);
+  });
+
+  it("keeps a client's browser details beside the reply, never in it", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    await store.upsertComment(RECORD.id, COMMENT, "owner");
+    const clientInfo = { userAgent: "Mozilla/5.0", viewport: { width: 390, height: 844 }, dpr: 3 };
+    await store.insertReply(RECORD.id, { ...REPLY, id: "k-1" }, "client", clientInfo);
+    await store.insertReply(RECORD.id, { ...REPLY, id: "k-2" }, "client");
+    const [posted, plain] = await store.replies(RECORD.id);
+    expect(posted?.clientInfo).toEqual(clientInfo);
+    expect(posted?.item).not.toHaveProperty("clientInfo");
+    expect(plain).not.toHaveProperty("clientInfo");
   });
 
   it("stores blobs, lists sizes, and deletes rows", async () => {
@@ -485,7 +578,7 @@ describe("migrate", () => {
     if (!parsed.ok) throw new Error(parsed.reason);
     const [local] = parsed.data.projects;
     if (!local) throw new Error("no project");
-    const pushed = toShareState(local, parsed.data.comments, []);
+    const pushed = toShareState(local, parsed.data.comments, [], []);
     // Apart from the project's creation time, which browsers now add (pushed once, for retention).
     const { createdAt: _created, ...pushedProject } = pushed.project;
     expect(digest(pushedProject)).toBe(digest(project));

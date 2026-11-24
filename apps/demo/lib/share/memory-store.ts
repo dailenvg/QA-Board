@@ -6,6 +6,7 @@ import type {
   Origin,
   Sequenced,
   SharedComment,
+  SharedReply,
   SharedSnapshot,
   ShareRecord,
   StoredBlob,
@@ -15,6 +16,7 @@ interface Entry {
   record: ShareRecord;
   snapshots: Map<string, Sequenced<SharedSnapshot>>;
   comments: Map<string, Sequenced<SharedComment>>;
+  replies: Map<string, Sequenced<SharedReply>>;
   blobs: Map<string, StoredBlob>;
   parts: Map<string, Map<number, Uint8Array>>;
   /** Pending comment ids, and the claim holding each. */
@@ -47,6 +49,20 @@ export function createMemoryStore(): ShareStore {
     map.set(item.id, existing ? { ...existing, item } : { item, origin, seq: (seq += 1) });
   };
 
+  /** A visible comment of the share, as a reply needs its parent to be. */
+  const visibleComment = (entry: Entry | undefined, commentId: string) =>
+    Boolean(entry?.comments.has(commentId) && !entry.pending.has(commentId));
+
+  /** Deletes a comment with everything under it: its replies, as the foreign key cascades. */
+  const dropComment = (entry: Entry | undefined, commentId: string) => {
+    entry?.comments.delete(commentId);
+    entry?.pending.delete(commentId);
+    entry?.editKeys.delete(commentId);
+    for (const [replyId, row] of entry?.replies ?? []) {
+      if (row.item.commentId === commentId) entry?.replies.delete(replyId);
+    }
+  };
+
   /** A visible client comment's row, as `CLIENT_ROW` finds it in Postgres. */
   const clientRow = (entry: Entry | undefined, commentId: string) => {
     const row = entry?.comments.get(commentId);
@@ -66,6 +82,7 @@ export function createMemoryStore(): ShareStore {
         record,
         snapshots: new Map(),
         comments: new Map(),
+        replies: new Map(),
         blobs: new Map(),
         parts: new Map(),
         pending: new Map(),
@@ -107,6 +124,7 @@ export function createMemoryStore(): ShareStore {
     brandOf: () => done(SQUINT_BRAND),
     brandLogo: () => done(null),
     teamAuthors: () => done(new Map()),
+    teamReplyAuthors: () => done(new Map()),
     teamAvatar: () => done(null),
     snapshots(id, options) {
       const entry = shares.get(id);
@@ -212,9 +230,7 @@ export function createMemoryStore(): ShareStore {
     deleteClaim(id, commentId, claim) {
       const entry = shares.get(id);
       if (!entry || entry.pending.get(commentId) !== claim) return done(false);
-      entry.pending.delete(commentId);
-      entry.comments.delete(commentId);
-      entry.editKeys.delete(commentId);
+      dropComment(entry, commentId);
       return done(true);
     },
     cropKeyOf(id, commentId) {
@@ -234,11 +250,7 @@ export function createMemoryStore(): ShareStore {
           (commentId === undefined || pendingId === commentId) &&
           (entry?.comments.get(pendingId)?.item.createdAt ?? Infinity) < cutoff,
       );
-      for (const staleId of stale) {
-        entry?.pending.delete(staleId);
-        entry?.comments.delete(staleId);
-        entry?.editKeys.delete(staleId);
-      }
+      for (const staleId of stale) dropComment(entry, staleId);
       return done(stale);
     },
     deleteSnapshots(id, ids) {
@@ -249,11 +261,37 @@ export function createMemoryStore(): ShareStore {
       return done(undefined);
     },
     deleteComments(id, ids) {
-      for (const commentId of ids) {
-        shares.get(id)?.comments.delete(commentId);
-        shares.get(id)?.pending.delete(commentId);
-        shares.get(id)?.editKeys.delete(commentId);
+      for (const commentId of ids) dropComment(shares.get(id), commentId);
+      return done(undefined);
+    },
+    replies: (id) => done([...(shares.get(id)?.replies.values() ?? [])].sort(bySeq)),
+    upsertReply(id, reply) {
+      const entry = shares.get(id);
+      const existing = entry?.replies.get(reply.id);
+      // As `UPSERT_REPLY`: only under a visible comment, and never over a client's row or a
+      // reply to another comment.
+      const kept =
+        existing && (existing.origin === "client" || existing.item.commentId !== reply.commentId);
+      if (entry && visibleComment(entry, reply.commentId) && !kept) {
+        upsert(entry.replies, reply, "owner");
       }
+      return done(undefined);
+    },
+    insertReply(id, reply, origin, clientInfo) {
+      const entry = shares.get(id);
+      if (!entry || entry.replies.has(reply.id) || !visibleComment(entry, reply.commentId)) {
+        return done(false);
+      }
+      entry.replies.set(reply.id, {
+        item: reply,
+        origin,
+        seq: (seq += 1),
+        ...(clientInfo ? { clientInfo } : {}),
+      });
+      return done(true);
+    },
+    deleteReplies(id, ids) {
+      for (const replyId of ids) shares.get(id)?.replies.delete(replyId);
       return done(undefined);
     },
     blobSizes: (id) =>
