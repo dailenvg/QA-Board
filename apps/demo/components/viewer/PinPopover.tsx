@@ -4,7 +4,8 @@ import { motion, useIsPresent } from "motion/react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { usePopVariants } from "@/lib/motion";
 import { absoluteTime, relativeTime } from "@/lib/relative-time";
-import type { Comment } from "@/lib/store/types";
+import type { Comment, Reply } from "@/lib/store/types";
+import { useDockAboveKeyboard } from "@/lib/use-fit-above-keyboard";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
@@ -14,7 +15,12 @@ import { CommentBadge } from "./CommentBadge";
 import { CommentEdited } from "./CommentEdited";
 import { CommentMoreMenu } from "./CommentMoreMenu";
 import { CommentTeamNote } from "./CommentTeamNote";
+import { CommentThread } from "./CommentThread";
+import { useCommentThreads } from "./comment-threads";
 import { PlacementChip } from "./PlacementChip";
+import { canReply } from "./reply-rights";
+import { ReplyComposer } from "./ReplyComposer";
+import { useOverflowing } from "./use-overflowing";
 import type { Placement } from "./surface";
 
 interface PinPopoverProps {
@@ -47,6 +53,21 @@ const MARGIN = 8;
 const PIN_WIDTH = 44;
 /** How far above the pin's point its marker's top sits. */
 const PIN_HEAD = 36;
+
+const NO_REPLIES: readonly Reply[] = [];
+
+/** The docked popover's cap (`max-h-[50dvh]`), which the keyboard can only lower. */
+const DOCKED_MAX = "50dvh";
+
+/**
+ * The least the docked popover's scroller keeps, in px (its content's height when that's less):
+ * a reply box with its name field and an error can't squeeze the comment and thread out of
+ * sight. The popover itself scrolls should both not fit.
+ */
+const DOCKED_SCROLL_MIN = 96;
+
+/** The thread's hairline (`CommentThread`'s), over the reply box while there's no thread yet. */
+const BOX_RULE = "mt-1 border-t border-line pt-3";
 
 const TRANSLATE = {
   right: "2.75rem",
@@ -99,11 +120,12 @@ function measure(node: HTMLElement, { x, y }: Comment): Side | null {
 /**
  * A pin's comment, opened from the pin: who said it (their avatar, with the
  * company badge for the team) and when, the full text,
- * where it was placed, and (for the team) Resolve or Reopen and the More
- * menu (Get info). A non-modal
+ * where it was placed, and (for the team) Resolve or Reopen, the More
+ * menu (Get info), the whole thread and the reply box (U1). A non-modal
  * dialog beside the pin, flipped (and if need be slid) to stay inside the stage; docked to the
- * bottom on phones, like the composer. Escape, the close button, a click
- * outside or another pin close it.
+ * bottom on phones, like the composer. Between its header and the reply box
+ * it scrolls, so a long thread never pushes either away. Escape, the close
+ * button, a click outside or another pin close it.
  */
 export function PinPopover({
   id,
@@ -127,6 +149,11 @@ export function PinPopover({
   const editedId = useId();
   const placementId = useId();
   const resolved = comment.status === "resolved";
+  const threads = useCommentThreads();
+  const replies = threads?.repliesOf(comment.id) ?? NO_REPLIES;
+  const { boxRef, contentRef, overflowing, contentHeight } = useOverflowing();
+  // Docked, the reply box sits at the bottom of the screen, where a phone's keyboard opens.
+  useDockAboveKeyboard(ref, docked, DOCKED_MAX);
   const onCloseRef = useRef(onClose);
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -153,10 +180,14 @@ export function PinPopover({
     const stage = node.closest("main");
     stage?.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
+    // A reply sent, an editor opened or an error shown makes it taller: it may need the other side.
+    const growth = new ResizeObserver(schedule);
+    growth.observe(node);
     return () => {
       cancelAnimationFrame(frame);
       stage?.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);
+      growth.disconnect();
     };
   }, [docked, comment]);
 
@@ -168,6 +199,8 @@ export function PinPopover({
     const onKeyDown = (event: KeyboardEvent) => {
       // A modal dialog on top (such as a screenshot) handles its own Escape.
       if (event.key !== "Escape" || document.querySelector('[aria-modal="true"]')) return;
+      // A reply's editor in here took this Escape to cancel; the next one closes the popover.
+      if (event.defaultPrevented) return;
       // An open menu in here (More) takes this Escape; the next one closes the popover. Its own
       // stopPropagation can't stop this listener, which sits on the same node as React's.
       if (event.target instanceof Element && event.target.closest('[role="menu"]')) return;
@@ -182,6 +215,10 @@ export function PinPopover({
       const target = event.target as Element | null;
       // Pins handle their own clicks: the same pin toggles, another one switches.
       if (ref.current?.contains(target) || target?.closest("[data-pin-id]")) return;
+      // So does this comment's card, where selecting it moves the thread there in one go (`select`):
+      // its select surface only, so its Resolve, Edit, Delete or More still close the popover.
+      const card = target?.closest(`[data-comment-id="${CSS.escape(comment.id)}"]`);
+      if (card && target?.closest("[data-card-select]")) return;
       onCloseRef.current(false);
     };
     document.addEventListener("keydown", onKeyDown);
@@ -190,7 +227,7 @@ export function PinPopover({
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("pointerdown", onPointerDown);
     };
-  }, []);
+  }, [comment.id]);
 
   const origin = `${side.horizontal === "right" ? "left" : "right"} ${
     side.vertical === "down" ? "top" : "bottom"
@@ -220,13 +257,14 @@ export function PinPopover({
               transformOrigin: origin,
             }
       }
+      data-thread-scope
       className={`${present ? "pointer-events-auto" : "pointer-events-none"} z-40 flex flex-col gap-2 rounded-card bg-panel p-4 pt-2 shadow-pop ring-1 ring-line focus:outline-none ${
         docked
-          ? "fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))]"
-          : "absolute w-76"
+          ? "fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] max-h-[50dvh] overflow-y-auto"
+          : "absolute max-h-[min(36rem,calc(100dvh-6rem))] w-76"
       }`}
     >
-      <div className="-mr-2 flex items-center gap-2">
+      <div className="-mr-2 flex shrink-0 items-center gap-2">
         <span aria-hidden="true" className="flex">
           <CommentBadge comment={comment} number={number} />
         </span>
@@ -271,28 +309,60 @@ export function PinPopover({
           <Icon name="close" className="size-4" />
         </Button>
       </div>
-      <p
-        id={bodyId}
-        className="max-h-60 overflow-y-auto text-body break-words whitespace-pre-wrap text-ink-2"
+      {/*
+       * The comment, its actions and its thread, scrolling once they outgrow the popover (a long
+       * thread, a phone's half screen) and clipping nothing until then, so a menu can spill out.
+       * Its padding keeps focus rings off its edges; a menu in it opens where there's room.
+       */}
+      <div
+        ref={boxRef}
+        data-menu-bounds
+        style={docked ? { minHeight: Math.min(contentHeight, DOCKED_SCROLL_MIN) } : undefined}
+        className={`-mx-4 -my-1 min-h-0 ${overflowing ? "overflow-y-auto" : "overflow-visible"}`}
       >
-        {comment.body}
-      </p>
-      <CommentEdited id={editedId} editedAt={comment.editedAt} now={now} />
-      {placement ? <PlacementChip id={placementId} placement={placement} now={now} /> : null}
-      {canModerate || onGetInfo ? (
-        <div className="flex items-center justify-end gap-1 pt-1">
-          {!canModerate ? null : resolved ? (
-            <Button variant="secondary" size="sm" onClick={() => onReopen(comment.id)}>
-              <Icon name="undo" className="size-4" />
-              Reopen
-            </Button>
-          ) : (
-            <Button variant="secondary" size="sm" onClick={() => onResolve(comment.id)}>
-              <Icon name="check" className="size-4" />
-              Resolve
-            </Button>
-          )}
-          {onGetInfo ? <CommentMoreMenu number={number} onGetInfo={onGetInfo} /> : null}
+        <div ref={contentRef} className="flex flex-col gap-2 px-4 py-1">
+          <p id={bodyId} className="text-body break-words whitespace-pre-wrap text-ink-2">
+            {comment.body}
+          </p>
+          <CommentEdited id={editedId} editedAt={comment.editedAt} now={now} />
+          {placement ? <PlacementChip id={placementId} placement={placement} now={now} /> : null}
+          {canModerate || onGetInfo ? (
+            <div className="flex items-center justify-end gap-1 pt-1">
+              {!canModerate ? null : resolved ? (
+                <Button variant="secondary" size="sm" onClick={() => onReopen(comment.id)}>
+                  <Icon name="undo" className="size-4" />
+                  Reopen
+                </Button>
+              ) : (
+                <Button variant="secondary" size="sm" onClick={() => onResolve(comment.id)}>
+                  <Icon name="check" className="size-4" />
+                  Resolve
+                </Button>
+              )}
+              {onGetInfo ? <CommentMoreMenu number={number} onGetInfo={onGetInfo} /> : null}
+            </div>
+          ) : null}
+          {threads ? (
+            <CommentThread
+              replies={replies}
+              number={number}
+              threads={threads}
+              surface="panel"
+              now={now}
+              className="mt-1 border-t border-line pt-3"
+            />
+          ) : null}
+        </div>
+      </div>
+      {threads && canReply(threads.viewer) ? (
+        // Before any reply, the thread's rule (12px either side) sits over the box, as on a card.
+        <div className={`shrink-0 ${replies.length > 0 ? "pt-1" : BOX_RULE}`}>
+          <ReplyComposer
+            authorName={threads.authorName}
+            onSend={(draft) => threads.send(comment, draft)}
+            initialBody={threads.draftOf(comment.id)}
+            onDraftChange={(body) => threads.keepDraft(comment.id, body)}
+          />
         </div>
       ) : null}
     </motion.div>

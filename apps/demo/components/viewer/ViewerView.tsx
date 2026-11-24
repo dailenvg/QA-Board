@@ -18,9 +18,10 @@ import {
 } from "@/lib/store/breakpoints";
 import { newId } from "@/lib/store/id";
 import { pagesOf } from "@/lib/store/pages";
+import { commentDeleteMode } from "@/lib/store/replies";
 import { commentsFor, pageCounts, pinNumbers } from "@/lib/store/selectors";
 import { countComments, deriveStatus } from "@/lib/store/status";
-import type { Comment, Project, SquintData } from "@/lib/store/types";
+import type { Comment, Project, Reply, SquintData } from "@/lib/store/types";
 import { useDialogState } from "@/lib/use-dialog-state";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { useNow } from "@/lib/use-now";
@@ -41,9 +42,11 @@ import { CanvasLayer } from "./CanvasLayer";
 import { CommentsBody } from "./CommentsBody";
 import { CommentsPanel } from "./CommentsPanel";
 import { commentRights } from "./comment-rights";
-import { DeleteOthersCommentDialog } from "./DeleteOthersCommentDialog";
+import { CommentThreadsContext } from "./comment-threads";
+import { DeleteOthersCommentDialog, type ForGoodComment } from "./DeleteOthersCommentDialog";
+import { DeleteOthersReplyDialog } from "./DeleteOthersReplyDialog";
 import { ExportMenu } from "./ExportMenu";
-import { GetInfoDialog } from "./GetInfoDialog";
+import { GetInfoDialog, type InfoSubject } from "./GetInfoDialog";
 import { rememberedMode, rememberMode } from "./mode-memory";
 import { openingMode } from "./opening-mode";
 import { PageFilter, type PageScope } from "./PageFilter";
@@ -55,6 +58,7 @@ import { useCommentActions } from "./use-comment-actions";
 import { useViewerDraft } from "./use-viewer-draft";
 import { useViewerPage } from "./use-viewer-page";
 import { useViewerSurface } from "./use-viewer-surface";
+import { useViewerThreads } from "./use-viewer-threads";
 import { ViewerStage } from "./ViewerStage";
 import { ViewerTopBar } from "./ViewerTopBar";
 import type { DraftStorage } from "@/lib/share-client/draft-storage";
@@ -95,6 +99,14 @@ interface ViewerViewProps {
 }
 
 type ScrollRequest = { id: string; target: "pin" | "card"; nonce: number } | null;
+
+/** Browser details open on a comment or a reply, by its id, so they close once it's gone. */
+type Inspected = { kind: "comment" | "reply"; id: string; subject: InfoSubject };
+
+/** What Get info reads from a comment or a reply. */
+function infoOf({ clientInfo, fromClient }: Pick<Reply, "clientInfo" | "fromClient">) {
+  return { ...(clientInfo ? { clientInfo } : {}), ...(fromClient ? { fromClient } : {}) };
+}
 
 /**
  * Viewer layout and state: mode, breakpoint, surface, tab, selection, the open
@@ -164,9 +176,9 @@ export function ViewerView({
   const [stageVersion, setStageVersion] = useState(0);
   const [celebrating, celebrate] = useTimedFlag(CELEBRATION_MS);
   const deleting = useDialogState<Comment>();
-  const moderating = useDialogState<Comment>();
-  /** The comment whose browser details are open (Get info, the team's), with its number then. */
-  const inspecting = useDialogState<{ comment: Comment; number: number }>();
+  const moderating = useDialogState<ForGoodComment>();
+  /** Whose browser details are open (Get info, the team's), named as when it opened. */
+  const inspecting = useDialogState<Inspected>();
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const exportMenuRef = useRef<MenuHandle>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -192,13 +204,40 @@ export function ViewerView({
   const stageKey = surfaceKey(surface);
   const comments = useMemo(() => commentsFor(data, project.id), [data, project.id]);
   const numbers = useMemo(() => pinNumbers(comments), [comments]);
-  // A comment deleted while its details are open (here, in another tab, by the owner) takes
-  // them with it; the dialog leaves with the number it was opened with.
-  if (inspecting.open && inspecting.payload && !numbers.has(inspecting.payload.comment.id)) {
+  const viewer = { team: owner, moderator };
+  const replyThreads = useViewerThreads({
+    data,
+    projectId: project.id,
+    backend,
+    viewer,
+    toast,
+    onGetInfo: (reply) =>
+      inspecting.show({
+        kind: "reply",
+        id: reply.id,
+        subject: { ...infoOf(reply), caption: `Reply by ${reply.author}` },
+      }),
+  });
+  // A comment or reply deleted while its details are open (here, in another tab, by the owner)
+  // takes them with it; the dialog leaves named as it was opened.
+  const inspected = inspecting.open ? inspecting.payload : null;
+  if (
+    inspected &&
+    !(inspected.kind === "comment"
+      ? numbers.has(inspected.id)
+      : data.replies.some((reply) => reply.id === inspected.id && reply.projectId === project.id))
+  ) {
     inspecting.close();
   }
   const getInfo = (comment: Comment) =>
-    inspecting.show({ comment, number: numbers.get(comment.id) ?? 0 });
+    inspecting.show({
+      kind: "comment",
+      id: comment.id,
+      subject: {
+        ...infoOf(comment),
+        caption: `Comment ${numbers.get(comment.id) ?? 0} by ${comment.author}`,
+      },
+    });
   const severalPages = pages.total > 1;
   const pageId = pages.page?.id;
   /** A website's comments at the current breakpoint: the only ones it can pin. */
@@ -371,9 +410,10 @@ export function ViewerView({
   const select = (id: string, from: "pin" | "card") => {
     const comment = comments.find((entry) => entry.id === id);
     if (!comment) return;
-    // A second click on a card deselects it, unless its pin is on another surface: then it shows it.
+    // A second click on a card deselects it, unless its pin is on another surface: then it shows
+    // it; or its popover is open: then the thread moves from the popover to the card, which closes it.
     const shown = commentSurfaceKey(comment) === stageKey;
-    const next = selectedId === id && from === "card" && shown ? null : id;
+    const next = selectedId === id && from === "card" && shown && openId !== id ? null : id;
     setSelectedId(next);
     // A pin toggles its popover. On phones and tablets it's the pin's detail view, so the
     // comments sheet stays as it is rather than opening over it.
@@ -502,10 +542,17 @@ export function ViewerView({
     },
   });
 
-  /** Someone else's comment asks first and has no Undo (`commentRights`); the rest have Undo. */
+  /**
+   * Someone else's comment (`commentRights`), or one anyone else replied to (D25), asks first
+   * and has no Undo; the rest have Undo, which brings their own replies back too.
+   */
   const askToDelete = (comment: Comment) => {
-    if (commentRights(comment, { team: owner, moderator }).delete === "confirm") {
-      moderating.show(comment);
+    const replies = replyThreads.byComment.get(comment.id) ?? [];
+    const forGood = { comment, number: numbers.get(comment.id) ?? 0, replyCount: replies.length };
+    if (commentRights(comment, viewer).delete === "confirm") {
+      moderating.show({ ...forGood, reason: "others" });
+    } else if (commentDeleteMode(replies) === "confirm") {
+      moderating.show({ ...forGood, reason: "replied" });
     } else deleting.show(comment);
   };
 
@@ -563,20 +610,22 @@ export function ViewerView({
     return result.ok ? null : result.error;
   };
 
+  // The threads reach the popover and the cards through context (U1); none on a review link.
   const popover = openComment ? (
-    <PinPopover
-      key={openComment.id}
-      id={popoverId}
-      comment={openComment}
-      number={numbers.get(openComment.id) ?? 0}
-      placement={placements.get(openComment.id) ?? null}
-      now={now}
-      canModerate={owner}
-      onResolve={resolveFromPopover}
-      onReopen={commentActions.reopen}
-      onGetInfo={owner ? () => getInfo(openComment) : undefined}
-      onClose={closePopover}
-    />
+    <CommentThreadsContext key={openComment.id} value={replyThreads.value}>
+      <PinPopover
+        id={popoverId}
+        comment={openComment}
+        number={numbers.get(openComment.id) ?? 0}
+        placement={placements.get(openComment.id) ?? null}
+        now={now}
+        canModerate={owner}
+        onResolve={resolveFromPopover}
+        onReopen={commentActions.reopen}
+        onGetInfo={owner ? () => getInfo(openComment) : undefined}
+        onClose={closePopover}
+      />
+    </CommentThreadsContext>
   ) : null;
 
   const overlay = (
@@ -630,36 +679,39 @@ export function ViewerView({
   const listedSummary = listed.length === 1 ? "1 comment" : `${listed.length} comments`;
 
   const commentsBody = (
-    <CommentsBody
-      comments={listed}
-      numbers={numbers}
-      placements={placements}
-      tab={tab}
-      selectedId={selectedId}
-      now={now}
-      listRef={listRef}
-      // With comments at another breakpoint (or page) left out, an empty list names this one.
-      // "All breakpoints" leaves none out, so it gets the unscoped copy.
-      scope={
-        comments.length > listed.length
-          ? website
-            ? BREAKPOINT_LABEL[breakpoint]
-            : `page ${pages.number}`
-          : undefined
-      }
-      pageNumbers={pageNumbers}
-      breakpoints={listedBreakpoints}
-      cropPins={cropPins}
-      canModerate={owner}
-      moderator={moderator}
-      reviewOpen={!locked}
-      onSelect={(id) => select(id, "card")}
-      onEdit={commentActions.edit}
-      onResolve={commentActions.resolve}
-      onReopen={commentActions.reopen}
-      onDelete={askToDelete}
-      onGetInfo={owner ? getInfo : undefined}
-    />
+    <CommentThreadsContext value={replyThreads.value}>
+      <CommentsBody
+        comments={listed}
+        numbers={numbers}
+        placements={placements}
+        tab={tab}
+        selectedId={selectedId}
+        openId={openComment?.id ?? null}
+        now={now}
+        listRef={listRef}
+        // With comments at another breakpoint (or page) left out, an empty list names this one.
+        // "All breakpoints" leaves none out, so it gets the unscoped copy.
+        scope={
+          comments.length > listed.length
+            ? website
+              ? BREAKPOINT_LABEL[breakpoint]
+              : `page ${pages.number}`
+            : undefined
+        }
+        pageNumbers={pageNumbers}
+        breakpoints={listedBreakpoints}
+        cropPins={cropPins}
+        canModerate={owner}
+        moderator={moderator}
+        reviewOpen={!locked}
+        onSelect={(id) => select(id, "card")}
+        onEdit={commentActions.edit}
+        onResolve={commentActions.resolve}
+        onReopen={commentActions.reopen}
+        onDelete={askToDelete}
+        onGetInfo={owner ? getInfo : undefined}
+      />
+    </CommentThreadsContext>
   );
 
   return (
@@ -805,21 +857,28 @@ export function ViewerView({
         onConfirm={() => {
           const target = deleting.payload;
           deleting.close();
-          if (target) commentActions.remove(target);
+          if (target) commentActions.remove(target, replyThreads.byComment.get(target.id));
         }}
       />
       <GetInfoDialog
         open={inspecting.open}
-        comment={inspecting.payload?.comment ?? null}
-        number={inspecting.payload?.number ?? 0}
+        subject={inspecting.payload?.subject ?? null}
         onClose={inspecting.close}
       />
       <DeleteOthersCommentDialog
         open={moderating.open}
-        comment={moderating.payload}
+        target={moderating.payload}
         ownerName={access?.ownerName ?? null}
         onClose={moderating.close}
         onDeleted={focusAfterRemoval}
+        toast={toast}
+      />
+      <DeleteOthersReplyDialog
+        open={replyThreads.moderating.open}
+        reply={replyThreads.moderating.payload?.reply ?? null}
+        ownerName={access?.ownerName ?? null}
+        onClose={replyThreads.moderating.close}
+        onDeleted={() => replyThreads.moderating.payload?.afterRemoval()}
         toast={toast}
       />
     </div>

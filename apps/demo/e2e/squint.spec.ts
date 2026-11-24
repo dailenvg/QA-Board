@@ -406,6 +406,120 @@ test("Get info shows the browser a comment was posted from, kept through Undo an
   await expect(popover).toHaveCount(0);
 });
 
+test("a thread takes replies, an edit, a delete with Undo, and is all there after a reload", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "One desktop browser is enough for this.");
+  await openFolder(page);
+  await createImageProject(page, "replies.png");
+  await postComment(page, "The header wraps.", { x: 100, y: 80 }, "Ana");
+  await showComments(page);
+  const card = onlyCommentCard(page);
+  const replies = card.getByTestId("reply");
+  const box = card.getByRole("textbox", { name: "Reply", exact: true });
+  const activeTab = await page.getByTestId("tab-active").textContent();
+
+  // The new comment's card is selected, with a Reply button where its box will be; pressing it
+  // opens the box with focus in it. An empty reply says why, Enter sends, Shift+Enter breaks
+  // the line.
+  await expect(card.locator("[data-card-select]")).toHaveAttribute("aria-pressed", "true");
+  await expect(box).toHaveCount(0);
+  await card.getByRole("button", { name: "Reply", exact: true }).click();
+  await expect(box).toBeFocused();
+  await box.press("Enter");
+  await expect(card.getByText("Write a reply first.")).toBeVisible();
+  await box.fill("On it.");
+  await box.press("Enter");
+  await expect(replies).toHaveCount(1);
+  await expect(box).toHaveValue("");
+  await expect(box).toBeFocused();
+  await box.pressSequentially("Line one");
+  await box.press("Shift+Enter");
+  await box.pressSequentially("Line two");
+  await box.press("Enter");
+  await expect(replies).toHaveCount(2);
+  await expect
+    .poll(() => replies.nth(1).getByTestId("reply-body").innerText())
+    .toBe("Line one\nLine two");
+  // Replies never count as comments (D6).
+  await expect(page.getByTestId("tab-active")).toHaveText(activeTab ?? "");
+
+  // Edit the first; focus comes back to its More button.
+  const first = replies.first();
+  await first.getByRole("button", { name: "Actions for reply by Ana" }).click();
+  await first.getByRole("menuitem", { name: "Edit" }).click();
+  await first.getByLabel("Edit reply").fill("On it, today.");
+  await first.getByRole("button", { name: "Save" }).click();
+  await expect(first).toContainText("On it, today.");
+  await expect(first.getByTestId("comment-edited")).toBeVisible();
+  await expect(first.getByRole("button", { name: "Actions for reply by Ana" })).toBeFocused();
+
+  // Delete the second, then Undo.
+  const second = replies.nth(1);
+  await second.getByRole("button", { name: "Actions for reply by Ana" }).click();
+  await second.getByRole("menuitem", { name: "Delete" }).click();
+  await expect(replies).toHaveCount(1);
+  await expect(first.getByRole("button", { name: "Actions for reply by Ana" })).toBeFocused();
+  await page
+    .getByTestId("toast")
+    .filter({ hasText: "Reply deleted" })
+    .getByRole("button", { name: "Undo" })
+    .click();
+  await expect(replies).toHaveCount(2);
+
+  // Deleting the comment with only Ana's replies keeps Undo, which brings them back too.
+  await card.getByRole("button", { name: "Delete comment 1" }).click();
+  await page
+    .getByRole("dialog", { name: "Delete comment 1?" })
+    .getByRole("button", { name: "Delete comment" })
+    .click();
+  await expect(card).toHaveCount(0);
+  // Undo posts the comment, then each reply; the reload waits for the server to have them all.
+  let repliesPosted = 0;
+  page.on("response", (response) => {
+    const posted = response.request().method() === "POST" && response.ok();
+    if (posted && new URL(response.url()).pathname.endsWith("/replies")) repliesPosted += 1;
+  });
+  await page
+    .getByTestId("toast")
+    .filter({ hasText: "Comment deleted" })
+    .getByRole("button", { name: "Undo" })
+    .click();
+  await expect(card).toBeVisible();
+  await expect(card.getByTestId("reply-summary")).toContainText("2 replies");
+  await expect.poll(() => repliesPosted).toBe(2);
+
+  await page.reload();
+  await showComments(page);
+  await expect(card.getByTestId("reply-summary")).toContainText(/2 replies.*Ana, /);
+  await expect(card.locator("[data-card-select]")).toHaveAccessibleDescription(/2 replies/);
+
+  // The pin's popover has the whole thread, and its own reply box.
+  await page.getByRole("button", { name: "Comment 1 by Ana", exact: true }).click();
+  const popover = page.getByTestId("pin-popover");
+  const thread = popover.getByTestId("reply");
+  await expect(thread).toHaveCount(2);
+  await expect(thread.first()).toContainText("On it, today.");
+  await expect(thread.first().getByTestId("comment-edited")).toBeVisible();
+  await expect(thread.nth(1)).toContainText("Line two");
+  const popoverBox = popover.getByRole("textbox", { name: "Reply", exact: true });
+  await popoverBox.fill("From the pin.");
+  await popoverBox.press("Enter");
+  await expect(thread).toHaveCount(3);
+  await expect(thread.nth(2)).toBeInViewport();
+  // While the popover has the thread, the card sums it up; one click on the card moves the thread
+  // back there, closing the popover, and the words typed in the popover come along.
+  await expect(card.getByTestId("reply-composer")).toHaveCount(0);
+  await popoverBox.fill("Typed in the pin.");
+  await card.locator("[data-card-select]").click();
+  await expect(popover).toHaveCount(0);
+  await expect(card.locator("[data-card-select]")).toHaveAttribute("aria-pressed", "true");
+  await expect(box).toHaveValue("Typed in the pin.");
+  await box.press("Enter");
+  await expect(replies).toHaveCount(4);
+  await expect(box).toHaveValue("");
+});
+
 test("a client's comment opens its More menu inside the list, and says its details weren't kept", async ({
   page,
   baseURL,

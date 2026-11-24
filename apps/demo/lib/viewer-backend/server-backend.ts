@@ -25,7 +25,8 @@ import {
 } from "../store/actions";
 import { newId } from "../store/id";
 import { storeWorkspaceBlob } from "../workspace-client/blob-upload";
-import type { CaptureOutcome, ReadyCrop, ViewerBackend } from "./backend";
+import { SAVE_FAILED } from "../workspace-client/mutations";
+import { REPLY_NOT_SENT, type CaptureOutcome, type ReadyCrop, type ViewerBackend } from "./backend";
 
 /**
  * Uploads the crop, then attaches it: up to `CROP_ATTEMPTS` tries with a
@@ -128,7 +129,14 @@ export const serverBackend: ViewerBackend = {
   editComment,
   deleteComment,
   restoreComment,
-  addReply,
+  // The store's generic refusal is about the change ("didn't save and was undone"), so it's
+  // worded for the box, which keeps the words; a specific one (the comment is gone, not allowed,
+  // signed out) says what it says, since retrying won't help.
+  async addReply(input) {
+    const result = await addReply(input);
+    if (result.ok || result.error !== SAVE_FAILED) return result;
+    return { ok: false, error: REPLY_NOT_SENT };
+  },
   editReply,
   deleteReply,
   restoreReply,

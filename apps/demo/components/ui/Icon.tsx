@@ -1,6 +1,7 @@
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react/dist/lib/types";
 // The SSR build reads no React context, so this one Icon renders in server and client components.
 import {
+  ArrowBendUpLeftIcon,
   ArrowClockwiseIcon,
   ArrowCounterClockwiseIcon,
   ArrowDownIcon,
@@ -123,6 +124,7 @@ const ICONS = {
   plus: PlusIcon,
   pointer: CursorIcon,
   refresh: ArrowClockwiseIcon,
+  reply: ArrowBendUpLeftIcon,
   search: MagnifyingGlassIcon,
   send: PaperPlaneTiltIcon,
   shield: ShieldCheckIcon,

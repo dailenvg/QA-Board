@@ -1,4 +1,5 @@
-import type { Comment } from "@/lib/store/types";
+import { commentDeleteMode } from "@/lib/store/replies";
+import type { Comment, Reply } from "@/lib/store/types";
 import type { ToastInput } from "../ui/ToastProvider";
 import type { EditOutcome, ViewerBackend } from "@/lib/viewer-backend/backend";
 
@@ -11,7 +12,7 @@ interface CommentActionsOptions {
   onRemoved: (id: string) => void;
 }
 
-/** Resolve, reopen, edit and delete, each with its toast and Undo where it has one. */
+/** Resolve, reopen, edit and delete a comment, each with its toast and Undo where it has one. */
 export function useCommentActions({
   backend,
   toast,
@@ -50,13 +51,28 @@ export function useCommentActions({
         return outcome;
       });
     },
-    remove: (target: Comment) => {
+    /**
+     * Deletes at once with Undo, which puts back `replies` too (the thread as
+     * it was, oldest first) while they're all the member's own (D25). Once
+     * anyone else's is among them, Undo couldn't post theirs back, so there's
+     * none: such a delete goes through `DeleteOthersCommentDialog` instead, and
+     * this only gets one when someone replied after its confirm opened.
+     */
+    remove: (target: Comment, replies: readonly Reply[] = []) => {
       onRemoved(target.id);
       // Its screenshot stays stored, so Undo brings the comment back whole.
       if (!report(backend.deleteComment(target.id))) return;
+      if (commentDeleteMode(replies) !== "undo") {
+        toast({ message: "Comment deleted. Someone replied just before, so it can't be undone." });
+        return;
+      }
+      const thread = [...replies];
       toast({
         message: "Comment deleted",
-        action: { label: "Undo", onAction: () => void report(backend.restoreComment(target)) },
+        action: {
+          label: "Undo",
+          onAction: () => void report(backend.restoreComment(target, thread)),
+        },
       });
     },
   };

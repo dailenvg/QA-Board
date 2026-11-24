@@ -4,7 +4,7 @@ import { motion } from "motion/react";
 import { useId } from "react";
 import { clientInfoText, describeClientInfo, type InfoRow } from "@/lib/client-info/describe";
 import { staggerGroup, useRevealVariants } from "@/lib/motion";
-import type { Comment } from "@/lib/store/types";
+import type { ClientInfo } from "@/lib/client-info/schema";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
 import { Icon } from "../ui/Icon";
@@ -15,11 +15,19 @@ const ROWS = staggerGroup();
 
 const NOT_RECORDED = "Not recorded. This was posted before Squint kept browser details.";
 
+/** What the details are of: a comment or a reply, and how the dialog names it. */
+export interface InfoSubject {
+  clientInfo?: ClientInfo;
+  /** Posted on the review link. */
+  fromClient?: true;
+  /** Under the title: "Comment 3 by Ana", "Reply by Ben". */
+  caption: string;
+}
+
 interface GetInfoDialogProps {
   open: boolean;
   /** Kept after closing (`useDialogState`), so the details stay put while the dialog leaves. */
-  comment: Comment | null;
-  number: number;
+  subject: InfoSubject | null;
   onClose: () => void;
 }
 
@@ -54,16 +62,16 @@ function InfoList({ rows }: { rows: readonly InfoRow[] }) {
 }
 
 /**
- * "Get info" for the team: the browser a comment was posted from, in words
- * (`describeClientInfo`), with "Copy details" for a bug report. Comments from
- * before Squint kept them say so. Never shown to guests.
+ * "Get info" for the team: the browser a comment or a reply was posted from,
+ * in words (`describeClientInfo`), with "Copy details" for a bug report.
+ * Comments from before Squint kept them say so. Never shown to guests.
  */
-export function GetInfoDialog({ open, comment, number, onClose }: GetInfoDialogProps) {
+export function GetInfoDialog({ open, subject, onClose }: GetInfoDialogProps) {
   const toast = useToast();
   const emptyId = useId();
-  const info = comment?.clientInfo;
-  const rows = comment
-    ? describeClientInfo(info, comment.fromClient ? "review-link" : "squint")
+  const info = subject?.clientInfo;
+  const rows = subject
+    ? describeClientInfo(info, subject.fromClient ? "review-link" : "squint")
     : null;
 
   const copyDetails = async () => {
@@ -81,7 +89,7 @@ export function GetInfoDialog({ open, comment, number, onClose }: GetInfoDialogP
       open={open}
       onClose={onClose}
       title="Browser details"
-      description={comment ? `Comment ${number} by ${comment.author}` : undefined}
+      description={subject?.caption}
       size="sm"
       testId="get-info-dialog"
     >

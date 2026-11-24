@@ -3,7 +3,10 @@ import type { Comment } from "@/lib/store/types";
 import type { CompanyBadge } from "@/lib/avatar/company-badge";
 import { useCompanyBadge } from "@/lib/workspace-client/use-company-badge";
 
-/** Who wrote the viewer's comments, as their avatars show it (4b.15). */
+/** What tells who wrote a comment or a reply: the fields its avatar and name marks read. */
+export type Authored = Pick<Comment, "fromClient" | "team" | "authorAvatar">;
+
+/** Who wrote the viewer's comments and replies, as their avatars show it (4b.15). */
 export interface CommentPeople {
   /** The company badge on the team's avatars; null without a company to show. */
   badge: CompanyBadge | null;
@@ -14,14 +17,14 @@ export interface CommentPeople {
    */
   teamCompany: string | null;
   /** Whether someone on the team wrote it. */
-  isTeam: (comment: Comment) => boolean;
+  isTeam: (post: Authored) => boolean;
 }
 
 /** A review link's people (the server marks the team's comments). Null: the workspace's. */
 export const CommentPeopleContext = createContext<CommentPeople | null>(null);
 
-/** In the workspace, every comment but a client's is the team's. */
-const notFromClient = (comment: Comment) => !comment.fromClient;
+/** In the workspace, every comment and reply but a client's is the team's. */
+const notFromClient = (post: Authored) => !post.fromClient;
 
 /** The review link's people when there's one, else the signed-in workspace's. */
 export function useCommentPeople(): CommentPeople {
