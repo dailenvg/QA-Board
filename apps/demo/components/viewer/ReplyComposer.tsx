@@ -4,6 +4,7 @@ import { useId, useRef, useState, type FormEvent, type KeyboardEvent } from "rea
 import { SHARE_LIMITS } from "@/lib/share/limits";
 import { newId } from "@/lib/store/id";
 import type { Result } from "@/lib/store/store";
+import { useMediaQuery } from "@/lib/use-media-query";
 import { FormAlert } from "../auth/FormAlert";
 import { Button } from "../ui/Button";
 import { FieldError } from "../ui/FieldError";
@@ -44,6 +45,10 @@ export function ReplyComposer({ authorName, onSend }: ReplyComposerProps) {
   const [id, setId] = useState(newId);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+  /** Typed in: only then does leaving it empty say so, not when Tab just passes through. */
+  const nameTouched = useRef(false);
+  // The hint shows from `sm:` up (phones have no Shift on their Enter), and is read only there too.
+  const showsHint = useMediaQuery("(min-width: 640px)");
   const bodyId = useId();
   const nameId = useId();
   const bodyErrorId = useId();
@@ -111,11 +116,14 @@ export function ReplyComposer({ authorName, onSend }: ReplyComposerProps) {
             aria-invalid={nameError ? true : undefined}
             aria-describedby={nameErrorId}
             onChange={(event) => {
+              nameTouched.current = true;
               setAuthor(event.target.value);
               setProblem((current) => (current?.field === "name" ? null : current));
             }}
             onBlur={() => {
-              if (!author.trim()) setProblem({ field: "name", message: NAME_MISSING });
+              // The box sits in the list's Tab order: passing through it says nothing yet.
+              if (author.trim() || !(nameTouched.current || body.trim())) return;
+              setProblem({ field: "name", message: NAME_MISSING });
             }}
             className={FIELD_CLASS}
           />
@@ -136,8 +144,10 @@ export function ReplyComposer({ authorName, onSend }: ReplyComposerProps) {
           // The post already carries the words: any typed while it's sent would be lost.
           readOnly={sending}
           placeholder="Reply…"
+          // Enter sends here (U2), so a phone's keyboard labels the key Send rather than Return.
+          enterKeyHint="send"
           aria-invalid={bodyError ? true : undefined}
-          aria-describedby={`${bodyErrorId} ${hintId}`}
+          aria-describedby={showsHint ? `${bodyErrorId} ${hintId}` : bodyErrorId}
           onChange={(event) => {
             setBody(event.target.value);
             setProblem((current) => (current?.field === "body" ? null : current));

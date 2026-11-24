@@ -50,7 +50,9 @@ function focusAfterLeaving(list: HTMLElement | null, replies: readonly Reply[], 
             `[data-reply-id="${CSS.escape(neighbour.id)}"] [data-testid="${REPLY_MORE}"]`,
           )
         : null;
-      (more ?? scope?.querySelector<HTMLElement>("textarea"))?.focus();
+      // The box's own field: another reply's open editor comes first in the scope.
+      const box = scope?.querySelector<HTMLElement>('[data-testid="reply-composer"] textarea');
+      (more ?? box)?.focus();
     }),
   );
 }
@@ -70,18 +72,33 @@ export function CommentThread({
 }: CommentThreadProps) {
   const reduce = useReducedMotion();
   const listRef = useRef<HTMLOListElement>(null);
-  const latestId = replies.at(-1)?.id;
+  const latest = replies.at(-1);
+  const latestId = latest?.id;
+  const latestMine = latest?.mine === true;
   const shownLatest = useRef(latestId);
 
-  // A reply arriving at the end (one just sent, most often) scrolls into view.
+  // A reply arriving at the end (one just sent, most often) scrolls into view, for its author or
+  // whoever is in this thread: one from elsewhere never moves the list or popover being read.
   useEffect(() => {
     if (latestId === shownLatest.current) return;
     shownLatest.current = latestId;
-    if (!latestId) return;
-    listRef.current
-      ?.querySelector(`[data-reply-id="${CSS.escape(latestId)}"]`)
-      ?.scrollIntoView({ block: "nearest", behavior: reduce ? "auto" : "smooth" });
-  }, [latestId, reduce]);
+    const list = listRef.current;
+    if (!latestId || !list) return;
+    const scope = list.closest(THREAD_SCOPE);
+    const active = document.activeElement;
+    if (!latestMine && !(active && scope?.contains(active))) return;
+    const reply = list.querySelector(`[data-reply-id="${CSS.escape(latestId)}"]`);
+    // Where the box scrolls with the thread (a card in the list), the box comes into view: the
+    // reply sits just above it, so both show, and the field being typed in never ends below the
+    // fold. The popover's box is pinned under its scroller, so there the reply does.
+    const box = scope?.querySelector('[data-testid="reply-composer"]') ?? null;
+    const together =
+      box !== null && box.closest("[data-menu-bounds]") === list.closest("[data-menu-bounds]");
+    (together ? box : reply)?.scrollIntoView({
+      block: "nearest",
+      behavior: reduce ? "auto" : "smooth",
+    });
+  }, [latestId, latestMine, reduce]);
 
   // Never `initial={false}`: a thread shown on selecting a card staggers in.
   return (
