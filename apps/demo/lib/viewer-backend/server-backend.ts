@@ -25,6 +25,7 @@ import {
 } from "../store/actions";
 import { newId } from "../store/id";
 import { storeWorkspaceBlob } from "../workspace-client/blob-upload";
+import { SAVE_FAILED } from "../workspace-client/mutations";
 import { REPLY_NOT_SENT, type CaptureOutcome, type ReadyCrop, type ViewerBackend } from "./backend";
 
 /**
@@ -128,10 +129,13 @@ export const serverBackend: ViewerBackend = {
   editComment,
   deleteComment,
   restoreComment,
-  // The store's refusal is about the change ("didn't save and was undone"); the box keeps the words.
+  // The store's generic refusal is about the change ("didn't save and was undone"), so it's
+  // worded for the box, which keeps the words; a specific one (the comment is gone, not allowed,
+  // signed out) says what it says, since retrying won't help.
   async addReply(input) {
     const result = await addReply(input);
-    return result.ok ? result : { ok: false, error: REPLY_NOT_SENT };
+    if (result.ok || result.error !== SAVE_FAILED) return result;
+    return { ok: false, error: REPLY_NOT_SENT };
   },
   editReply,
   deleteReply,

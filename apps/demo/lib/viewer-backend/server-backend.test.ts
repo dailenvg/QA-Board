@@ -39,6 +39,7 @@ vi.mock("../squiggy/events", () => ({ emitSquiggy: mocks.emitSquiggy }));
 
 const { captureNewWebsite, serverBackend } = await import("./server-backend");
 const { REPLY_NOT_SENT } = await import("./backend");
+const { SAVE_FAILED } = await import("../workspace-client/mutations");
 
 const input = { id: "c-1", projectId: "p1", x: 1, y: 2, body: "Fix", author: "Ana" };
 const crop = {
@@ -84,12 +85,20 @@ describe("the owner's reply", () => {
     expect(await serverBackend.addReply(reply)).toEqual({ ok: true, value: saved });
   });
 
-  it("says it wasn't sent when the store refused it, whatever the store's words", async () => {
-    mocks.addReply.mockResolvedValue({
-      ok: false,
-      error: "That change didn't save and was undone.",
-    });
+  it("says it wasn't sent, to retry, when the save failed for no reason more specific", async () => {
+    mocks.addReply.mockResolvedValue({ ok: false, error: SAVE_FAILED });
     expect(await serverBackend.addReply(reply)).toEqual({ ok: false, error: REPLY_NOT_SENT });
+  });
+
+  it("passes a specific refusal through, which retrying won't fix", async () => {
+    for (const error of [
+      "This comment is no longer here. It may have been deleted in another tab.",
+      "That change didn't save. Reload the page and try again.",
+      "You can no longer reply here. Ask Olga if you need to.",
+    ]) {
+      mocks.addReply.mockResolvedValue({ ok: false, error });
+      expect(await serverBackend.addReply(reply)).toEqual({ ok: false, error });
+    }
   });
 });
 
