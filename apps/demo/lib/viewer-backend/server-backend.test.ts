@@ -6,6 +6,7 @@ import { CROP_ATTEMPTS } from "../crop/crop-retry";
 
 const mocks = vi.hoisted(() => ({
   addComment: vi.fn(),
+  addReply: vi.fn(),
   addSnapshot: vi.fn(),
   attachCrop: vi.fn(),
   emitSquiggy: vi.fn(),
@@ -16,7 +17,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../store/actions", () => ({
   addComment: mocks.addComment,
-  addReply: vi.fn(),
+  addReply: mocks.addReply,
   addSnapshot: mocks.addSnapshot,
   attachCrop: mocks.attachCrop,
   deleteComment: vi.fn(),
@@ -37,6 +38,7 @@ vi.mock("../capture/request-capture", () => ({ requestCapture: mocks.requestCapt
 vi.mock("../squiggy/events", () => ({ emitSquiggy: mocks.emitSquiggy }));
 
 const { captureNewWebsite, serverBackend } = await import("./server-backend");
+const { REPLY_NOT_SENT } = await import("./backend");
 
 const input = { id: "c-1", projectId: "p1", x: 1, y: 2, body: "Fix", author: "Ana" };
 const crop = {
@@ -70,6 +72,24 @@ describe("the owner's comment screenshot", () => {
     await vi.runAllTimersAsync();
     expect(mocks.storeWorkspaceBlob).toHaveBeenCalledTimes(CROP_ATTEMPTS);
     expect(mocks.attachCrop).not.toHaveBeenCalled();
+  });
+});
+
+describe("the owner's reply", () => {
+  const reply = { id: "r-1", projectId: "p1", commentId: "c-1", body: "On it", author: "Ana" };
+
+  it("resolves with the saved reply", async () => {
+    const saved = { ...reply, createdAt: 1, mine: true };
+    mocks.addReply.mockResolvedValue({ ok: true, value: saved });
+    expect(await serverBackend.addReply(reply)).toEqual({ ok: true, value: saved });
+  });
+
+  it("says it wasn't sent when the store refused it, whatever the store's words", async () => {
+    mocks.addReply.mockResolvedValue({
+      ok: false,
+      error: "That change didn't save and was undone.",
+    });
+    expect(await serverBackend.addReply(reply)).toEqual({ ok: false, error: REPLY_NOT_SENT });
   });
 });
 

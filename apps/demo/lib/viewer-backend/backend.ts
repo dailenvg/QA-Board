@@ -123,6 +123,9 @@ export const OWNER_ONLY = "Only the project owner can do that.";
 /** A comment that wasn't sent, for no reason more specific. The draft keeps its text and offers Retry. */
 export const NOT_SENT = "Your comment wasn't sent. Retry in a moment.";
 
+/** A reply that wasn't sent, for no reason more specific. The reply box keeps its text. */
+export const REPLY_NOT_SENT = "Your reply wasn't sent. Retry in a moment.";
+
 export const ViewerBackendContext = createContext<ViewerBackend | null>(null);
 
 export function useViewerBackend(): ViewerBackend {

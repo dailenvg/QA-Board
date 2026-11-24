@@ -2,9 +2,10 @@ import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { AVATAR_FILL } from "@/lib/avatar/default-avatar";
-import type { Comment } from "@/lib/store/types";
+import type { Comment, Reply } from "@/lib/store/types";
 import { CommentPeopleContext, type CommentPeople } from "./comment-people";
 import { commentRights, type CommentViewer } from "./comment-rights";
+import { CommentThreadsContext, type CommentThreads } from "./comment-threads";
 import { CommentCard } from "./CommentCard";
 import { PinPopover } from "./PinPopover";
 
@@ -269,5 +270,126 @@ describe("a comment posted without its screenshot", () => {
   it("never shows it on the team's own comment, or a client's on the old live page", () => {
     expect(card({ ...COMMENT, pageId: "page-1" })).not.toContain(PENDING);
     expect(card({ ...COMMENT, fromClient: true })).not.toContain(PENDING);
+  });
+});
+
+describe("the thread (U1)", () => {
+  const reply = (id: string, author: string, createdAt: number, extra: Partial<Reply> = {}) =>
+    ({
+      id,
+      projectId: COMMENT.projectId,
+      commentId: COMMENT.id,
+      body: `Reply ${id}`,
+      author,
+      createdAt,
+      ...extra,
+    }) satisfies Reply;
+  const REPLIES = [reply("r-1", "Ana", MINUTE * 2), reply("r-2", "Cleo", NOW - 5 * MINUTE)];
+  const threads = (replies: readonly Reply[], viewer: CommentViewer = member): CommentThreads => ({
+    repliesOf: (id) => (id === COMMENT.id ? replies : []),
+    viewer,
+    authorName: "Ben",
+    send: () => Promise.resolve({ ok: false, error: "unused" }),
+    edit: noop,
+    remove: noop,
+    getInfo: noop,
+  });
+  const withThreads = (element: ReactElement, value: CommentThreads | null) =>
+    renderToStaticMarkup(createElement(CommentThreadsContext, { value }, element));
+  const cardWith = (value: CommentThreads | null, selected = false) => {
+    const rights = commentRights(COMMENT, member);
+    return withThreads(
+      createElement(CommentCard, {
+        comment: COMMENT,
+        number: 1,
+        placement: null,
+        pageNumber: null,
+        breakpoint: null,
+        cropPin: null,
+        canModerate: true,
+        canEdit: rights.edit,
+        canDelete: rights.delete !== null,
+        resolvedNote: false,
+        selected,
+        now: NOW,
+        onSelect: noop,
+        onEdit: noop,
+        onResolve: noop,
+        onReopen: noop,
+        onDelete: noop,
+      }),
+      value,
+    );
+  };
+
+  it("sums an unselected card's thread in one line the card reads after the comment", () => {
+    const html = cardWith(threads(REPLIES));
+    expect(html).toContain('data-testid="reply-summary"');
+    expect(html).toMatch(/2 replies<\/span>.*Cleo, <time[^>]*>5 minutes ago<\/time>/);
+    const id = /<p id="([^"]+)" data-testid="reply-summary"/.exec(html)?.[1];
+    expect(id).toBeTruthy();
+    expect(html).toMatch(new RegExp(`aria-describedby="[^"]*${id}"`));
+    expect(html).not.toContain('data-testid="comment-thread"');
+    expect(html).not.toContain('data-testid="reply-composer"');
+  });
+
+  it("says one reply in the singular, and shows no line without replies", () => {
+    expect(cardWith(threads(REPLIES.slice(0, 1)))).toContain("1 reply<");
+    expect(cardWith(threads([]))).not.toContain("reply-summary");
+  });
+
+  it("shows a selected card's thread, oldest first, and the reply box instead of the line", () => {
+    const html = cardWith(threads(REPLIES), true);
+    expect(html).not.toContain("reply-summary");
+    expect(html).toContain('aria-label="Replies to comment 1"');
+    expect(html.indexOf("Reply r-1")).toBeLessThan(html.indexOf("Reply r-2"));
+    expect(html).toContain('placeholder="Reply…"');
+    expect(html).toContain("Enter to send · Shift+Enter for a new line");
+    expect(html).toContain('aria-label="Actions for reply by Ana"');
+  });
+
+  it("shows a selected card's reply box even before anyone replied", () => {
+    const html = cardWith(threads([]), true);
+    expect(html).not.toContain('data-testid="comment-thread"');
+    expect(html).toContain('data-testid="reply-composer"');
+  });
+
+  it("asks for a name first when the member has none yet", () => {
+    const html = cardWith({ ...threads([]), authorName: null }, true);
+    expect(html).toContain("Your name");
+  });
+
+  it("shows nothing of a thread where there's none to read (a review link, for now)", () => {
+    for (const selected of [false, true]) {
+      const html = cardWith(null, selected);
+      expect(html).not.toContain("reply-summary");
+      expect(html).not.toContain("reply-composer");
+    }
+  });
+
+  it("puts the whole thread and the reply box in the pin's popover", () => {
+    const html = withThreads(
+      createElement(PinPopover, {
+        id: "popover",
+        comment: COMMENT,
+        number: 1,
+        placement: null,
+        now: NOW,
+        canModerate: true,
+        onResolve: noop,
+        onReopen: noop,
+        onClose: noop,
+      }),
+      threads(REPLIES),
+    );
+    expect(html).toContain('aria-label="Replies to comment 1"');
+    expect(html).toContain("Reply r-2");
+    expect(html).toContain('data-testid="reply-composer"');
+    expect(html).toContain("max-h-[50dvh]");
+  });
+
+  it("marks a client's reply with the Client chip for the team", () => {
+    const html = cardWith(threads([reply("r-3", "Dee", NOW, { fromClient: true })]), true);
+    expect(html).toContain('data-testid="client-chip"');
   });
 });

@@ -25,7 +25,7 @@ import {
 } from "../store/actions";
 import { newId } from "../store/id";
 import { storeWorkspaceBlob } from "../workspace-client/blob-upload";
-import type { CaptureOutcome, ReadyCrop, ViewerBackend } from "./backend";
+import { REPLY_NOT_SENT, type CaptureOutcome, type ReadyCrop, type ViewerBackend } from "./backend";
 
 /**
  * Uploads the crop, then attaches it: up to `CROP_ATTEMPTS` tries with a
@@ -128,7 +128,11 @@ export const serverBackend: ViewerBackend = {
   editComment,
   deleteComment,
   restoreComment,
-  addReply,
+  // The store's refusal is about the change ("didn't save and was undone"); the box keeps the words.
+  async addReply(input) {
+    const result = await addReply(input);
+    return result.ok ? result : { ok: false, error: REPLY_NOT_SENT };
+  },
   editReply,
   deleteReply,
   restoreReply,

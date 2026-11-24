@@ -5,7 +5,7 @@ import { useId, useRef, useState } from "react";
 import { instant, spring, useRevealVariants, useSwapVariants } from "@/lib/motion";
 import { absoluteTime, relativeTime } from "@/lib/relative-time";
 import type { Breakpoint } from "@/lib/store/breakpoints";
-import type { Comment } from "@/lib/store/types";
+import type { Comment, Reply } from "@/lib/store/types";
 import type { EditOutcome, EditRefusal } from "@/lib/viewer-backend/backend";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
@@ -18,10 +18,16 @@ import { CommentEdited } from "./CommentEdited";
 import { CommentEditor, EMPTY_CLIENT_EDIT } from "./CommentEditor";
 import { CommentMoreMenu } from "./CommentMoreMenu";
 import { CommentTeamNote } from "./CommentTeamNote";
+import { CommentThread } from "./CommentThread";
+import { useCommentThreads } from "./comment-threads";
 import { PlacementChip } from "./PlacementChip";
+import { canReply } from "./reply-rights";
+import { ReplyComposer } from "./ReplyComposer";
 import { isScreenshotPending } from "./screenshot-pending";
 import { ScreenshotPending } from "./ScreenshotPending";
 import type { Placement } from "./surface";
+import { threadSummary } from "./thread-summary";
+import { ThreadSummaryLine } from "./ThreadSummaryLine";
 
 export interface CommentCardActions {
   onSelect: (id: string) => void;
@@ -75,13 +81,16 @@ interface SaveState {
 
 const SAVE_IDLE: SaveState = { pending: false, error: null };
 
+const NO_REPLIES: readonly Reply[] = [];
+
 /** The guest's own resolved comment: why there's no Edit (4b.16). */
 const RESOLVED_NOTE = "The team resolved this, so it can't be edited.";
 
 /**
  * One comment: select it to find its pin (switching to its snapshot if
  * needed); see what the commenter saw; resolve or reopen it, and edit or
- * delete it where that's the member's to do.
+ * delete it where that's the member's to do. Unselected, it sums up its
+ * thread in a line; selected, it shows the thread and the reply box (U1).
  */
 export function CommentCard({
   comment,
@@ -117,6 +126,11 @@ export function CommentCard({
   const pageId = useId();
   const breakpointId = useId();
   const pendingId = useId();
+  const summaryId = useId();
+  const threads = useCommentThreads();
+  const replies = threads?.repliesOf(comment.id) ?? NO_REPLIES;
+  const summary = threads && !selected ? threadSummary(replies, now) : null;
+  const showThread = Boolean(threads) && selected && !editing;
   const shotPending = !comment.crop && isScreenshotPending(comment);
   const described = [
     bodyId,
@@ -126,6 +140,7 @@ export function CommentCard({
     breakpoint ? breakpointId : null,
     placement ? placementId : null,
     shotPending ? pendingId : null,
+    summary ? summaryId : null,
   ]
     .filter(Boolean)
     .join(" ");
@@ -354,6 +369,36 @@ export function CommentCard({
           ) : null}
         </div>
       )}
+
+      {/* `relative` lifts the thread above the select button's card-wide ::after, as the actions. */}
+      <AnimatePresence initial={false}>
+        {showThread && threads ? (
+          <motion.div
+            key="thread"
+            variants={variants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            data-thread-scope
+            className="relative mx-4 flex flex-col gap-3 border-t border-line pt-3 pb-4"
+          >
+            <CommentThread
+              replies={replies}
+              number={number}
+              threads={threads}
+              surface="card"
+              now={now}
+            />
+            {canReply(threads.viewer) ? (
+              <ReplyComposer
+                authorName={threads.authorName}
+                onSend={(draft) => threads.send(comment, draft)}
+              />
+            ) : null}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+      {summary && !editing ? <ThreadSummaryLine id={summaryId} summary={summary} /> : null}
     </motion.li>
   );
 }
