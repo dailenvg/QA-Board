@@ -23,7 +23,14 @@ import {
   row,
   team,
 } from "./members-fixtures";
-import { addDefaultFolder, DEFAULT_FOLDER } from "./squint-fixtures";
+import {
+  addDefaultFolder,
+  DEFAULT_FOLDER,
+  mockCapture,
+  mockFrameCheck,
+  onlyCommentCard,
+  showComments,
+} from "./squint-fixtures";
 
 /*
  * The Members section: the People list as the owner, a member with the
@@ -226,6 +233,105 @@ test("the owner turns a switch off: it saves, and the member's stale tab is refu
   await expect(benPage.getByRole("menuitem", { name: "Rename" })).toBeVisible();
   await expect(benPage.getByRole("menuitem", { name: "Delete" })).toHaveCount(0);
   await benPage.context().close();
+});
+
+test("a member can't edit the owner's reply; the owner deletes theirs, and the comment, after a confirm", async ({
+  page,
+  browser,
+  baseURL,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "One desktop browser is enough for this.");
+  const { owner } = await team(page, testInfo.project.name, baseURL);
+  const ben = await member(owner, testInfo.project.name, { name: "Ben Ito" });
+  await addDefaultFolder(page, owner.workspaceId);
+  const projectId = `thread-${Date.now().toString(36)}`;
+  const api = `/api/w/${owner.workspaceId}/projects`;
+  const comments = `${api}/${projectId}/comments`;
+  const replies = `${comments}/c-1/replies`;
+  const site = { kind: "url", url: `${baseURL}/sandbox` };
+  const created = await page.request.post(api, {
+    data: { id: projectId, folderId: DEFAULT_FOLDER.id, name: "Thread page", source: site },
+  });
+  expect(created.status()).toBe(201);
+  const comment = { id: "c-1", x: 10, y: 10, body: "Tighten the hero.", author: OWNER };
+  expect((await page.request.post(comments, { data: comment })).status()).toBe(201);
+  const ownersReply = { id: "r-olga", body: "Waiting on copy.", author: OWNER };
+  expect((await page.request.post(replies, { data: ownersReply })).status()).toBe(201);
+
+  const benPage = await browserAs(browser, ben, baseURL);
+  for (const viewer of [page, benPage]) {
+    await mockFrameCheck(viewer, {
+      verdict: "embeddable",
+      finalUrl: `${baseURL}/sandbox`,
+      status: 200,
+    });
+    await mockCapture(viewer);
+  }
+  const bensReply = { id: "r-ben", body: "I can take it.", author: "Ben Ito" };
+  expect((await benPage.request.post(replies, { data: bensReply })).status()).toBe(201);
+
+  // Ben: Get info only on Olga's reply; Edit and Delete on his own.
+  await benPage.goto(`/p/${projectId}`);
+  await showComments(benPage);
+  await onlyCommentCard(benPage).locator("[data-card-select]").click();
+  const bensView = onlyCommentCard(benPage).getByTestId("reply");
+  await bensView
+    .filter({ hasText: "Waiting on copy." })
+    .getByRole("button", { name: `Actions for reply by ${OWNER}` })
+    .click();
+  await expect(benPage.getByRole("menuitem")).toHaveText(["Get info"]);
+  await benPage.keyboard.press("Escape");
+  await bensView
+    .filter({ hasText: "I can take it." })
+    .getByRole("button", { name: "Actions for reply by Ben Ito" })
+    .click();
+  await expect(benPage.getByRole("menuitem")).toHaveText(["Edit", "Get info", "Delete"]);
+  await benPage.keyboard.press("Escape");
+  // The server agrees: Olga's reply isn't Ben's to change.
+  const edit = await benPage.request.patch(`${replies}/r-olga`, { data: { body: "Mine now." } });
+  expect(edit.ok()).toBe(false);
+  await benPage.context().close();
+
+  // Olga: Ben's reply goes only after a confirm, with no Undo.
+  await page.goto(`/p/${projectId}`);
+  await showComments(page);
+  const card = onlyCommentCard(page);
+  await card.locator("[data-card-select]").click();
+  await card
+    .getByTestId("reply")
+    .filter({ hasText: "I can take it." })
+    .getByRole("button", { name: "Actions for reply by Ben Ito" })
+    .click();
+  await expect(page.getByRole("menuitem")).toHaveText(["Get info", "Delete"]);
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  const confirmReply = page.getByRole("dialog", { name: "Delete Ben Ito's reply?" });
+  await expect(confirmReply).toContainText("It will be removed for everyone.");
+  await confirmReply.getByRole("button", { name: "Delete reply" }).click();
+  await expect(card.getByTestId("reply")).toHaveCount(1);
+  await expect(page.getByTestId("toast").filter({ hasText: "Reply deleted." })).toBeVisible();
+
+  // Her own comment, once Ben has replied, goes the same way (D25); here Ben's reply is gone, so
+  // put one back through the API and read the workspace again.
+  const again = { id: "r-ben-2", body: "Still on it.", author: "Ben Ito" };
+  const benAgain = await browserAs(browser, ben, baseURL);
+  expect((await benAgain.request.post(replies, { data: again })).status()).toBe(201);
+  await benAgain.context().close();
+  await page.reload();
+  await showComments(page);
+  await card.getByRole("button", { name: "Delete comment 1" }).click();
+  const confirmComment = page.getByRole("dialog", { name: "Delete comment 1 and its replies?" });
+  await expect(confirmComment).toContainText(
+    "The comment, its pin and its 2 replies will be removed for everyone. This can't be undone.",
+  );
+  await confirmComment.getByRole("button", { name: "Delete comment" }).click();
+  await expect(card).toHaveCount(0);
+  await expect(page.getByTestId("toast").filter({ hasText: "Comment deleted." })).toBeVisible();
+  await expect(
+    page
+      .getByTestId("toast")
+      .filter({ hasText: "Comment deleted." })
+      .getByRole("button", { name: "Undo" }),
+  ).toHaveCount(0);
 });
 
 test("a switch that can't save stays where it was and says why", async ({
