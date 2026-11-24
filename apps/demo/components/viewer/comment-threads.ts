@@ -2,6 +2,7 @@ import { createContext, use } from "react";
 import type { Result } from "@/lib/store/store";
 import type { Comment, Reply } from "@/lib/store/types";
 import type { CommentViewer } from "./comment-rights";
+import type { ReplyDrafts } from "./reply-drafts";
 
 /** What a thread is sent: the new reply's id (kept across retries), its words and its author. */
 export interface ReplyDraft {
@@ -15,7 +16,7 @@ export interface ReplyDraft {
  * what they can do. Cards and the pin's popover read it; without it (a review
  * link, until guests read replies) neither shows a thread.
  */
-export interface CommentThreads {
+export interface CommentThreads extends ReplyDrafts {
   /** A comment's replies, oldest first. */
   repliesOf: (commentId: string) => readonly Reply[];
   viewer: CommentViewer;

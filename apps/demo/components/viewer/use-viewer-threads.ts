@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { captureClientInfo } from "@/lib/client-info/capture";
 import { threadsOf } from "@/lib/store/replies";
 import type { Comment, Reply, SquintData } from "@/lib/store/types";
@@ -7,6 +7,7 @@ import type { ViewerBackend } from "@/lib/viewer-backend/backend";
 import type { ToastInput } from "../ui/ToastProvider";
 import type { CommentViewer } from "./comment-rights";
 import type { CommentThreads, ReplyDraft } from "./comment-threads";
+import { createReplyDrafts } from "./reply-drafts";
 import { replyRights } from "./reply-rights";
 import { useReplyActions } from "./use-reply-actions";
 
@@ -45,6 +46,8 @@ export function useViewerThreads({
   const threads = useMemo(() => threadsOf(data.replies, projectId), [data.replies, projectId]);
   const actions = useReplyActions({ backend, toast });
   const moderating = useDialogState<ModeratedReply>();
+  // Unsent words outlive the box they were typed in (a card's, the popover's).
+  const [drafts] = useState(createReplyDrafts);
 
   /** Posts with the browser as it is when Reply is pressed, as a new comment does. */
   const send = async (comment: Comment, draft: ReplyDraft) => {
@@ -65,6 +68,7 @@ export function useViewerThreads({
         repliesOf: (commentId) => threads.get(commentId) ?? NO_REPLIES,
         viewer,
         authorName: data.authorName,
+        ...drafts,
         send,
         edit: actions.edit,
         remove: (reply, afterRemoval) => {

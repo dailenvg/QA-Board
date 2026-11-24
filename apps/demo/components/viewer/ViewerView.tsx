@@ -410,9 +410,10 @@ export function ViewerView({
   const select = (id: string, from: "pin" | "card") => {
     const comment = comments.find((entry) => entry.id === id);
     if (!comment) return;
-    // A second click on a card deselects it, unless its pin is on another surface: then it shows it.
+    // A second click on a card deselects it, unless its pin is on another surface: then it shows
+    // it; or its popover is open: then the thread moves from the popover to the card, which closes it.
     const shown = commentSurfaceKey(comment) === stageKey;
-    const next = selectedId === id && from === "card" && shown ? null : id;
+    const next = selectedId === id && from === "card" && shown && openId !== id ? null : id;
     setSelectedId(next);
     // A pin toggles its popover. On phones and tablets it's the pin's detail view, so the
     // comments sheet stays as it is rather than opening over it.

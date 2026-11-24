@@ -289,6 +289,8 @@ describe("the thread (U1)", () => {
     repliesOf: (id) => (id === COMMENT.id ? replies : []),
     viewer,
     authorName: "Ben",
+    draftOf: () => "",
+    keepDraft: noop,
     send: () => Promise.resolve({ ok: false, error: "unused" }),
     edit: noop,
     remove: noop,
@@ -361,6 +363,14 @@ describe("the thread (U1)", () => {
     const html = cardWith(threads([]), true);
     expect(html).not.toContain('data-testid="comment-thread"');
     expect(html).toContain('data-testid="reply-composer"');
+  });
+
+  it("puts back the words typed and not sent, in the card's box and the popover's", () => {
+    const value = {
+      ...threads([]),
+      draftOf: (id: string) => (id === COMMENT.id ? "Half a re" : ""),
+    };
+    expect(cardWith(value, true)).toMatch(/<textarea[^>]*>Half a re<\/textarea>/);
   });
 
   it("asks for a name first when the member has none yet", () => {

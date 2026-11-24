@@ -18,6 +18,10 @@ interface ReplyComposerProps {
   authorName: string | null;
   /** Resolves once the reply is saved or refused, never rejecting. */
   onSend: (draft: ReplyDraft) => Promise<Result<unknown>>;
+  /** Words typed earlier and not sent, such as in the card before its popover opened. */
+  initialBody?: string;
+  /** The words as typed, so they outlive this box; empty once sent. */
+  onDraftChange?: (body: string) => void;
 }
 
 const EMPTY = "Write a reply first.";
@@ -32,8 +36,13 @@ type FieldProblem = { field: "name" | "body"; message: string } | null;
  * read-only, and Reply says "Sending…"; a refusal keeps them, with why, so
  * sending again is one key away. Sent, the box empties and keeps focus.
  */
-export function ReplyComposer({ authorName, onSend }: ReplyComposerProps) {
-  const [body, setBody] = useState("");
+export function ReplyComposer({
+  authorName,
+  onSend,
+  initialBody = "",
+  onDraftChange,
+}: ReplyComposerProps) {
+  const [body, setBody] = useState(initialBody);
   const [author, setAuthor] = useState(authorName ?? "");
   // Asked once: the field stays while it's being typed in, even after the name is saved.
   const [askName] = useState(!authorName);
@@ -81,6 +90,7 @@ export function ReplyComposer({ authorName, onSend }: ReplyComposerProps) {
       return;
     }
     setBody("");
+    onDraftChange?.("");
     setId(newId());
     setStatus("Reply sent.");
   };
@@ -150,6 +160,7 @@ export function ReplyComposer({ authorName, onSend }: ReplyComposerProps) {
           aria-describedby={showsHint ? `${bodyErrorId} ${hintId}` : bodyErrorId}
           onChange={(event) => {
             setBody(event.target.value);
+            onDraftChange?.(event.target.value);
             setProblem((current) => (current?.field === "body" ? null : current));
           }}
           onKeyDown={onKeyDown}

@@ -402,6 +402,8 @@ export function CommentCard({
               <ReplyComposer
                 authorName={threads.authorName}
                 onSend={(draft) => threads.send(comment, draft)}
+                initialBody={threads.draftOf(comment.id)}
+                onDraftChange={(body) => threads.keepDraft(comment.id, body)}
               />
             ) : null}
           </motion.div>

@@ -208,6 +208,8 @@ export function PinPopover({
       const target = event.target as Element | null;
       // Pins handle their own clicks: the same pin toggles, another one switches.
       if (ref.current?.contains(target) || target?.closest("[data-pin-id]")) return;
+      // So does this comment's card: a click there moves the thread to it in one go (`select`).
+      if (target?.closest(`[data-comment-id="${CSS.escape(comment.id)}"]`)) return;
       onCloseRef.current(false);
     };
     document.addEventListener("keydown", onKeyDown);
@@ -216,7 +218,7 @@ export function PinPopover({
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("pointerdown", onPointerDown);
     };
-  }, []);
+  }, [comment.id]);
 
   const origin = `${side.horizontal === "right" ? "left" : "right"} ${
     side.vertical === "down" ? "top" : "bottom"
@@ -348,6 +350,8 @@ export function PinPopover({
           <ReplyComposer
             authorName={threads.authorName}
             onSend={(draft) => threads.send(comment, draft)}
+            initialBody={threads.draftOf(comment.id)}
+            onDraftChange={(body) => threads.keepDraft(comment.id, body)}
           />
         </div>
       ) : null}
