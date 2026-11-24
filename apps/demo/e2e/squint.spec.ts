@@ -503,6 +503,17 @@ test("a thread takes replies, an edit, a delete with Undo, and is all there afte
   await popoverBox.press("Enter");
   await expect(thread).toHaveCount(3);
   await expect(thread.nth(2)).toBeInViewport();
+  // While the popover has the thread, the card sums it up; one click on the card moves the thread
+  // back there, closing the popover, and the words typed in the popover come along.
+  await expect(card.getByTestId("reply-composer")).toHaveCount(0);
+  await popoverBox.fill("Typed in the pin.");
+  await card.locator("[data-card-select]").click();
+  await expect(popover).toHaveCount(0);
+  await expect(card.locator("[data-card-select]")).toHaveAttribute("aria-pressed", "true");
+  await expect(box).toHaveValue("Typed in the pin.");
+  await box.press("Enter");
+  await expect(replies).toHaveCount(4);
+  await expect(box).toHaveValue("");
 });
 
 test("a client's comment opens its More menu inside the list, and says its details weren't kept", async ({
