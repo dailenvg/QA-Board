@@ -44,8 +44,11 @@ export function ReplyComposer({
 }: ReplyComposerProps) {
   const [body, setBody] = useState(initialBody);
   const [author, setAuthor] = useState(authorName ?? "");
-  // Asked once: the field stays while it's being typed in, even after the name is saved.
-  const [askName] = useState(!authorName);
+  /** Typed in the name field: it then stays, whatever name arrives, so nothing typed is lost. */
+  const [nameTyped, setNameTyped] = useState(false);
+  // Asked while the member has no name; one that arrives later (another tab) takes its place.
+  const askName = !authorName || nameTyped;
+  const name = askName ? author : (authorName ?? "");
   const [problem, setProblem] = useState<FieldProblem>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -54,8 +57,6 @@ export function ReplyComposer({
   const [id, setId] = useState(newId);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
-  /** Typed in: only then does leaving it empty say so, not when Tab just passes through. */
-  const nameTouched = useRef(false);
   // The hint shows from `sm:` up (phones have no Shift on their Enter), and is read only there too.
   const showsHint = useMediaQuery("(min-width: 640px)");
   const bodyId = useId();
@@ -82,7 +83,7 @@ export function ReplyComposer({
     setSending(true);
     setSendError(null);
     setStatus("Sending…");
-    const result = await onSend({ id, body, author });
+    const result = await onSend({ id, body, author: name });
     setSending(false);
     if (!result.ok) {
       setStatus("");
@@ -126,13 +127,13 @@ export function ReplyComposer({
             aria-invalid={nameError ? true : undefined}
             aria-describedby={nameErrorId}
             onChange={(event) => {
-              nameTouched.current = true;
+              setNameTyped(true);
               setAuthor(event.target.value);
               setProblem((current) => (current?.field === "name" ? null : current));
             }}
             onBlur={() => {
               // The box sits in the list's Tab order: passing through it says nothing yet.
-              if (author.trim() || !(nameTouched.current || body.trim())) return;
+              if (author.trim() || !(nameTyped || body.trim())) return;
               setProblem({ field: "name", message: NAME_MISSING });
             }}
             className={FIELD_CLASS}
