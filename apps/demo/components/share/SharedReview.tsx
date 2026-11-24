@@ -12,11 +12,10 @@ import { useClientRefresh } from "@/lib/share-client/use-client-refresh";
 import { useReviewWindow } from "@/lib/share-client/use-review-window";
 import { shareIconSrc } from "@/lib/routes";
 import type { ClientBrand, ClientView, LockedShare } from "@/lib/share/types";
-import type { Comment } from "@/lib/store/types";
 import { ViewerBackendContext } from "@/lib/viewer-backend/backend";
 import { Icon } from "../ui/Icon";
 import { useIsClient } from "@/lib/use-is-client";
-import { CommentPeopleContext, type CommentPeople } from "../viewer/comment-people";
+import { CommentPeopleContext, type Authored, type CommentPeople } from "../viewer/comment-people";
 import { ViewerSkeleton } from "../viewer/ViewerSkeleton";
 import { ViewerView } from "../viewer/ViewerView";
 import { accentStyle } from "./brand-accent";
@@ -57,8 +56,8 @@ function clientCopy(brand: ClientBrand, project: string, client: string | null) 
   };
 }
 
-/** On a review link, the server marks the team's comments. */
-const markedTeam = (comment: Comment) => comment.team === true;
+/** On a review link, the server marks the team's comments (and replies). */
+const markedTeam = (post: Authored) => post.team === true;
 
 /**
  * The link's people: the team's comments carry the company's badge (its icon

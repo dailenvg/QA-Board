@@ -31,9 +31,11 @@ interface CommentEditorProps {
   error?: EditRefusal | null;
   /** What an empty edit says; the team's suggests deleting instead. */
   emptyMessage?: string;
+  /** The field's label: "Edit comment", or "Edit reply" in a thread. */
+  label?: string;
 }
 
-/** Inline edit form. Ctrl/Cmd+Enter saves, Escape cancels. */
+/** Inline edit form, for a comment or a reply. Ctrl/Cmd+Enter saves, Escape cancels. */
 export function CommentEditor({
   initialBody,
   onSave,
@@ -41,6 +43,7 @@ export function CommentEditor({
   pending = false,
   error = null,
   emptyMessage = EMPTY_TEAM_EDIT,
+  label = "Edit comment",
 }: CommentEditorProps) {
   const [body, setBody] = useState(initialBody);
   const [empty, setEmpty] = useState<string | null>(null);
@@ -97,7 +100,7 @@ export function CommentEditor({
       className="flex flex-col gap-2 p-2"
     >
       <label htmlFor={fieldId} className="px-1 text-meta font-semibold">
-        Edit comment
+        {label}
       </label>
       <textarea
         id={fieldId}

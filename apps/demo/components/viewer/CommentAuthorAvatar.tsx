@@ -1,15 +1,15 @@
-import type { Comment } from "@/lib/store/types";
 import { PersonAvatar, type AvatarSurface } from "../ui/PersonAvatar";
-import { useCommentPeople } from "./comment-people";
+import { useCommentPeople, type Authored } from "./comment-people";
 
 interface CommentAuthorAvatarProps {
-  comment: Comment;
-  /** What the comment sits on: a card in the list, the panel in the pin's popover. */
+  /** A comment, or a reply in its thread. */
+  comment: Authored;
+  /** What it sits on: a card in the list, the panel in the pin's popover. */
   surface: AvatarSurface;
 }
 
 /**
- * Who wrote a comment, between its pin number and their name: a team
+ * Who wrote a comment (or a reply), between its pin number and their name: a team
  * member's photo (or default mark) with the company badge; a client's
  * initials circle, the same size and without a badge, so names line up in the list.
  */

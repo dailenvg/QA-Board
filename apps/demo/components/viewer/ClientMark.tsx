@@ -1,13 +1,14 @@
-import type { Comment } from "@/lib/store/types";
 import { ClientChip } from "../ui/ClientChip";
+import type { Authored } from "./comment-people";
 
 interface ClientMarkProps {
-  comment: Comment;
+  /** A comment, or a reply in its thread. */
+  comment: Authored;
   /** The workspace's viewer. A guest on a review link never sees the mark. */
   owner: boolean;
 }
 
-/** The Client chip after a commenter's name, on comments a client left on the review link. */
+/** The Client chip after a commenter's name, on comments and replies a client left on the review link. */
 export function ClientMark({ comment, owner }: ClientMarkProps) {
   if (!owner || !comment.fromClient) return null;
   return (
