@@ -215,8 +215,10 @@ export function PinPopover({
       const target = event.target as Element | null;
       // Pins handle their own clicks: the same pin toggles, another one switches.
       if (ref.current?.contains(target) || target?.closest("[data-pin-id]")) return;
-      // So does this comment's card: a click there moves the thread to it in one go (`select`).
-      if (target?.closest(`[data-comment-id="${CSS.escape(comment.id)}"]`)) return;
+      // So does this comment's card, where selecting it moves the thread there in one go (`select`):
+      // its select surface only, so its Resolve, Edit, Delete or More still close the popover.
+      const card = target?.closest(`[data-comment-id="${CSS.escape(comment.id)}"]`);
+      if (card && target?.closest("[data-card-select]")) return;
       onCloseRef.current(false);
     };
     document.addEventListener("keydown", onKeyDown);
