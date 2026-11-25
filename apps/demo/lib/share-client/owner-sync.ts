@@ -254,9 +254,10 @@ async function collect(share: ProjectShare, projectId: string, changes: ShareCha
  * Pulls client comments, replies and snapshots added since the last pull (and
  * clients' edits since), copies their images into the workspace, then merges them
  * (idempotent by id; an edit only reaches a comment still here), which saves
- * them and the new pull position to the workspace too. Only a temporary failure
- * holds the cursor back, so the next pull asks again; an image that can never
- * arrive doesn't stall anything. While anything is held, sync isn't shown as done.
+ * them and the new pull position to the workspace too. Only a temporary failure,
+ * or a reply whose comment isn't here, holds the cursor back, so the next pull
+ * asks again; an image that can never arrive doesn't stall anything. While
+ * anything is held, sync isn't shown as done.
  */
 export async function pullNow(projectId: string): Promise<void> {
   const found = current(projectId);
