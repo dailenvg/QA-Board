@@ -592,6 +592,67 @@ test("a guest replies on a review link, the team reads it and answers, and a res
   await context.close();
 });
 
+test("a guest picks a priority when posting, and the team's change reaches the link", async ({
+  page,
+  browser,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "One desktop browser is enough for this.");
+  await openFolder(page);
+  await createImageProject(page, "priority-link.png");
+  await postComment(page, "Owner note", { x: 100, y: 80 }, "Ana");
+  await showComments(page);
+  await page.getByTestId("share-button").click();
+  const dialog = page.getByTestId("share-dialog");
+  const link = (await dialog.getByTestId("copy-share-link").getAttribute("data-url"))!;
+  await expect(dialog.getByTestId("share-sync")).toHaveAttribute("data-sync", "synced");
+  await page.keyboard.press("Escape");
+
+  // Guest: Should fix, picked in the composer, goes up with the comment.
+  const { client, context } = await guestBrowser(browser);
+  await client.goto(link);
+  const composer = await composerOn(client);
+  await composer.getByLabel("Your name").fill("Cleo");
+  await composer.getByRole("radio", { name: "Should fix" }).click();
+  await composer.getByLabel("Comment", { exact: true }).fill("Swap the hero photo.");
+  const sent = client.waitForResponse(
+    (response) => response.url().includes("/comments") && response.request().method() === "POST",
+  );
+  await composer.getByLabel("Comment", { exact: true }).press("Enter");
+  expect(await (await sent).json()).toMatchObject({ priority: "should" });
+  await showComments(client);
+  const guestCard = card(client, "Swap the hero photo.");
+  await expect(guestCard.getByTestId("comment-priority")).toHaveText("Priority: Should fix");
+  // Guests pick only when posting (D10): no More menu to change it.
+  await expect(guestCard.getByRole("button", { name: /^Actions for comment/ })).toHaveCount(0);
+
+  // Team: the pull brings it in with its priority; the team makes it Must fix.
+  const ownerCard = card(page, "Swap the hero photo.");
+  await pullUntil(page, ownerCard);
+  await expect(ownerCard.getByTestId("comment-priority")).toHaveText("Priority: Should fix");
+  const pushed = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname.startsWith("/api/shares/") &&
+      response.request().method() === "PATCH" &&
+      (response.request().postData() ?? "").includes('"priority":"must"'),
+  );
+  await ownerCard.getByRole("button", { name: "Actions for comment 2" }).click();
+  await page.getByRole("menuitemradio", { name: "Must fix" }).click();
+  await expect(ownerCard.getByTestId("comment-priority")).toHaveText("Priority: Must fix");
+  expect((await pushed).status()).toBe(200);
+
+  // The guest reads the team's priority (D26), on the card and the pin.
+  await expect(async () => {
+    await client.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await expect(guestCard.getByTestId("comment-priority")).toHaveText("Priority: Must fix", {
+      timeout: 1_000,
+    });
+  }).toPass({ timeout: 15_000 });
+  await expect(
+    client.getByRole("button", { name: "Comment 2 by Cleo, must fix", exact: true }),
+  ).toBeVisible();
+  await context.close();
+});
+
 /** Drops a pin on the open link's image; the composer asks for a name, or says whose it posts as. */
 async function composerOn(client: Page, position = { x: 140, y: 110 }): Promise<Locator> {
   await expect(client.getByRole("img", { name: /the image under review/ })).toBeVisible();
