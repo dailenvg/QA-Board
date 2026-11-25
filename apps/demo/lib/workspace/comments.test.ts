@@ -338,3 +338,104 @@ describe("when a comment was edited (042)", () => {
     expect(await editedAtOf(db, "anas")).toBe(NOW - 5 * MINUTE);
   });
 });
+
+describe("a comment's priority (055)", () => {
+  it("is posted with the comment, or left out for none, and read back", async () => {
+    const { db, a } = await setup();
+    expect(
+      await addComment(db, a.workspaceId, "p1", { ...INPUT, priority: "must" }, a.userId, NOW),
+    ).toMatchObject({ ok: true, value: { priority: "must" } });
+    await addComment(
+      db,
+      a.workspaceId,
+      "p1",
+      { ...INPUT, id: "c2", priority: null },
+      a.userId,
+      NOW,
+    );
+    await addComment(db, a.workspaceId, "p1", { ...INPUT, id: "c3" }, a.userId, NOW);
+    const listed = await listComments(db, a.workspaceId);
+    expect(listed.map((comment) => [comment.id, comment.priority])).toEqual([
+      ["c1", "must"],
+      ["c2", undefined],
+      ["c3", undefined],
+    ]);
+    expect(listed[1]).not.toHaveProperty("priority");
+  });
+
+  it("keeps a guest's priority, as the owner's pull sends it", async () => {
+    const { db, a } = await setup();
+    await addComment(
+      db,
+      a.workspaceId,
+      "p1",
+      { ...INPUT, id: "guest", priority: "nit" },
+      null,
+      NOW,
+    );
+    expect(await listComments(db, a.workspaceId)).toMatchObject([
+      { id: "guest", fromClient: true, priority: "nit" },
+    ]);
+  });
+
+  it("is set and cleared by any member on anyone's comment, a client's included", async () => {
+    const { db, a, ben } = await setup();
+    await addComment(db, a.workspaceId, "p1", INPUT, a.userId, NOW);
+    await addComment(db, a.workspaceId, "p1", { ...INPUT, id: "guest" }, null, NOW);
+    for (const id of ["c1", "guest"]) {
+      expect(
+        await updateComment(db, a.workspaceId, "p1", id, { priority: "should" }, NOW + 1, ben),
+      ).toMatchObject({ priority: "should", updatedAt: NOW + 1 });
+      const cleared = await updateComment(
+        db,
+        a.workspaceId,
+        "p1",
+        id,
+        { priority: null },
+        NOW + 2,
+        ben,
+      );
+      expect(cleared).toMatchObject({ updatedAt: NOW + 2 });
+      expect(cleared).not.toHaveProperty("priority");
+    }
+  });
+
+  it("stays as it is when a patch doesn't name it", async () => {
+    const { db, a } = await setup();
+    await addComment(db, a.workspaceId, "p1", { ...INPUT, priority: "must" }, a.userId, NOW);
+    for (const patch of [{ status: "resolved" as const }, { body: "New words" }]) {
+      expect(await updateComment(db, a.workspaceId, "p1", "c1", patch, NOW + 1, a)).toMatchObject({
+        priority: "must",
+      });
+    }
+  });
+
+  it("never marks the comment edited", async () => {
+    const { db, a, ben } = await setup();
+    await addComment(db, a.workspaceId, "p1", INPUT, a.userId, NOW);
+    await updateComment(db, a.workspaceId, "p1", "c1", { priority: "must" }, NOW + 1, ben);
+    await updateComment(db, a.workspaceId, "p1", "c1", { priority: null }, NOW + 2, a);
+    expect(await editedAtOf(db, "c1")).toBeNull();
+    await updateComment(db, a.workspaceId, "p1", "c1", { body: "New words" }, NOW + 3, a);
+    await updateComment(db, a.workspaceId, "p1", "c1", { priority: "nit" }, NOW + 4, ben);
+    expect(await editedAtOf(db, "c1")).toBe(NOW + 3);
+  });
+
+  it("doesn't let a member change others' words by sending a priority with them", async () => {
+    const { db, a, ben } = await setup();
+    await addComment(db, a.workspaceId, "p1", INPUT, a.userId, NOW);
+    expect(
+      await updateComment(
+        db,
+        a.workspaceId,
+        "p1",
+        "c1",
+        { body: "Ben's words", priority: "must" },
+        NOW + 1,
+        ben,
+      ),
+    ).toBeNull();
+    expect(await listComments(db, a.workspaceId)).toMatchObject([{ body: INPUT.body }]);
+    expect((await listComments(db, a.workspaceId))[0]).not.toHaveProperty("priority");
+  });
+});

@@ -7,6 +7,7 @@ import type {
   ClientEdit,
   Comment,
   CommentCrop,
+  CommentPriority,
   CommentStatus,
   Folder,
   Project,
@@ -57,6 +58,8 @@ export type Action =
   | { type: "comment/restore"; comment: Comment; replies?: Reply[] }
   | { type: "comment/edit"; id: string; body: string; at: number }
   | { type: "comment/set-status"; id: string; status: CommentStatus; at: number }
+  /** Sets how much a comment matters, or clears it (null). Never an edit: `editedAt` stays. */
+  | { type: "comment/set-priority"; id: string; priority: CommentPriority | null; at: number }
   /** Deletes a comment, and its replies with it. */
   | { type: "comment/delete"; id: string }
   /**
@@ -231,6 +234,11 @@ function touchProject(projects: Project[], id: string, at: number): Project[] {
   return projects.map((project) => (project.id === id ? { ...project, updatedAt: at } : project));
 }
 
+/** A comment's priority, null for none (or no such comment). */
+function commentPriority(data: SquintData, id: string): CommentPriority | null {
+  return data.comments.find((comment) => comment.id === id)?.priority ?? null;
+}
+
 function updateComment(
   data: SquintData,
   id: string,
@@ -394,6 +402,14 @@ export function reduce(data: SquintData, action: Action): SquintData {
           ? { ...rest, status: "resolved", resolvedAt: action.at }
           : { ...rest, status: "active" };
       });
+    case "comment/set-priority":
+      // Unchanged, or no such comment (`updateComment` leaves the data as it is): nothing to send.
+      if (commentPriority(data, action.id) === action.priority) return data;
+      return updateComment(data, action.id, action.at, ({ priority: _previous, ...comment }) =>
+        action.priority === null
+          ? { ...comment, updatedAt: action.at }
+          : { ...comment, priority: action.priority, updatedAt: action.at },
+      );
     case "comment/delete":
     case "comment/removed":
       return removeComment(data, action.id);

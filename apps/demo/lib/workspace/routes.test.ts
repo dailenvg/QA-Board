@@ -129,6 +129,13 @@ describe("request bodies", () => {
     ["POST", "/projects/p1/snapshots", { id: "s1" }, "width"],
     ["POST", "/projects/p1/comments", { id: "c1", x: 101, y: 0, body: "Hi", author: "A" }, "x"],
     ["PATCH", "/projects/p1/comments/c1", { status: "deleted" }, "status"],
+    ["PATCH", "/projects/p1/comments/c1", { priority: "urgent" }, "priority"],
+    [
+      "POST",
+      "/projects/p1/comments",
+      { id: "c1", x: 1, y: 0, body: "Hi", author: "A", priority: "Must fix" },
+      "priority",
+    ],
     [
       "PUT",
       "/projects/p1/share-link",

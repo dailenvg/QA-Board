@@ -26,6 +26,7 @@ import type { Action } from "./reducer";
 import type {
   Comment,
   CommentCrop,
+  CommentPriority,
   CommentStatus,
   Folder,
   Page,
@@ -360,6 +361,7 @@ export function addComment(input: {
   author: string;
   snapshotId?: string;
   pageId?: string;
+  priority?: CommentPriority;
   clientInfo?: ClientInfo;
 }): Promise<Result<Comment>> {
   const now = Date.now();
@@ -377,6 +379,7 @@ export function addComment(input: {
     updatedAt: now,
     ...(input.snapshotId ? { snapshotId: input.snapshotId } : {}),
     ...(input.pageId ? { pageId: input.pageId } : {}),
+    ...(input.priority ? { priority: input.priority } : {}),
     ...(input.clientInfo ? { clientInfo: input.clientInfo } : {}),
     mine: true,
     ...(avatar ? { authorAvatar: avatar } : {}),
@@ -402,6 +405,10 @@ export function setCommentStatus(id: string, status: CommentStatus): Result {
   if (result.ok && resolving) emitSquiggy({ type: "comment-resolved" });
   return result;
 }
+
+/** Sets a comment's priority, or clears it (null); rolled back with a notice if the server refuses. */
+export const setCommentPriority = (id: string, priority: CommentPriority | null) =>
+  commit({ type: "comment/set-priority", id, priority, at: Date.now() });
 
 export const deleteComment = (id: string) =>
   deleted("comment", commit({ type: "comment/delete", id }));

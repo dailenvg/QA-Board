@@ -17,9 +17,9 @@ function ids(params: Params) {
 }
 
 /**
- * `PATCH { body?, status?, crop? }`: edits, resolves or reopens the comment,
- * or adds its crop. Any member resolves and reopens; the text and crop are
- * the author's alone. Resolving a client's comment also locks it on the
+ * `PATCH { body?, status?, priority?, crop? }`: edits, resolves or reopens the
+ * comment, sets or clears (null) its priority, or adds its crop. Any member
+ * resolves, reopens and sets the priority; the text and crop are the author's alone. Resolving a client's comment also locks it on the
  * review link (`changeComment`). 404 for a comment the patch may not change,
  * as for one that isn't there.
  */

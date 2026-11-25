@@ -125,6 +125,34 @@ describe("snapshots in the reducer", () => {
     expect(reduce(data, { type: "comment/set-crop", id: "gone", crop })).toBe(data);
   });
 
+  it("sets and clears a comment's priority without marking it edited", () => {
+    const must = reduce(legacy(), {
+      type: "comment/set-priority",
+      id: "c1",
+      priority: "must",
+      at: 40,
+    });
+    expect(must.comments.find((entry) => entry.id === "c1")).toMatchObject({
+      priority: "must",
+      updatedAt: 40,
+    });
+    expect(must.comments.find((entry) => entry.id === "c1")).not.toHaveProperty("editedAt");
+    const nit = reduce(must, { type: "comment/set-priority", id: "c1", priority: "nit", at: 41 });
+    expect(nit.comments.find((entry) => entry.id === "c1")?.priority).toBe("nit");
+    const cleared = reduce(nit, { type: "comment/set-priority", id: "c1", priority: null, at: 42 });
+    expect(cleared.comments.find((entry) => entry.id === "c1")).not.toHaveProperty("priority");
+    // The same priority, or a comment that isn't here, changes nothing (so nothing is sent).
+    expect(reduce(nit, { type: "comment/set-priority", id: "c1", priority: "nit", at: 43 })).toBe(
+      nit,
+    );
+    expect(
+      reduce(cleared, { type: "comment/set-priority", id: "c1", priority: null, at: 44 }),
+    ).toBe(cleared);
+    expect(
+      reduce(nit, { type: "comment/set-priority", id: "gone", priority: "must", at: 45 }),
+    ).toBe(nit);
+  });
+
   it("marks a comment edited only when its words change", () => {
     const same = reduce(legacy(), { type: "comment/edit", id: "c1", body: "same", at: 50 });
     const body = same.comments.find((entry) => entry.id === "c1")?.body ?? "";
