@@ -9,6 +9,11 @@ interface MenuItemBase {
   disabled?: boolean;
   /** A line above this item, to set it apart from the ones before. */
   separatorBefore?: boolean;
+  /**
+   * The named set it belongs to, such as "Sort by": items in a row with the same name
+   * are one labelled group under that heading, set apart by a line (`menuSections`).
+   */
+  group?: string;
   /** Identifies the item when its label changes (a pending label); the label by default. */
   id?: string;
   testId?: string;
@@ -57,6 +62,24 @@ export const ITEM_SELECTOR = '[role^="menuitem"]';
 export function itemRole(item: MenuItem): MenuItemRole {
   if (item.kind === "checkbox") return "menuitemcheckbox";
   return item.checked === undefined ? "menuitem" : "menuitemradio";
+}
+
+/** A run of items: a labelled group (`label`, from `MenuItem.group`), or ungrouped ones. */
+export interface MenuSection {
+  label: string | null;
+  items: MenuItem[];
+}
+
+/** Splits items into sections wherever their `group` changes, keeping their order. */
+export function menuSections(items: readonly MenuItem[]): MenuSection[] {
+  const sections: MenuSection[] = [];
+  for (const item of items) {
+    const label = item.group ?? null;
+    const last = sections[sections.length - 1];
+    if (last && last.label === label) last.items.push(item);
+    else sections.push({ label, items: [item] });
+  }
+  return sections;
 }
 
 /** Choosing an item closes the menu, except a checkbox (toggled in place) or a `keepOpen` action. */

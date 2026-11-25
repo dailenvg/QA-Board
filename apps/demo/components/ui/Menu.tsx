@@ -15,7 +15,14 @@ import {
 } from "react";
 import { instant, spring, usePopVariants } from "@/lib/motion";
 import { Icon, type IconName } from "./Icon";
-import { closesOnSelect, itemRole, ITEM_SELECTOR, type MenuItem } from "./menu-item";
+import {
+  closesOnSelect,
+  itemRole,
+  ITEM_SELECTOR,
+  menuSections,
+  type MenuItem,
+  type MenuSection,
+} from "./menu-item";
 import { chooseSide, type MenuPlacement } from "./menu-side";
 
 export type { MenuItem } from "./menu-item";
@@ -139,6 +146,11 @@ interface MenuProps {
   testId?: string;
   /** Trigger icon; `more` (···) by default. */
   icon?: IconName;
+  /**
+   * A dot on the trigger's corner, for a menu whose choice is changed from its default (a
+   * filter that's on). Visual only: say what changed elsewhere (a live region, the label).
+   */
+  indicator?: boolean;
   /** Visible trigger text, hidden on phones. Without it the trigger is icon-only. */
   text?: string;
   /** Replaces the trigger text's default classes (`max-sm:sr-only`), e.g. to keep it on phones. */
@@ -173,6 +185,7 @@ export function Menu({
   className = "",
   testId,
   icon = "more",
+  indicator = false,
   text,
   textClassName = "max-sm:sr-only",
   triggerClassName = TRIGGER_CLASS,
@@ -335,9 +348,16 @@ export function Menu({
             setOpen(true);
           }
         }}
-        className={triggerClassName}
+        className={`${triggerClassName} ${indicator ? "relative" : ""}`}
       >
         <Icon name={icon} />
+        {indicator ? (
+          <span
+            aria-hidden="true"
+            data-testid={testId ? `${testId}-indicator` : undefined}
+            className="absolute top-2 right-2 size-2 rounded-pill bg-brand-text shadow-[0_0_0_2px_var(--color-panel)]"
+          />
+        ) : null}
         {text ? <span className={textClassName}>{text}</span> : null}
         {disabledReason ? (
           <span id={reasonId} className="sr-only">
@@ -377,17 +397,58 @@ export function Menu({
             style={{ transformOrigin: menuOrigin(side, align) }}
             className={`absolute ${ALIGN_CLASS[align]} z-30 ${PLACEMENT_CLASS[side]} flex w-max max-w-72 min-w-52 flex-col rounded-tile bg-card p-2 shadow-pop ring-1 ring-line`}
           >
-            {items.map((item) => (
-              <Fragment key={item.id ?? item.label}>
-                {item.separatorBefore ? (
-                  <div role="separator" className="mx-1 my-1 h-px shrink-0 bg-line" />
-                ) : null}
-                <MenuEntry item={item} onChoose={() => choose(item)} />
+            {menuSections(items).map((section, index) => (
+              <Fragment key={`section-${index}`}>
+                {index > 0 ? <Separator /> : null}
+                <MenuSectionItems
+                  section={section}
+                  headingId={`${menuId}-group-${index}`}
+                  onChoose={choose}
+                />
               </Fragment>
             ))}
           </motion.div>
         ) : null}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function Separator() {
+  return <div role="separator" className="mx-1 my-1 h-px shrink-0 bg-line" />;
+}
+
+/**
+ * A section's items: a labelled group under its heading (the heading names the group; it's
+ * hidden from reading on its own, so it isn't heard twice), or ungrouped ones, each with its
+ * own line above when it asks for one.
+ */
+function MenuSectionItems({
+  section,
+  headingId,
+  onChoose,
+}: {
+  section: MenuSection;
+  headingId: string;
+  onChoose: (item: MenuItem) => void;
+}) {
+  const entries = section.items.map((item, index) => (
+    <Fragment key={item.id ?? item.label}>
+      {item.separatorBefore && index > 0 ? <Separator /> : null}
+      <MenuEntry item={item} onChoose={() => onChoose(item)} />
+    </Fragment>
+  ));
+  if (section.label === null) return entries;
+  return (
+    <div role="group" aria-labelledby={headingId} className="flex flex-col">
+      <div
+        id={headingId}
+        aria-hidden="true"
+        className="px-3 pt-1 pb-1 text-label font-semibold text-muted"
+      >
+        {section.label}
+      </div>
+      {entries}
     </div>
   );
 }

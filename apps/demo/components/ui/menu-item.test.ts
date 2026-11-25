@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { closesOnSelect, itemRole, ITEM_SELECTOR, type MenuItem } from "./menu-item";
+import { closesOnSelect, itemRole, ITEM_SELECTOR, menuSections, type MenuItem } from "./menu-item";
 
 const noop = () => {};
 
@@ -22,6 +22,33 @@ describe("itemRole", () => {
   it("makes a link a plain menuitem, current or not", () => {
     expect(itemRole({ label: "Account", href: "/account" })).toBe("menuitem");
     expect(itemRole({ label: "Account", href: "/account", current: true })).toBe("menuitem");
+  });
+});
+
+describe("menuSections", () => {
+  it("keeps ungrouped items in one section", () => {
+    const items: MenuItem[] = [
+      { label: "Rename", onSelect: noop },
+      { label: "Delete", onSelect: noop, separatorBefore: true },
+    ];
+    expect(menuSections(items)).toEqual([{ label: null, items }]);
+  });
+
+  it("starts a section wherever the group changes, in order", () => {
+    const pin: MenuItem = { label: "Pin number", group: "Sort by", checked: true, onSelect: noop };
+    const priority: MenuItem = {
+      label: "Priority",
+      group: "Sort by",
+      checked: false,
+      onSelect: noop,
+    };
+    const all: MenuItem = { label: "All", group: "Show", checked: true, onSelect: noop };
+    const info: MenuItem = { label: "Get info", onSelect: noop };
+    expect(menuSections([pin, priority, all, info])).toEqual([
+      { label: "Sort by", items: [pin, priority] },
+      { label: "Show", items: [all] },
+      { label: null, items: [info] },
+    ]);
   });
 });
 
