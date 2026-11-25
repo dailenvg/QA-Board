@@ -336,10 +336,8 @@ export function CommentCard({
                 {RESOLVED_NOTE}
               </p>
             ) : null}
-            {comment.priority ? (
-              // Beside the page or breakpoint chip that may follow, on one line while they fit.
-              <PriorityChip id={priorityId} priority={comment.priority} className="mt-2 mr-2" />
-            ) : null}
+            {/* Beside the page or breakpoint chip that may follow, on one line while they fit. */}
+            <PriorityChip id={priorityId} priority={comment.priority} className="mt-2 mr-2" />
             {pageNumber ? (
               <p
                 id={pageId}

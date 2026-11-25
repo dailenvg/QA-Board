@@ -337,9 +337,7 @@ export function PinPopover({
             {comment.body}
           </p>
           <CommentEdited id={editedId} editedAt={comment.editedAt} now={now} />
-          {comment.priority ? (
-            <PriorityChip id={priorityId} priority={comment.priority} className="self-start" />
-          ) : null}
+          <PriorityChip id={priorityId} priority={comment.priority} className="self-start" />
           {placement ? <PlacementChip id={placementId} placement={placement} now={now} /> : null}
           {canModerate || onGetInfo ? (
             <div className="flex items-center justify-end gap-1 pt-1">
