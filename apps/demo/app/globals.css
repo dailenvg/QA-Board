@@ -97,6 +97,14 @@
   --pin-band: #18181b;
   --pin-focus: #0c54cc;
   /*
+   * A pin's priority dot (U3) sits on that white halo in both themes, so it keeps light mode's
+   * danger, warning and muted fills: 6.6, 3.7 and 6.0:1 on white (WCAG 1.4.11). Dark mode's
+   * lighter ones read 2.7, 2.0 and 2.4:1 there. Badges' dots sit on the card and use the themed ones.
+   */
+  --pin-must: #bd001d;
+  --pin-should: #b87700;
+  --pin-nit: #62626b;
+  /*
    * Resolved pins and badges: Mint Green (RESOLVED_GREEN in brand-palette.ts), filled, with
    * Forest Green numbers and checks at 10.3:1. Mint is about as light as the white halo
    * (1.1:1), so a Forest line just inside the halo draws the pin's edge (`--pin-line`): 11.7:1
@@ -347,6 +355,9 @@
   --color-pin-halo: var(--pin-halo);
   --color-pin-band: var(--pin-band);
   --color-pin-focus: var(--pin-focus);
+  --color-pin-must: var(--pin-must);
+  --color-pin-should: var(--pin-should);
+  --color-pin-nit: var(--pin-nit);
   --color-favicon-bg: var(--favicon-bg);
   --color-logo-bg: var(--logo-bg);
 
