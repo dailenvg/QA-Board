@@ -94,7 +94,7 @@ describe("toJson", () => {
 
   it("gives each comment's priority by its stored name, or null for none", () => {
     const priorities = Object.fromEntries(
-      parsed.comments.map((comment) => [comment.id, comment.priority]),
+      parsed.comments.map((comment) => [String(comment.id), comment.priority]),
     );
     expect(priorities).toEqual({
       "aaaa1111-legacy": null,
