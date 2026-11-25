@@ -4,7 +4,7 @@ import { motion, useIsPresent } from "motion/react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { usePopVariants } from "@/lib/motion";
 import { absoluteTime, relativeTime } from "@/lib/relative-time";
-import type { Comment, Reply } from "@/lib/store/types";
+import type { Comment, CommentPriority, Reply } from "@/lib/store/types";
 import { useDockAboveKeyboard } from "@/lib/use-fit-above-keyboard";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { Button } from "../ui/Button";
@@ -38,6 +38,8 @@ interface PinPopoverProps {
   onReopen: (id: string) => void;
   /** The team's "Get info" (browser details) in the More menu; guests get none. */
   onGetInfo?: () => void;
+  /** The team's Priority choices in the More menu (D10); guests get none. */
+  onSetPriority?: (priority: CommentPriority | null) => void;
   /** `returnFocus`: closed from the keyboard or the close button, so focus goes back to the pin. */
   onClose: (returnFocus: boolean) => void;
 }
@@ -139,6 +141,7 @@ export function PinPopover({
   onResolve,
   onReopen,
   onGetInfo,
+  onSetPriority,
   onClose,
 }: PinPopoverProps) {
   const docked = !useMediaQuery("(min-width: 640px)");
@@ -351,7 +354,14 @@ export function PinPopover({
                   Resolve
                 </Button>
               )}
-              {onGetInfo ? <CommentMoreMenu number={number} onGetInfo={onGetInfo} /> : null}
+              {onGetInfo && onSetPriority ? (
+                <CommentMoreMenu
+                  number={number}
+                  priority={comment.priority ?? null}
+                  onSetPriority={onSetPriority}
+                  onGetInfo={onGetInfo}
+                />
+              ) : null}
             </div>
           ) : null}
           {threads ? (

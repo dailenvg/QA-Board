@@ -5,6 +5,7 @@ import { useState, type RefObject } from "react";
 import { staggerGroup, useRevealVariants } from "@/lib/motion";
 import type { Breakpoint } from "@/lib/store/breakpoints";
 import type { Comment } from "@/lib/store/types";
+import { Button } from "../ui/Button";
 import { StateArt } from "../ui/line-art/StateArt";
 import { CommentCard, type CommentCardActions } from "./CommentCard";
 import { commentRights } from "./comment-rights";
@@ -41,7 +42,14 @@ interface CommentsBodyProps extends CommentCardActions {
   breakpoints?: ReadonlyMap<string, Breakpoint>;
   /** Pins in surface px by comment id (`pinInSurface`), for the crop thumbnails. */
   cropPins: ReadonlyMap<string, { x: number; y: number } | null>;
+  /**
+   * Set while the priority filter hides comments on this tab: an empty list then says so
+   * (`title`, "No Must fix comments here") and offers Show all.
+   */
+  filteredOut?: { title: string; onShowAll: () => void } | null;
 }
+
+const FILTERED_OUT_BODY = "Change the filter to see the rest.";
 
 function emptyCopy(tab: CommentTab, total: number, scope: string | undefined) {
   if (tab === "resolved") {
@@ -111,6 +119,7 @@ export function CommentsBody({
   pageNumbers,
   breakpoints,
   cropPins,
+  filteredOut = null,
   ...actions
 }: CommentsBodyProps) {
   const variants = useRevealVariants();
@@ -169,7 +178,7 @@ export function CommentsBody({
           })}
           {shown.length === 0 ? (
             <motion.li
-              key={`empty-${tab}`}
+              key={`empty-${tab}${filteredOut ? "-filtered" : ""}`}
               variants={variants}
               initial="hidden"
               animate="visible"
@@ -177,9 +186,28 @@ export function CommentsBody({
               data-testid="comments-empty"
               className="flex flex-col items-center rounded-tile px-4 py-6 text-center"
             >
-              <StateArt scene={empty.scene} size="md" still className="mb-3" />
-              <p className="text-body font-semibold">{empty.title}</p>
-              <p className="mt-1 text-meta text-muted">{empty.body}</p>
+              {filteredOut ? (
+                <>
+                  <StateArt scene="noMatch" size="md" still className="mb-3" />
+                  <p className="text-body font-semibold">{filteredOut.title}</p>
+                  <p className="mt-1 text-meta text-muted">{FILTERED_OUT_BODY}</p>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="mt-3"
+                    onClick={filteredOut.onShowAll}
+                    data-testid="comments-show-all"
+                  >
+                    Show all
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <StateArt scene={empty.scene} size="md" still className="mb-3" />
+                  <p className="text-body font-semibold">{empty.title}</p>
+                  <p className="mt-1 text-meta text-muted">{empty.body}</p>
+                </>
+              )}
             </motion.li>
           ) : null}
         </AnimatePresence>
