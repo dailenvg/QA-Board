@@ -19,9 +19,10 @@ import { CommentEditor, EMPTY_CLIENT_EDIT } from "./CommentEditor";
 import { CommentMoreMenu } from "./CommentMoreMenu";
 import { CommentTeamNote } from "./CommentTeamNote";
 import { CommentThread } from "./CommentThread";
-import { useCommentThreads } from "./comment-threads";
+import { showsReplyBox, useCommentThreads } from "./comment-threads";
 import { PlacementChip } from "./PlacementChip";
-import { canReply } from "./reply-rights";
+import { replyClosedNote } from "./reply-rights";
+import { ReplySlot } from "./ReplySlot";
 import { CardReplyBox } from "./CardReplyBox";
 import { isScreenshotPending } from "./screenshot-pending";
 import { ScreenshotPending } from "./ScreenshotPending";
@@ -139,9 +140,8 @@ export function CommentCard({
   // The thread and its box show in one place at a time: the popover, while it's open.
   const threadHere = selected && !threadInPopover;
   const summary = threads && !threadHere ? threadSummary(replies, now) : null;
-  // A guest, who has no reply box, gets nothing here until there's a reply to read.
-  const showThread =
-    threads !== null && threadHere && !editing && (replies.length > 0 || canReply(threads.viewer));
+  // Everyone gets a reply box here, or (a guest who can't reply) the reason there's none.
+  const showThread = threads !== null && threadHere && !editing;
   /**
    * The reply box shows, rather than its Reply button: once there's a thread, a draft, or the
    * button was pressed. It then stays while the card is selected (deleting the last reply, or
@@ -415,16 +415,21 @@ export function CommentCard({
               surface="card"
               now={now}
             />
-            {canReply(threads.viewer) ? (
-              <CardReplyBox
-                open={replyOpen || replies.length > 0 || draft !== ""}
-                onOpen={() => setReplyOpen(true)}
-                authorName={threads.authorName}
-                onSend={(reply) => threads.send(comment, reply)}
-                initialBody={draft}
-                onDraftChange={(body) => threads.keepDraft(comment.id, body)}
-              />
-            ) : null}
+            <ReplySlot
+              box={
+                showsReplyBox(threads, comment) ? (
+                  <CardReplyBox
+                    open={replyOpen || replies.length > 0 || draft !== ""}
+                    onOpen={() => setReplyOpen(true)}
+                    authorName={threads.authorName}
+                    onSend={(reply) => threads.send(comment, reply)}
+                    initialBody={draft}
+                    onDraftChange={(body) => threads.keepDraft(comment.id, body)}
+                  />
+                ) : null
+              }
+              note={replyClosedNote(threads.viewer, comment)}
+            />
           </motion.div>
         ) : null}
       </AnimatePresence>

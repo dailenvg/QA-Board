@@ -296,14 +296,20 @@ describe("the thread (U1)", () => {
     edit: noop,
     remove: noop,
     getInfo: noop,
+    keepsBox: () => false,
   });
   const withThreads = (element: ReactElement, value: CommentThreads | null) =>
     renderToStaticMarkup(createElement(CommentThreadsContext, { value }, element));
-  const cardWith = (value: CommentThreads | null, selected = false, threadInPopover = false) => {
-    const rights = commentRights(COMMENT, member);
+  const cardWith = (
+    value: CommentThreads | null,
+    selected = false,
+    threadInPopover = false,
+    comment: Comment = COMMENT,
+  ) => {
+    const rights = commentRights(comment, member);
     return withThreads(
       createElement(CommentCard, {
-        comment: COMMENT,
+        comment,
         number: 1,
         placement: null,
         pageNumber: null,
@@ -423,26 +429,17 @@ describe("the thread (U1)", () => {
       expect(html).not.toContain('data-testid="comment-thread"');
     });
 
-    it("shows a selected card's thread to read: no box, no Reply button, no menu", () => {
-      const html = cardWith(threads([TEAM_REPLY, reply("r-5", "Cleo", NOW)], guest), true);
-      expect(html).toContain('aria-label="Replies to comment 1"');
-      expect(html.indexOf("Reply r-4")).toBeLessThan(html.indexOf("Reply r-5"));
-      for (const absent of ["reply-composer", "reply-start", "reply-more", "client-chip"]) {
-        expect(html).not.toContain(`data-testid="${absent}"`);
-      }
-    });
-
-    it("shows nothing under a selected card nobody has replied to", () => {
-      const html = cardWith(threads([], guest), true);
-      expect(html).not.toContain("data-thread-scope");
-      expect(html).not.toContain("reply-start");
-    });
-
-    it("shows the thread in the pin's popover without a box", () => {
-      const html = withThreads(
+    const RESOLVED: Comment = { ...COMMENT, status: "resolved", resolvedAt: NOW - MINUTE };
+    const closed: CommentViewer = { ...guest, reviewOpen: false };
+    const NOTES = [
+      "The team resolved this, so it&#x27;s closed for replies.",
+      "The review window has closed, so you can&#x27;t reply.",
+    ];
+    const popover = (value: CommentThreads, comment: Comment = COMMENT) =>
+      withThreads(
         createElement(PinPopover, {
           id: "popover",
-          comment: COMMENT,
+          comment,
           number: 1,
           placement: null,
           now: NOW,
@@ -451,11 +448,61 @@ describe("the thread (U1)", () => {
           onReopen: noop,
           onClose: noop,
         }),
-        threads([TEAM_REPLY], guest),
+        value,
       );
-      expect(html).toContain("Reply r-4");
-      expect(html).not.toContain('data-testid="reply-composer"');
-      expect(html).not.toContain('data-testid="reply-more"');
+
+    it("shows a selected card's thread with the reply box, and no reply menu", () => {
+      const html = cardWith(threads([TEAM_REPLY, reply("r-5", "Cleo", NOW)], guest), true);
+      expect(html).toContain('aria-label="Replies to comment 1"');
+      expect(html.indexOf("Reply r-4")).toBeLessThan(html.indexOf("Reply r-5"));
+      expect(html).toContain('data-testid="reply-composer"');
+      for (const absent of ["reply-more", "client-chip", "reply-closed-note"]) {
+        expect(html).not.toContain(`data-testid="${absent}"`);
+      }
+    });
+
+    it("shows a Reply button under a selected card nobody has replied to", () => {
+      const html = cardWith(threads([], guest), true);
+      expect(html).toContain('data-testid="reply-start"');
+      expect(html).not.toContain("reply-closed-note");
+    });
+
+    it("asks a guest with no name yet for one first (D7)", () => {
+      const html = cardWith({ ...threads([TEAM_REPLY], guest), authorName: null }, true);
+      expect(html).toContain("Your name");
+      expect(html.indexOf("Your name")).toBeLessThan(html.indexOf('placeholder="Reply…"'));
+    });
+
+    it("says why there's no box under a resolved comment, or once the window has closed", () => {
+      const cases: Array<[CommentThreads, Comment, string | undefined]> = [
+        [threads([TEAM_REPLY], guest), RESOLVED, NOTES[0]],
+        [threads([], guest), RESOLVED, NOTES[0]],
+        [threads([TEAM_REPLY], closed), COMMENT, NOTES[1]],
+        [threads([TEAM_REPLY], closed), RESOLVED, NOTES[1]],
+      ];
+      for (const [value, comment, note] of cases) {
+        const html = cardWith(value, true, false, comment);
+        expect(html).toContain('data-testid="reply-closed-note"');
+        expect(html).toContain(note);
+        expect(html).not.toContain("reply-composer");
+        expect(html).not.toContain("reply-start");
+      }
+    });
+
+    it("keeps a box with words still in it, so they can be copied, after the window has closed", () => {
+      const html = cardWith({ ...threads([TEAM_REPLY], closed), keepsBox: () => true }, true);
+      expect(html).toContain('data-testid="reply-composer"');
+      expect(html).not.toContain("reply-closed-note");
+    });
+
+    it("shows the thread and the box in the pin's popover, and why there's none when resolved", () => {
+      const open = popover(threads([TEAM_REPLY], guest));
+      expect(open).toContain("Reply r-4");
+      expect(open).toContain('data-testid="reply-composer"');
+      expect(open).not.toContain('data-testid="reply-more"');
+      const resolved = popover(threads([TEAM_REPLY], guest), RESOLVED);
+      expect(resolved).not.toContain("reply-composer");
+      expect(resolved).toContain(NOTES[0]);
     });
   });
 

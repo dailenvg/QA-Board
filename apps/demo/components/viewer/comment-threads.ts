@@ -3,6 +3,7 @@ import type { Result } from "@/lib/store/store";
 import type { Comment, Reply } from "@/lib/store/types";
 import type { CommentViewer } from "./comment-rights";
 import type { ReplyDrafts } from "./reply-drafts";
+import { canReply } from "./reply-rights";
 
 /** What a thread is sent: the new reply's id (kept across retries), its words and its author. */
 export interface ReplyDraft {
@@ -13,8 +14,8 @@ export interface ReplyDraft {
 
 /**
  * The viewer's threads (U1): each comment's replies, who's reading them, and
- * what they can do (a review link's guest only reads them). Cards and the
- * pin's popover read it; without it neither shows a thread.
+ * what they can do (a review link's guest replies, and changes no reply).
+ * Cards and the pin's popover read it; without it neither shows a thread.
  */
 export interface CommentThreads extends ReplyDrafts {
   /** A comment's replies, oldest first. */
@@ -33,9 +34,20 @@ export interface CommentThreads extends ReplyDrafts {
   remove: (reply: Reply, afterRemoval: () => void) => void;
   /** Opens the reply's browser details (the team's "Get info"). */
   getInfo: (reply: Reply) => void;
+  /**
+   * The comment's reply box stays though its viewer may no longer reply there
+   * (a guest whose window closed, or whose comment the team resolved): words
+   * are in it or on their way, so they stay to copy, with why they weren't sent.
+   */
+  keepsBox: (commentId: string) => boolean;
 }
 
 export const CommentThreadsContext = createContext<CommentThreads | null>(null);
+
+/** Whether the comment's reply box shows: where its viewer may reply, or where words are kept. */
+export function showsReplyBox(threads: CommentThreads, comment: Comment): boolean {
+  return canReply(threads.viewer, comment) || threads.keepsBox(comment.id);
+}
 
 /** The viewer's threads, or null where there are none to show. */
 export function useCommentThreads(): CommentThreads | null {

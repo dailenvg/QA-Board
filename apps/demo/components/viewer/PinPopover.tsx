@@ -16,10 +16,11 @@ import { CommentEdited } from "./CommentEdited";
 import { CommentMoreMenu } from "./CommentMoreMenu";
 import { CommentTeamNote } from "./CommentTeamNote";
 import { CommentThread } from "./CommentThread";
-import { useCommentThreads } from "./comment-threads";
+import { showsReplyBox, useCommentThreads } from "./comment-threads";
 import { PlacementChip } from "./PlacementChip";
-import { canReply } from "./reply-rights";
+import { replyClosedNote } from "./reply-rights";
 import { ReplyComposer } from "./ReplyComposer";
+import { ReplySlot } from "./ReplySlot";
 import { useOverflowing } from "./use-overflowing";
 import type { Placement } from "./surface";
 
@@ -354,14 +355,21 @@ export function PinPopover({
           ) : null}
         </div>
       </div>
-      {threads && canReply(threads.viewer) ? (
+      {threads ? (
         // Before any reply, the thread's rule (12px either side) sits over the box, as on a card.
         <div className={`shrink-0 ${replies.length > 0 ? "pt-1" : BOX_RULE}`}>
-          <ReplyComposer
-            authorName={threads.authorName}
-            onSend={(draft) => threads.send(comment, draft)}
-            initialBody={threads.draftOf(comment.id)}
-            onDraftChange={(body) => threads.keepDraft(comment.id, body)}
+          <ReplySlot
+            box={
+              showsReplyBox(threads, comment) ? (
+                <ReplyComposer
+                  authorName={threads.authorName}
+                  onSend={(draft) => threads.send(comment, draft)}
+                  initialBody={threads.draftOf(comment.id)}
+                  onDraftChange={(body) => threads.keepDraft(comment.id, body)}
+                />
+              ) : null
+            }
+            note={replyClosedNote(threads.viewer, comment)}
           />
         </div>
       ) : null}

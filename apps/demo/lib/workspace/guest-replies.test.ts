@@ -21,7 +21,7 @@ import { listReplies } from "./replies";
 import { attachShare } from "./share-links";
 
 /**
- * A guest's reply pulled from the review link (4.2, PR 5): the workspace
+ * A guest's reply pulled from the review link (4.2): the workspace
  * saves it as a client's only when a guest really posted it on that link,
  * under that comment, and takes what it says from the link, never the browser.
  */

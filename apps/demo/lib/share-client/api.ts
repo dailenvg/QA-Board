@@ -1,3 +1,4 @@
+import type { SentClientInfo } from "../client-info/schema";
 import { EDIT_KEY_HEADER, OWNER_KEY_HEADER } from "../share/http-headers";
 import type {
   CapturedSnapshot,
@@ -5,6 +6,7 @@ import type {
   CreatedShare,
   PostedComment,
   SharedComment,
+  SharedReply,
   ShareChange,
   ShareChanges,
   ShareManifest,
@@ -82,6 +84,14 @@ export const ownerApi = {
     call<null>(`/api/shares/${share.id}`, { method: "DELETE", headers: owner(share) }),
 };
 
+/** A client's reply as it's sent: its browser's details without the user agent (the server's). */
+export interface ClientReplySend {
+  id: string;
+  body: string;
+  author: string;
+  clientInfo?: SentClientInfo;
+}
+
 /**
  * A comment's post gives up after this, a little past the server's 30 s
  * deadline, so a stalled connection ends in an error to retry instead of
@@ -108,6 +118,12 @@ export function clientApi(token: string) {
       call<SharedComment>(
         `${base}/comments/${encodeURIComponent(id)}`,
         jsonInit("PATCH", { body }, { [EDIT_KEY_HEADER]: editKey }),
+      ),
+    /** A client's reply to a comment of the link; its time is the server's to set. */
+    addReply: (commentId: string, reply: ClientReplySend) =>
+      call<SharedReply>(
+        `${base}/comments/${encodeURIComponent(commentId)}/replies`,
+        jsonInit("POST", reply),
       ),
     capture: (width: number, signal: AbortSignal) =>
       call<CapturedSnapshot>(`${base}/capture`, { ...jsonInit("POST", { width }), signal }),

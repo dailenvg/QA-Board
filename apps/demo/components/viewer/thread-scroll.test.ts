@@ -10,7 +10,7 @@ describe("revealsNewReply", () => {
   it("leaves a thread being read where it is when someone else's reply arrives", () => {
     expect(revealsNewReply(false, composer, elsewhere)).toBe(false);
     expect(revealsNewReply(false, composer, null)).toBe(false);
-    // A guest has no box: the team's replies never move them, wherever focus is.
+    // Where there's no box (a guest under a resolved comment), others' replies never move them.
     expect(revealsNewReply(false, null, elsewhere)).toBe(false);
   });
 

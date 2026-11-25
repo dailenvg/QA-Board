@@ -1,5 +1,5 @@
 import { replyDeleteMode, type DeleteMode } from "@/lib/store/replies";
-import type { Reply } from "@/lib/store/types";
+import type { Comment, Reply } from "@/lib/store/types";
 import type { CommentViewer } from "./comment-rights";
 
 export interface ReplyRights {
@@ -26,10 +26,31 @@ export function replyRights(reply: Reply, viewer: CommentViewer): ReplyRights {
 }
 
 /**
- * Whether `viewer` gets the reply box: anyone on the team, under an active or
- * a resolved comment, and a reply never reopens it (D1, D5). A review link's
- * guest doesn't reply yet.
+ * Whether `viewer` gets the reply box under `comment`: anyone on the team,
+ * under an active or a resolved comment, and a reply never reopens it (D1,
+ * D5). A review link's guest only under an active one (D4), while the review
+ * window is open (D3).
  */
-export function canReply(viewer: CommentViewer): boolean {
-  return viewer.team;
+export function canReply(viewer: CommentViewer, comment: Pick<Comment, "status">): boolean {
+  if (viewer.team) return true;
+  return comment.status === "active" && viewer.reviewOpen !== false;
+}
+
+/** Said to a guest who can't reply, where the box would be. */
+export const REPLY_CLOSED_NOTE = {
+  windowClosed: "The review window has closed, so you can't reply.",
+  resolved: "The team resolved this, so it's closed for replies.",
+} as const;
+
+/**
+ * Why `viewer` has no reply box under `comment`, or null when they have one
+ * (or are on the team, who always do). A closed window comes first: it
+ * closes every thread, whatever their status.
+ */
+export function replyClosedNote(
+  viewer: CommentViewer,
+  comment: Pick<Comment, "status">,
+): string | null {
+  if (canReply(viewer, comment)) return null;
+  return viewer.reviewOpen === false ? REPLY_CLOSED_NOTE.windowClosed : REPLY_CLOSED_NOTE.resolved;
 }
