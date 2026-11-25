@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STATE } from "@/test/share-fixture";
+import { REPLY_CAPS, STATE } from "@/test/share-fixture";
 import {
   addFolder,
   NOW,
@@ -15,7 +15,8 @@ import type { SharedComment } from "../share/types";
 import { clientActivity } from "./activity";
 import { addComment, updateComment } from "./comments";
 import { createProject, trashProject } from "./projects";
-import { attachShare, syncShareLink } from "./share-links";
+import { addReply } from "./replies";
+import { attachShare, findGuestReply, syncShareLink } from "./share-links";
 
 const HOUR = 3_600_000;
 
@@ -58,6 +59,31 @@ async function linkedProject(db: Database, workspaceId: string, projectId: strin
       return Number(rows[0]?.seq);
     },
     ownerPushes: (pushed: PlainComment) => store.upsertComment(created.shareId, pushed, "owner"),
+    /** A client replies on the link; returns the row's seq (the pull position past it). */
+    clientReplies: async (id: string, commentId: string, createdAt: number) => {
+      const reply = { id, commentId, body: "Thanks", author: "Cleo", createdAt };
+      expect(await store.addClientReply(created.shareId, reply, REPLY_CAPS)).toBe("added");
+      const { rows } = await db.query<{ seq: string }>(
+        "SELECT seq FROM squint_share_replies WHERE share_id = $1 AND id = $2",
+        [created.shareId, id],
+      );
+      return Number(rows[0]?.seq);
+    },
+    ownerReplies: (id: string, commentId: string, createdAt: number) =>
+      store.upsertReply(created.shareId, {
+        id,
+        commentId,
+        body: "On it",
+        author: "Ana",
+        createdAt,
+      }),
+    /** The owner saves a guest's reply pulled from the link, as a pull does. */
+    saveReply: async (id: string, commentId: string) => {
+      const guest = await findGuestReply(db, workspaceId, projectId, commentId, id);
+      if (!guest) throw new Error(`no guest reply ${id}`);
+      const sent = { id, body: guest.body, author: guest.author };
+      await addReply(db, workspaceId, projectId, commentId, sent, { kind: "client", guest }, NOW);
+    },
     /** The owner pulls everything up to `cursor` and saves the guests' comments, as a pull does. */
     pull: async (cursor: number, ...pulled: PlainComment[]) => {
       for (const entry of pulled) {
@@ -178,6 +204,50 @@ describe("client activity", () => {
     expect(await clientActivity(db, a.workspaceId, expiresAt)).toEqual([
       { projectId: "p2", open: 1, latestAt: NOW + 2 * HOUR, waiting: [NOW + 2 * HOUR], cursor: 0 },
     ]);
+  });
+
+  it("takes a client's reply as the latest activity, never as an open comment (D6)", async () => {
+    const { db, a } = await twoWorkspaces();
+    await addFolder(db, a.workspaceId);
+    const link = await linkedProject(db, a.workspaceId, "p1");
+    const teams = comment("c-team", NOW);
+    await addComment(db, a.workspaceId, "p1", teams, a.userId, NOW);
+    await link.ownerPushes(teams);
+    // The owner's own reply on the link is no client's.
+    await link.ownerReplies("r-owner", "c-team", NOW + 9 * HOUR);
+
+    const seq = await link.clientReplies("k-1", "c-team", NOW + 2 * HOUR);
+    const waiting = [
+      { projectId: "p1", open: 0, latestAt: NOW + 2 * HOUR, waiting: [], cursor: 0 },
+    ];
+    expect(await clientActivity(db, a.workspaceId)).toEqual(waiting);
+
+    // Pulled and saved: counted once, from the workspace, and a team reply changes nothing.
+    await link.saveReply("k-1", "c-team");
+    await link.pull(seq);
+    await addReply(
+      db,
+      a.workspaceId,
+      "p1",
+      "c-team",
+      { id: "r-team", body: "On it", author: "Ana", createdAt: NOW + 5 * HOUR },
+      { kind: "team", userId: a.userId },
+      NOW + 5 * HOUR,
+    );
+    expect(await clientActivity(db, a.workspaceId)).toEqual(waiting);
+
+    // A newer client comment, and then a newer reply, each move it on.
+    await link.clientPosts(comment("w1", NOW + 3 * HOUR));
+    expect((await clientActivity(db, a.workspaceId))[0]).toMatchObject({
+      open: 1,
+      latestAt: NOW + 3 * HOUR,
+    });
+    await link.clientReplies("k-2", "c-team", NOW + 4 * HOUR);
+    expect((await clientActivity(db, a.workspaceId))[0]).toMatchObject({
+      open: 1,
+      latestAt: NOW + 4 * HOUR,
+      waiting: [NOW + 3 * HOUR],
+    });
   });
 
   it("is empty for a workspace no client has commented on", async () => {

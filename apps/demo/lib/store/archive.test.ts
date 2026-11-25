@@ -32,7 +32,10 @@ const DATA: SquintData = {
   projects: [project("p1"), project("p2", { label: "Urgent" })],
   comments: [comment("c1", "p1"), comment("c2", "p2")],
   snapshots: [],
-  replies: [],
+  replies: [
+    { id: "r1", projectId: "p1", commentId: "c1", body: "On it", author: "Ana", createdAt: 2 },
+    { id: "r2", projectId: "p2", commentId: "c2", body: "Thanks", author: "Cleo", createdAt: 2 },
+  ],
   authorName: null,
 };
 
@@ -70,12 +73,13 @@ describe("archiving in the reducer", () => {
 });
 
 describe("activeData", () => {
-  it("leaves archived projects out with their comments, and is the same object without any", () => {
+  it("leaves archived projects out with their comments and replies, and is the same object without any", () => {
     expect(activeData(DATA)).toBe(DATA);
     const archived = reduce(DATA, { type: "project/archive", id: "p2", archived: true, at: 5 });
     const active = activeData(archived);
     expect(active.projects.map((entry) => entry.id)).toEqual(["p1"]);
     expect(active.comments.map((entry) => entry.id)).toEqual(["c1"]);
+    expect(active.replies.map((entry) => entry.id)).toEqual(["r1"]);
     expect(archived.projects.filter(isArchived).map((entry) => entry.id)).toEqual(["p2"]);
   });
 });

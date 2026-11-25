@@ -1,4 +1,5 @@
 import { SQUINT_BRAND, toClientBrand } from "@/lib/share/brand";
+import { SHARE_LIMITS } from "@/lib/share/limits";
 import { shareExpiresAt } from "@/lib/share/retention";
 import { DEFAULT_REVIEW_WINDOW_HOURS, reviewDeadline } from "@/lib/share/review-window";
 import type {
@@ -39,6 +40,12 @@ export const REPLY: SharedReply = {
   author: "Ben",
   createdAt: 3_000,
 };
+
+/** The reply caps the service gives `ShareStore.addClientReply` (D22). */
+export const REPLY_CAPS = {
+  link: SHARE_LIMITS.replies,
+  comment: SHARE_LIMITS.repliesPerComment,
+} as const;
 
 export const STATE: ShareState = {
   project: { name: "Acme", source: { kind: "url", url: "https://acme.example/" } },

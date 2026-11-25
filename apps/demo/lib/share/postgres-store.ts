@@ -246,8 +246,48 @@ const UPSERT_REPLY = `INSERT INTO squint_share_replies AS t (share_id, comment_i
   ON CONFLICT (share_id, id) DO UPDATE SET data = EXCLUDED.data
     WHERE t.origin = 'owner' AND t.comment_id = EXCLUDED.comment_id`;
 
+/**
+ * A client's reply, only under a visible, active comment of the link, while
+ * the link has fewer than $6 replies and the comment fewer than $7: the
+ * parent and the counts are read in the same statement as the insert.
+ */
+const ADD_CLIENT_REPLY = `WITH parent AS (
+    SELECT 1 FROM squint_share_comments
+    WHERE share_id = $1 AND id = $2 AND NOT pending AND data->>'status' = 'active'
+  ), counts AS (
+    SELECT count(*) AS link, count(*) FILTER (WHERE comment_id = $2) AS thread
+    FROM squint_share_replies WHERE share_id = $1
+  )
+  INSERT INTO squint_share_replies (share_id, comment_id, id, data, origin, client_info)
+  SELECT $1, $2, $3, $4::jsonb, 'client', $5::jsonb FROM parent, counts
+  WHERE counts.link < $6 AND counts.thread < $7
+  ON CONFLICT (share_id, id) DO NOTHING RETURNING id`;
+
+/** Why `ADD_CLIENT_REPLY` inserted nothing: the id taken, and the comment's status if visible. */
+const CLIENT_REPLY_REFUSAL = `SELECT
+    EXISTS (SELECT 1 FROM squint_share_replies WHERE share_id = $1 AND id = $3) AS taken,
+    (SELECT data->>'status' FROM squint_share_comments
+     WHERE share_id = $1 AND id = $2 AND NOT pending) AS status`;
+
 /** A visible client comment, by share and id. */
 const CLIENT_ROW = "share_id = $1 AND id = $2 AND origin = 'client' AND NOT pending";
+
+/**
+ * A reply's comment deleted between the statement's check and its insert:
+ * the foreign key refuses the row, which is the same as finding no comment.
+ */
+const isForeignKeyViolation = (error: unknown) =>
+  (error as { code?: unknown } | null)?.code === "23503";
+
+/** Runs a reply insert; null when its comment went while it ran (`isForeignKeyViolation`). */
+async function unlessCommentGone<T>(insert: () => Promise<T>): Promise<T | null> {
+  try {
+    return await insert();
+  } catch (error) {
+    if (isForeignKeyViolation(error)) return null;
+    throw error;
+  }
+}
 
 /** Shares in Postgres. Call `migrate()` on the pool first (see `server.ts`). */
 export function createPostgresStore(db: Queryable): ShareStore {
@@ -552,27 +592,32 @@ export function createPostgresStore(db: Queryable): ShareStore {
     },
     replies: (id) => list<SharedReply>("squint_share_replies", id, "", ", client_info"),
     async upsertReply(id, reply) {
-      await db.query(UPSERT_REPLY, [id, reply.commentId, reply.id, JSON.stringify(reply)]);
+      await unlessCommentGone(() =>
+        db.query(UPSERT_REPLY, [id, reply.commentId, reply.id, JSON.stringify(reply)]),
+      );
     },
-    async insertReply(id, reply, origin, clientInfo) {
-      const { rows } = await db.query(
-        `INSERT INTO squint_share_replies (share_id, comment_id, id, data, origin, client_info)
-         SELECT $1, $2, $3, $4::jsonb, $5, $6::jsonb
-         WHERE EXISTS (
-           SELECT 1 FROM squint_share_comments
-           WHERE share_id = $1 AND id = $2 AND NOT pending
-         )
-         ON CONFLICT (share_id, id) DO NOTHING RETURNING id`,
-        [
+    async addClientReply(id, reply, caps, clientInfo) {
+      const inserted = await unlessCommentGone(() =>
+        db.query(ADD_CLIENT_REPLY, [
           id,
           reply.commentId,
           reply.id,
           JSON.stringify(reply),
-          origin,
           clientInfo ? JSON.stringify(clientInfo) : null,
-        ],
+          caps.link,
+          caps.comment,
+        ]),
       );
-      return rows.length === 1;
+      if (!inserted) return "missing";
+      if (inserted.rows.length === 1) return "added";
+      const { rows } = await db.query<{ taken: boolean; status: string | null }>(
+        CLIENT_REPLY_REFUSAL,
+        [id, reply.commentId, reply.id],
+      );
+      const [refusal] = rows;
+      if (refusal?.taken) return "exists";
+      if (!refusal?.status) return "missing";
+      return refusal.status === "active" ? "full" : "locked";
     },
     async deleteReplies(id, ids) {
       await db.query("DELETE FROM squint_share_replies WHERE share_id = $1 AND id = ANY($2)", [

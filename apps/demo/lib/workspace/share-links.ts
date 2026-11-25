@@ -392,6 +392,48 @@ export async function findGuestComment(
   return { body, author, x, y, createdAt, editedAt: finite(data.editedAt), clientInfo };
 }
 
+/**
+ * What a guest's reply says on the project's review link: as for comments,
+ * the workspace copies a client's words from here, never from the browser.
+ */
+export interface GuestReply {
+  body: string;
+  author: string;
+  /** When the guest posted it (epoch ms), as the server stamped it there. */
+  createdAt: number;
+  /** The browser they posted from, as the link recorded it; null when it didn't. */
+  clientInfo: ClientInfo | null;
+}
+
+/**
+ * The guest's reply `replyId` to comment `commentId` on the review link of
+ * the workspace's project, as the link holds it: the only replies a member
+ * may save as a guest's, as `findGuestComment` for comments. Null when a
+ * guest didn't post it there, under that comment.
+ */
+export async function findGuestReply(
+  db: Queryable,
+  workspaceId: string,
+  projectId: string,
+  commentId: string,
+  replyId: string,
+): Promise<GuestReply | null> {
+  const { rows } = await db.query<GuestCommentRow>(
+    `SELECT reply.data, reply.client_info FROM project_share_links AS link
+     JOIN squint_share_replies AS reply ON reply.share_id = link.share_id
+     WHERE link.workspace_id = $1 AND link.project_id = $2
+       AND reply.comment_id = $3 AND reply.id = $4 AND reply.origin = 'client'`,
+    [workspaceId, projectId, commentId, replyId],
+  );
+  const [row] = rows;
+  const data = row?.data;
+  const createdAt = finite(data?.createdAt);
+  if (!data || typeof data.body !== "string" || typeof data.author !== "string") return null;
+  if (createdAt === null) return null;
+  const { body, author } = data;
+  return { body, author, createdAt, clientInfo: parseClientInfo(row?.client_info) };
+}
+
 /** The id of the share linked to the workspace's live project, or null without one. */
 export async function linkedShareId(
   db: Queryable,

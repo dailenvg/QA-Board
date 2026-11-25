@@ -1,7 +1,16 @@
 import { PGlite } from "@electric-sql/pglite";
 import { describe, expect, it } from "vitest";
 import { readdirSync } from "node:fs";
-import { COMMENT, JPEG, PNG, RECORD, REPLY, SNAPSHOT, STATE } from "@/test/share-fixture";
+import {
+  COMMENT,
+  JPEG,
+  PNG,
+  RECORD,
+  REPLY,
+  REPLY_CAPS,
+  SNAPSHOT,
+  STATE,
+} from "@/test/share-fixture";
 import { storeBefore035 } from "@/test/legacy-share-store";
 import { adaptPglite, migratedPglite } from "@/test/pglite";
 import { toShareState } from "../share-client/share-state";
@@ -291,7 +300,7 @@ describe.each(stores)("%s share store", (_name, make) => {
     await store.upsertComment(RECORD.id, COMMENT, "owner");
     await store.upsertComment(RECORD.id, { ...COMMENT, id: "c-2" }, "owner");
     const posted = { ...REPLY, id: "k-1", author: "Cleo" };
-    expect(await store.insertReply(RECORD.id, posted, "client")).toBe(true);
+    expect(await store.addClientReply(RECORD.id, posted, REPLY_CAPS)).toBe("added");
     await store.upsertReply(RECORD.id, REPLY);
     const before = await store.replies(RECORD.id);
     await store.upsertReply(RECORD.id, { ...posted, body: "Old words", author: "Someone" });
@@ -301,8 +310,8 @@ describe.each(stores)("%s share store", (_name, make) => {
       ["k-1", "client"],
       ["r-1", "owner"],
     ]);
-    expect(await store.insertReply(RECORD.id, { ...posted, commentId: "c-2" }, "client")).toBe(
-      false,
+    expect(await store.addClientReply(RECORD.id, { ...posted, commentId: "c-2" }, REPLY_CAPS)).toBe(
+      "exists",
     );
   });
 
@@ -310,15 +319,69 @@ describe.each(stores)("%s share store", (_name, make) => {
     const store = await make();
     await store.create(RECORD);
     await store.upsertReply(RECORD.id, REPLY);
-    expect(await store.insertReply(RECORD.id, REPLY, "client")).toBe(false);
+    expect(await store.addClientReply(RECORD.id, REPLY, REPLY_CAPS)).toBe("missing");
     const claim = { claim: "n-1", cropKey: "crop:c-1:n-1" };
     await store.insertComment(RECORD.id, COMMENT, "client", claim);
     await store.upsertReply(RECORD.id, REPLY);
-    expect(await store.insertReply(RECORD.id, REPLY, "client")).toBe(false);
+    expect(await store.addClientReply(RECORD.id, REPLY, REPLY_CAPS)).toBe("missing");
     expect(await store.replies(RECORD.id)).toEqual([]);
     await store.confirmComment(RECORD.id, COMMENT.id, "n-1");
-    expect(await store.insertReply(RECORD.id, REPLY, "client")).toBe(true);
+    expect(await store.addClientReply(RECORD.id, REPLY, REPLY_CAPS)).toBe("added");
+    expect(await store.addClientReply("no-such-share", REPLY, REPLY_CAPS)).toBe("missing");
     expect(await store.replies("no-such-share")).toEqual([]);
+  });
+
+  it("takes a client's reply only under an active comment, and leaves the comment as it is", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    await store.insertComment(RECORD.id, COMMENT, "client");
+    await store.upsertComment(
+      RECORD.id,
+      { ...COMMENT, id: "c-owner", status: "resolved" },
+      "owner",
+    );
+    await store.setClientCommentStatus(RECORD.id, COMMENT.id, RESOLVE);
+    const posted = { ...REPLY, id: "k-1", author: "Cleo" };
+    expect(await store.addClientReply(RECORD.id, posted, REPLY_CAPS)).toBe("locked");
+    const onOwners = { ...posted, commentId: "c-owner" };
+    expect(await store.addClientReply(RECORD.id, onOwners, REPLY_CAPS)).toBe("locked");
+    await store.setClientCommentStatus(RECORD.id, COMMENT.id, REOPEN);
+    expect(await store.addClientReply(RECORD.id, posted, REPLY_CAPS)).toBe("added");
+    // A retry of one that got through is told so, even once the comment is resolved.
+    await store.setClientCommentStatus(RECORD.id, COMMENT.id, RESOLVE);
+    expect(await store.addClientReply(RECORD.id, posted, REPLY_CAPS)).toBe("exists");
+    const [comment] = (await store.comments(RECORD.id)).filter((row) => row.item.id === "c-1");
+    expect(comment?.item.status).toBe("resolved");
+    const [row] = await store.replies(RECORD.id);
+    expect({ ...row, seq: 0 }).toEqual({ item: posted, origin: "client", seq: 0 });
+    expect(row?.seq).toBeGreaterThan(comment?.seq ?? Infinity);
+  });
+
+  it("caps a link's replies and each comment's thread, the team's counted", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    for (const id of ["c-1", "c-2", "c-3"]) {
+      await store.upsertComment(RECORD.id, { ...COMMENT, id }, "owner");
+    }
+    const caps = { link: 4, comment: 2 };
+    const reply = (id: string, commentId: string) => ({ ...REPLY, id, commentId });
+    await store.upsertReply(RECORD.id, reply("r-1", "c-1"));
+    expect(await store.addClientReply(RECORD.id, reply("k-1", "c-1"), caps)).toBe("added");
+    // c-1's thread is full; the link isn't.
+    expect(await store.addClientReply(RECORD.id, reply("k-2", "c-1"), caps)).toBe("full");
+    expect(await store.addClientReply(RECORD.id, reply("k-2", "c-2"), caps)).toBe("added");
+    expect(await store.addClientReply(RECORD.id, reply("k-3", "c-3"), caps)).toBe("added");
+    // Four on the link: every thread is closed to more.
+    expect(await store.addClientReply(RECORD.id, reply("k-4", "c-3"), caps)).toBe("full");
+    expect(await store.addClientReply(RECORD.id, reply("k-4", "c-2"), caps)).toBe("full");
+    await store.deleteReplies(RECORD.id, ["k-3"]);
+    expect(await store.addClientReply(RECORD.id, reply("k-4", "c-3"), caps)).toBe("added");
+    expect((await store.replies(RECORD.id)).map((row) => row.item.id)).toEqual([
+      "r-1",
+      "k-1",
+      "k-2",
+      "k-4",
+    ]);
   });
 
   it("deletes replies by id, with their comment, and with the share", async () => {
@@ -352,8 +415,8 @@ describe.each(stores)("%s share store", (_name, make) => {
     await store.create(RECORD);
     await store.upsertComment(RECORD.id, COMMENT, "owner");
     const clientInfo = { userAgent: "Mozilla/5.0", viewport: { width: 390, height: 844 }, dpr: 3 };
-    await store.insertReply(RECORD.id, { ...REPLY, id: "k-1" }, "client", clientInfo);
-    await store.insertReply(RECORD.id, { ...REPLY, id: "k-2" }, "client");
+    await store.addClientReply(RECORD.id, { ...REPLY, id: "k-1" }, REPLY_CAPS, clientInfo);
+    await store.addClientReply(RECORD.id, { ...REPLY, id: "k-2" }, REPLY_CAPS);
     const [posted, plain] = await store.replies(RECORD.id);
     expect(posted?.clientInfo).toEqual(clientInfo);
     expect(posted?.item).not.toHaveProperty("clientInfo");
@@ -1103,5 +1166,42 @@ describe.each(stores)("%s store: a client capture while its image is stored", (_
     await expect(added).rejects.toThrow("expired");
     expect(await services.store.snapshots(RECORD.id, { includePending: true })).toEqual([]);
     expect(await services.store.blobSizes(RECORD.id)).toEqual([]);
+  });
+});
+
+describe("postgres store: a reply whose comment is deleted as it's written", () => {
+  /**
+   * The store over `db`, where every reply insert fails as Postgres's foreign
+   * key does once the comment's delete commits between the statement's check
+   * and its insert (23503); the real race runs in `share-replies-concurrency.test.ts`.
+   */
+  function racing(db: Queryable, error: Error): ShareStore {
+    return createPostgresStore({
+      query: (text, params) =>
+        text.includes("INSERT INTO squint_share_replies")
+          ? Promise.reject(error)
+          : db.query(text, params),
+    });
+  }
+
+  const foreignKey = Object.assign(new Error("violates foreign key constraint"), { code: "23503" });
+
+  it("adds nothing and says the comment is missing, never a storage error", async () => {
+    const db = await migratedPglite();
+    const store = racing(db, foreignKey);
+    await store.create(RECORD);
+    await store.upsertComment(RECORD.id, COMMENT, "owner");
+    await expect(store.upsertReply(RECORD.id, REPLY)).resolves.toBeUndefined();
+    expect(await store.addClientReply(RECORD.id, REPLY, REPLY_CAPS)).toBe("missing");
+    expect(await store.replies(RECORD.id)).toEqual([]);
+  });
+
+  it("still fails on any other error", async () => {
+    const db = await migratedPglite();
+    const store = racing(db, Object.assign(new Error("disk full"), { code: "53100" }));
+    await store.create(RECORD);
+    await store.upsertComment(RECORD.id, COMMENT, "owner");
+    await expect(store.upsertReply(RECORD.id, REPLY)).rejects.toThrow("disk full");
+    await expect(store.addClientReply(RECORD.id, REPLY, REPLY_CAPS)).rejects.toThrow("disk full");
   });
 });

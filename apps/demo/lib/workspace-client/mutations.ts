@@ -105,6 +105,15 @@ function replyBody(reply: Reply) {
   return body;
 }
 
+/**
+ * A guest's reply, saved as one (`fromShare`): the server reads its words,
+ * name, time and browser details from the review link, so only its id matters.
+ */
+function guestReplyBody(reply: Reply) {
+  const { clientInfo: _info, editedAt: _edited, ...body } = replyBody(reply);
+  return { ...body, fromShare: true };
+}
+
 /** A new reply: its browser details go without the user agent, which the server reads itself. */
 function newReplyBody(reply: Reply) {
   const { clientInfo, ...body } = replyBody(reply);
@@ -189,9 +198,10 @@ function clientEdited(before: SquintData, after: SquintData): Comment[] {
 
 /**
  * Client additions and edits a pull merged: their snapshots first, which
- * comments may sit on. The server reads what each guest's comment says from
- * the review link itself, so an edit sends no words (and a comment the team
- * deleted meanwhile answers 404: nothing to bring back).
+ * comments may sit on, and replies after the comments they answer. The
+ * server reads what each guest's comment and reply says from the review link
+ * itself, so an edit sends no words (and a comment the team deleted
+ * meanwhile answers 404: nothing to bring back).
  */
 function mergeWrites(before: SquintData, after: SquintData, projectId: string): ServerWrite[] {
   const share = after.projects.find((project) => project.id === projectId)?.share;
@@ -206,6 +216,11 @@ function mergeWrites(before: SquintData, after: SquintData, projectId: string): 
     ),
     ...clientEdited(before, after).map((comment) =>
       write("POST", `${commentPath(projectId, comment.id)}/client-edit`, {}, [404]),
+    ),
+    // Guests' replies: saved without an author account (the server checks they're a guest's).
+    // A comment the team deleted meanwhile answers 404, taking its thread: nothing to save.
+    ...added(before.replies, after.replies).map((reply) =>
+      write("POST", repliesPath(reply), guestReplyBody(reply), [404, 409]),
     ),
     write("PATCH", linkPath(projectId), {
       cursor: share.cursor,

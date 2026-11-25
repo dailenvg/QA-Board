@@ -81,7 +81,7 @@ const remove = (who: Seat, id: string) =>
 
 const list = (who: Seat) => listReplies(db, owner.workspaceId, undefined, who.userId);
 
-/** A guest's reply, as the review link will bring it in (054/PR 5): no account, origin 'client'. */
+/** A guest's reply, as the review link brings it in (`fromShare`): no account, origin 'client'. */
 async function clientReply(id: string) {
   await db.query(
     `INSERT INTO comment_replies (project_id, comment_id, id, body, author_name, origin, created_at)

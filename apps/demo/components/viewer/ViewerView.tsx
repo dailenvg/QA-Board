@@ -204,7 +204,8 @@ export function ViewerView({
   const stageKey = surfaceKey(surface);
   const comments = useMemo(() => commentsFor(data, project.id), [data, project.id]);
   const numbers = useMemo(() => pinNumbers(comments), [comments]);
-  const viewer = { team: owner, moderator };
+  // A guest replies only while the review window is open (D3): `locked` is its closing.
+  const viewer = { team: owner, moderator, reviewOpen: !locked };
   const replyThreads = useViewerThreads({
     data,
     projectId: project.id,

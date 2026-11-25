@@ -144,6 +144,8 @@ export const ROUTE_PERMISSIONS: Record<string, Record<string, RouteAccess>> = {
   "/api/s/:token/comments": { POST: GUEST },
   // A client's edit of their own comment: the token, and the comment's edit key (4.12).
   "/api/s/:token/comments/:commentId": { PATCH: GUEST },
+  // A client's reply in a comment's thread, while the comment is active and the window open.
+  "/api/s/:token/comments/:commentId/replies": { POST: GUEST },
   "/api/s/:token/capture": { POST: GUEST },
   "/api/s/:token/blobs/:key": { GET: GUEST },
   "/api/s/:token/brand/icon": { GET: GUEST },

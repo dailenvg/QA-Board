@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COMMENT, JPEG, PNG, REPLY, SNAPSHOT, STATE } from "@/test/share-fixture";
+import { COMMENT, JPEG, PNG, REPLY, REPLY_CAPS, SNAPSHOT, STATE } from "@/test/share-fixture";
 import { inlineBackend } from "./blob-backend";
 import { createMemoryStore } from "./memory-store";
 import { DELETION_NOTICE_MS, RETENTION_MS } from "./retention";
@@ -9,6 +9,7 @@ import type { ShareServices } from "./server";
 import type { CreatedShare, ShareRecord, ShareState } from "./types";
 import {
   addClientComment,
+  addClientReply,
   captureForClient,
   clientShare,
   clientView,
@@ -123,6 +124,7 @@ describe("owner push and pull", () => {
     expect(await pullChanges(services.store, share, first.cursor)).toEqual({
       snapshots: [],
       comments: [],
+      replies: [],
       cursor: first.cursor,
       expiresAt: first.expiresAt,
     });
@@ -718,7 +720,9 @@ describe("replies", () => {
   const clientInfo = { userAgent: "Mozilla/5.0 (Guest)", viewport: { width: 390, height: 844 } };
   async function guestReply(services: ShareServices, share: ShareRecord, id: string) {
     const reply = { ...REPLY, id, author: "Cleo", body: "Thanks!" };
-    expect(await services.store.insertReply(share.id, reply, "client", clientInfo)).toBe(true);
+    expect(await services.store.addClientReply(share.id, reply, REPLY_CAPS, clientInfo)).toBe(
+      "added",
+    );
     return reply;
   }
 
@@ -822,6 +826,110 @@ describe("replies", () => {
     const replacing = { ...full, deleteReplies: leftOut?.deleteReplies ?? [] };
     expect((await applyChanges(shared.services, shared.share, replacing, 200)).ok).toBe(true);
     expect(await viewReplies(shared)).toHaveLength(SHARE_LIMITS.replies);
+  });
+
+  it("from a guest come to the owner's pull once, after their comment, with their browser", async () => {
+    const shared = await withReply();
+    const { services, share } = shared;
+    const before = await pullChanges(services.store, share, 0);
+    expect(before.replies).toEqual([]);
+    const added = await addClientReply(
+      services,
+      share,
+      { id: "k-1", commentId: COMMENT.id, body: "Thanks!", author: "Cleo", clientInfo },
+      500,
+    );
+    expect(added).toEqual({
+      ok: true,
+      value: { id: "k-1", commentId: COMMENT.id, body: "Thanks!", author: "Cleo", createdAt: 500 },
+    });
+    const pulled = await pullChanges(services.store, share, before.cursor);
+    expect(pulled.replies).toEqual([{ ...(added.ok ? added.value : {}), clientInfo }]);
+    expect(pulled.cursor).toBeGreaterThan(before.cursor);
+    expect((await pullChanges(services.store, share, pulled.cursor)).replies).toEqual([]);
+    // The owner's own replies are never pulled.
+    expect(pulled.replies.map((reply) => reply.id)).not.toContain(REPLY.id);
+  });
+
+  it("from a guest, pushed back by the owner once pulled, are neither sent again nor pulled again", async () => {
+    const shared = await withReply();
+    const { services, share } = shared;
+    const added = await addClientReply(
+      services,
+      share,
+      { id: "k-1", commentId: COMMENT.id, body: "Thanks!", author: "Cleo" },
+      500,
+    );
+    if (!added.ok) throw new Error(added.error);
+    const pulled = await pullChanges(services.store, share, 0);
+    // The owner's state now holds it, as the workspace saved it.
+    const state = { ...WITH_REPLY, replies: [REPLY, added.value] };
+    expect(batchChange(diffState(state, await manifestOf(shared)), pulled.cursor)).toEqual([]);
+    expect((await pushState(services, share, state, pulled.cursor, 600)).ok).toBe(true);
+    expect((await pullChanges(services.store, share, pulled.cursor)).replies).toEqual([]);
+    expect(await viewReplies(shared)).toEqual([REPLY, added.value]);
+  });
+
+  it("from a guest go to a link that lacks them, and never again to one that has them, however they differ", async () => {
+    const shared = await withReply();
+    const posted = await guestReply(shared.services, shared.share, "k-1");
+    const settled = new Set(["k-1"]);
+    // Read differently than the link holds it: a team push would send it, a client's isn't.
+    const stale = { ...posted, author: "Cleo (renamed)" };
+    const state = { ...WITH_REPLY, replies: [REPLY, stale] };
+    const manifest = await manifestOf(shared);
+    expect(diffState(state, manifest).replies).toEqual([stale]);
+    expect(diffState(state, manifest, settled).replies).toEqual([]);
+    // A new link has none of them: it gets the client's too, as the owner's own row there.
+    const fresh = await withReply();
+    const [toNew] = batchChange(diffState(state, await manifestOf(fresh), settled), 0);
+    expect(toNew?.replies).toEqual([stale]);
+    expect((await applyChanges(fresh.services, fresh.share, toNew!, 200)).ok).toBe(true);
+    expect(await viewReplies(fresh)).toEqual([REPLY, stale]);
+    expect((await pullChanges(fresh.services.store, fresh.share, 0)).replies).toEqual([]);
+  });
+
+  it("from a guest stop at the review window's end (D3), and every refusal says why", async () => {
+    const shared = await withReply();
+    const { services, share } = shared;
+    const input = (id: string, commentId = COMMENT.id) => ({
+      id,
+      commentId,
+      body: "Thanks!",
+      author: "Cleo",
+    });
+    const deadline = share.createdAt + 72 * 3_600_000;
+    expect(await addClientReply(services, share, input("k-late"), deadline)).toEqual({
+      ok: false,
+      status: 403,
+      error: "review-closed",
+    });
+    expect(await addClientReply(services, share, input("k-1", "c-unknown"), 500)).toEqual({
+      ok: false,
+      status: 404,
+      error: "not-found",
+    });
+    expect((await addClientReply(services, share, input("k-1"), 500)).ok).toBe(true);
+    expect(await addClientReply(services, share, input("k-1"), 500)).toEqual({
+      ok: false,
+      status: 409,
+      error: "exists",
+    });
+    await services.store.upsertComment(share.id, { ...COMMENT, status: "resolved" }, "owner");
+    expect(await addClientReply(services, share, input("k-2"), 500)).toEqual({
+      ok: false,
+      status: 409,
+      error: "locked",
+    });
+    await services.store.upsertComment(share.id, COMMENT, "owner");
+    for (let index = 2; index < SHARE_LIMITS.repliesPerComment; index += 1) {
+      expect((await addClientReply(services, share, input(`k-${index}`), 500)).ok).toBe(true);
+    }
+    expect(await addClientReply(services, share, input("k-full"), 500)).toEqual({
+      ok: false,
+      status: 413,
+      error: "share-full",
+    });
   });
 
   it("reach the guest without browser details, and a client's says nothing of the team", async () => {

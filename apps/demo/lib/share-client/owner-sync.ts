@@ -2,13 +2,20 @@ import { snapshotBlobKey } from "../blob-store/keys";
 import { commentsFor } from "../store/selectors";
 import { snapshotsFor } from "../store/snapshots";
 import { dispatch, getSnapshot } from "../store/store";
-import type { ClientEdit, Comment, Project, ProjectShare, Snapshot } from "../store/types";
+import type { ClientEdit, Comment, Project, ProjectShare, Reply, Snapshot } from "../store/types";
 import { storeWorkspaceBlob } from "../workspace-client/blob-upload";
 import { workspaceBlobs } from "../workspace-client/workspace-store";
 import { ownerApi } from "./api";
 import type { ShareChanges, ShareState } from "../share/types";
 import { batchChange, diffState } from "./diff";
-import { fromSharedComment, fromSharedSnapshot, localBlobKey, toShareState } from "./share-state";
+import {
+  clientReplyIds,
+  fromSharedComment,
+  fromSharedReply,
+  fromSharedSnapshot,
+  localBlobKey,
+  toShareState,
+} from "./share-state";
 
 export type SyncPhase = "idle" | "syncing" | "error" | "gone";
 
@@ -77,15 +84,30 @@ function current(projectId: string): { project: Project; share: ProjectShare } |
   return project?.share ? { project, share: project.share } : null;
 }
 
-function stateOf(project: Project) {
+/**
+ * What the project pushes, and which of its replies are clients' (sent only
+ * while the link lacks them: `diffState`).
+ */
+function stateOf(project: Project): { state: ShareState; settled: Set<string> } | null {
   const state = getSnapshot();
   if (state.status !== "ready") return null;
-  return toShareState(
-    project,
-    commentsFor(state.data, project.id),
-    snapshotsFor(state.data, project.id),
-    state.data.replies,
-  );
+  const { data } = state;
+  return {
+    state: toShareState(
+      project,
+      commentsFor(data, project.id),
+      snapshotsFor(data, project.id),
+      data.replies,
+    ),
+    settled: clientReplyIds(data.replies, project.id),
+  };
+}
+
+/** The ids of the project's comments in the store right now. */
+function commentIdsOf(projectId: string): Set<string> {
+  const state = getSnapshot();
+  if (state.status !== "ready") return new Set();
+  return new Set(commentsFor(state.data, projectId).map((comment) => comment.id));
 }
 
 /** Uploads the images the share asked for, read from the workspace. */
@@ -131,11 +153,11 @@ export async function pushNow(projectId: string): Promise<void> {
     return;
   }
   const found = current(projectId);
-  const state = found && stateOf(found.project);
-  if (!found || !state) return;
+  const local = found && stateOf(found.project);
+  if (!found || !local) return;
   entry.pushing = true;
   update(projectId, { phase: "syncing" });
-  const outcome = await sendChanges(found.project, found.share, state);
+  const outcome = await sendChanges(found.project, found.share, local);
   entry.pushing = false;
   if (outcome === "gone") {
     update(projectId, { phase: "gone", uploading: null });
@@ -159,12 +181,12 @@ export async function pushNow(projectId: string): Promise<void> {
 async function sendChanges(
   project: Project,
   share: ProjectShare,
-  state: ShareState,
+  { state, settled }: { state: ShareState; settled: ReadonlySet<string> },
 ): Promise<"done" | "failed" | "gone"> {
   const manifest = await ownerApi.manifest(share);
   if (!manifest.ok) return manifest.status === 404 ? "gone" : "failed";
   let missing = manifest.value.missingBlobs;
-  for (const batch of batchChange(diffState(state, manifest.value), share.cursor)) {
+  for (const batch of batchChange(diffState(state, manifest.value, settled), share.cursor)) {
     const applied = await ownerApi.change(share, batch);
     if (!applied.ok) return applied.status === 404 ? "gone" : "failed";
     missing = applied.value.missingBlobs;
@@ -188,7 +210,10 @@ async function copyBlob(share: ProjectShare, projectId: string, key: string): Pr
 /**
  * Merges what arrived. A comment whose crop is gone for good comes without
  * it. An edit to a comment pulled before brings only its new words: its crop
- * is already here.
+ * is already here. A client's reply merges only under a comment that's here
+ * or arriving with it; otherwise (its comment held back, or deleted here and
+ * not yet on the link) it's held, so the cursor stays and the next pull
+ * brings it again, once its comment has come or the push has taken it away.
  */
 async function collect(share: ProjectShare, projectId: string, changes: ShareChanges) {
   let held = false;
@@ -216,16 +241,23 @@ async function collect(share: ProjectShare, projectId: string, changes: ShareCha
     // Pulls bring clients' comments only; the workspace marks them so too once saved.
     comments.push({ ...pulled, fromClient: true });
   }
-  return { snapshots, comments, edits, held };
+  const placed = new Set([...commentIdsOf(projectId), ...comments.map((comment) => comment.id)]);
+  const replies: Reply[] = [];
+  for (const reply of changes.replies) {
+    if (placed.has(reply.commentId)) replies.push(fromSharedReply(reply, projectId));
+    else held = true;
+  }
+  return { snapshots, comments, replies, edits, held };
 }
 
 /**
- * Pulls client comments and snapshots added since the last pull (and clients'
- * edits since), copies their images into the workspace, then merges them
+ * Pulls client comments, replies and snapshots added since the last pull (and
+ * clients' edits since), copies their images into the workspace, then merges them
  * (idempotent by id; an edit only reaches a comment still here), which saves
- * them and the new pull position to the workspace too. Only a temporary failure
- * holds the cursor back, so the next pull asks again; an image that can never
- * arrive doesn't stall anything. While anything is held, sync isn't shown as done.
+ * them and the new pull position to the workspace too. Only a temporary failure,
+ * or a reply whose comment isn't here, holds the cursor back, so the next pull
+ * asks again; an image that can never arrive doesn't stall anything. While
+ * anything is held, sync isn't shown as done.
  */
 export async function pullNow(projectId: string): Promise<void> {
   const found = current(projectId);
@@ -236,11 +268,25 @@ export async function pullNow(projectId: string): Promise<void> {
     update(projectId, result.status === 404 ? { phase: "gone" } : { pullHeld: true });
     return;
   }
-  const { snapshots, comments, edits, held } = await collect(share, projectId, result.value);
+  const { snapshots, comments, replies, edits, held } = await collect(
+    share,
+    projectId,
+    result.value,
+  );
   const cursor = held ? share.cursor : result.value.cursor;
   const at = Date.now();
-  if (comments.length || snapshots.length || edits.length || cursor !== share.cursor) {
-    dispatch({ type: "share/merge", id: projectId, comments, snapshots, edits, cursor, at });
+  const arrived = comments.length + replies.length + snapshots.length + edits.length;
+  if (arrived > 0 || cursor !== share.cursor) {
+    dispatch({
+      type: "share/merge",
+      id: projectId,
+      comments,
+      replies,
+      snapshots,
+      edits,
+      cursor,
+      at,
+    });
   }
   update(projectId, held ? { pullHeld: true } : { pullHeld: false, checkedAt: at });
 }

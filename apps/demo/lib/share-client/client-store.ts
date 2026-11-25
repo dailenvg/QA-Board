@@ -52,6 +52,8 @@ export interface ClientStore {
    * with the key that lets this browser edit it, when the answer carried one.
    */
   addComment: (comment: ClientComment, editKey?: string) => void;
+  /** A reply the server accepted (ignored if a refresh already brought it). */
+  addReply: (reply: ClientReply) => void;
   /** A comment the server changed (the client's own edit), in place; ignored when it's gone. */
   replaceComment: (comment: SharedComment) => void;
   /** Reads which comments are this browser's own (`ownComments`) from storage. */
@@ -123,6 +125,10 @@ export function createClientStore(
         ownComments: own,
       });
     },
+    addReply(reply) {
+      if (state.view.replies.some((entry) => entry.id === reply.id)) return;
+      set({ view: { ...state.view, replies: [...state.view.replies, reply] } });
+    },
     replaceComment(comment) {
       const comments = state.view.comments.map((entry) =>
         entry.id === comment.id ? { ...entry, ...comment } : entry,
@@ -159,8 +165,8 @@ function toComment(comment: ClientComment, own: ReadonlySet<string>): Comment {
   };
 }
 
-/** A shared reply in the viewer's shape, read-only: guests don't reply yet. */
-function toReply(reply: ClientReply): Reply {
+/** A shared reply in the viewer's shape: guests read every reply, and change none (D2). */
+export function toReply(reply: ClientReply): Reply {
   return { ...reply, projectId: SHARED_PROJECT_ID };
 }
 

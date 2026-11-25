@@ -143,6 +143,14 @@ export function ReplyComposer({
               if (author.trim() || !(nameTyped || body.trim())) return;
               setProblem({ field: "name", message: NAME_MISSING });
             }}
+            onKeyDown={(event) => {
+              // Enter after the name goes on to the reply while there's none yet, rather than
+              // sending and saying it's missing. With words written, Enter sends them.
+              if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+              if (!author.trim() || body.trim()) return;
+              event.preventDefault();
+              bodyRef.current?.focus();
+            }}
             className={FIELD_CLASS}
           />
           <FieldError id={nameErrorId} message={nameError} />

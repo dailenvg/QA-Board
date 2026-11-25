@@ -92,7 +92,7 @@ export interface ClientCommentActivity {
   projectId: string;
   /** Open client comments, pulled or still waiting on the review link. */
   open: number;
-  /** When the newest client comment, open or resolved, was posted (epoch ms). */
+  /** When the newest client comment (open or resolved) or reply was posted (epoch ms). */
   latestAt: number;
   /**
    * When each open comment still waiting on the review link was posted,

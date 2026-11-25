@@ -5,19 +5,21 @@ import { CROP_ATTEMPTS, cropBackoff, wait } from "../crop/crop-retry";
 import { extensionFor } from "../export/paths";
 import { cleanName } from "../store/actions";
 import type { Result } from "../store/store";
-import type { Comment } from "../store/types";
-import type { ClientComment, PostedComment } from "../share/types";
+import type { Comment, Reply } from "../store/types";
+import type { ClientComment, PostedComment, SharedReply } from "../share/types";
 import {
   NOT_SENT as NOT_SENT_DEFAULT,
   OWNER_ONLY,
+  REPLY_NOT_SENT,
   type CaptureOutcome,
   type EditOutcome,
   type NewComment,
+  type NewReply,
   type ReadyCrop,
   type ViewerBackend,
 } from "../viewer-backend/backend";
 import { clientApi, type ApiResult } from "./api";
-import { SHARED_PROJECT_ID, type ClientStore } from "./client-store";
+import { SHARED_PROJECT_ID, toReply, type ClientStore } from "./client-store";
 import type { ServerBlobs } from "./server-blobs";
 import { isPasswordRequired, isPaused } from "./unlock";
 
@@ -57,6 +59,26 @@ const EDIT_TOO_MANY = "You've made a lot of edits in a short time. Try again in 
 const EDIT_OFFLINE = "Couldn't reach Squint. Check your connection and try again.";
 const EDIT_FAILED = "Couldn't save your edit. Try again in a moment.";
 
+/**
+ * A client's reply, by what the server answered. Each keeps the words in the
+ * box: those that can't go through say to copy them, the others to send again.
+ */
+const REPLY_CLOSED =
+  "Your reply wasn't sent: the review window has closed. Copy your text to keep it.";
+const REPLY_RESOLVED =
+  "Your reply wasn't sent: the team resolved this comment. Copy your text to keep it.";
+const REPLY_DELETED =
+  "Your reply wasn't sent: this comment was deleted. Copy your text to keep it.";
+const REPLY_LOCKED =
+  "Your reply wasn't sent: this link needs its password again. Your text is kept.";
+/** No answer, or too many replies from this address: sending again later goes through. */
+const REPLY_NOT_SENT_BY_STATUS: Record<number, string> = {
+  0: "Your reply wasn't sent: Squint couldn't reach the server. Check your connection, then retry.",
+  429: "Your reply wasn't sent: too many replies in a short time. Wait a moment, then retry.",
+};
+const REPLIES_FULL =
+  "Your reply wasn't sent: this review is out of space for replies. Ask the project owner to make room, then retry.";
+
 interface ClientBackendOptions {
   token: string;
   store: ClientStore;
@@ -91,6 +113,7 @@ function commentForm(comment: Comment, crop: ReadyCrop | null): FormData {
 }
 
 type PostResult = ApiResult<PostedComment>;
+type Refused<T> = Extract<ApiResult<T>, { ok: false }>;
 
 /** The server refused the picture itself: sending it again won't help, so the comment goes without it. */
 function cropRefused(result: PostResult): boolean {
@@ -158,6 +181,42 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
   };
 
   const refused = (error: string, final: boolean): EditOutcome => ({ ok: false, error, final });
+
+  /**
+   * Why a reply wasn't sent. A comment resolved or deleted meanwhile isn't
+   * read again here: the box keeps the words to copy until the next refresh
+   * moves the comment on. A 404 from a link that's gone says so instead.
+   */
+  const replyRefusal = async (result: Refused<SharedReply>): Promise<string> => {
+    if (result.status === 404) {
+      const view = isPaused(result) ? result : await api.view();
+      if (view.ok || view.status !== 404) return REPLY_DELETED;
+      store.markGone(isPaused(view));
+      return GONE;
+    }
+    if (isPasswordRequired(result)) {
+      store.markLocked();
+      return REPLY_LOCKED;
+    }
+    if (result.error === "review-closed") {
+      store.markReviewClosed();
+      return REPLY_CLOSED;
+    }
+    if (result.status === 409 && result.error === "locked") return REPLY_RESOLVED;
+    if (result.error === "share-full") return REPLIES_FULL;
+    return REPLY_NOT_SENT_BY_STATUS[result.status] ?? REPLY_NOT_SENT;
+  };
+
+  /**
+   * Counts an earlier try that got through (409 exists) as sent: the link's
+   * copy is read again, so the reply shows as the server stamped it.
+   */
+  const alreadySent = async (input: NewReply, body: string, author: string): Promise<Reply> => {
+    await refresh();
+    const shown = store.getSnapshot().view.replies.find((reply) => reply.id === input.id);
+    const { id, commentId } = input;
+    return toReply(shown ?? { id, commentId, body, author, createdAt: Date.now() });
+  };
 
   return {
     role: "client",
@@ -261,8 +320,31 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
     },
     deleteComment: ownerOnly,
     restoreComment: ownerOnly,
-    // Review links carry no replies: a guest has none to add, change or put back.
-    addReply: () => Promise.resolve(ownerOnly()),
+    /**
+     * A guest's reply counts as sent only once the server has it; until then
+     * the box keeps the words, and sending again reuses the same id, so it
+     * can't post twice. Their browser's details go without the user agent,
+     * which the server reads from the request. They never change or delete
+     * a reply (D2).
+     */
+    async addReply(input): Promise<Result<Reply>> {
+      const body = input.body.trim();
+      const author = cleanName(input.author);
+      const result = await api.addReply(input.commentId, {
+        id: input.id,
+        body,
+        author,
+        ...(input.clientInfo ? { clientInfo: sentPart(input.clientInfo) } : {}),
+      });
+      if (result.ok) {
+        store.addReply(result.value);
+        return { ok: true, value: toReply(result.value) };
+      }
+      if (result.status === 409 && result.error === "exists") {
+        return { ok: true, value: await alreadySent(input, body, author) };
+      }
+      return { ok: false, error: await replyRefusal(result) };
+    },
     editReply: ownerOnly,
     deleteReply: ownerOnly,
     restoreReply: ownerOnly,

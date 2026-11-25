@@ -20,6 +20,8 @@ export const SHARE_RATE_LIMITS = {
   clientComment: { limit: 20, windowMs: 60_000 },
   /** A client changing their own comments' words (4.12): as many as new comments. */
   clientEdit: { limit: 20, windowMs: 60_000 },
+  /** A client's reply in a comment's thread (D22): as many as new comments. */
+  clientReply: { limit: 20, windowMs: 60_000 },
   clientCapture: { limit: 6, windowMs: 60_000 },
   clientRead: { limit: 600, windowMs: 60_000 },
   /** A brake before Postgres's own password limit (`password-attempts.ts`), which is the real one. */

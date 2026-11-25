@@ -2,6 +2,7 @@ import * as clientViewRoute from "@/app/api/s/[token]/route";
 import * as clientBlobRoute from "@/app/api/s/[token]/blobs/[key]/route";
 import * as clientLogoRoute from "@/app/api/s/[token]/brand/logo/route";
 import * as clientCommentRoute from "@/app/api/s/[token]/comments/[commentId]/route";
+import * as clientRepliesRoute from "@/app/api/s/[token]/comments/[commentId]/replies/route";
 import * as clientCommentsRoute from "@/app/api/s/[token]/comments/route";
 import * as shareRoute from "@/app/api/shares/[shareId]/route";
 import * as ownerBlobRoute from "@/app/api/shares/[shareId]/blobs/[key]/route";
@@ -55,6 +56,11 @@ const ROUTES: Route[] = [
   route(/^\/api\/s\/(?<token>[^/]+)\/comments\/(?<commentId>[^/]+)$/, ["token", "commentId"], {
     PATCH: clientCommentRoute.PATCH,
   }),
+  route(
+    /^\/api\/s\/(?<token>[^/]+)\/comments\/(?<commentId>[^/]+)\/replies$/,
+    ["token", "commentId"],
+    { POST: clientRepliesRoute.POST },
+  ),
   route(/^\/api\/s\/(?<token>[^/]+)\/blobs\/(?<key>[^/]+)$/, ["token", "key"], {
     GET: clientBlobRoute.GET,
   }),

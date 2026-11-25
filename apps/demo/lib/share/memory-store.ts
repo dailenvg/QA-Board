@@ -277,18 +277,21 @@ export function createMemoryStore(): ShareStore {
       }
       return done(undefined);
     },
-    insertReply(id, reply, origin, clientInfo) {
+    addClientReply(id, reply, caps, clientInfo) {
       const entry = shares.get(id);
-      if (!entry || entry.replies.has(reply.id) || !visibleComment(entry, reply.commentId)) {
-        return done(false);
-      }
+      if (entry?.replies.has(reply.id)) return done("exists");
+      if (!entry || !visibleComment(entry, reply.commentId)) return done("missing");
+      if (entry.comments.get(reply.commentId)?.item.status !== "active") return done("locked");
+      const rows = [...entry.replies.values()];
+      const thread = rows.filter((row) => row.item.commentId === reply.commentId).length;
+      if (rows.length >= caps.link || thread >= caps.comment) return done("full");
       entry.replies.set(reply.id, {
         item: reply,
-        origin,
+        origin: "client",
         seq: (seq += 1),
         ...(clientInfo ? { clientInfo } : {}),
       });
-      return done(true);
+      return done("added");
     },
     deleteReplies(id, ids) {
       for (const replyId of ids) shares.get(id)?.replies.delete(replyId);

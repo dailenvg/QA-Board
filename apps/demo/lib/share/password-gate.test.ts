@@ -5,6 +5,7 @@ import * as blobRoute from "@/app/api/s/[token]/blobs/[key]/route";
 import * as logoRoute from "@/app/api/s/[token]/brand/logo/route";
 import * as captureRoute from "@/app/api/s/[token]/capture/route";
 import * as commentRoute from "@/app/api/s/[token]/comments/[commentId]/route";
+import * as repliesRoute from "@/app/api/s/[token]/comments/[commentId]/replies/route";
 import * as commentsRoute from "@/app/api/s/[token]/comments/route";
 import * as unlockRoute from "@/app/api/s/[token]/unlock/route";
 import SharedReviewPage, { generateMetadata } from "@/app/s/[token]/page";
@@ -141,6 +142,15 @@ function guest(token: string, cookie: string | null = null) {
         request("/comments/unknown", { method: "PATCH", body: JSON.stringify({ body: "Hi" }) }),
         params({ token, commentId: "unknown" }),
       ),
+    // A reply to a comment that isn't there: past the gate, a plain 404.
+    reply: () =>
+      repliesRoute.POST(
+        request("/comments/unknown/replies", {
+          method: "POST",
+          body: JSON.stringify({ id: "r-guest", body: "Hi", author: "Cleo" }),
+        }),
+        params({ token, commentId: "unknown" }),
+      ),
     capture: () =>
       captureRoute.POST(
         request("/capture", { method: "POST", body: JSON.stringify({ width: 800 }) }),
@@ -173,6 +183,7 @@ async function statuses(g: Guest) {
     image: (await g.image()).status,
     comment: (await g.comment()).status,
     edit: (await g.edit()).status,
+    reply: (await g.reply()).status,
     capture: (await g.capture()).status,
   };
 }
@@ -199,6 +210,7 @@ describe("a password-protected review link", () => {
       image: 401,
       comment: 401,
       edit: 401,
+      reply: 401,
       capture: 401,
     });
     const view = await g.view();
@@ -217,6 +229,7 @@ describe("a password-protected review link", () => {
       image: 200,
       comment: 201,
       edit: 404,
+      reply: 404,
       capture: 201,
     });
     const view = (await (await guest(created.token, cookie).view()).json()) as {
@@ -306,6 +319,7 @@ describe("a password-protected review link", () => {
       image: 200,
       comment: 201,
       edit: 404,
+      reply: 404,
       capture: 201,
     });
     // A password set again doesn't bring the old passes back.

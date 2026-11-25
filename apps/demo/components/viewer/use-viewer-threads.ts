@@ -29,11 +29,22 @@ export interface ModeratedReply {
   afterRemoval: () => void;
 }
 
+/** Adds `id` to a set kept in state, or gives the same set back when it's there already. */
+const withId = (ids: ReadonlySet<string>, id: string) => (ids.has(id) ? ids : new Set(ids).add(id));
+
+/** Takes `id` out of a set kept in state, or gives the same set back when it isn't there. */
+function withoutId(ids: ReadonlySet<string>, id: string): ReadonlySet<string> {
+  if (!ids.has(id)) return ids;
+  const next = new Set(ids);
+  next.delete(id);
+  return next;
+}
+
 /**
  * The viewer's threads (U1): the project's replies by comment (`byComment`),
  * and what the cards and the pin's popover read through `CommentThreadsContext`.
- * A review link's guest reads them only: `replyRights` and `canReply` give
- * them no box and no menu, so nothing here writes for them. `moderating` is
+ * A review link's guest replies under active comments while the window is
+ * open (`canReply`), and changes no reply (`replyRights`). `moderating` is
  * the owner's confirm for deleting someone else's reply.
  */
 export function useViewerThreads({
@@ -49,13 +60,16 @@ export function useViewerThreads({
   const moderating = useDialogState<ModeratedReply>();
   // Unsent words outlive the box they were typed in (a card's, the popover's).
   const [drafts] = useState(createReplyDrafts);
+  /** Comments with a reply on its way, or refused and not cleared since: their box stays. */
+  const [keptBoxes, setKeptBoxes] = useState<ReadonlySet<string>>(() => new Set());
 
   /**
    * Posts with the browser as it is when Reply is pressed, as a new comment does. The words
    * leave the comment's draft while they're sent (`sendReplyDraft`).
    */
-  const send = (comment: Comment, draft: ReplyDraft) =>
-    sendReplyDraft(drafts, comment.id, draft.body, async () => {
+  const send = async (comment: Comment, draft: ReplyDraft) => {
+    setKeptBoxes((ids) => withId(ids, comment.id));
+    const result = await sendReplyDraft(drafts, comment.id, draft.body, async () => {
       if (draft.author.trim() !== data.authorName) backend.setAuthorName(draft.author);
       const clientInfo = await captureClientInfo();
       return backend.addReply({
@@ -67,12 +81,21 @@ export function useViewerThreads({
         ...(clientInfo ? { clientInfo } : {}),
       });
     });
+    if (result.ok) setKeptBoxes((ids) => withoutId(ids, comment.id));
+    return result;
+  };
 
   const value: CommentThreads = {
     repliesOf: (commentId) => threads.get(commentId) ?? NO_REPLIES,
     viewer,
     authorName: data.authorName,
-    ...drafts,
+    draftOf: drafts.draftOf,
+    keepDraft: (commentId, body) => {
+      drafts.keepDraft(commentId, body);
+      // Cleared by hand: nothing left to copy, so a box kept for its words may go.
+      if (!body) setKeptBoxes((ids) => withoutId(ids, commentId));
+    },
+    keepsBox: (commentId) => keptBoxes.has(commentId) || drafts.draftOf(commentId) !== "",
     send,
     edit: actions.edit,
     remove: (reply, afterRemoval) => {

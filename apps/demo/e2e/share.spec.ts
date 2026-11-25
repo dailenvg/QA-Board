@@ -408,7 +408,7 @@ test("an image project is shared as its page, and a client's comment comes back 
   await clientContext.close();
 });
 
-test("a guest reads the team's reply under a comment, and can't reply, edit or delete it", async ({
+test("a guest reads the team's reply under a comment, and can't edit or delete it", async ({
   page,
   browser,
 }, testInfo) => {
@@ -445,22 +445,23 @@ test("a guest reads the team's reply under a comment, and can't reply, edit or d
   // Replies never count as comments (D6): the reply is no second pin or card.
   await expect(client.getByRole("button", { name: /^Comment 2 by/ })).toHaveCount(0);
 
-  // Selected, the card shows the thread to read: no box, no Reply button, no reply menu.
+  // Selected, the card shows the thread and the reply box, and no reply menu (D2).
   await guestCard.locator("[data-card-select]").click();
   const replies = guestCard.getByTestId("reply");
   await expect(replies).toHaveCount(1);
   await expect(replies.first().getByTestId("reply-body")).toHaveText("On it.");
   await expect(replies.first()).toContainText("Ana");
   await expect(guestCard.getByTestId("reply-summary")).toHaveCount(0);
-  for (const absent of ["reply-composer", "reply-start", "reply-more", "client-chip"]) {
+  await expect(guestCard.getByTestId("reply-composer")).toBeVisible();
+  for (const absent of ["reply-more", "client-chip"]) {
     await expect(guestCard.getByTestId(absent)).toHaveCount(0);
   }
 
-  // The pin's popover has the thread too, and no box either.
+  // The pin's popover has the thread and a box too, and no reply menu either.
   await client.getByRole("button", { name: "Comment 1 by Ana", exact: true }).click();
   const popover = client.getByTestId("pin-popover");
   await expect(popover.getByTestId("reply")).toHaveCount(1);
-  await expect(popover.getByTestId("reply-composer")).toHaveCount(0);
+  await expect(popover.getByTestId("reply-composer")).toBeVisible();
   await expect(popover.getByTestId("reply-more")).toHaveCount(0);
 
   // The team replies more while the guest reads, through the refresh. Once the popover's thread
@@ -493,6 +494,101 @@ test("a guest reads the team's reply under a comment, and can't reply, edit or d
   // Long enough for a smooth scroll to have moved it.
   await client.waitForTimeout(800);
   expect(await scroller.evaluate((node) => node.scrollTop)).toBe(0);
+  await context.close();
+});
+
+test("a guest replies on a review link, the team reads it and answers, and a resolve closes it", async ({
+  page,
+  browser,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "One desktop browser is enough for this.");
+  const postedTo = (target: Page, path: RegExp) =>
+    target.waitForResponse(
+      (response) =>
+        path.test(new URL(response.url()).pathname) && response.request().method() === "POST",
+    );
+  await openFolder(page);
+  await createImageProject(page, "round-trip.png");
+  await postComment(page, "Owner note", { x: 100, y: 80 }, "Ana");
+  await showComments(page);
+  await page.getByTestId("share-button").click();
+  const dialog = page.getByTestId("share-dialog");
+  const link = (await dialog.getByTestId("copy-share-link").getAttribute("data-url"))!;
+  await expect(dialog.getByTestId("share-sync")).toHaveAttribute("data-sync", "synced");
+  await page.keyboard.press("Escape");
+
+  // Guest: Reply opens the box, which asks for their name first, as nothing is remembered (D7).
+  const { client, context } = await guestBrowser(browser);
+  await client.goto(link);
+  await showComments(client);
+  const guestCard = card(client, "Owner note");
+  await guestCard.locator("[data-card-select]").click();
+  await guestCard.getByTestId("reply-start").click();
+  const name = guestCard.getByRole("textbox", { name: "Your name" });
+  await expect(name).toBeFocused();
+  const words = guestCard.getByRole("textbox", { name: "Reply", exact: true });
+  await words.fill("Looks great.");
+  await words.press("Enter");
+  await expect(
+    guestCard.getByTestId("reply-composer").getByText("Add your name so others know who replied."),
+  ).toBeVisible();
+  await name.fill("Cleo");
+  const sent = postedTo(client, /^\/api\/s\/[^/]+\/comments\/[^/]+\/replies$/);
+  await words.press("Enter");
+  expect((await sent).status()).toBe(201);
+  await expect(guestCard.getByTestId("reply")).toHaveCount(1);
+  await expect(guestCard.getByTestId("reply")).toContainText("Cleo");
+  await expect(words).toHaveValue("");
+  await expect(words).toBeFocused();
+
+  // Team: the sync pulls the guest's reply, saves it as a client's, and the thread shows it.
+  const ownerCard = card(page, "Owner note");
+  const saved = postedTo(page, /^\/api\/w\/[^/]+\/projects\/[^/]+\/comments\/[^/]+\/replies$/);
+  // Selected or not, the card names Cleo once the reply is in: in its thread, or its summary line.
+  await pullUntil(page, ownerCard.filter({ hasText: "Cleo" }));
+  expect((await saved).status()).toBe(201);
+  const box = ownerCard.getByRole("textbox", { name: "Reply", exact: true });
+  if (!(await box.isVisible())) await ownerCard.locator("[data-card-select]").click();
+  const pulled = ownerCard.getByTestId("reply").filter({ hasText: "Looks great." });
+  await expect(pulled).toContainText("Cleo");
+  await expect(pulled.getByTestId("client-chip")).toHaveText("Client");
+
+  // Team answers; the guest reads it after their own.
+  const pushed = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname.startsWith("/api/shares/") &&
+      response.request().method() === "PATCH" &&
+      (response.request().postData() ?? "").includes("Thanks, Cleo."),
+  );
+  await box.fill("Thanks, Cleo.");
+  await box.press("Enter");
+  expect((await pushed).status()).toBe(200);
+  await expect(async () => {
+    await client.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await expect(guestCard.getByTestId("reply")).toHaveCount(2, { timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await expect(guestCard.getByTestId("reply").last().getByTestId("reply-body")).toHaveText(
+    "Thanks, Cleo.",
+  );
+
+  // Team resolves it: the guest's thread stays to read, with why there's no box (D4).
+  const resolved = page.waitForResponse(
+    (response) =>
+      /\/api\/w\/[^/]+\/projects\/[^/]+\/comments\/[^/]+$/.test(response.url()) &&
+      response.request().method() === "PATCH",
+  );
+  await ownerCard.getByRole("button", { name: "Resolve" }).click();
+  expect((await resolved).status()).toBe(200);
+  await client.reload();
+  await showComments(client);
+  await client.getByTestId("tab-resolved").click();
+  const closedCard = card(client, "Owner note");
+  await closedCard.locator("[data-card-select]").click();
+  await expect(closedCard.getByTestId("reply")).toHaveCount(2);
+  await expect(closedCard.getByTestId("reply-closed-note")).toHaveText(
+    "The team resolved this, so it's closed for replies.",
+  );
+  await expect(closedCard.getByTestId("reply-composer")).toHaveCount(0);
   await context.close();
 });
 

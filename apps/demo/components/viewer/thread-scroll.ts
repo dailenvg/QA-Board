@@ -3,8 +3,8 @@
  * own (just sent, most often), or anyone's while focus is in this thread's
  * reply box (`composer`), so the reply someone is answering stays in sight.
  * Someone else's reply that a sync brings never moves a thread being read,
- * wherever else focus is (the popover itself, a reply's menu), and a guest,
- * who has no box, is never moved by the team's.
+ * wherever else focus is (the popover itself, a reply's menu), nor one with
+ * no box (a guest under a resolved comment, or after the window).
  */
 export function revealsNewReply(
   mine: boolean,

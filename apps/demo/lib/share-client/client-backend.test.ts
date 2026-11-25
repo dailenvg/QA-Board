@@ -9,6 +9,7 @@ import { linkEditKeys } from "./edit-keys";
 import { createServerBlobs } from "./server-blobs";
 
 const TOKEN = "t".repeat(43);
+const GONE = "This link no longer works. Ask the project owner for a new one.";
 const input = {
   id: "draft-1",
   projectId: "shared",
@@ -67,14 +68,125 @@ const cropsSent = (sent: RequestInit[]) =>
     .filter((init) => init.body instanceof FormData)
     .map((init) => (init.body as FormData).has("crop"));
 
-describe("replies on a review link", () => {
-  it("are refused, sending nothing: review links carry none yet", async () => {
+describe("a guest's reply", () => {
+  const reply = {
+    id: "r1",
+    projectId: "shared",
+    commentId: "c1",
+    body: "  Thanks!  ",
+    author: "  Cleo ",
+    clientInfo: { userAgent: "Mozilla/5.0", viewport: { width: 390, height: 844 }, dpr: 3 },
+  };
+  const posted = { id: "r1", commentId: "c1", body: "Thanks!", author: "Cleo", createdAt: 7 };
+  const sentReply = () => Response.json(posted, { status: 201 });
+  const view =
+    (replies: unknown[] = []) =>
+    () =>
+      Response.json({ ...VIEW, replies });
+
+  it("posts its words and name trimmed, its browser without the user agent, and shows once accepted", async () => {
+    const { store, backend, calls, sent } = setup([sentReply]);
+    const result = await backend.addReply(reply);
+    expect(result).toEqual({ ok: true, value: { ...posted, projectId: "shared" } });
+    expect(calls).toEqual([`/api/s/${TOKEN}/comments/c1/replies`]);
+    expect(JSON.parse(sent[0]?.body as string)).toEqual({
+      id: "r1",
+      body: "Thanks!",
+      author: "Cleo",
+      clientInfo: { viewport: { width: 390, height: 844 }, dpr: 3 },
+    });
+    expect(store.getSnapshot().view.replies).toEqual([posted]);
+  });
+
+  it("counts 'already exists' as sent (an earlier try got through), as the link shows it", async () => {
+    const { store, backend } = setup([failure(409, "exists"), view([posted])]);
+    expect(await backend.addReply(reply)).toEqual({
+      ok: true,
+      value: { ...posted, projectId: "shared" },
+    });
+    expect(store.getSnapshot().view.replies).toEqual([posted]);
+  });
+
+  it.each([
+    [
+      "the window closed",
+      failure(403, "review-closed"),
+      "Your reply wasn't sent: the review window has closed. Copy your text to keep it.",
+    ],
+    [
+      "the team resolved it",
+      failure(409, "locked"),
+      "Your reply wasn't sent: the team resolved this comment. Copy your text to keep it.",
+    ],
+    [
+      "the link is out of space",
+      failure(413, "share-full"),
+      "Your reply wasn't sent: this review is out of space for replies. Ask the project owner to make room, then retry.",
+    ],
+    ["the server failed", failure(500), "Your reply wasn't sent. Retry in a moment."],
+    [
+      "too many were sent",
+      failure(429, "rate-limited"),
+      "Your reply wasn't sent: too many replies in a short time. Wait a moment, then retry.",
+    ],
+  ])("says why when %s, adding nothing", async (_case, answer, error) => {
+    const { store, backend } = setup([answer]);
+    expect(await backend.addReply(reply)).toEqual({ ok: false, error });
+    expect(store.getSnapshot().view.replies).toEqual([]);
+  });
+
+  it("says it couldn't reach the server when there's no answer", async () => {
+    const { backend } = setup([]);
+    expect(await backend.addReply(reply)).toEqual({
+      ok: false,
+      error:
+        "Your reply wasn't sent: Squint couldn't reach the server. Check your connection, then retry.",
+    });
+  });
+
+  it("closes the review here once the window has closed, whatever this clock says", async () => {
+    const { store, backend } = setup([failure(403, "review-closed")]);
+    await backend.addReply(reply);
+    expect(store.getSnapshot().reviewClosed).toBe(true);
+  });
+
+  it("says the comment was deleted, keeping it in view for the words to be copied", async () => {
+    // The link answers, without the comment: it isn't read into the review until the next refresh.
+    const withoutIt = () => Response.json({ ...VIEW, comments: [] });
+    const { store, backend, calls } = setup([failure(404, "not-found"), withoutIt], VIEW.comments);
+    expect(await backend.addReply(reply)).toEqual({
+      ok: false,
+      error: "Your reply wasn't sent: this comment was deleted. Copy your text to keep it.",
+    });
+    expect(calls).toEqual([`/api/s/${TOKEN}/comments/c1/replies`, `/api/s/${TOKEN}`]);
+    expect(store.getSnapshot().gone).toBe(false);
+    expect(store.getSnapshot().view.comments).toEqual(VIEW.comments);
+  });
+
+  it("marks the link gone when it was revoked or paused, not the comment", async () => {
+    const revoked = setup([failure(404, "not-found"), failure(404, "not-found")]);
+    expect(await revoked.backend.addReply(reply)).toEqual({ ok: false, error: GONE });
+    expect(revoked.store.getSnapshot()).toMatchObject({ gone: true, paused: false });
+    const paused = setup([failure(404, "paused")]);
+    expect(await paused.backend.addReply(reply)).toEqual({ ok: false, error: GONE });
+    expect(paused.store.getSnapshot()).toMatchObject({ gone: true, paused: true });
+    expect(paused.calls).toHaveLength(1);
+  });
+
+  it("locks the link when it asks for its password again", async () => {
+    const { store, backend } = setup([failure(401, "password-required")]);
+    expect(await backend.addReply(reply)).toEqual({
+      ok: false,
+      error: "Your reply wasn't sent: this link needs its password again. Your text is kept.",
+    });
+    expect(store.getSnapshot().locked).toBe(true);
+  });
+
+  it("can't change or delete a reply (D2), sending nothing", () => {
     const { backend, calls } = setup([]);
-    const reply = { id: "r1", projectId: "shared", commentId: "c1", body: "Hi", author: "Cleo" };
-    expect(await backend.addReply(reply)).toEqual({ ok: false, error: OWNER_ONLY });
     expect(backend.editReply("r1", "Hi")).toEqual({ ok: false, error: OWNER_ONLY });
     expect(backend.deleteReply("r1")).toEqual({ ok: false, error: OWNER_ONLY });
-    expect(backend.restoreReply({ ...reply, createdAt: 1 })).toEqual({
+    expect(backend.restoreReply({ ...posted, projectId: "shared" })).toEqual({
       ok: false,
       error: OWNER_ONLY,
     });

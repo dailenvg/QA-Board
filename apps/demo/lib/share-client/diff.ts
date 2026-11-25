@@ -8,8 +8,17 @@ type Changes = Omit<ShareChange, "cursor">;
 const UPSERTS = ["snapshots", "comments", "replies"] as const;
 type Upserts = (typeof UPSERTS)[number];
 
-/** What differs between the owner's state and the server's manifest. */
-export function diffState(local: ShareState, manifest: ShareManifest): Changes {
+/**
+ * What differs between the owner's state and the server's manifest. Replies
+ * in `settled` (clients', `clientReplyIds`) are only sent while the server
+ * lacks them: it keeps a client's reply as it is, so sending one it has
+ * again, however it differs, would only repeat on every push.
+ */
+export function diffState(
+  local: ShareState,
+  manifest: ShareManifest,
+  settled: ReadonlySet<string> = new Set(),
+): Changes {
   const changed = <T extends { id: string }>(
     items: readonly T[],
     remote: ShareManifest["comments"],
@@ -17,6 +26,10 @@ export function diffState(local: ShareState, manifest: ShareManifest): Changes {
     const known = new Map(remote.map((entry) => [entry.id, entry.digest]));
     return items.filter((item) => known.get(item.id) !== digest(item));
   };
+  const remoteReplies = new Set(manifest.replies.map((entry) => entry.id));
+  const replies = changed(local.replies, manifest.replies).filter(
+    (reply) => !settled.has(reply.id) || !remoteReplies.has(reply.id),
+  );
   const gone = (items: ReadonlyArray<{ id: string }>, remote: ShareManifest["comments"]) => {
     const ids = new Set(items.map((item) => item.id));
     return remote.filter((entry) => !ids.has(entry.id)).map((entry) => entry.id);
@@ -25,7 +38,7 @@ export function diffState(local: ShareState, manifest: ShareManifest): Changes {
     ...(digest(local.project) !== manifest.project ? { project: local.project } : {}),
     snapshots: changed(local.snapshots, manifest.snapshots),
     comments: changed(local.comments, manifest.comments),
-    replies: changed(local.replies, manifest.replies),
+    replies,
     deleteSnapshots: gone(local.snapshots, manifest.snapshots),
     deleteComments: gone(local.comments, manifest.comments),
     deleteReplies: gone(local.replies, manifest.replies),

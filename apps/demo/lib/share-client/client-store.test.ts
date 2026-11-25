@@ -99,6 +99,18 @@ describe("client store", () => {
     store.addComment(accepted);
     expect(toViewerData(store.getSnapshot()).data.comments.map((c) => c.id)).toEqual(["k"]);
   });
+
+  it("adds an accepted reply once, even if a refresh brought it first", () => {
+    const store = createClientStore(VIEW, anonymous());
+    const accepted = { id: "k-r", commentId: "c-1", body: "Thanks!", author: "Cleo", createdAt: 9 };
+    store.addReply(accepted);
+    expect(toViewerData(store.getSnapshot()).data.replies).toEqual([
+      { ...accepted, projectId: SHARED_PROJECT_ID },
+    ]);
+    store.setView({ ...VIEW, replies: [accepted] });
+    store.addReply(accepted);
+    expect(toViewerData(store.getSnapshot()).data.replies.map((r) => r.id)).toEqual(["k-r"]);
+  });
 });
 
 describe("the review window", () => {

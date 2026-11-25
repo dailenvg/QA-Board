@@ -146,6 +146,17 @@ export const clientCommentSchema = z.object({
   clientInfo: sentClientInfoSchema.optional(),
 });
 
+/**
+ * A client's reply to a comment of the link (the comment is in the path). Its
+ * time is the server's to set, and so is the user agent in its browser details.
+ */
+export const clientReplySchema = z.object({
+  id,
+  body: text(SHARE_LIMITS.body),
+  author: text(SHARE_LIMITS.author),
+  clientInfo: sentClientInfoSchema.optional(),
+});
+
 /** A client's edit of their own comment (4.12): its new words, and nothing else. */
 export const clientEditSchema = z.object({ body: commentFields.body });
 

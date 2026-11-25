@@ -247,6 +247,49 @@ describe("sharing in the reducer", () => {
     expect(data.comments.find((entry) => entry.id === "c1")?.body).toBe(LEGACY_V1.comments[0].body);
   });
 
+  describe("a client's reply pulled from the link", () => {
+    const reply = (id: string, commentId: string, projectId = "site"): Reply => ({
+      id,
+      projectId,
+      commentId,
+      body: "Thanks!",
+      author: "Cleo",
+      createdAt: 30,
+      fromClient: true,
+    });
+    const merge = (comments: Comment[], replies: Reply[]) => ({
+      type: "share/merge" as const,
+      id: "site",
+      comments,
+      replies,
+      snapshots: [],
+      cursor: 9,
+      at: 60,
+    });
+
+    it("lands once, under a comment that's here or merged with it, and touches the project", () => {
+      const pulled = merge(
+        [{ ...comment("k-1", "x"), fromClient: true }],
+        [reply("r-on-team", "c1"), reply("r-on-new", "k-1")],
+      );
+      const once = reduce(shared(), pulled);
+      const twice = reduce(once, pulled);
+      expect(twice.replies.map((entry) => entry.id)).toEqual(["r-on-team", "r-on-new"]);
+      expect(twice.replies.every((entry) => entry.fromClient)).toBe(true);
+      expect(once.projects.find((p) => p.id === "site")?.updatedAt).toBe(60);
+    });
+
+    it("never lands under a comment deleted here, nor on another project", () => {
+      const deleted = reduce(shared(), { type: "comment/delete", id: "c1" });
+      const after = reduce(
+        deleted,
+        merge([], [reply("r-gone", "c1"), reply("r-elsewhere", "c1", "other")]),
+      );
+      expect(after.replies).toEqual([]);
+      expect(after.projects.find((p) => p.id === "site")?.share?.cursor).toBe(9);
+    });
+  });
+
   describe("a client's edit pulled from the link (4.12)", () => {
     const merge = (
       comments: Comment[],

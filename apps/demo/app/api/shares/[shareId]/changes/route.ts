@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ shareId: string }> };
 
-/** `GET ?since=<cursor>`: client comments and snapshots added after the cursor. */
+/** `GET ?since=<cursor>`: client comments, replies and snapshots added after the cursor. */
 export async function GET(request: Request, { params }: Params) {
   const { shareId } = await params;
   return asOwner(request, shareId, "ownerRead", async ({ services, share }) => {

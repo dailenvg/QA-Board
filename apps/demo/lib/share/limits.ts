@@ -11,6 +11,8 @@ export const SHARE_LIMITS = {
   comments: 1000,
   /** Replies on one link, the team's and its guests' together (D22). */
   replies: 5000,
+  /** Replies under one comment of a link, the team's and its guests' together (D22). */
+  repliesPerComment: 200,
   /** Pages of one project (the browser's `MAX_PAGES`). */
   pages: 50,
   /** Longest page edge in px the server accepts (pages are stored at 2400 px at most). */

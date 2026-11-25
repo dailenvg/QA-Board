@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Reply } from "@/lib/store/types";
 import type { CommentViewer } from "./comment-rights";
-import { canReply, replyRights } from "./reply-rights";
+import { canReply, REPLY_CLOSED_NOTE, replyClosedNote, replyRights } from "./reply-rights";
 
 const TEAM: Reply = {
   id: "r-1",
@@ -45,10 +45,43 @@ describe("replyRights", () => {
 });
 
 describe("canReply", () => {
-  it("gives everyone on the team the reply box, and no guest yet", () => {
-    expect(canReply(owner)).toBe(true);
-    expect(canReply(member)).toBe(true);
-    expect(canReply(guest)).toBe(false);
-    expect(canReply({ ...guest, reviewOpen: true })).toBe(false);
+  const active = { status: "active" } as const;
+  const resolved = { status: "resolved" } as const;
+
+  it("gives everyone on the team the reply box, under an active or a resolved comment", () => {
+    for (const comment of [active, resolved]) {
+      expect(canReply(owner, comment)).toBe(true);
+      expect(canReply(member, comment)).toBe(true);
+      expect(canReply({ ...member, reviewOpen: false }, comment)).toBe(true);
+    }
+  });
+
+  it("gives a guest the box only under an active comment, while the window is open (D3, D4)", () => {
+    expect(canReply(guest, active)).toBe(true);
+    expect(canReply({ ...guest, reviewOpen: true }, active)).toBe(true);
+    expect(canReply(guest, resolved)).toBe(false);
+    expect(canReply({ ...guest, reviewOpen: false }, active)).toBe(false);
+  });
+});
+
+describe("replyClosedNote", () => {
+  const active = { status: "active" } as const;
+  const resolved = { status: "resolved" } as const;
+  const closed = { ...guest, reviewOpen: false };
+
+  it("says nothing where there's a box, and never to the team", () => {
+    expect(replyClosedNote(guest, active)).toBeNull();
+    expect(replyClosedNote(owner, resolved)).toBeNull();
+    expect(replyClosedNote({ ...member, reviewOpen: false }, resolved)).toBeNull();
+  });
+
+  it("tells a guest why there's none: the window first, then the resolve", () => {
+    expect(replyClosedNote(guest, resolved)).toBe(REPLY_CLOSED_NOTE.resolved);
+    expect(replyClosedNote(closed, active)).toBe(REPLY_CLOSED_NOTE.windowClosed);
+    expect(replyClosedNote(closed, resolved)).toBe(REPLY_CLOSED_NOTE.windowClosed);
+    expect(REPLY_CLOSED_NOTE).toEqual({
+      windowClosed: "The review window has closed, so you can't reply.",
+      resolved: "The team resolved this, so it's closed for replies.",
+    });
   });
 });
