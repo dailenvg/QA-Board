@@ -52,6 +52,7 @@ import dropPasswordResets from "../../migrations/051_drop_password_resets.sql";
 import clientInfo from "../../migrations/052_client_info.sql";
 import commentReplies from "../../migrations/053_comment_replies.sql";
 import shareReplies from "../../migrations/054_squint_share_replies.sql";
+import commentPriority from "../../migrations/055_comment_priority.sql";
 
 /** The slice of `pg.Pool` the stores use (PGlite matches it in tests). */
 export interface Queryable {
@@ -114,6 +115,7 @@ export const MIGRATIONS: ReadonlyArray<{ id: string; sql: string }> = [
   { id: "052_client_info", sql: clientInfo },
   { id: "053_comment_replies", sql: commentReplies },
   { id: "054_squint_share_replies", sql: shareReplies },
+  { id: "055_comment_priority", sql: commentPriority },
 ];
 
 type Migration = (typeof MIGRATIONS)[number];
