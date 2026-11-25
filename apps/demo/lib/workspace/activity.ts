@@ -4,6 +4,8 @@ import type { ClientCommentActivity } from "./types";
 
 /**
  * Clients' comments across the workspace's live projects, for the Overview.
+ * Their replies don't count (D6), but they are activity: the newest client
+ * post on a project, comment or reply, is its `latestAt`.
  * A client's comment is either pulled into the workspace already (a comment
  * whose origin is 'client') or still waiting on the project's review link: a
  * client row of the link's share past the owner's pull cursor that isn't in
@@ -17,6 +19,11 @@ interface PulledRow {
   project_id: string;
   open: number;
   latest_at: Date;
+}
+
+interface ReplyRow {
+  project_id: string;
+  latest_at: string | number;
 }
 
 interface WaitingRow {
@@ -68,15 +75,52 @@ async function waitingRows(db: Queryable, workspaceId: string, now: number): Pro
   return rows;
 }
 
-/** Every live project with a client comment at `now`, newest client comment first. */
+/**
+ * The newest client reply on each live project (epoch ms), pulled into the
+ * workspace or still waiting on its review link, as for comments: a link's
+ * client row past the pull cursor that isn't in `comment_replies` yet.
+ */
+async function replyRows(db: Queryable, workspaceId: string, now: number): Promise<ReplyRow[]> {
+  const { rows } = await db.query<ReplyRow>(
+    `SELECT reply.project_id,
+       floor(extract(epoch FROM max(reply.created_at)) * 1000)::bigint AS latest_at
+     FROM comment_replies AS reply
+     JOIN projects AS project ON project.id = reply.project_id
+     WHERE project.workspace_id = $1 AND project.deleted_at IS NULL AND reply.origin = 'client'
+     GROUP BY reply.project_id
+     UNION ALL
+     SELECT link.project_id, max((item.data->>'createdAt')::bigint) AS latest_at
+     FROM project_share_links AS link
+     JOIN projects AS project
+       ON project.workspace_id = link.workspace_id AND project.id = link.project_id
+     JOIN squint_shares AS share ON share.id = link.share_id
+     JOIN squint_share_replies AS item ON item.share_id = link.share_id
+     WHERE link.workspace_id = $1 AND project.deleted_at IS NULL
+       AND (share.expires_at IS NULL OR share.expires_at > $2)
+       AND item.origin = 'client' AND item.seq > link.cursor
+       AND NOT EXISTS (
+         SELECT 1 FROM comment_replies AS saved
+         WHERE saved.project_id = link.project_id AND saved.id = item.id
+       )
+     GROUP BY link.project_id`,
+    [workspaceId, now],
+  );
+  return rows;
+}
+
+/**
+ * Every live project with a client comment or reply at `now`, newest client
+ * post first. A project with replies alone has nothing open or waiting.
+ */
 export async function clientActivity(
   db: Queryable,
   workspaceId: string,
   now: number = Date.now(),
 ): Promise<ClientCommentActivity[]> {
-  const [pulled, waiting] = await Promise.all([
+  const [pulled, waiting, replies] = await Promise.all([
     pulledRows(db, workspaceId),
     waitingRows(db, workspaceId, now),
+    replyRows(db, workspaceId, now),
   ]);
   const byProject = new Map<string, ClientCommentActivity>();
   const entry = (projectId: string) => {
@@ -98,6 +142,10 @@ export async function clientActivity(
     found.open += found.waiting.length;
     found.latestAt = Math.max(found.latestAt, Number(row.latest_at));
     found.cursor = Number(row.cursor);
+  }
+  for (const row of replies) {
+    const found = entry(row.project_id);
+    found.latestAt = Math.max(found.latestAt, Number(row.latest_at));
   }
   return [...byProject.values()].sort(
     (a, b) => b.latestAt - a.latestAt || a.projectId.localeCompare(b.projectId),
