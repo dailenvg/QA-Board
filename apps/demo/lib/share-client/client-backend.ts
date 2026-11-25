@@ -72,7 +72,7 @@ const REPLY_DELETED =
 const REPLY_LOCKED =
   "Your reply wasn't sent: this link needs its password again. Your text is kept.";
 const REPLIES_FULL =
-  "Your reply wasn't sent: this review is out of space for replies. Ask the project owner to make room.";
+  "Your reply wasn't sent: this review is out of space for replies. Ask the project owner to make room, then retry.";
 
 interface ClientBackendOptions {
   token: string;

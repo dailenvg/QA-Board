@@ -121,7 +121,7 @@ describe("a guest's reply", () => {
     [
       "the link is out of space",
       failure(413, "share-full"),
-      "Your reply wasn't sent: this review is out of space for replies. Ask the project owner to make room.",
+      "Your reply wasn't sent: this review is out of space for replies. Ask the project owner to make room, then retry.",
     ],
     ["the server failed", failure(500), "Your reply wasn't sent. Retry in a moment."],
     [
