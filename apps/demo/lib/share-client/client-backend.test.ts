@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { namesInMemory, VIEW } from "@/test/share-fixture";
 import { captureFailed } from "../capture/messages";
 import { CROP_ATTEMPTS, CROP_BACKOFF_MS } from "../crop/crop-retry";
-import { OWNER_ONLY, REPLY_NOT_SENT } from "../viewer-backend/backend";
+import { OWNER_ONLY } from "../viewer-backend/backend";
 import { createClientBackend } from "./client-backend";
 import { createClientStore } from "./client-store";
 import { linkEditKeys } from "./edit-keys";
@@ -127,7 +127,7 @@ describe("a guest's reply", () => {
     [
       "too many were sent",
       failure(429, "rate-limited"),
-      "Your reply wasn't sent. Retry in a moment.",
+      "Your reply wasn't sent: too many replies in a short time. Wait a moment, then retry.",
     ],
   ])("says why when %s, adding nothing", async (_case, answer, error) => {
     const { store, backend } = setup([answer]);
@@ -135,9 +135,13 @@ describe("a guest's reply", () => {
     expect(store.getSnapshot().view.replies).toEqual([]);
   });
 
-  it("says it couldn't be sent when there's no answer", async () => {
+  it("says it couldn't reach the server when there's no answer", async () => {
     const { backend } = setup([]);
-    expect(await backend.addReply(reply)).toEqual({ ok: false, error: REPLY_NOT_SENT });
+    expect(await backend.addReply(reply)).toEqual({
+      ok: false,
+      error:
+        "Your reply wasn't sent: Squint couldn't reach the server. Check your connection, then retry.",
+    });
   });
 
   it("closes the review here once the window has closed, whatever this clock says", async () => {

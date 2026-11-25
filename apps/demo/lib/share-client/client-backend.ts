@@ -71,6 +71,11 @@ const REPLY_DELETED =
   "Your reply wasn't sent: this comment was deleted. Copy your text to keep it.";
 const REPLY_LOCKED =
   "Your reply wasn't sent: this link needs its password again. Your text is kept.";
+/** No answer, or too many replies from this address: sending again later goes through. */
+const REPLY_NOT_SENT_BY_STATUS: Record<number, string> = {
+  0: "Your reply wasn't sent: Squint couldn't reach the server. Check your connection, then retry.",
+  429: "Your reply wasn't sent: too many replies in a short time. Wait a moment, then retry.",
+};
 const REPLIES_FULL =
   "Your reply wasn't sent: this review is out of space for replies. Ask the project owner to make room, then retry.";
 
@@ -199,7 +204,7 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
     }
     if (result.status === 409 && result.error === "locked") return REPLY_RESOLVED;
     if (result.error === "share-full") return REPLIES_FULL;
-    return REPLY_NOT_SENT;
+    return REPLY_NOT_SENT_BY_STATUS[result.status] ?? REPLY_NOT_SENT;
   };
 
   /**
