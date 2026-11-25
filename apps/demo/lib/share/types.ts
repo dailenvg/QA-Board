@@ -280,10 +280,17 @@ export interface PulledComment extends SharedComment {
   clientInfo?: ClientInfo;
 }
 
+/** A client's reply as the owner pulls it: with the browser it was posted from (team only). */
+export interface PulledReply extends SharedReply {
+  clientInfo?: ClientInfo;
+}
+
 /** The owner's pull: client additions and edits after `since`, and the new cursor. */
 export interface ShareChanges {
   snapshots: SharedSnapshot[];
   comments: PulledComment[];
+  /** Clients' new replies, in order, each under a comment of the link. */
+  replies: PulledReply[];
   cursor: number;
   /** When the share is deleted for good (epoch ms); null when it never expires on its own. */
   expiresAt: number | null;
@@ -297,6 +304,15 @@ export interface ShareChanges {
 export interface PostedComment extends SharedComment {
   editKey: string;
 }
+
+/**
+ * What became of a client's reply (`ShareStore.addClientReply`): `added`;
+ * `exists`, its id is taken (an earlier try got through); `missing`, its
+ * comment isn't visible on the link (unknown, still being posted, or deleted);
+ * `locked`, its comment is resolved; `full`, the link or the comment's thread
+ * holds as many replies as it may.
+ */
+export type ClientReplyOutcome = "added" | "exists" | "missing" | "locked" | "full";
 
 /** Why a client's edit wasn't saved: no such comment for that key, or no longer active. */
 export type ClientEditRefusal = "missing" | "locked";

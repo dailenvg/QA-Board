@@ -16,6 +16,7 @@ import type {
   CapturedSnapshot,
   ClientComment,
   ClientReply,
+  ClientReplyOutcome,
   ClientView,
   CreatedShare,
   PostedComment,
@@ -53,6 +54,14 @@ export type ClientCommentInput = Omit<
   SharedComment,
   "status" | "createdAt" | "updatedAt" | "resolvedAt" | "editedAt"
 > & { clientInfo?: ClientInfo };
+
+/**
+ * A client's new reply, before the server sets its time, with the browser it's
+ * posted from (the request's user agent included): stored beside it (054).
+ */
+export type ClientReplyInput = Omit<SharedReply, "createdAt" | "editedAt"> & {
+  clientInfo?: ClientInfo;
+};
 
 // ── Access ─────────────────────────────────────────────────────────────────
 
@@ -325,40 +334,44 @@ export async function applyChanges(
 /** The highest of a row's sequences: its insert's, and its latest client edit's. */
 const lastSeq = (row: Sequenced<unknown>) => Math.max(row.seq, row.editSeq ?? 0);
 
-/** A client's comment as the owner pulls it: with the browser it was posted from, when recorded. */
-const pulledComment = (row: Sequenced<SharedComment>): PulledComment =>
+/** A client's comment or reply as the owner pulls it: with the browser it was posted from, when recorded. */
+const withClientInfo = <T>(row: Sequenced<T>): T | (T & { clientInfo: ClientInfo }) =>
   row.clientInfo ? { ...row.item, clientInfo: row.clientInfo } : row.item;
 
 /**
  * Client additions after `since`, in order (with their browser details), then
  * client edits after it to comments pulled before (`edited`, 4.12), with the
  * cursor to ask from next time: past every addition and edit sent, so each
- * comes once.
+ * comes once. A client's reply comes after its comment's insert (its comment
+ * was visible first), so the same pull or an earlier one brings that comment.
  */
 export async function pullChanges(
   store: ShareStore,
   share: ShareRecord,
   since: number,
 ): Promise<ShareChanges> {
-  const [snapshots, comments] = await Promise.all([
+  const [snapshots, comments, replies] = await Promise.all([
     store.snapshots(share.id),
     store.comments(share.id),
+    store.replies(share.id),
   ]);
   const fresh = <T>(rows: readonly Sequenced<T>[]) =>
     rows.filter((row) => row.origin === "client" && row.seq > since);
   const newSnapshots = fresh(snapshots);
   const newComments = fresh(comments);
+  const newReplies = fresh(replies);
   const editedComments = comments.filter(
     (row) => row.origin === "client" && row.seq <= since && (row.editSeq ?? 0) > since,
   );
-  const sent = [...newSnapshots, ...newComments, ...editedComments];
+  const sent = [...newSnapshots, ...newComments, ...editedComments, ...newReplies];
   const pulled: PulledComment[] = [
-    ...newComments.map(pulledComment),
+    ...newComments.map(withClientInfo),
     ...editedComments.map((row) => ({ ...row.item, edited: true as const })),
   ];
   return {
     snapshots: items(newSnapshots),
     comments: pulled,
+    replies: newReplies.map(withClientInfo),
     cursor: Math.max(since, ...sent.map(lastSeq)),
     expiresAt: share.expiresAt,
   };
@@ -709,6 +722,37 @@ export async function editClientComment(
   if (edited === "missing") return fail(404, "not-found");
   if (edited === "locked") return fail(409, "locked");
   return ok(edited);
+}
+
+/** Each answer of `ShareStore.addClientReply` but `added`, as the route says it. */
+const REPLY_REFUSALS: Record<Exclude<ClientReplyOutcome, "added">, Failure> = {
+  exists: fail(409, "exists"),
+  locked: fail(409, "locked"),
+  missing: fail(404, "not-found"),
+  full: fail(413, "share-full"),
+};
+
+/**
+ * A client's reply to a comment of the link, timestamped by the server
+ * (4.2). Only under a visible comment the team hasn't resolved (D4; 409
+ * locked otherwise, and 404 for an unknown comment or one still being
+ * posted), while the link holds fewer than 5000 replies and the comment
+ * fewer than 200, the team's included (D22; 413 share-full). Refused once
+ * the review window is over (D3). An id that's taken is 409 exists: an
+ * earlier try got through. The reply never reopens its comment (D5).
+ */
+export async function addClientReply(
+  { store }: ShareServices,
+  share: ShareRecord,
+  input: ClientReplyInput,
+  now: number,
+): Promise<Outcome<SharedReply>> {
+  if (reviewClosed(shareReviewEndsAt(share), now)) return REVIEW_CLOSED;
+  const { clientInfo, ...fields } = input;
+  const reply: SharedReply = { ...fields, createdAt: now };
+  const caps = { link: SHARE_LIMITS.replies, comment: SHARE_LIMITS.repliesPerComment };
+  const added = await store.addClientReply(share.id, reply, caps, clientInfo);
+  return added === "added" ? ok(reply) : REPLY_REFUSALS[added];
 }
 
 /**

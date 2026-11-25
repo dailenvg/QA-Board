@@ -3,6 +3,7 @@ import type { ShareBrand } from "./brand";
 import type {
   BlobLocation,
   ClientEditRefusal,
+  ClientReplyOutcome,
   ClientStatusChange,
   Origin,
   Sequenced,
@@ -188,20 +189,24 @@ export interface ShareStore {
    * The owner's reply: inserted under its comment, or replacing an owner
    * row's data (keeping its seq). A client's row with that id is left as it
    * is, and so is a reply that would move to another comment. Nothing while
-   * the comment isn't visible on the link: a reply never outlives it.
+   * the comment isn't visible on the link (deleted as it goes in included): a
+   * reply never outlives it.
    */
   upsertReply(id: string, reply: SharedReply): Promise<void>;
   /**
-   * Inserts only, under a visible comment; false when the id is taken or the
-   * comment isn't there. `clientInfo` is kept beside the reply, for the
-   * owner's pull only.
+   * A client's reply, inserted in one step only under a visible, active
+   * comment while the link holds fewer than `caps.link` replies and the
+   * comment's thread fewer than `caps.comment` (both counting the team's and
+   * clients'). Never replaces a row. `clientInfo` is kept beside the reply,
+   * for the owner's pull only. A comment deleted while the reply goes in
+   * leaves it `missing`.
    */
-  insertReply(
+  addClientReply(
     id: string,
     reply: SharedReply,
-    origin: Origin,
+    caps: { link: number; comment: number },
     clientInfo?: ClientInfo,
-  ): Promise<boolean>;
+  ): Promise<ClientReplyOutcome>;
   deleteReplies(id: string, ids: readonly string[]): Promise<void>;
 
   /** Keys and sizes of stored blobs, without their bytes. */

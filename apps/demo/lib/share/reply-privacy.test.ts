@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { migratedPglite } from "@/test/pglite";
-import { STATE } from "@/test/share-fixture";
+import { REPLY_CAPS, STATE } from "@/test/share-fixture";
 import { toShareState } from "../share-client/share-state";
 import type { Comment, Project, Reply } from "../store/types";
 import { inlineBackend } from "./blob-backend";
@@ -84,9 +84,9 @@ describe("a reply's browser details", () => {
     expect((await applyChanges(services, share, change, 200)).ok).toBe(true);
     // A guest's own reply, kept beside its browser details for the owner's pull.
     const guest = { id: "r-guest", commentId: "c-1", body: "Thanks", author: "Cleo", createdAt: 3 };
-    expect(await services.store.insertReply(share.id, guest, "client", info(GUEST_AGENT))).toBe(
-      true,
-    );
+    expect(
+      await services.store.addClientReply(share.id, guest, REPLY_CAPS, info(GUEST_AGENT)),
+    ).toBe("added");
 
     const { rows } = await db.query<{ id: string; data: unknown; client_info: unknown }>(
       "SELECT id, data, client_info FROM squint_share_replies ORDER BY seq",
