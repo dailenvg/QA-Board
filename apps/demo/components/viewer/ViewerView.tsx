@@ -569,6 +569,12 @@ export function ViewerView({
   const setFilter = (filter: CommentView["filter"]) =>
     setCommentView((current) => ({ ...current, filter }));
 
+  /** "Sort and filter": on a phone, a collapsed sheet opens to show the result, as a tab does. */
+  const changeView = (next: CommentView) => {
+    setCommentView(next);
+    if (docked) setSheetOpen(true);
+  };
+
   const commentActions = useCommentActions({
     backend,
     toast,
@@ -929,7 +935,7 @@ export function ViewerView({
           resolved={listedCounts.resolved}
           celebrating={celebrating}
           note={sheetNote}
-          tools={<CommentViewMenu view={commentView} onChange={setCommentView} />}
+          tools={<CommentViewMenu view={commentView} onChange={changeView} />}
         >
           <div className="flex min-h-0 flex-1 flex-col gap-3">
             {panelNotice && !docked ? panelNotice : null}

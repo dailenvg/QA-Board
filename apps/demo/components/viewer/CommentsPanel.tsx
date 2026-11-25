@@ -80,7 +80,11 @@ export function CommentsPanel({
       data-testid="comments-panel"
       className="fixed inset-x-0 bottom-0 z-30 flex max-h-[78dvh] flex-col rounded-t-panel bg-panel pb-[env(safe-area-inset-bottom)] shadow-pop"
     >
-      <div className="flex items-center gap-2 px-3 py-2">
+      {/*
+       * 4px apart on phones, as on the panel: with the tabs, Sort and filter and the sheet toggle
+       * in one row, 8px gaps left "Resolved" truncated at 375px.
+       */}
+      <div className="flex items-center gap-1 px-3 py-2 sm:gap-2">
         {heading}
         {tools}
         <motion.button

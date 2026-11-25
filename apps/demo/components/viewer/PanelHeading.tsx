@@ -115,7 +115,8 @@ export function PanelHeading({
               data-testid={segment.testId}
               onClick={() => onTab(segment.value)}
               onKeyDown={(event) => group.onKeyDown(event, index)}
-              className={`relative flex min-h-14 min-w-0 flex-1 items-center gap-2 rounded-tile pr-3 pl-1 text-left transition-colors duration-150 ${
+              // pr-2 on phones: the sheet's header row also holds Sort and filter and its toggle.
+              className={`relative flex min-h-14 min-w-0 flex-1 items-center gap-2 rounded-tile pr-2 pl-1 text-left transition-colors duration-150 sm:pr-3 ${
                 selected
                   ? "text-ink"
                   : "text-muted hover:bg-hover/60 hover:text-ink active:bg-hover"
