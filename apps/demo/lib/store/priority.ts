@@ -1,7 +1,11 @@
 import type { CommentPriority } from "./types";
 
 /** Every priority, most pressing first. A comment without one has none (null). */
-export const COMMENT_PRIORITIES = ["must", "should", "nit"] as const satisfies readonly CommentPriority[];
+export const COMMENT_PRIORITIES = [
+  "must",
+  "should",
+  "nit",
+] as const satisfies readonly CommentPriority[];
 
 /** What each priority is called wherever it shows (U4). */
 export const PRIORITY_LABEL: Record<CommentPriority, string> = {
