@@ -22,9 +22,9 @@ export function withLabel(project: Project, label: string | null): Project {
 }
 
 /**
- * The workspace without its archived projects (and their comments and
- * snapshots): what the folder grids, counts, search and the Overview show.
- * The same object when nothing is archived.
+ * The workspace without its archived projects (and their comments, replies
+ * and snapshots): what the folder grids, counts, search and the Overview
+ * show. The same object when nothing is archived.
  */
 export function activeData(data: SquintData): SquintData {
   if (!data.projects.some(isArchived)) return data;
@@ -33,6 +33,7 @@ export function activeData(data: SquintData): SquintData {
     ...data,
     projects: data.projects.filter((project) => !archived.has(project.id)),
     comments: data.comments.filter((comment) => !archived.has(comment.projectId)),
+    replies: data.replies.filter((reply) => !archived.has(reply.projectId)),
     snapshots: data.snapshots.filter((snapshot) => !archived.has(snapshot.projectId)),
   };
 }
