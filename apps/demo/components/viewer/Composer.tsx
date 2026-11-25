@@ -5,12 +5,14 @@ import {
   useCallback,
   useEffect,
   useId,
+  useRef,
   useState,
   type FormEvent,
   type KeyboardEvent,
   type RefObject,
 } from "react";
 import { fadeOnly, usePopVariants } from "@/lib/motion";
+import { useDockAboveKeyboard } from "@/lib/use-fit-above-keyboard";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { SHARE_LIMITS } from "@/lib/share/limits";
 import type { CommentPriority } from "@/lib/store/types";
@@ -35,6 +37,13 @@ interface ComposerProps {
 }
 
 const NAME_MISSING = "Add your name so others know who commented.";
+
+/**
+ * The docked composer's cap (`max-h-[calc(100dvh-1.5rem)]`, its 12px inset above and below),
+ * which the keyboard can only lower. With a name field and Priority it can outgrow a short phone
+ * screen once the keyboard is up; it then scrolls, so Priority and Post stay reachable.
+ */
+const DOCKED_MAX = "calc(100dvh - 1.5rem)";
 
 /**
  * A send still busy after this long says it's taking longer than usual: about when waiting
@@ -74,6 +83,9 @@ export function Composer({
   const docked = !useMediaQuery("(min-width: 640px)");
   const variants = usePopVariants();
   const present = useIsPresent();
+  const dockRef = useRef<HTMLDivElement>(null);
+  // Docked, the composer sits at the bottom of the screen, where a phone's keyboard opens.
+  useDockAboveKeyboard(dockRef, docked, DOCKED_MAX);
   // A composer fading out can outlive the next one's mount: it only clears the ref if it still holds its own.
   const attachTextarea = useCallback(
     (node: HTMLTextAreaElement | null) => {
@@ -146,6 +158,7 @@ export function Composer({
 
   return (
     <motion.div
+      ref={dockRef}
       role="dialog"
       aria-labelledby={titleId}
       data-testid="composer"
@@ -161,7 +174,7 @@ export function Composer({
       }
       className={`z-40 rounded-card bg-panel ${present ? "pointer-events-auto" : "pointer-events-none"} p-4 shadow-pop ring-1 ring-line ${
         docked
-          ? "fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))]"
+          ? "fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain"
           : "absolute w-76"
       }`}
     >
