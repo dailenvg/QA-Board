@@ -73,6 +73,17 @@ export function sortComments<T extends Pick<Comment, "id" | "priority">>(
   return [...comments].sort((a, b) => rank(a.priority) - rank(b.priority) || number(a) - number(b));
 }
 
+/**
+ * What screen readers hear once a priority is changed from a comment's More menu, where focus
+ * goes back to the More button and the new chip isn't read: "Comment 3 marked Must fix." or
+ * "Comment 3 has no priority now."
+ */
+export function priorityChangeNote(number: number, priority: CommentPriority | null): string {
+  return priority
+    ? `Comment ${number} marked ${PRIORITY_LABEL[priority]}.`
+    : `Comment ${number} has no priority now.`;
+}
+
 /** The empty list's title when the filter hides every comment on the tab. */
 export function filteredOutTitle(filter: Exclude<PriorityFilter, "all">): string {
   return filter === "none"

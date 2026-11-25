@@ -5,6 +5,7 @@ import {
   filterByPriority,
   filteredOutTitle,
   isDefaultView,
+  priorityChangeNote,
   showsPriority,
   sortComments,
 } from "./priority-view";
@@ -85,5 +86,14 @@ describe("the view", () => {
     expect(filteredOutTitle("should")).toBe("No Should fix comments here");
     expect(filteredOutTitle("nit")).toBe("No Nit comments here");
     expect(filteredOutTitle("none")).toBe("No comments without a priority here");
+  });
+});
+
+describe("priorityChangeNote", () => {
+  it("says which comment got which priority, or that it has none now", () => {
+    expect(priorityChangeNote(1, "nit")).toBe("Comment 1 marked Nit.");
+    expect(priorityChangeNote(3, "must")).toBe("Comment 3 marked Must fix.");
+    expect(priorityChangeNote(12, "should")).toBe("Comment 12 marked Should fix.");
+    expect(priorityChangeNote(3, null)).toBe("Comment 3 has no priority now.");
   });
 });

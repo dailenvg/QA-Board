@@ -57,6 +57,7 @@ import {
   DEFAULT_VIEW,
   filterByPriority,
   filteredOutTitle,
+  priorityChangeNote,
   showsPriority,
   sortComments,
   type CommentView,
@@ -172,6 +173,8 @@ export function ViewerView({
   /** "Sort and filter": for this visit only; pin numbers never change with it. */
   const [commentView, setCommentView] = useState<CommentView>(DEFAULT_VIEW);
   const priorityFilter = commentView.filter;
+  /** The live region's line after a priority is changed from More (`priorityChangeNote`). */
+  const [priorityNote, setPriorityNote] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   /** The pin whose comment popover is open. */
   const [openId, setOpenId] = useState<string | null>(null);
@@ -380,8 +383,22 @@ export function ViewerView({
     mode === "comment" && !stageDraft && !openComment,
   );
 
-  /** After the composer closes, keyboard users carry on from the canvas instead of the page top. */
-  const returnFocusToCanvas = () => overlayRef.current?.focus({ preventScroll: true });
+  /** The comments panel's heading, focusable from script: where focus goes when nothing nearer is left. */
+  const focusPanelHeading = () => {
+    const heading = document.querySelector<HTMLElement>('[data-testid="comments-panel"] h2');
+    if (!heading) return;
+    heading.tabIndex = -1;
+    heading.focus();
+  };
+
+  /**
+   * After the composer or a pin's popover closes, keyboard users carry on from the canvas instead
+   * of the page top. Browse mode has no comment layer to take focus, so the panel's heading does.
+   */
+  const returnFocusToCanvas = () => {
+    if (overlayRef.current) overlayRef.current.focus({ preventScroll: true });
+    else focusPanelHeading();
+  };
 
   // Entering Comment mode (toolbar or C) puts focus on the canvas, so the arrow keys and
   // Enter place a pin right away. A snapshot may still be loading, so this waits for it.
@@ -601,23 +618,35 @@ export function ViewerView({
               `[data-comment-id="${CSS.escape(neighbour.id)}"] [data-card-select]`,
             )
           : null;
-        const heading = document.querySelector<HTMLElement>('[data-testid="comments-panel"] h2');
         if (card) card.focus();
-        else if (heading) {
-          heading.tabIndex = -1;
-          heading.focus();
-        }
+        else focusPanelHeading();
       }),
     );
   };
 
   /**
-   * The team's priority change (any member, D10). One the filter now hides leaves the list
-   * and the stage, so focus moves on as after a delete.
+   * The team's priority change (any member, D10), said out loud, since focus goes back to the
+   * More button. One the filter now hides leaves the list and the stage, so focus moves on: from
+   * a card as after a delete; from the pin's popover, which closes with its pin, to the canvas,
+   * as after a resolve there.
    */
-  const setPriority = (comment: Comment, priority: CommentPriority | null) => {
+  const setPriority = (
+    comment: Comment,
+    priority: CommentPriority | null,
+    from: "card" | "popover" = "card",
+  ) => {
     const saved = commentActions.setPriority(comment.id, priority);
-    if (saved && !showsPriority(priority ?? undefined, priorityFilter)) focusAfterRemoval(comment);
+    if (!saved) return;
+    if (priority !== (comment.priority ?? null)) {
+      setPriorityNote(priorityChangeNote(numbers.get(comment.id) ?? 0, priority));
+    }
+    if (showsPriority(priority ?? undefined, priorityFilter)) return;
+    if (from === "card") {
+      focusAfterRemoval(comment);
+      return;
+    }
+    setOpenId(null);
+    returnFocusToCanvas();
   };
 
   /** "Show all" in the filtered-out list: every priority again, focus on the list's first card. */
@@ -669,7 +698,9 @@ export function ViewerView({
         onResolve={resolveFromPopover}
         onReopen={commentActions.reopen}
         onGetInfo={owner ? () => getInfo(openComment) : undefined}
-        onSetPriority={owner ? (priority) => setPriority(openComment, priority) : undefined}
+        onSetPriority={
+          owner ? (priority) => setPriority(openComment, priority, "popover") : undefined
+        }
         onClose={closePopover}
       />
     </CommentThreadsContext>
@@ -830,6 +861,10 @@ export function ViewerView({
         {openedOnSnapshot
           ? "This site can't be shown here, so it opened on a snapshot in Comment mode."
           : ""}
+      </p>
+      {/* Always present and empty until a priority is changed from More, so each change is heard. */}
+      <p role="status" className="sr-only" data-testid="priority-status">
+        {priorityNote}
       </p>
       <AnimatePresence>
         {notice}
