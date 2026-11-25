@@ -232,7 +232,14 @@ describe("the owner's pull and push around a client's edit", () => {
     const first = await pullChanges(services.store, share, 0);
     await editClientComment(services, share, "k-1", key, "Bigger logo", 300);
     // Deleted in the workspace before the edit was pulled: the push leaves it out.
-    const change = { snapshots: [], comments: [], deleteSnapshots: [], deleteComments: ["k-1"] };
+    const change = {
+      snapshots: [],
+      comments: [],
+      replies: [],
+      deleteSnapshots: [],
+      deleteComments: ["k-1"],
+      deleteReplies: [],
+    };
     await applyChanges(services, share, { ...change, cursor: first.cursor }, 400);
     const view = await clientView(services.store, share, GUEST_TOKEN);
     expect(view.comments.map((comment) => comment.id)).toEqual(["c-1"]);

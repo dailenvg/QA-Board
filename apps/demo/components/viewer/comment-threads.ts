@@ -13,8 +13,8 @@ export interface ReplyDraft {
 
 /**
  * The viewer's threads (U1): each comment's replies, who's reading them, and
- * what they can do. Cards and the pin's popover read it; without it (a review
- * link, until guests read replies) neither shows a thread.
+ * what they can do (a review link's guest only reads them). Cards and the
+ * pin's popover read it; without it neither shows a thread.
  */
 export interface CommentThreads extends ReplyDrafts {
   /** A comment's replies, oldest first. */

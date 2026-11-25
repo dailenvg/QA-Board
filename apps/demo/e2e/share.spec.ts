@@ -408,6 +408,94 @@ test("an image project is shared as its page, and a client's comment comes back 
   await clientContext.close();
 });
 
+test("a guest reads the team's reply under a comment, and can't reply, edit or delete it", async ({
+  page,
+  browser,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "One desktop browser is enough for this.");
+  await openFolder(page);
+  await createImageProject(page, "thread.png");
+  await postComment(page, "Owner note", { x: 100, y: 80 }, "Ana");
+  await showComments(page);
+  const ownerCard = card(page, "Owner note");
+  await ownerCard.getByRole("button", { name: "Reply", exact: true }).click();
+  const box = ownerCard.getByRole("textbox", { name: "Reply", exact: true });
+  const posted = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname.endsWith("/replies") &&
+      response.request().method() === "POST",
+  );
+  await box.fill("On it.");
+  await box.press("Enter");
+  expect((await posted).status()).toBe(201);
+
+  // The link is made after the reply, so its first push carries the comment, then the reply.
+  await page.getByTestId("share-button").click();
+  const dialog = page.getByTestId("share-dialog");
+  const link = (await dialog.getByTestId("copy-share-link").getAttribute("data-url"))!;
+  await expect(dialog.getByTestId("share-sync")).toHaveAttribute("data-sync", "synced");
+  await page.keyboard.press("Escape");
+
+  const { client, context } = await guestBrowser(browser);
+  await client.goto(link);
+  await showComments(client);
+  const guestCard = card(client, "Owner note");
+  await expect(guestCard.getByTestId("reply-summary")).toContainText(/1 reply.*Ana, /);
+  await expect(guestCard.locator("[data-card-select]")).toHaveAccessibleDescription(/1 reply/);
+  // Replies never count as comments (D6): the reply is no second pin or card.
+  await expect(client.getByRole("button", { name: /^Comment 2 by/ })).toHaveCount(0);
+
+  // Selected, the card shows the thread to read: no box, no Reply button, no reply menu.
+  await guestCard.locator("[data-card-select]").click();
+  const replies = guestCard.getByTestId("reply");
+  await expect(replies).toHaveCount(1);
+  await expect(replies.first().getByTestId("reply-body")).toHaveText("On it.");
+  await expect(replies.first()).toContainText("Ana");
+  await expect(guestCard.getByTestId("reply-summary")).toHaveCount(0);
+  for (const absent of ["reply-composer", "reply-start", "reply-more", "client-chip"]) {
+    await expect(guestCard.getByTestId(absent)).toHaveCount(0);
+  }
+
+  // The pin's popover has the thread too, and no box either.
+  await client.getByRole("button", { name: "Comment 1 by Ana", exact: true }).click();
+  const popover = client.getByTestId("pin-popover");
+  await expect(popover.getByTestId("reply")).toHaveCount(1);
+  await expect(popover.getByTestId("reply-composer")).toHaveCount(0);
+  await expect(popover.getByTestId("reply-more")).toHaveCount(0);
+
+  // The team replies more while the guest reads, through the refresh. Once the popover's thread
+  // scrolls, a reply arriving never moves it, though the popover has focus.
+  if (!(await box.isVisible())) await ownerCard.locator("[data-card-select]").click();
+  const teamReplies = async (words: string[]) => {
+    const pushed = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname.startsWith("/api/shares/") &&
+        response.request().method() === "PATCH" &&
+        (response.request().postData() ?? "").includes(words.at(-1) ?? ""),
+    );
+    for (const body of words) {
+      await box.fill(body);
+      await box.press("Enter");
+    }
+    expect((await pushed).status()).toBe(200);
+    await client.evaluate(() => window.dispatchEvent(new Event("focus")));
+  };
+  const long = (index: number) => `Late note ${index}. ${"More. ".repeat(40).trim()}`;
+  await teamReplies([1, 2, 3, 4].map(long));
+  await expect(popover.getByTestId("reply")).toHaveCount(5);
+  const scroller = popover.locator("[data-menu-bounds]");
+  await expect
+    .poll(() => scroller.evaluate((node) => node.scrollHeight > node.clientHeight + 100))
+    .toBe(true);
+  await scroller.evaluate((node) => node.scrollTo({ top: 0 }));
+  await teamReplies(["Last note."]);
+  await expect(popover.getByTestId("reply")).toHaveCount(6);
+  // Long enough for a smooth scroll to have moved it.
+  await client.waitForTimeout(800);
+  expect(await scroller.evaluate((node) => node.scrollTop)).toBe(0);
+  await context.close();
+});
+
 /** Drops a pin on the open link's image; the composer asks for a name, or says whose it posts as. */
 async function composerOn(client: Page, position = { x: 140, y: 110 }): Promise<Locator> {
   await expect(client.getByRole("img", { name: /the image under review/ })).toBeVisible();

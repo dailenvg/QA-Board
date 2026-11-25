@@ -405,12 +405,58 @@ describe("the thread (U1)", () => {
     expect(cardWith({ ...threads(REPLIES), authorName: null }, true)).toContain("Your name");
   });
 
-  it("shows nothing of a thread where there's none to read (a review link, for now)", () => {
+  it("shows nothing of a thread where there's none to read", () => {
     for (const selected of [false, true]) {
       const html = cardWith(null, selected);
       expect(html).not.toContain("reply-summary");
       expect(html).not.toContain("reply-composer");
     }
+  });
+
+  describe("on a review link, for its guest", () => {
+    const guest: CommentViewer = { team: false, moderator: false };
+    const TEAM_REPLY = reply("r-4", "Ana", NOW - MINUTE, { team: true });
+
+    it("sums an unselected card's thread in one line, as for the team", () => {
+      const html = cardWith(threads([TEAM_REPLY], guest));
+      expect(html).toMatch(/1 reply<\/span>.*Ana, <time/);
+      expect(html).not.toContain('data-testid="comment-thread"');
+    });
+
+    it("shows a selected card's thread to read: no box, no Reply button, no menu", () => {
+      const html = cardWith(threads([TEAM_REPLY, reply("r-5", "Cleo", NOW)], guest), true);
+      expect(html).toContain('aria-label="Replies to comment 1"');
+      expect(html.indexOf("Reply r-4")).toBeLessThan(html.indexOf("Reply r-5"));
+      for (const absent of ["reply-composer", "reply-start", "reply-more", "client-chip"]) {
+        expect(html).not.toContain(`data-testid="${absent}"`);
+      }
+    });
+
+    it("shows nothing under a selected card nobody has replied to", () => {
+      const html = cardWith(threads([], guest), true);
+      expect(html).not.toContain("data-thread-scope");
+      expect(html).not.toContain("reply-start");
+    });
+
+    it("shows the thread in the pin's popover without a box", () => {
+      const html = withThreads(
+        createElement(PinPopover, {
+          id: "popover",
+          comment: COMMENT,
+          number: 1,
+          placement: null,
+          now: NOW,
+          canModerate: false,
+          onResolve: noop,
+          onReopen: noop,
+          onClose: noop,
+        }),
+        threads([TEAM_REPLY], guest),
+      );
+      expect(html).toContain("Reply r-4");
+      expect(html).not.toContain('data-testid="reply-composer"');
+      expect(html).not.toContain('data-testid="reply-more"');
+    });
   });
 
   it("puts the whole thread and the reply box in the pin's popover", () => {

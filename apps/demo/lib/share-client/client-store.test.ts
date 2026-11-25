@@ -38,6 +38,7 @@ describe("client store", () => {
       },
       snapshots: [],
       comments: [{ ...COMMENT, id: "k", snapshotId: undefined, pageId: "p2" }],
+      replies: [],
       brand: VIEW.brand,
       clientName: null,
       reviewEndsAt: VIEW.reviewEndsAt,
@@ -56,6 +57,30 @@ describe("client store", () => {
     });
     expect(data.version).toBe(3);
     expect(data.comments[0]).toMatchObject({ id: "k", pageId: "p2" });
+  });
+
+  it("gives the viewer every reply, under the shared project, as the server marked it", () => {
+    const team = {
+      id: "r-1",
+      commentId: COMMENT.id,
+      body: "On it.",
+      author: "Ana",
+      createdAt: 3,
+      team: true as const,
+      authorAvatar: "/api/s/t/people/AAAAAAAAAAAAAAAAAAAAAA/avatar?v=1",
+    };
+    const client = {
+      id: "r-2",
+      commentId: COMMENT.id,
+      body: "Thanks",
+      author: "Cleo",
+      createdAt: 4,
+    };
+    const store = createClientStore({ ...VIEW, replies: [team, client] }, anonymous());
+    expect(toViewerData(store.getServerSnapshot()).data.replies).toEqual([
+      { ...team, projectId: SHARED_PROJECT_ID },
+      { ...client, projectId: SHARED_PROJECT_ID },
+    ]);
   });
 
   it("adds an accepted comment once, even if a refresh brought it first", () => {

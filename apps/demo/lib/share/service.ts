@@ -15,6 +15,7 @@ import { DEFAULT_REVIEW_WINDOW_HOURS, reviewClosed, reviewDeadline } from "./rev
 import type {
   CapturedSnapshot,
   ClientComment,
+  ClientReply,
   ClientView,
   CreatedShare,
   PostedComment,
@@ -24,6 +25,7 @@ import type {
   Sequenced,
   SharedComment,
   SharedProject,
+  SharedReply,
   SharedSnapshot,
   ShareChanges,
   ShareRecord,
@@ -213,6 +215,7 @@ export async function createShare(
   await store.create(share);
   for (const snapshot of state.snapshots) await store.upsertSnapshot(share.id, snapshot, "owner");
   for (const comment of state.comments) await store.upsertComment(share.id, comment, "owner");
+  for (const reply of state.replies) await store.upsertReply(share.id, reply);
   return {
     shareId: share.id,
     token,
@@ -249,9 +252,10 @@ function countAfter<T extends { id: string }>(
 
 /** What the server holds, by content digest, plus the images it still lacks. */
 export async function shareManifest(store: ShareStore, share: ShareRecord): Promise<ShareManifest> {
-  const [snapshots, comments] = await Promise.all([
+  const [snapshots, comments, replies] = await Promise.all([
     store.snapshots(share.id),
     store.comments(share.id),
+    store.replies(share.id),
   ]);
   const digests = <T extends { id: string }>(rows: readonly Sequenced<T>[]) =>
     rows.map((row) => ({ id: row.item.id, digest: digest(row.item) }));
@@ -259,6 +263,7 @@ export async function shareManifest(store: ShareStore, share: ShareRecord): Prom
     project: digest(share.project),
     snapshots: digests(snapshots),
     comments: digests(comments),
+    replies: digests(replies),
     missingBlobs: await missingBlobs(store, share),
     expiresAt: share.expiresAt,
   };
@@ -266,10 +271,13 @@ export async function shareManifest(store: ShareStore, share: ShareRecord): Prom
 
 /**
  * Applies one batch of the owner's changes. The owner wins on everything it
- * sends, except a client's comment, where it only moves the pin's page (the
- * client's words and the server's resolve stay, `upsertComment`); deletes
- * reach only rows it has seen, so client additions it hasn't pulled yet
- * survive. A share holds at most 200 snapshots and 1000 comments.
+ * sends (the last push wins), except a client's comment, where it only moves
+ * the pin's page (the client's words and the server's resolve stay,
+ * `upsertComment`), and a client's reply, which it never changes
+ * (`upsertReply`). Comments go in before replies, so a reply's comment is
+ * there first. Deletes reach only rows it has seen, so client additions it
+ * hasn't pulled yet survive. A share holds at most 200 snapshots, 1000
+ * comments and 5000 replies.
  */
 export async function applyChanges(
   services: ShareServices,
@@ -278,15 +286,18 @@ export async function applyChanges(
   now: number,
 ): Promise<Outcome<{ missingBlobs: string[] }>> {
   const { store } = services;
-  const [snapshots, comments] = await Promise.all([
+  const [snapshots, comments, replies] = await Promise.all([
     store.snapshots(share.id),
     store.comments(share.id),
+    store.replies(share.id),
   ]);
   const deleteSnapshots = deletable(snapshots, change.deleteSnapshots, change.cursor);
   const deleteComments = deletable(comments, change.deleteComments, change.cursor);
+  const deleteReplies = deletable(replies, change.deleteReplies, change.cursor);
   if (
     countAfter(snapshots, change.snapshots, deleteSnapshots) > SHARE_LIMITS.snapshots ||
-    countAfter(comments, change.comments, deleteComments) > SHARE_LIMITS.comments
+    countAfter(comments, change.comments, deleteComments) > SHARE_LIMITS.comments ||
+    countAfter(replies, change.replies, deleteReplies) > SHARE_LIMITS.replies
   ) {
     return fail(413, "share-full");
   }
@@ -301,7 +312,9 @@ export async function applyChanges(
   }
   for (const snapshot of change.snapshots) await store.upsertSnapshot(share.id, snapshot, "owner");
   for (const comment of change.comments) await store.upsertComment(share.id, comment, "owner");
+  for (const reply of change.replies) await store.upsertReply(share.id, reply);
   await store.deleteSnapshots(share.id, deleteSnapshots);
+  await store.deleteReplies(share.id, deleteReplies);
   await store.deleteComments(share.id, deleteComments);
   const updated = change.project ? { ...share, project: change.project } : share;
   await store.deleteStalePending(share.id, now - PENDING_STALE_MS);
@@ -460,17 +473,38 @@ function guestComment(
   };
 }
 
+/**
+ * A reply as the guest reads it: a team member's says so, with their avatar on
+ * this link when there's one, as `guestComment`. Only its data: never the
+ * browser it was posted from.
+ */
+function guestReply(
+  { item: reply }: Sequenced<SharedReply>,
+  team: ReadonlyMap<string, TeamAvatar | null>,
+  token: string,
+): ClientReply {
+  if (!team.has(reply.id)) return reply;
+  const avatar = team.get(reply.id);
+  return {
+    ...reply,
+    team: true,
+    ...(avatar ? { authorAvatar: sharePersonAvatarSrc(token, avatar.key, avatar.version) } : {}),
+  };
+}
+
 /** The share as a guest with its `token` sees it. */
 export async function clientView(
   store: ShareStore,
   share: ShareRecord,
   token: string,
 ): Promise<ClientView> {
-  const [snapshots, comments, brand, team] = await Promise.all([
+  const [snapshots, comments, replies, brand, team, teamReplies] = await Promise.all([
     store.snapshots(share.id),
     store.comments(share.id),
+    store.replies(share.id),
     store.brandOf(share.id),
     store.teamAuthors(share.id),
+    store.teamReplyAuthors(share.id),
   ]);
   return {
     project: share.project,
@@ -478,6 +512,7 @@ export async function clientView(
     clientName: share.clientName,
     snapshots: items(snapshots),
     comments: comments.map((row) => guestComment(row, team, token)),
+    replies: replies.map((row) => guestReply(row, teamReplies, token)),
     reviewEndsAt: shareReviewEndsAt(share),
     reviewWindowHours: share.reviewWindowHours,
     expiresAt: share.expiresAt,

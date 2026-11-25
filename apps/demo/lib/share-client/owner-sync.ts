@@ -84,6 +84,7 @@ function stateOf(project: Project) {
     project,
     commentsFor(state.data, project.id),
     snapshotsFor(state.data, project.id),
+    state.data.replies,
   );
 }
 

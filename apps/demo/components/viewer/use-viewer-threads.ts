@@ -31,9 +31,10 @@ export interface ModeratedReply {
 
 /**
  * The viewer's threads (U1): the project's replies by comment (`byComment`),
- * and what the cards and the pin's popover read through `CommentThreadsContext`. Null
- * `value` on a review link, whose guests don't read replies yet. `moderating`
- * is the owner's confirm for deleting someone else's reply.
+ * and what the cards and the pin's popover read through `CommentThreadsContext`.
+ * A review link's guest reads them only: `replyRights` and `canReply` give
+ * them no box and no menu, so nothing here writes for them. `moderating` is
+ * the owner's confirm for deleting someone else's reply.
  */
 export function useViewerThreads({
   data,
@@ -67,22 +68,20 @@ export function useViewerThreads({
       });
     });
 
-  const value: CommentThreads | null = viewer.team
-    ? {
-        repliesOf: (commentId) => threads.get(commentId) ?? NO_REPLIES,
-        viewer,
-        authorName: data.authorName,
-        ...drafts,
-        send,
-        edit: actions.edit,
-        remove: (reply, afterRemoval) => {
-          if (replyRights(reply, viewer).delete === "confirm") {
-            moderating.show({ reply, afterRemoval });
-          } else actions.remove(reply, afterRemoval);
-        },
-        getInfo: onGetInfo,
-      }
-    : null;
+  const value: CommentThreads = {
+    repliesOf: (commentId) => threads.get(commentId) ?? NO_REPLIES,
+    viewer,
+    authorName: data.authorName,
+    ...drafts,
+    send,
+    edit: actions.edit,
+    remove: (reply, afterRemoval) => {
+      if (replyRights(reply, viewer).delete === "confirm") {
+        moderating.show({ reply, afterRemoval });
+      } else actions.remove(reply, afterRemoval);
+    },
+    getInfo: onGetInfo,
+  };
 
   return { byComment: threads, value, moderating };
 }

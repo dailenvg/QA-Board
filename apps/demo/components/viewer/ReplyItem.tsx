@@ -104,6 +104,7 @@ export function ReplyItem({
     getInfo: onGetInfo,
     remove: onDelete,
   });
+  const menu = items.length > 0;
 
   return (
     // `initial`/`animate` come from the thread, so replies stagger in on mount.
@@ -140,8 +141,13 @@ export function ReplyItem({
           >
             <CommentAuthorAvatar comment={reply} surface={surface} />
             <div className="flex min-w-0 flex-1 flex-col">
-              <div className="-mt-2 -mr-2 flex items-start gap-2">
-                <div className="flex min-w-0 flex-1 flex-col pt-2">
+              {/*
+               * The 44px More button reaches 8px past the row's top and right, so its icon lines up
+               * with the name and the words' edge. Without one (a guest), the name keeps the
+               * words' width rather than running 8px past them.
+               */}
+              <div className={`flex items-start gap-2 ${menu ? "-mt-2 -mr-2" : ""}`}>
+                <div className={`flex min-w-0 flex-1 flex-col ${menu ? "pt-2" : ""}`}>
                   <p className="flex min-h-6 min-w-0 items-center gap-2 text-body font-semibold">
                     <span className="min-w-0 truncate">
                       {reply.author}
@@ -158,7 +164,7 @@ export function ReplyItem({
                     {relativeTime(Math.min(reply.createdAt, now || reply.createdAt), now)}
                   </time>
                 </div>
-                {items.length > 0 ? (
+                {menu ? (
                   <Menu
                     label={`Actions for reply by ${reply.author}`}
                     items={items}

@@ -4,6 +4,7 @@ import { DEFAULT_REVIEW_WINDOW_HOURS, reviewDeadline } from "@/lib/share/review-
 import type {
   ClientView,
   SharedComment,
+  SharedReply,
   SharedSnapshot,
   ShareRecord,
   ShareState,
@@ -30,10 +31,20 @@ export const COMMENT: SharedComment = {
   crop: { rect: { x: 0, y: 0, width: 640, height: 400 } },
 };
 
+/** A team member's reply to `COMMENT`, as the owner pushes it. */
+export const REPLY: SharedReply = {
+  id: "r-1",
+  commentId: "c-1",
+  body: "On it.",
+  author: "Ben",
+  createdAt: 3_000,
+};
+
 export const STATE: ShareState = {
   project: { name: "Acme", source: { kind: "url", url: "https://acme.example/" } },
   snapshots: [SNAPSHOT],
   comments: [COMMENT],
+  replies: [],
 };
 
 /** An anonymous share, so it always has a deletion date. */

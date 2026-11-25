@@ -2,12 +2,13 @@ import { cropBlobKey, snapshotBlobKey } from "../blob-store/keys";
 import { pageBlobKey } from "../share/keys";
 import type {
   ClientComment,
+  ClientReply,
   ClientView,
   SharedComment,
   SharedSnapshot,
   SharedSource,
 } from "../share/types";
-import type { Comment, Project, ProjectSource, Snapshot, SquintData } from "../store/types";
+import type { Comment, Project, ProjectSource, Reply, Snapshot, SquintData } from "../store/types";
 import type { EditKeyMemory } from "./edit-keys";
 import type { ReviewerNameMemory } from "./reviewer-name";
 
@@ -158,6 +159,11 @@ function toComment(comment: ClientComment, own: ReadonlySet<string>): Comment {
   };
 }
 
+/** A shared reply in the viewer's shape, read-only: guests don't reply yet. */
+function toReply(reply: ClientReply): Reply {
+  return { ...reply, projectId: SHARED_PROJECT_ID };
+}
+
 function toSnapshot(snapshot: SharedSnapshot): Snapshot {
   return { ...snapshot, projectId: SHARED_PROJECT_ID, blobKey: snapshotBlobKey(snapshot.id) };
 }
@@ -171,7 +177,7 @@ function toSource(source: SharedSource): ProjectSource {
   };
 }
 
-/** The shared project in the viewer's shape: one project, its snapshots and comments. */
+/** The shared project in the viewer's shape: one project, its snapshots, comments and replies. */
 export function toViewerData(state: ClientState): { data: SquintData; project: Project } {
   const { view } = state;
   const project: Project = {
@@ -190,7 +196,7 @@ export function toViewerData(state: ClientState): { data: SquintData; project: P
       projects: [project],
       comments: view.comments.map((comment) => toComment(comment, state.ownComments)),
       snapshots: view.snapshots.map(toSnapshot),
-      replies: [],
+      replies: view.replies.map(toReply),
       authorName: state.authorName,
     },
   };
