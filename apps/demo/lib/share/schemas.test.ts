@@ -4,6 +4,7 @@ import {
   blobKeySchema,
   changeSchema,
   clientCommentSchema,
+  clientEditSchema,
   SHARE_LIMITS,
   stateSchema,
 } from "./schemas";
@@ -146,6 +147,20 @@ describe("share schemas", () => {
     // The image source from before pages is gone.
     const legacy = { kind: "image", fileName: "home.png" };
     expect(valid({ ...STATE, project: { name: "Old", source: legacy } })).toBe(false);
+  });
+
+  it("let a guest pick a priority when posting, and the owner push one, and nothing else", () => {
+    expect(clientCommentSchema.parse({ ...COMMENT, priority: "nit" })).toMatchObject({
+      priority: "nit",
+    });
+    expect(clientCommentSchema.parse({ ...COMMENT })).not.toHaveProperty("priority");
+    for (const priority of ["Nit", "urgent", null, 1]) {
+      expect(clientCommentSchema.safeParse({ ...COMMENT, priority }).success).toBe(false);
+    }
+    expect(valid({ ...STATE, comments: [{ ...COMMENT, priority: "must" }] })).toBe(true);
+    expect(valid({ ...STATE, comments: [{ ...COMMENT, priority: "high" }] })).toBe(false);
+    // An edit is the words alone (D10): a priority sent with one is dropped.
+    expect(clientEditSchema.parse({ body: "New", priority: "must" })).toEqual({ body: "New" });
   });
 
   it("let clients name the page a comment is on", () => {

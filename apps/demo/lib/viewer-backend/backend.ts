@@ -3,7 +3,14 @@ import type { ClientInfo } from "../client-info/schema";
 import type { CaptureFailure } from "../capture/messages";
 import type { ImageUpload } from "../store/actions";
 import type { Result } from "../store/store";
-import type { Comment, CommentStatus, Rect, Reply, Snapshot } from "../store/types";
+import type {
+  Comment,
+  CommentPriority,
+  CommentStatus,
+  Rect,
+  Reply,
+  Snapshot,
+} from "../store/types";
 
 export type ViewerRole = "owner" | "client";
 
@@ -18,6 +25,8 @@ export interface NewComment {
   snapshotId?: string;
   /** The page the pin is on (page projects, when not on a snapshot). */
   pageId?: string;
+  /** Picked in the composer; missing for none. */
+  priority?: CommentPriority;
   /** The browser posting it (`captureClientInfo`), when it could be read. */
   clientInfo?: ClientInfo;
 }
@@ -83,6 +92,8 @@ export interface ViewerBackend {
   addComment(input: NewComment, crop: ReadyCrop | null): Promise<Result<Comment>>;
   setAuthorName(name: string): void;
   setCommentStatus(id: string, status: CommentStatus): Result;
+  /** The team's: sets or clears (null) any comment's priority. A guest picks one only when posting. */
+  setCommentPriority(id: string, priority: CommentPriority | null): Result;
   editComment(id: string, body: string): Result;
   /**
    * A shared link's guest changing the words of a comment they posted from

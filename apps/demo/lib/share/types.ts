@@ -1,5 +1,5 @@
 import type { ClientInfo } from "../client-info/schema";
-import type { CommentStatus, PageOrigin, Rect } from "../store/types";
+import type { CommentPriority, CommentStatus, PageOrigin, Rect } from "../store/types";
 
 /** A page of a shared page project. Its picture is the blob `pageBlobKey(id, rev)`. */
 export interface SharedPage {
@@ -73,6 +73,12 @@ export interface SharedComment {
   pageId?: string;
   /** The picture is the blob `crop:<id>`. */
   crop?: { rect: Rect };
+  /**
+   * Must fix, Should fix or Nit; missing for none. A guest's is what they
+   * picked when posting, until the team changes it: the owner's push sets it
+   * on every comment of the link, a client's included (D26).
+   */
+  priority?: CommentPriority;
 }
 
 /**

@@ -214,6 +214,19 @@ describe("writesFor", () => {
     expect(result[2]?.body).toEqual({ cursor: 5, lastSyncedAt: 11 });
   });
 
+  it("saves a guest's comment with the priority they picked", () => {
+    const pulled: Comment = { ...comment, id: "guest", projectId: "p3", fromClient: true };
+    const [write] = writes({
+      type: "share/merge",
+      id: "p3",
+      comments: [{ ...pulled, priority: "must" }],
+      snapshots: [],
+      cursor: 5,
+      at: 11,
+    });
+    expect(write?.body).toMatchObject({ id: "guest", priority: "must", fromShare: true });
+  });
+
   it("saves a pull's guest replies after the comments they answer, sending nothing but their id", () => {
     const pulled: Comment = { ...comment, id: "guest", projectId: "p3", fromClient: true };
     const reply = (id: string, commentId: string): Reply => ({

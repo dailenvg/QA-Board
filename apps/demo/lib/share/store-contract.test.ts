@@ -162,6 +162,42 @@ describe.each(stores)("%s share store", (_name, make) => {
     );
   });
 
+  it("lets an owner's push set and clear a client's comment's priority, and keep the rest (D26)", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    const posted = { ...COMMENT, pageId: "page-1", priority: "nit" as const };
+    await store.insertComment(RECORD.id, posted, "client", undefined, KEY_HASH);
+    const [before] = await store.comments(RECORD.id);
+    const { priority: _nit, ...unmarked } = posted;
+    // A stale tab's words and place change nothing; its priority is the team's.
+    await store.upsertComment(
+      RECORD.id,
+      { ...unmarked, body: "Old words", x: 90, priority: "must" },
+      "owner",
+    );
+    expect(await store.comments(RECORD.id)).toEqual([
+      { item: { ...posted, priority: "must" }, origin: "client", seq: before?.seq },
+    ]);
+    // A push without one clears it; without a page, the pin stays where it was.
+    const { pageId: _page, ...pageless } = unmarked;
+    await store.upsertComment(RECORD.id, pageless, "owner");
+    expect((await store.comments(RECORD.id))[0]?.item).toEqual(unmarked);
+    // The guest's edit keeps the team's priority as it is.
+    await store.upsertComment(RECORD.id, { ...unmarked, priority: "should" }, "owner");
+    expect(await store.editClientComment(RECORD.id, COMMENT.id, KEY_HASH, "Mine", 5_000)).toEqual(
+      expect.objectContaining({ body: "Mine", priority: "should" }),
+    );
+  });
+
+  it("takes an owner's comment's priority from each push, as the rest of it", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    await store.upsertComment(RECORD.id, { ...COMMENT, priority: "must" }, "owner");
+    expect((await store.comments(RECORD.id))[0]?.item.priority).toBe("must");
+    await store.upsertComment(RECORD.id, COMMENT, "owner");
+    expect((await store.comments(RECORD.id))[0]?.item).toEqual(COMMENT);
+  });
+
   it("keeps a client's browser details beside the comment, through an owner's push", async () => {
     const store = await make();
     await store.create(RECORD);

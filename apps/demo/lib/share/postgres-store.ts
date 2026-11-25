@@ -223,12 +223,17 @@ const upsertSql = (table: string) => `INSERT INTO ${table} (share_id, id, data, 
   VALUES ($1, $2, $3::jsonb, $4)
   ON CONFLICT (share_id, id) DO UPDATE SET data = EXCLUDED.data`;
 
-/** `upsertSql` for comments, except that a client's row only takes the pushed `pageId` (4.12). */
+/**
+ * `upsertSql` for comments, except that a client's row only takes the pushed
+ * `pageId` (4.12), when there's one, and `priority` (D26): the team's, so a
+ * push without one clears it.
+ */
 const UPSERT_COMMENT = `INSERT INTO squint_share_comments AS t (share_id, id, data, origin)
   VALUES ($1, $2, $3::jsonb, $4)
   ON CONFLICT (share_id, id) DO UPDATE SET data = CASE
     WHEN t.origin = 'client'
-      THEN t.data || jsonb_strip_nulls(jsonb_build_object('pageId', EXCLUDED.data->'pageId'))
+      THEN (t.data - 'priority') || jsonb_strip_nulls(jsonb_build_object(
+        'pageId', EXCLUDED.data->'pageId', 'priority', EXCLUDED.data->'priority'))
     ELSE EXCLUDED.data
   END`;
 

@@ -92,7 +92,7 @@ const ownerOnly = () => ({ ok: false as const, error: OWNER_ONLY });
  * not its user agent (the server records the request's), and the screenshot.
  */
 function commentForm(comment: Comment, crop: ReadyCrop | null): FormData {
-  const { id, x, y, body, author, snapshotId, pageId, clientInfo } = comment;
+  const { id, x, y, body, author, snapshotId, pageId, priority, clientInfo } = comment;
   const form = new FormData();
   form.set(
     "comment",
@@ -104,6 +104,7 @@ function commentForm(comment: Comment, crop: ReadyCrop | null): FormData {
       author,
       ...(snapshotId ? { snapshotId } : {}),
       ...(pageId ? { pageId } : {}),
+      ...(priority ? { priority } : {}),
       ...(crop ? { crop: { rect: crop.rect } } : {}),
       ...(clientInfo ? { clientInfo: sentPart(clientInfo) } : {}),
     }),
@@ -234,6 +235,7 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
         updatedAt: now,
         ...(input.snapshotId ? { snapshotId: input.snapshotId } : {}),
         ...(input.pageId ? { pageId: input.pageId } : {}),
+        ...(input.priority ? { priority: input.priority } : {}),
         ...(input.clientInfo ? { clientInfo: input.clientInfo } : {}),
       };
       // The screenshot is uploaded with the comment; once it can't be, the comment goes without it.
@@ -280,6 +282,7 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
     },
     setAuthorName: (name) => store.setAuthorName(cleanName(name)),
     setCommentStatus: ownerOnly,
+    setCommentPriority: ownerOnly,
     editComment: ownerOnly,
     /**
      * Only with the key this browser got when posting it. A refusal for good
