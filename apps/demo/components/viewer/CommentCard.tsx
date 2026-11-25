@@ -89,8 +89,11 @@ const SAVE_IDLE: SaveState = { pending: false, error: null };
 
 const NO_REPLIES: readonly Reply[] = [];
 
-/** The guest's own resolved comment: why there's no Edit (4b.16). */
-const RESOLVED_NOTE = "The team resolved this, so it can't be edited.";
+/**
+ * The guest's own resolved comment: why there's no Edit (4b.16), and no reply box. One note for
+ * both, read with the card, so a selected card doesn't say "The team resolved this" twice.
+ */
+const RESOLVED_NOTE = "The team resolved this, so it can't be edited or replied to.";
 
 /**
  * One comment: select it to find its pin (switching to its snapshot if
@@ -140,8 +143,16 @@ export function CommentCard({
   // The thread and its box show in one place at a time: the popover, while it's open.
   const threadHere = selected && !threadInPopover;
   const summary = threads && !threadHere ? threadSummary(replies, now) : null;
-  // Everyone gets a reply box here, or (a guest who can't reply) the reason there's none.
-  const showThread = threads !== null && threadHere && !editing;
+  const boxHere = threads !== null && showsReplyBox(threads, comment);
+  // The card's resolved note already says there's no replying (`RESOLVED_NOTE`).
+  const closedNote = threads && !resolvedNote ? replyClosedNote(threads.viewer, comment) : null;
+  // Everyone gets a reply box here, or (a guest who can't reply) the reason there's none; the
+  // guest's own resolved comment with no replies has neither, and no thread's rule over nothing.
+  const showThread =
+    threads !== null &&
+    threadHere &&
+    !editing &&
+    (replies.length > 0 || boxHere || closedNote !== null);
   /**
    * The reply box shows, rather than its Reply button: once there's a thread, a draft, or the
    * button was pressed. It then stays while the card is selected (deleting the last reply, or
@@ -417,7 +428,7 @@ export function CommentCard({
             />
             <ReplySlot
               box={
-                showsReplyBox(threads, comment) ? (
+                boxHere ? (
                   <CardReplyBox
                     open={replyOpen || replies.length > 0 || draft !== ""}
                     onOpen={() => setReplyOpen(true)}
@@ -428,7 +439,7 @@ export function CommentCard({
                   />
                 ) : null
               }
-              note={replyClosedNote(threads.viewer, comment)}
+              note={closedNote}
             />
           </motion.div>
         ) : null}

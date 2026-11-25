@@ -120,7 +120,7 @@ describe("the comment card's actions", () => {
 describe("a review link's guest (4.12)", () => {
   const guest: CommentViewer = { team: false, moderator: false };
   const OWN: Comment = { ...COMMENT, mine: true };
-  const NOTE = "The team resolved this, so it can&#x27;t be edited.";
+  const NOTE = "The team resolved this, so it can&#x27;t be edited or replied to.";
 
   it("gets Edit on their own active comment, and nothing else", () => {
     const html = card(OWN, guest);
@@ -487,6 +487,41 @@ describe("the thread (U1)", () => {
         expect(html).not.toContain("reply-composer");
         expect(html).not.toContain("reply-start");
       }
+    });
+
+    it("says once, on their own resolved comment, that it can't be edited or replied to", () => {
+      const own = (replies: readonly Reply[], viewer: CommentViewer) =>
+        withThreads(
+          createElement(CommentCard, {
+            comment: { ...RESOLVED, mine: true },
+            number: 1,
+            placement: null,
+            pageNumber: null,
+            breakpoint: null,
+            cropPin: null,
+            canModerate: false,
+            canEdit: false,
+            canDelete: false,
+            resolvedNote: true,
+            selected: true,
+            now: NOW,
+            onSelect: noop,
+            onEdit: noop,
+            onResolve: noop,
+            onReopen: noop,
+            onDelete: noop,
+          }),
+          threads(replies, viewer),
+        );
+      for (const viewer of [guest, closed]) {
+        const html = own([TEAM_REPLY], viewer);
+        expect(html).toContain("can&#x27;t be edited or replied to.");
+        expect(html).toContain("Reply r-4");
+        expect(html).not.toContain("reply-closed-note");
+        expect(html).not.toContain("reply-composer");
+      }
+      // With no replies there's no thread at all: no rule over an empty space.
+      expect(own([], guest)).not.toContain("data-thread-scope");
     });
 
     it("keeps a box with words still in it, so they can be copied, after the window has closed", () => {

@@ -159,7 +159,7 @@ test("a client edits from the browser that posted, the team sees Edited, and a r
   await client.getByTestId("tab-resolved").click();
   const resolved = card(client, "Logo is too small");
   await expect(resolved.getByTestId("comment-resolved-note")).toHaveText(
-    "The team resolved this, so it can't be edited.",
+    "The team resolved this, so it can't be edited or replied to.",
   );
   await expect(resolved.getByRole("button", { name: /Edit comment/ })).toHaveCount(0);
   await expect(card(client, "far too small")).toHaveCount(0);
