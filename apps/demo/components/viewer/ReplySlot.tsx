@@ -2,12 +2,15 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { useLayoutEffect, useRef, type ReactNode } from "react";
-import { useSwapVariants } from "@/lib/motion";
+import { useRevealVariants, useSwapVariants } from "@/lib/motion";
 
 interface ReplySlotProps {
   /** The reply box, where it shows (`showsReplyBox`); null where it doesn't. */
   box: ReactNode;
-  /** Why there's no box (`replyClosedNote`), said in its place; null to say nothing. */
+  /**
+   * Why its viewer can't reply here (`replyClosedNote`); null when they can, or to say nothing.
+   * Said in the box's place, or above a box kept only for the words in it (`keepsBox`).
+   */
   note: string | null;
 }
 
@@ -18,12 +21,14 @@ const FIRST_CONTROL = "input, textarea, button";
  * Where a thread's reply box goes, under a card's thread or the pin's
  * popover. A guest who can't reply there reads why instead (the window
  * closed, or the team resolved the comment), and one swaps for the other in
- * place when that changes while it's open. Whichever leaves with focus in it
+ * place when that changes while it's open. A box kept for its words after the
+ * right to reply went says why above it, before Reply is pressed. Whichever leaves with focus in it
  * (an empty field, its Reply button, the note) hands focus to what arrives, so
  * it isn't dropped to the page: the note is read out, the box is typed in.
  */
 export function ReplySlot({ box, note }: ReplySlotProps) {
   const swap = useSwapVariants();
+  const reveal = useRevealVariants();
   const slotRef = useRef<HTMLDivElement>(null);
   /** What was here left with focus in it: what arrives takes it. */
   const passFocus = useRef(false);
@@ -68,6 +73,21 @@ export function ReplySlot({ box, note }: ReplySlotProps) {
             animate="visible"
             exit="exit"
           >
+            <AnimatePresence initial={false}>
+              {note ? (
+                <motion.p
+                  key="kept-note"
+                  variants={reveal}
+                  initial="hidden"
+                  animate="visible"
+                  exit="exit"
+                  data-testid="reply-closed-note"
+                  className="mb-2 text-label text-muted"
+                >
+                  {note}
+                </motion.p>
+              ) : null}
+            </AnimatePresence>
             {box}
           </motion.div>
         ) : note ? (

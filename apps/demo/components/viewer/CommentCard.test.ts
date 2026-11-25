@@ -524,10 +524,25 @@ describe("the thread (U1)", () => {
       expect(own([], guest)).not.toContain("data-thread-scope");
     });
 
-    it("keeps a box with words still in it, so they can be copied, after the window has closed", () => {
-      const html = cardWith({ ...threads([TEAM_REPLY], closed), keepsBox: () => true }, true);
-      expect(html).toContain('data-testid="reply-composer"');
-      expect(html).not.toContain("reply-closed-note");
+    it("keeps a box with words still in it after the right to reply went, saying why above it", () => {
+      const cases: Array<[CommentViewer, Comment, string | undefined]> = [
+        [closed, COMMENT, NOTES[1]],
+        [guest, RESOLVED, NOTES[0]],
+      ];
+      for (const [viewer, comment, note] of cases) {
+        const html = cardWith(
+          { ...threads([TEAM_REPLY], viewer), keepsBox: () => true },
+          true,
+          false,
+          comment,
+        );
+        expect(html).toContain('data-testid="reply-composer"');
+        expect(html).toContain(note);
+        expect(html.indexOf("reply-closed-note")).toBeLessThan(html.indexOf("reply-composer"));
+      }
+      // Where they may reply, a kept box says nothing more.
+      const open = cardWith({ ...threads([TEAM_REPLY], guest), keepsBox: () => true }, true);
+      expect(open).not.toContain("reply-closed-note");
     });
 
     it("shows the thread and the box in the pin's popover, and why there's none when resolved", () => {
