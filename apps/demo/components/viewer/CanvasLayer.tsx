@@ -2,7 +2,8 @@
 
 import { AnimatePresence } from "motion/react";
 import type { ReactNode, Ref, RefObject } from "react";
-import type { Comment } from "@/lib/store/types";
+import { PRIORITY_LABEL } from "@/lib/store/priority";
+import type { Comment, CommentPriority } from "@/lib/store/types";
 import { CommentOverlay } from "./CommentOverlay";
 import { Composer } from "./Composer";
 import { Pin } from "./Pin";
@@ -28,9 +29,18 @@ interface CanvasLayerProps {
   onExitComment: () => void;
   onDraftChange: (body: string) => void;
   onDraftAuthorChange: (author: string) => void;
+  onDraftPriorityChange: (priority: CommentPriority | undefined) => void;
   onDraftSubmit: (body: string, author: string) => void;
   onDraftCancel: () => void;
 }
+
+/** "Comment 3 by Ana", then ", resolved" and ", must fix" as they apply. */
+function pinLabel(number: number, { author, status, priority }: Comment): string {
+  const resolved = status === "resolved" ? ", resolved" : "";
+  return `Comment ${number} by ${author}${resolved}${priority ? `, ${spoken(priority)}` : ""}`;
+}
+
+const spoken = (priority: CommentPriority) => PRIORITY_LABEL[priority].toLowerCase();
 
 /**
  * Everything drawn over the preview. Pins never block the page in Browse mode;
@@ -54,6 +64,7 @@ export function CanvasLayer({
   onExitComment,
   onDraftChange,
   onDraftAuthorChange,
+  onDraftPriorityChange,
   onDraftSubmit,
   onDraftCancel,
 }: CanvasLayerProps) {
@@ -77,10 +88,11 @@ export function CanvasLayer({
               y={comment.y}
               tone={resolved ? "resolved" : "active"}
               author={comment.author}
+              priority={comment.priority}
               selected={comment.id === selectedId}
               expanded={comment.id === openId}
               popoverId={popoverId}
-              label={`Comment ${number} by ${comment.author}${resolved ? ", resolved" : ""}`}
+              label={pinLabel(number, comment)}
               onSelect={() => onSelect(comment.id)}
             />
           );
@@ -108,6 +120,7 @@ export function CanvasLayer({
               textareaRef={composerRef}
               onChange={onDraftChange}
               onAuthorChange={onDraftAuthorChange}
+              onPriorityChange={onDraftPriorityChange}
               onSubmit={onDraftSubmit}
               onCancel={onDraftCancel}
             />

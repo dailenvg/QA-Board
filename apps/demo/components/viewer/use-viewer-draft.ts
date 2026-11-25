@@ -34,7 +34,7 @@ export function useViewerDraft(storage: DraftStorage | undefined) {
       storage.save(null);
       return;
     }
-    const { x, y, body, surfaceKey, snapshotId, pageId, commentId, author } = draft;
+    const { x, y, body, surfaceKey, snapshotId, pageId, commentId, author, priority } = draft;
     storage.save({
       x,
       y,
@@ -44,6 +44,7 @@ export function useViewerDraft(storage: DraftStorage | undefined) {
       pageId,
       commentId,
       ...(author ? { author } : {}),
+      ...(priority ? { priority } : {}),
     });
   }, [draft, storage]);
 

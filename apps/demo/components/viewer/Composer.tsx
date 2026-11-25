@@ -13,10 +13,12 @@ import {
 import { fadeOnly, usePopVariants } from "@/lib/motion";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { SHARE_LIMITS } from "@/lib/share/limits";
+import type { CommentPriority } from "@/lib/store/types";
 import { Button } from "../ui/Button";
 import { FieldError } from "../ui/FieldError";
 import { Icon } from "../ui/Icon";
 import { FIELD_CLASS } from "../ui/field-styles";
+import { PriorityField } from "./PriorityField";
 import type { Draft } from "./types";
 
 interface ComposerProps {
@@ -26,6 +28,8 @@ interface ComposerProps {
   onChange: (body: string) => void;
   /** The name as it's typed, so it stays with the draft. */
   onAuthorChange: (author: string) => void;
+  /** The priority as it's picked (missing for none), so it stays with the draft. */
+  onPriorityChange: (priority: CommentPriority | undefined) => void;
   onSubmit: (body: string, author: string) => void;
   onCancel: () => void;
 }
@@ -63,6 +67,7 @@ export function Composer({
   textareaRef,
   onChange,
   onAuthorChange,
+  onPriorityChange,
   onSubmit,
   onCancel,
 }: ComposerProps) {
@@ -234,6 +239,13 @@ export function Composer({
             Enter to post · Shift+Enter for a new line
           </p>
         </div>
+        <PriorityField
+          value={draft.priority}
+          // The post already carries the priority: one picked while it's sent would be lost.
+          onChange={(priority) => {
+            if (!sending) onPriorityChange(priority);
+          }}
+        />
         {/* Always present, so each change is announced (a region added with its words isn't). */}
         <p role="status" className="sr-only" data-testid="composer-status">
           {status}

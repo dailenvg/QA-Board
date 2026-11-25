@@ -21,6 +21,7 @@ import { CommentTeamNote } from "./CommentTeamNote";
 import { CommentThread } from "./CommentThread";
 import { showsReplyBox, useCommentThreads } from "./comment-threads";
 import { PlacementChip } from "./PlacementChip";
+import { PriorityChip } from "./PriorityChip";
 import { replyClosedNote } from "./reply-rights";
 import { ReplySlot } from "./ReplySlot";
 import { CardReplyBox } from "./CardReplyBox";
@@ -138,6 +139,7 @@ export function CommentCard({
   const breakpointId = useId();
   const pendingId = useId();
   const summaryId = useId();
+  const priorityId = useId();
   const threads = useCommentThreads();
   const replies = threads?.repliesOf(comment.id) ?? NO_REPLIES;
   // The thread and its box show in one place at a time: the popover, while it's open.
@@ -171,6 +173,7 @@ export function CommentCard({
     bodyId,
     comment.editedAt ? editedId : null,
     resolvedNote ? noteId : null,
+    comment.priority ? priorityId : null,
     pageNumber ? pageId : null,
     breakpoint ? breakpointId : null,
     placement ? placementId : null,
@@ -329,6 +332,10 @@ export function CommentCard({
               >
                 {RESOLVED_NOTE}
               </p>
+            ) : null}
+            {comment.priority ? (
+              // Beside the page or breakpoint chip that may follow, on one line while they fit.
+              <PriorityChip id={priorityId} priority={comment.priority} className="mt-2 mr-2" />
             ) : null}
             {pageNumber ? (
               <p

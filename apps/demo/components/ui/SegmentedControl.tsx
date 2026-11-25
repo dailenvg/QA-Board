@@ -50,6 +50,11 @@ interface SegmentedControlProps<T extends string> {
   counts?: "always" | "sm";
   /** `sm`: icons show from the `sm` breakpoint up, so several labels fit on a phone. */
   icons?: "always" | "sm";
+  /**
+   * `compact`: smaller labels and padding, so four short options fit a 304px popover (the
+   * composer's Priority). The track stays 44px tall, so every option is still a full target.
+   */
+  density?: "regular" | "compact";
 }
 
 const THUMB = {
@@ -98,6 +103,7 @@ export function SegmentedControl<T extends string>({
   labels = "always",
   counts = "always",
   icons = "always",
+  density = "regular",
 }: SegmentedControlProps<T>) {
   const reduce = useReducedMotion();
   const baseId = useId();
@@ -145,12 +151,16 @@ export function SegmentedControl<T extends string>({
             // The focus ring is drawn inside the option, so a scrolling parent can't clip it.
             // Stretched options grow to share the row anyway, so on phones their padding is only a
             // minimum: the slimmer one lets four options fit a 320px screen (WCAG 1.4.10).
-            className={`relative flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-pill text-body whitespace-nowrap transition-colors duration-150 focus-visible:-outline-offset-2 ${
-              labels === "wide"
-                ? "px-3 2xl:px-5"
-                : option.shortLabel || stretch
-                  ? "px-3 sm:px-5"
-                  : "px-5"
+            className={`relative flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-pill whitespace-nowrap transition-colors duration-150 focus-visible:-outline-offset-2 ${
+              density === "compact"
+                ? "px-2 text-meta"
+                : `text-body ${
+                    labels === "wide"
+                      ? "px-3 2xl:px-5"
+                      : option.shortLabel || stretch
+                        ? "px-3 sm:px-5"
+                        : "px-5"
+                  }`
             } ${stretch ? "flex-1" : ""} ${
               disabled
                 ? "cursor-not-allowed font-medium text-muted opacity-50"

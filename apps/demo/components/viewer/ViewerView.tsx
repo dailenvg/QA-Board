@@ -439,6 +439,7 @@ export function ViewerView({
     setDraft({
       ...point,
       body: draft?.body ?? "",
+      ...(draft?.priority ? { priority: draft.priority } : {}),
       surfaceKey: stageKey,
       snapshotId: surface.kind === "snapshot" ? (surface.snapshot?.id ?? null) : null,
       pageId: surface.kind === "page" ? surface.page.id : null,
@@ -469,7 +470,7 @@ export function ViewerView({
   const submitDraft = async (body: string, author: string) => {
     if (!draft || draft.sending) return;
     if (author.trim() !== data.authorName) backend.setAuthorName(author);
-    const { commentId, x, y, snapshotId, pageId, surfaceKey: draftSurface } = draft;
+    const { commentId, x, y, snapshotId, pageId, priority, surfaceKey: draftSurface } = draft;
     const update = (change: Partial<Draft>) =>
       setDraft((current) =>
         current?.commentId === commentId ? { ...current, ...change } : current,
@@ -501,6 +502,7 @@ export function ViewerView({
             author,
             ...(snapshotId ? { snapshotId } : {}),
             ...(pageId ? { pageId } : {}),
+            ...(priority ? { priority } : {}),
             ...(clientInfo ? { clientInfo } : {}),
           },
           ready,
@@ -648,6 +650,13 @@ export function ViewerView({
       onDraftChange={(body) => setDraft((current) => (current ? { ...current, body } : current))}
       onDraftAuthorChange={(author) =>
         setDraft((current) => (current ? { ...current, author } : current))
+      }
+      onDraftPriorityChange={(priority) =>
+        setDraft((current) => {
+          if (!current) return current;
+          const { priority: _previous, ...rest } = current;
+          return priority ? { ...rest, priority } : rest;
+        })
       }
       onDraftSubmit={(body, author) => void submitDraft(body, author)}
       onDraftCancel={() => {

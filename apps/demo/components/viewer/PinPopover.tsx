@@ -18,6 +18,7 @@ import { CommentTeamNote } from "./CommentTeamNote";
 import { CommentThread } from "./CommentThread";
 import { showsReplyBox, useCommentThreads } from "./comment-threads";
 import { PlacementChip } from "./PlacementChip";
+import { PriorityChip } from "./PriorityChip";
 import { replyClosedNote } from "./reply-rights";
 import { ReplyComposer } from "./ReplyComposer";
 import { ReplySlot } from "./ReplySlot";
@@ -149,6 +150,7 @@ export function PinPopover({
   const bodyId = useId();
   const editedId = useId();
   const placementId = useId();
+  const priorityId = useId();
   const resolved = comment.status === "resolved";
   const threads = useCommentThreads();
   const replies = threads?.repliesOf(comment.id) ?? NO_REPLIES;
@@ -240,7 +242,13 @@ export function PinPopover({
       id={id}
       role="dialog"
       aria-labelledby={titleId}
-      aria-describedby={comment.editedAt ? `${bodyId} ${editedId}` : bodyId}
+      aria-describedby={[
+        bodyId,
+        comment.editedAt ? editedId : null,
+        comment.priority ? priorityId : null,
+      ]
+        .filter(Boolean)
+        .join(" ")}
       tabIndex={-1}
       data-testid="pin-popover"
       variants={variants}
@@ -326,6 +334,9 @@ export function PinPopover({
             {comment.body}
           </p>
           <CommentEdited id={editedId} editedAt={comment.editedAt} now={now} />
+          {comment.priority ? (
+            <PriorityChip id={priorityId} priority={comment.priority} className="self-start" />
+          ) : null}
           {placement ? <PlacementChip id={placementId} placement={placement} now={now} /> : null}
           {canModerate || onGetInfo ? (
             <div className="flex items-center justify-end gap-1 pt-1">

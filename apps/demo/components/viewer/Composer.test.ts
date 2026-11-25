@@ -19,14 +19,19 @@ const DRAFT: Draft = {
 
 const noop = () => {};
 
-function composer(sending: SendStep, error: string | null = null): string {
+function composer(
+  sending: SendStep,
+  error: string | null = null,
+  draft: Partial<Draft> = {},
+): string {
   return renderToStaticMarkup(
     createElement(Composer, {
-      draft: { ...DRAFT, sending, error },
+      draft: { ...DRAFT, ...draft, sending, error },
       authorName: null,
       textareaRef: { current: null },
       onChange: noop,
       onAuthorChange: noop,
+      onPriorityChange: noop,
       onSubmit: noop,
       onCancel: noop,
     }),
@@ -54,5 +59,33 @@ describe("the composer's send status", () => {
 
   it("starts without the slow-send line: it only comes after a long wait", () => {
     expect(composer("posting")).not.toContain('data-testid="composer-slow"');
+  });
+});
+
+describe("the composer's priority", () => {
+  /** Each radio's label and whether it's checked, in order. */
+  function radios(html: string): Array<[string, boolean]> {
+    const group = /role="radiogroup" aria-label="Priority"[^>]*>(.*?)<\/div>/.exec(html)?.[1] ?? "";
+    return [...group.matchAll(/role="radio" aria-checked="(true|false)".*?<\/button>/g)].map(
+      (match) => [match[0].replace(/^[^>]*>/, "").replace(/<[^>]+>/g, ""), match[1] === "true"],
+    );
+  }
+
+  it("offers None, Must fix, Should fix and Nit, with None picked for a new comment (D9)", () => {
+    expect(radios(composer(false))).toEqual([
+      ["None", true],
+      ["Must fix", false],
+      ["Should fix", false],
+      ["Nit", false],
+    ]);
+  });
+
+  it("shows the draft's own pick, kept with it", () => {
+    expect(radios(composer(false, null, { priority: "should" }))).toEqual([
+      ["None", false],
+      ["Must fix", false],
+      ["Should fix", true],
+      ["Nit", false],
+    ]);
   });
 });
