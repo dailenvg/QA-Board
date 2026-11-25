@@ -3,6 +3,7 @@ import {
   createImageProject,
   createUrlProject,
   dropPin,
+  hideComments,
   mockCapture,
   mockFrameCheck,
   newProjectButton,
@@ -629,6 +630,7 @@ test("a comment's priority is picked when posting, changed from More, and sorts 
   );
   await menu.getByRole("menuitemradio", { name: "Nit" }).click();
   expect((await saved).status()).toBe(200);
+  await expect(page.getByTestId("priority-status")).toHaveText("Comment 1 marked Nit.");
   await expect(cards).toHaveCount(0);
   const empty = page.getByTestId("comments-empty");
   await expect(empty).toContainText("No comments without a priority here");
@@ -648,4 +650,50 @@ test("a comment's priority is picked when posting, changed from More, and sorts 
   await expect(
     page.getByRole("button", { name: "Comment 1 by Ana, nit", exact: true }),
   ).toBeVisible();
+
+  // Sort and filter, all options, opens on the checked one; More, which mixes actions in, on
+  // its first item, whatever the priority.
+  await view.click();
+  await expect(page.getByRole("menuitemradio", { name: "Pin number" })).toBeFocused();
+  await page
+    .getByRole("group", { name: "Show" })
+    .getByRole("menuitemradio", { name: "Must fix" })
+    .click();
+  await expect(cards).toHaveCount(1);
+  await footer.getByRole("button", { name: "Actions for comment 2" }).click();
+  const more = page.getByRole("menu", { name: "Actions for comment 2" });
+  await expect(more.getByRole("menuitemradio", { name: "Must fix" })).toBeChecked();
+  await expect(more.getByRole("menuitemradio", { name: "None" })).toBeFocused();
+  await page.keyboard.press("Escape");
+
+  // In Browse mode, a change from the pin's popover that the filter hides closes the popover
+  // with its pin, and focus goes to the comments panel's heading, never the page.
+  await page.getByTestId("mode-browse").click();
+  await mustPin.click();
+  const popover = page.getByTestId("pin-popover");
+  await popover.getByRole("button", { name: "Actions for comment 2" }).click();
+  await popover.getByRole("menuitemradio", { name: "Should fix" }).click();
+  await expect(popover).toHaveCount(0);
+  await expect(mustPin).toHaveCount(0);
+  await expect(page.getByTestId("priority-status")).toHaveText("Comment 2 marked Should fix.");
+  await expect(page.getByRole("heading", { name: "Comments", exact: true })).toBeFocused();
+});
+
+test("on a phone, a priority filter picked with the comments sheet closed opens it", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "The comments sheet is a phone's.");
+  await openFolder(page);
+  await createImageProject(page, "priority-phone.png");
+  await postComment(page, "Logo is blurry.", { x: 100, y: 80 }, "Ana");
+  await hideComments(page);
+  const toggle = page.getByRole("button", { name: "Show comments" });
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await page.getByRole("button", { name: "Sort and filter" }).click();
+  await page.getByRole("menuitemradio", { name: "Must fix" }).click();
+  await expect(page.getByRole("button", { name: "Hide comments" })).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
+  await expect(page.getByTestId("comments-empty")).toContainText("No Must fix comments here");
 });
