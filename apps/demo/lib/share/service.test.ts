@@ -870,6 +870,25 @@ describe("replies", () => {
     expect(await viewReplies(shared)).toEqual([REPLY, added.value]);
   });
 
+  it("from a guest go to a link that lacks them, and never again to one that has them, however they differ", async () => {
+    const shared = await withReply();
+    const posted = await guestReply(shared.services, shared.share, "k-1");
+    const settled = new Set(["k-1"]);
+    // Read differently than the link holds it: a team push would send it, a client's isn't.
+    const stale = { ...posted, author: "Cleo (renamed)" };
+    const state = { ...WITH_REPLY, replies: [REPLY, stale] };
+    const manifest = await manifestOf(shared);
+    expect(diffState(state, manifest).replies).toEqual([stale]);
+    expect(diffState(state, manifest, settled).replies).toEqual([]);
+    // A new link has none of them: it gets the client's too, as the owner's own row there.
+    const fresh = await withReply();
+    const [toNew] = batchChange(diffState(state, await manifestOf(fresh), settled), 0);
+    expect(toNew?.replies).toEqual([stale]);
+    expect((await applyChanges(fresh.services, fresh.share, toNew!, 200)).ok).toBe(true);
+    expect(await viewReplies(fresh)).toEqual([REPLY, stale]);
+    expect((await pullChanges(fresh.services.store, fresh.share, 0)).replies).toEqual([]);
+  });
+
   it("from a guest stop at the review window's end (D3), and every refusal says why", async () => {
     const shared = await withReply();
     const { services, share } = shared;

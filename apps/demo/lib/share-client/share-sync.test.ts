@@ -4,10 +4,11 @@ import { JPEG, PNG } from "@/test/share-fixture";
 import { connectedWorkspace } from "@/test/workspace-client";
 import type { Database } from "../db/database";
 import { SHARE_LIMITS } from "../share/limits";
-import type { ShareState } from "../share/types";
+import type { SharedReply, ShareState } from "../share/types";
 import type { Project, ProjectShare } from "../store/types";
 import { isScreenshotPending } from "@/components/viewer/screenshot-pending";
 import { listComments } from "../workspace/comments";
+import { listReplies } from "../workspace/replies";
 import { createProject } from "../workspace/projects";
 
 const holder = vi.hoisted(() => ({ db: null as Database | null }));
@@ -469,5 +470,104 @@ describe("the team's replies, end to end", () => {
     actions.deleteReply("r-team");
     await sync.pushNow("p1");
     expect((await read()).replies).toEqual([]);
+  }, 60_000);
+});
+
+describe("a guest's reply, end to end", () => {
+  it("is pulled under its comment, held while that comment is, saved as a client's and not sent back", async () => {
+    const { share, sync, data, store, db, owner, actions } = await sharedWorkspace(SITE_PROJECT, {
+      ...STATE,
+      snapshots: [],
+    });
+    const team = await actions.addComment({
+      id: "c-team",
+      projectId: "p1",
+      x: 1,
+      y: 1,
+      body: "Bigger logo",
+      author: "Ana",
+    });
+    expect(team.ok).toBe(true);
+    await sync.pushNow("p1");
+
+    const { call, clientApi, jsonInit } = await import("./api");
+    const client = clientApi(share.token);
+    const guestReply = (id: string, commentId: string) =>
+      call<SharedReply>(
+        `/api/s/${share.token}/comments/${commentId}/replies`,
+        jsonInit(
+          "POST",
+          { id, body: "Thanks!", author: "Cleo", clientInfo: { dpr: 2 } },
+          { "user-agent": "Mozilla/5.0 (Guest)" },
+        ),
+      );
+    expect((await client.addComment(commentForm("k-crop", true))).ok).toBe(true);
+    expect((await guestReply("k-on-team", "c-team")).ok).toBe(true);
+    expect((await guestReply("k-on-own", "k-crop")).ok).toBe(true);
+
+    // Its comment's crop fails for now: that comment and its reply wait, the cursor with them.
+    failCrops = true;
+    await sync.pullNow("p1");
+    expect(data().comments.map((c) => c.id)).toEqual(["c-team"]);
+    expect(data().replies.map((r) => r.id)).toEqual(["k-on-team"]);
+    expect(data().projects[0]?.share?.cursor).toBe(0);
+    expect(sync.syncStatus("p1").pullHeld).toBe(true);
+
+    // The next pull brings the comment, then its reply, and moves the cursor on.
+    failCrops = false;
+    await sync.pullNow("p1");
+    expect(
+      data()
+        .comments.map((c) => c.id)
+        .sort(),
+    ).toEqual(["c-team", "k-crop"]);
+    expect(data().replies.map((r) => [r.id, r.commentId, r.fromClient])).toEqual([
+      ["k-on-team", "c-team", true],
+      ["k-on-own", "k-crop", true],
+    ]);
+    expect(data().projects[0]?.share?.cursor).toBeGreaterThan(0);
+    expect(sync.syncStatus("p1").pullHeld).toBe(false);
+
+    // Saved to the workspace as guests' replies, with the browser the link recorded.
+    await store.whenSaved();
+    const saved = await listReplies(db, owner.workspaceId, "p1", owner.userId);
+    // Posted in the same millisecond, maybe: in id order then.
+    expect(saved.map((r) => [r.id, r.fromClient, r.mine ?? false]).sort()).toEqual([
+      ["k-on-own", true, false],
+      ["k-on-team", true, false],
+    ]);
+    for (const reply of saved) {
+      expect(reply.clientInfo).toEqual({ userAgent: "Mozilla/5.0 (Guest)", dpr: 2 });
+    }
+    const { rows } = await db.query(
+      "SELECT 1 FROM comment_replies WHERE author_user_id IS NOT NULL OR origin <> 'client'",
+    );
+    expect(rows).toEqual([]);
+
+    // The owner's copy matches the link's: a push sends nothing back, and nothing comes again.
+    sent.length = 0;
+    await sync.pushNow("p1");
+    expect(await shareRequests("PATCH")).toEqual([]);
+    const before = data().replies;
+    await sync.pullNow("p1");
+    expect(data().replies).toBe(before);
+
+    // The team answers; the guest reads it after their own, marked the team's.
+    const answered = await actions.addReply({
+      id: "r-team",
+      projectId: "p1",
+      commentId: "c-team",
+      body: "Done.",
+      author: "Ana",
+    });
+    expect(answered.ok).toBe(true);
+    await sync.pushNow("p1");
+    const view = await client.view();
+    const onLink = view.ok ? view.value.replies : [];
+    expect(onLink.map((r) => [r.id, r.team ?? false])).toEqual([
+      ["k-on-team", false],
+      ["k-on-own", false],
+      ["r-team", true],
+    ]);
   }, 60_000);
 });

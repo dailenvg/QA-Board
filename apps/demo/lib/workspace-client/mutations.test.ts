@@ -186,6 +186,39 @@ describe("writesFor", () => {
     expect(result[2]?.body).toEqual({ cursor: 5, lastSyncedAt: 11 });
   });
 
+  it("saves a pull's guest replies after the comments they answer, sending nothing but their id", () => {
+    const pulled: Comment = { ...comment, id: "guest", projectId: "p3", fromClient: true };
+    const reply = (id: string, commentId: string): Reply => ({
+      id,
+      projectId: "p3",
+      commentId,
+      body: "Thanks!",
+      author: "Cleo",
+      createdAt: 8,
+      fromClient: true,
+      clientInfo: { userAgent: "The guest's", dpr: 3 },
+    });
+    const result = writes({
+      type: "share/merge",
+      id: "p3",
+      comments: [pulled],
+      replies: [reply("k-1", "guest")],
+      snapshots: [],
+      cursor: 5,
+      at: 11,
+    });
+    expect(result.map(({ method, path }) => `${method} ${path}`)).toEqual([
+      "POST /projects/p3/comments",
+      "POST /projects/p3/comments/guest/replies",
+      "PATCH /projects/p3/share-link",
+    ]);
+    expect(result[1]).toMatchObject({
+      body: { id: "k-1", body: "Thanks!", author: "Cleo", createdAt: 8, fromShare: true },
+      tolerate: [404, 409],
+    });
+    expect(result[1]?.body).not.toHaveProperty("clientInfo");
+  });
+
   it("copies a pulled client edit from the link, sending no words, and only for a comment still here", () => {
     const guest: Comment = { ...comment, id: "guest", projectId: "p3", fromClient: true };
     const before = { ...DATA, comments: [...DATA.comments, guest] };

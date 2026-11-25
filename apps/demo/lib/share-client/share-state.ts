@@ -3,6 +3,7 @@ import { parsePageBlobKey } from "../share/keys";
 import { SHARE_LIMITS } from "../share/limits";
 import type {
   PulledComment,
+  PulledReply,
   SharedComment,
   SharedPage,
   SharedReply,
@@ -128,6 +129,24 @@ export function fromSharedComment(comment: PulledComment, projectId: string): Co
     projectId,
     ...(crop ? { crop: { blobKey: cropBlobKey(comment.id), rect: crop.rect } } : {}),
   };
+}
+
+/** A client's reply pulled from the link, in the workspace's shape: a client's, with its browser. */
+export function fromSharedReply(reply: PulledReply, projectId: string): Reply {
+  return { ...reply, projectId, fromClient: true };
+}
+
+/**
+ * The project's replies that clients posted: the link keeps each as it is
+ * once it has it (`upsertReply` never changes a client's row, and nobody
+ * edits one), so a push only sends one the link doesn't have yet.
+ */
+export function clientReplyIds(replies: readonly Reply[], projectId: string): Set<string> {
+  return new Set(
+    replies
+      .filter((reply) => reply.fromClient && reply.projectId === projectId)
+      .map((reply) => reply.id),
+  );
 }
 
 export function fromSharedSnapshot(snapshot: SharedSnapshot, projectId: string): Snapshot {
