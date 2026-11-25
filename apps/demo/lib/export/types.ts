@@ -1,5 +1,5 @@
 import type { ClientInfo } from "../client-info/schema";
-import type { CommentStatus, PageOrigin, Rect } from "../store/types";
+import type { CommentPriority, CommentStatus, PageOrigin, Rect } from "../store/types";
 
 /** What a pin's percentages are relative to. */
 export type ExportSurface = "snapshot" | "page" | "frame";
@@ -46,6 +46,8 @@ export interface ExportComment {
   number: number;
   id: string;
   status: CommentStatus;
+  /** Must fix, Should fix or Nit (055); null for none. */
+  priority: CommentPriority | null;
   author: string;
   body: string;
   createdAt: number;

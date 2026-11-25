@@ -14,7 +14,8 @@ import type { ExportDocument } from "./types";
  *   without a new version: each comment's `clientInfo`, the browser it was
  *   posted from as recorded (`userAgent`, `viewport`, `dpr`, `platform`), or null;
  *   and its `replies`, oldest first, each with `id`, `author`, `body`,
- *   `createdAt`, `editedAt` (null if never), `fromClient` and `clientInfo`.
+ *   `createdAt`, `editedAt` (null if never), `fromClient` and `clientInfo`;
+ *   and its `priority`, "must", "should" or "nit" (Must fix, Should fix, Nit), or null.
  * - `squint.comments/1`: the first version.
  */
 export const JSON_SCHEMA = "squint.comments/2";

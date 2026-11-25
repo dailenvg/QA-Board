@@ -57,9 +57,9 @@ describe("toMarkdown", () => {
       "# Squint review: Acme \\*launch\\* \\[v2\\]",
       "## Active comments (2)",
       "### Comment 1",
-      "### Comment 3",
+      "### Comment 3 · Must fix",
       "## Resolved comments (1, for context only)",
-      "### Comment 2",
+      "### Comment 2 · Nit",
     ]);
     expect(zipMarkdown).toContain("- **Author:** Mia \\*\\*\\[admin\\]\\*\\*");
     expect(zipMarkdown).toContain("````text\n# Not a heading\n```\n## Not a section\n```\n");

@@ -157,6 +157,7 @@ export function buildExportDocument({
       number,
       id: comment.id,
       status: comment.status,
+      priority: comment.priority ?? null,
       author: comment.author,
       body: comment.body,
       createdAt: comment.createdAt,
