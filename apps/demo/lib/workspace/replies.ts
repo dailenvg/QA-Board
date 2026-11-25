@@ -7,6 +7,7 @@ import { clampEditedAt, type CommentActor } from "./comments";
 import { personKey } from "./members/person-key";
 import { done, refuse, type QueryResult } from "./query-result";
 import type { ReplyCreate, ReplyPatch } from "./schemas";
+import type { GuestReply } from "./share-links";
 import { toDate, toMs } from "./times";
 
 /**
@@ -58,12 +59,27 @@ const OWN = "reply.origin = 'team' AND reply.author_user_id";
 
 /**
  * Who posts a reply: the signed-in member, whose session makes it theirs for
- * good ('team'). A guest's reply brought in from the review link is another
- * kind of author, read from the link's own row, never from the browser.
+ * good ('team'), or a guest ('client'), whose reply a member brings in from
+ * the review link as the link's own row has it (`findGuestReply`), never as
+ * the browser sends it.
  */
-export interface ReplyAuthor {
-  kind: "team";
-  userId: string;
+export type ReplyAuthor = { kind: "team"; userId: string } | { kind: "client"; guest: GuestReply };
+
+/**
+ * What goes in the row: a team reply as sent; a guest's with its words,
+ * name, time and browser details from the review link, never edited.
+ */
+function postedAs(input: ReplyCreate, author: ReplyAuthor): ReplyCreate {
+  if (author.kind === "team") return input;
+  const { guest } = author;
+  const { editedAt: _never, clientInfo: _sent, ...rest } = input;
+  return {
+    ...rest,
+    body: guest.body,
+    author: guest.author,
+    createdAt: guest.createdAt,
+    ...(guest.clientInfo ? { clientInfo: guest.clientInfo } : {}),
+  };
 }
 
 /** A team author's photo URL from a reply row, or null without one. */
@@ -151,17 +167,21 @@ async function commentExists(
  * reply is posted under the member's own name (`users.name`; the body's
  * `author` only while they have none) and, when it's one of theirs brought
  * back by Undo, keeps `editedAt` (clamped). `clientInfo` is kept as the
- * route recorded it. `not-found` without the comment, `exists` for a taken id.
+ * route recorded it. A guest's is saved without an author account, as the
+ * review link holds it (`postedAs`). `not-found` without the comment,
+ * `exists` for a taken id.
  */
 export async function addReply(
   db: Queryable,
   workspaceId: string,
   projectId: string,
   commentId: string,
-  input: ReplyCreate,
+  sent: ReplyCreate,
   author: ReplyAuthor,
   now: number,
 ): Promise<QueryResult<Reply>> {
+  const input = postedAs(sent, author);
+  const userId = author.kind === "team" ? author.userId : null;
   const createdAt = input.createdAt ?? now;
   const editedAt = clampEditedAt(input.editedAt, createdAt, now);
   const { rows } = await db.query<ReplyRow>(
@@ -183,14 +203,14 @@ export async function addReply(
       input.id,
       input.body,
       input.author,
-      author.userId,
+      userId,
       author.kind,
       input.clientInfo ? JSON.stringify(input.clientInfo) : null,
       toDate(createdAt),
       editedAt === null ? null : toDate(editedAt),
     ],
   );
-  if (rows[0]) return done(toReply(rows[0], avatarSources(workspaceId), author.userId));
+  if (rows[0]) return done(toReply(rows[0], avatarSources(workspaceId), userId ?? undefined));
   return refuse(
     (await commentExists(db, workspaceId, projectId, commentId)) ? "exists" : "not-found",
   );

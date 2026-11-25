@@ -170,7 +170,8 @@ export const commentPatchSchema = z
  * only while they have none). An Undo of their own reply sends back when it
  * was posted and last edited (`editedAt`, kept between `createdAt` and now)
  * and the browser details recorded then, `userAgent` included; a new reply
- * leaves out `userAgent`, which the server reads from the request.
+ * leaves out `userAgent`, which the server reads from the request. A guest's
+ * (`fromShare`) takes everything but its id from the review link.
  */
 export const replyCreateSchema = z.object({
   id: idSchema,
@@ -179,6 +180,11 @@ export const replyCreateSchema = z.object({
   createdAt: time.optional(),
   editedAt: time.optional(),
   clientInfo: clientInfoSchema.partial({ userAgent: true }).optional(),
+  /**
+   * A guest's reply, pulled from the project's review link: saved without an
+   * author account. Only accepted for a reply a guest posted on that link.
+   */
+  fromShare: z.literal(true).optional(),
 });
 
 /** A reply's new words: the only thing about a reply that changes. */
