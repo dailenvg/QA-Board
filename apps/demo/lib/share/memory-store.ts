@@ -280,8 +280,7 @@ export function createMemoryStore(): ShareStore {
     addClientReply(id, reply, caps, clientInfo) {
       const entry = shares.get(id);
       if (entry?.replies.has(reply.id)) return done("exists");
-      const parent = entry && visibleComment(entry, reply.commentId);
-      if (!entry || !parent) return done("missing");
+      if (!entry || !visibleComment(entry, reply.commentId)) return done("missing");
       if (entry.comments.get(reply.commentId)?.item.status !== "active") return done("locked");
       const rows = [...entry.replies.values()];
       const thread = rows.filter((row) => row.item.commentId === reply.commentId).length;
