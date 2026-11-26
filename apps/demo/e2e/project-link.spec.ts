@@ -271,9 +271,21 @@ test("signed out, a comment's link survives Sign in and opens on its page, tab a
         status: "active",
         pageId: "page-1",
       },
+      // Enough resolved ones before it that its card starts below the list's fold.
+      ...Array.from({ length: 12 }, (_, index) => ({
+        ...note,
+        id: `done-${index}`,
+        x: 10 + index * 5,
+        y: 20,
+        body: `Done note ${index}`,
+        status: "resolved" as const,
+        resolvedAt: at,
+        pageId: "page-1",
+      })),
       {
         ...note,
         id: "on-two",
+        createdAt: at + 1_000,
         x: 40,
         y: 50,
         body: "About page, done",
@@ -305,6 +317,10 @@ test("signed out, a comment's link survives Sign in and opens on its page, tab a
   await expect(popover).toContainText("About page, done");
   const card = member.locator('[data-testid="comment-card"][data-comment-id="on-two"]');
   await expect(card.locator("[data-card-select]")).toHaveAttribute("aria-pressed", "true");
+  // The list brought the card into view too, from below twelve other resolved ones.
+  await expect(card).toBeInViewport();
+  const list = member.getByRole("list", { name: "Resolved comments" });
+  expect(await list.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
   // Read once, then gone from the address; the page it opened stays.
   await expect(member).toHaveURL(new RegExp(`/p/${projectId}\\?page=2$`));
 
