@@ -497,12 +497,21 @@ export function ViewerView({
 
   /**
    * Selects a card without touching the stage, as a comment link does while a restored draft
-   * holds it: the list scrolls to the card.
+   * holds it: the list scrolls to the card, which takes focus, rather than the draft's canvas.
    */
   const selectInList = (id: string) => {
     setSelectedId(id);
     setOpenId(null);
     setScrollRequest({ id, target: "card", nonce: Date.now() });
+    focusCanvasPending.current = false;
+    // Two frames: once the widened list has the card.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() =>
+        document
+          .querySelector<HTMLElement>(`[data-comment-id="${CSS.escape(id)}"] [data-card-select]`)
+          ?.focus({ preventScroll: true }),
+      ),
+    );
   };
 
   const place = (point: PinPoint) => {
