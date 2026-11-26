@@ -293,11 +293,13 @@ export function PinPopover({
         <div className="flex min-w-0 flex-1 flex-col">
           <h2
             id={titleId}
-            className="flex min-h-6 min-w-0 items-center gap-2 text-body font-semibold"
+            className="flex min-h-6 min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-body font-semibold"
           >
             {/*
              * Two lines, not one: with the Client chip, a single line left room for about
              * seven characters of the name in the 304px popover, where the comment is read in full.
+             * With Copy link and Close beside it, the chip wraps under a name it doesn't fit beside,
+             * so the name keeps the column's full width rather than breaking mid-word.
              */}
             <span className="line-clamp-2 min-w-0 wrap-break-word">
               <span className="sr-only">Comment {number} by </span>
@@ -320,7 +322,7 @@ export function PinPopover({
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Copy link"
+            aria-label={`Copy link to comment ${number}`}
             title="Copy link"
             className="text-muted hover:text-ink"
             onClick={onCopyLink}
