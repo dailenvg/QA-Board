@@ -652,7 +652,7 @@ test("a comment's priority is picked when posting, changed from More, and sorts 
   ).toBeVisible();
 
   // Sort and filter, all options, opens on the checked one; More, which mixes actions in, on
-  // its first item, whatever the priority.
+  // its first item (Copy link), whatever the priority.
   await view.click();
   await expect(page.getByRole("menuitemradio", { name: "Pin number" })).toBeFocused();
   await page
@@ -663,7 +663,7 @@ test("a comment's priority is picked when posting, changed from More, and sorts 
   await footer.getByRole("button", { name: "Actions for comment 2" }).click();
   const more = page.getByRole("menu", { name: "Actions for comment 2" });
   await expect(more.getByRole("menuitemradio", { name: "Must fix" })).toBeChecked();
-  await expect(more.getByRole("menuitemradio", { name: "None" })).toBeFocused();
+  await expect(more.getByRole("menuitem", { name: "Copy link" })).toBeFocused();
   await page.keyboard.press("Escape");
 
   // In Browse mode, a change from the pin's popover that the filter hides closes the popover
