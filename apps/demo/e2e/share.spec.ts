@@ -683,7 +683,7 @@ test("a guest's comment link opens its pin's popover, copies as the review link'
 
   // A guest copies the review link's address for the comment, never the project's.
   await popover.getByRole("button", { name: "Copy link" }).click();
-  await expect(client.getByTestId("toast").filter({ hasText: "Link copied" })).toBeVisible();
+  await expect(client.getByTestId("toast").filter({ hasText: "Link copied." })).toBeVisible();
   expect(await client.evaluate(() => navigator.clipboard.readText())).toBe(
     `${link}?comment=${commentId}`,
   );

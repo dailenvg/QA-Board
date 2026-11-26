@@ -15,7 +15,7 @@ export function copyCommentLink(href: string, toast: (toast: ToastInput) => void
     writing = Promise.reject(new Error("no clipboard"));
   }
   void writing.then(
-    () => toast({ message: "Link copied" }),
+    () => toast({ message: "Link copied." }),
     () => toast({ tone: "error", message: "Couldn't copy the link." }),
   );
 }

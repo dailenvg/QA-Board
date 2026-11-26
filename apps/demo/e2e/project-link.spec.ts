@@ -326,7 +326,7 @@ test("signed out, a comment's link survives Sign in and opens on its page, tab a
 
   // The team's Copy link is the project's link to the comment, absolute.
   await popover.getByRole("button", { name: "Copy link" }).click();
-  await expect(member.getByTestId("toast").filter({ hasText: "Link copied" })).toBeVisible();
+  await expect(member.getByTestId("toast").filter({ hasText: "Link copied." })).toBeVisible();
   expect(await member.evaluate(() => navigator.clipboard.readText())).toBe(
     `${baseURL}/p/${projectId}?comment=on-two`,
   );
