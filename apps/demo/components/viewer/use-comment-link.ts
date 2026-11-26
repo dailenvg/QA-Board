@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { COMMENT_PARAM, parseCommentParam, withoutCommentParam } from "@/lib/comment-link";
 import type { Comment } from "@/lib/store/types";
-import type { ToastInput } from "../ui/ToastProvider";
+import { DISMISS_MS, type ToastInput } from "../ui/ToastProvider";
 import { planCommentLink, type CommentLinkWidening, type LinkedView } from "./comment-link-plan";
 
 /** Said when a link's comment isn't there: deleted, or (a guest's) not on this review. */
@@ -93,7 +93,8 @@ function follow({
   if (id === undefined) return null;
   const plan = id ? planCommentLink(id, comments, view) : ({ found: false } as const);
   if (!plan.found) {
-    toast({ message: missing });
+    // Polite, but up as long as an error: it explains why the link opened on nothing.
+    toast({ message: missing, duration: DISMISS_MS.error });
     return null;
   }
   widen(plan);
