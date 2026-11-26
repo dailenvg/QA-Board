@@ -25,6 +25,7 @@ const COMMENT: Comment = {
 };
 
 const noop = () => {};
+const copied = () => Promise.resolve(true);
 const owner: CommentViewer = { team: true, moderator: true };
 const member: CommentViewer = { team: true, moderator: false };
 
@@ -85,7 +86,7 @@ function popover(comment: Comment, people: CommentPeople | null = null): string 
       canModerate: true,
       onResolve: noop,
       onReopen: noop,
-      onCopyLink: noop,
+      onCopyLink: copied,
       onClose: noop,
     }),
     people,
@@ -447,7 +448,7 @@ describe("the thread (U1)", () => {
           canModerate: false,
           onResolve: noop,
           onReopen: noop,
-          onCopyLink: noop,
+          onCopyLink: copied,
           onClose: noop,
         }),
         value,
@@ -569,7 +570,7 @@ describe("the thread (U1)", () => {
         canModerate: true,
         onResolve: noop,
         onReopen: noop,
-        onCopyLink: noop,
+        onCopyLink: copied,
         onClose: noop,
       }),
       threads(REPLIES),

@@ -135,6 +135,20 @@ export const swapIn: Variants = {
   }),
 };
 
+/** An icon swapped in place to confirm an action (Copy link's tick): a quick fade and scale. */
+export const iconSwap: Variants = {
+  hidden: { opacity: 0, scale: 0.6 },
+  visible: { opacity: 1, scale: 1, transition: spring.snappy },
+  exit: { opacity: 0, scale: 0.6, transition: { duration: duration.micro, ease: ease.out } },
+};
+
+/** `iconSwap` with reduced motion: the icons trade places at once. */
+const iconSwapInstant: Variants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: instant },
+  exit: { opacity: 0, transition: instant },
+};
+
 /** `whileInView` for content below the fold: reveal once, a little after it enters. */
 export const revealViewport = { once: true, margin: "-10%" } as const;
 
@@ -185,4 +199,9 @@ export function useSheetVariants(): Variants {
 /** `swapIn`, collapsed to a plain fade when the user prefers reduced motion. */
 export function useSwapVariants(): Variants {
   return useReducedMotion() ? fadeOnly : swapIn;
+}
+
+/** `iconSwap`, an instant swap when the user prefers reduced motion. */
+export function useIconSwapVariants(): Variants {
+  return useReducedMotion() ? iconSwapInstant : iconSwap;
 }

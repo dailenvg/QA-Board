@@ -16,6 +16,7 @@ import { CommentEdited } from "./CommentEdited";
 import { CommentMoreMenu } from "./CommentMoreMenu";
 import { CommentTeamNote } from "./CommentTeamNote";
 import { CommentThread } from "./CommentThread";
+import { CopyLinkButton } from "./CopyLinkButton";
 import { showsReplyBox, useCommentThreads } from "./comment-threads";
 import { PlacementChip } from "./PlacementChip";
 import { PriorityChip } from "./PriorityChip";
@@ -40,8 +41,8 @@ interface PinPopoverProps {
   onGetInfo?: () => void;
   /** The team's Priority choices in the More menu (D10); guests get none. */
   onSetPriority?: (priority: CommentPriority | null) => void;
-  /** Copies the comment's link: the header's button (everyone's), and first in the team's More. */
-  onCopyLink: () => void;
+  /** Copies the comment's link (the header's button, everyone's); true once the clipboard has it. */
+  onCopyLink: () => Promise<boolean>;
   /** `returnFocus`: closed from the keyboard or the close button, so focus goes back to the pin. */
   onClose: (returnFocus: boolean) => void;
 }
@@ -319,17 +320,7 @@ export function PinPopover({
         </div>
         {/* Side by side with no gap: each keeps its 44px target, and the name keeps the room. */}
         <div className="flex shrink-0">
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={`Copy link to comment ${number}`}
-            title="Copy link"
-            className="text-muted hover:text-ink"
-            onClick={onCopyLink}
-            data-testid="popover-copy-link"
-          >
-            <Icon name="link" className="size-4" />
-          </Button>
+          <CopyLinkButton number={number} onCopy={onCopyLink} testId="popover-copy-link" />
           <Button
             variant="ghost"
             size="icon"
