@@ -112,7 +112,16 @@ interface ViewerViewProps {
   commentHref: (commentId: string) => string;
 }
 
-type ScrollRequest = { id: string; target: "pin" | "card"; nonce: number } | null;
+/**
+ * The other half of a selection to bring into view. `alsoCard` (a comment link's): the card
+ * too, at once, before the pin's smooth scroll, which an instant one can't cancel.
+ */
+type ScrollRequest = {
+  id: string;
+  target: "pin" | "card";
+  nonce: number;
+  alsoCard?: true;
+} | null;
 
 /** Browser details open on a comment or a reply, by its id, so they close once it's gone. */
 type Inspected = { kind: "comment" | "reply"; id: string; subject: InfoSubject };
@@ -205,6 +214,8 @@ export function ViewerView({
   const listRef = useRef<HTMLUListElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const handledScroll = useRef(0);
+  /** The request (`nonce`) whose `alsoCard` scroll is done. */
+  const handledCardScroll = useRef(0);
   const focusCanvasPending = useRef(false);
 
   const { mode, surface, breakpoint, snapshots, latestOf } = view;
@@ -437,6 +448,15 @@ export function ViewerView({
   // pin on another snapshot, once that snapshot has loaded).
   useEffect(() => {
     if (!scrollRequest || handledScroll.current === scrollRequest.nonce) return;
+    if (scrollRequest.alsoCard && handledCardScroll.current !== scrollRequest.nonce) {
+      const card = listRef.current?.querySelector(
+        `[data-comment-id="${CSS.escape(scrollRequest.id)}"]`,
+      );
+      if (card) {
+        handledCardScroll.current = scrollRequest.nonce;
+        card.scrollIntoView({ block: "nearest", behavior: "auto" });
+      }
+    }
     const behavior: ScrollBehavior = reduce ? "auto" : "smooth";
     const selector =
       scrollRequest.target === "pin"
@@ -449,7 +469,8 @@ export function ViewerView({
     element.scrollIntoView({ block: "nearest", inline: "nearest", behavior });
   }, [scrollRequest, reduce, stageVersion]);
 
-  const select = (id: string, from: "pin" | "card") => {
+  /** `alsoCard`: a comment link's, so the list shows the card too (`ScrollRequest`). */
+  const select = (id: string, from: "pin" | "card", alsoCard = false) => {
     const comment = comments.find((entry) => entry.id === id);
     if (!comment) return;
     // A second click on a card deselects it, unless its pin is on another surface: then it shows
@@ -466,7 +487,12 @@ export function ViewerView({
     } else {
       view.showSurfaceOf(comment);
     }
-    setScrollRequest({ id, target: from === "pin" ? "card" : "pin", nonce: Date.now() });
+    setScrollRequest({
+      id,
+      target: from === "pin" ? "card" : "pin",
+      nonce: Date.now(),
+      ...(alsoCard ? { alsoCard: true } : {}),
+    });
   };
 
   /**
@@ -604,7 +630,7 @@ export function ViewerView({
       setPageScope("all");
       setBreakpointScope("all");
     },
-    select: (id, keepStage) => (keepStage ? selectInList(id) : select(id, "card")),
+    select: (id, keepStage) => (keepStage ? selectInList(id) : select(id, "card", true)),
     open: setOpenId,
   });
 
