@@ -45,6 +45,7 @@ describe("toJson", () => {
       "number",
       "id",
       "status",
+      "priority",
       "author",
       "body",
       "createdAt",
@@ -89,6 +90,17 @@ describe("toJson", () => {
       },
     ]);
     expect(parsed.comments[0]?.replies).toEqual([]);
+  });
+
+  it("gives each comment's priority by its stored name, or null for none", () => {
+    const priorities = Object.fromEntries(
+      parsed.comments.map((comment) => [String(comment.id), comment.priority]),
+    );
+    expect(priorities).toEqual({
+      "aaaa1111-legacy": null,
+      "bbbb2222-old": "nit",
+      "cccc3333-new": "must",
+    });
   });
 
   it("gives each comment's browser details as recorded, or null", () => {

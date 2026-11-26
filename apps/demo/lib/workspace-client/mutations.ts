@@ -289,6 +289,10 @@ export function writesFor(action: Action, before: SquintData, after: SquintData)
       return commentWrite(before, action.id, (projectId) =>
         write("PATCH", commentPath(projectId, action.id), { status: action.status }),
       );
+    case "comment/set-priority":
+      return commentWrite(before, action.id, (projectId) =>
+        write("PATCH", commentPath(projectId, action.id), { priority: action.priority }),
+      );
     case "comment/set-crop":
       return commentWrite(before, action.id, (projectId) =>
         write("PATCH", commentPath(projectId, action.id), { crop: action.crop }),

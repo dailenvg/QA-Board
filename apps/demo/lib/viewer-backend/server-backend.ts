@@ -21,6 +21,7 @@ import {
   restoreComment,
   restoreReply,
   setAuthorName,
+  setCommentPriority,
   setCommentStatus,
 } from "../store/actions";
 import { newId } from "../store/id";
@@ -126,6 +127,7 @@ export const serverBackend: ViewerBackend = {
   },
   setAuthorName: (name) => void setAuthorName(name),
   setCommentStatus,
+  setCommentPriority,
   editComment,
   deleteComment,
   restoreComment,

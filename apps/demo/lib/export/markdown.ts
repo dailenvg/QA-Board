@@ -1,4 +1,5 @@
 import { distinctPageName } from "../store/pages";
+import { PRIORITY_LABEL } from "../store/priority";
 import { fencedText, inlineCode, inlineText } from "./escape";
 import type {
   ExportComment,
@@ -203,6 +204,11 @@ function repliesLines(comment: ExportComment): string[] {
   ];
 }
 
+/** "### Comment 3", with its priority when it has one: "### Comment 3 · Must fix". */
+function commentHeading({ number, priority }: ExportComment): string {
+  return `### Comment ${number}${priority ? ` · ${PRIORITY_LABEL[priority]}` : ""}`;
+}
+
 function commentSection(
   comment: ExportComment,
   snapshots: ReadonlyMap<string, ExportSnapshot>,
@@ -218,7 +224,7 @@ function commentSection(
       : comment.status;
   const edited = comment.updatedAt > comment.createdAt ? ` (edited ${iso(comment.updatedAt)})` : "";
   return [
-    `### Comment ${comment.number}`,
+    commentHeading(comment),
     "",
     `- **Status:** ${status}`,
     `- **Author:** ${inlineText(comment.author)}`,

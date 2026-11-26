@@ -21,7 +21,7 @@ import { pagesOf } from "@/lib/store/pages";
 import { commentDeleteMode } from "@/lib/store/replies";
 import { commentsFor, pageCounts, pinNumbers } from "@/lib/store/selectors";
 import { countComments, deriveStatus } from "@/lib/store/status";
-import type { Comment, Project, Reply, SquintData } from "@/lib/store/types";
+import type { Comment, CommentPriority, Project, Reply, SquintData } from "@/lib/store/types";
 import { useDialogState } from "@/lib/use-dialog-state";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { useNow } from "@/lib/use-now";
@@ -43,6 +43,7 @@ import { CommentsBody } from "./CommentsBody";
 import { CommentsPanel } from "./CommentsPanel";
 import { commentRights } from "./comment-rights";
 import { CommentThreadsContext } from "./comment-threads";
+import { CommentViewMenu } from "./CommentViewMenu";
 import { DeleteOthersCommentDialog, type ForGoodComment } from "./DeleteOthersCommentDialog";
 import { DeleteOthersReplyDialog } from "./DeleteOthersReplyDialog";
 import { ExportMenu } from "./ExportMenu";
@@ -52,6 +53,15 @@ import { openingMode } from "./opening-mode";
 import { PageFilter, type PageScope } from "./PageFilter";
 import { PageStrip } from "./PageStrip";
 import { PinPopover } from "./PinPopover";
+import {
+  DEFAULT_VIEW,
+  filterByPriority,
+  filteredOutTitle,
+  priorityChangeNote,
+  showsPriority,
+  sortComments,
+  type CommentView,
+} from "./priority-view";
 import { sendDraft } from "./send-draft";
 import { commentSurfaceKey, pinInSurface, placementOf, surfaceKey } from "./surface";
 import { useCommentActions } from "./use-comment-actions";
@@ -160,6 +170,11 @@ export function ViewerView({
     snapshotId: draft?.snapshotId ?? null,
   });
   const [tab, setTab] = useState<CommentTab>("active");
+  /** "Sort and filter": for this visit only; pin numbers never change with it. */
+  const [commentView, setCommentView] = useState<CommentView>(DEFAULT_VIEW);
+  const priorityFilter = commentView.filter;
+  /** The live region's line after a priority is changed from More (`priorityChangeNote`). */
+  const [priorityNote, setPriorityNote] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   /** The pin whose comment popover is open. */
   const [openId, setOpenId] = useState<string | null>(null);
@@ -257,12 +272,19 @@ export function ViewerView({
    * On websites the comments at the current breakpoint, or all of them ("All breakpoints");
    * on page projects all of them, or those on the page shown ("This page").
    */
-  const listed = useMemo(() => {
+  const scoped = useMemo(() => {
     if (website) return allBreakpoints ? comments : onBreakpoint;
     return severalPages && pageScope === "page"
       ? comments.filter((comment) => comment.pageId === pageId)
       : comments;
   }, [website, allBreakpoints, comments, onBreakpoint, severalPages, pageScope, pageId]);
+  /** `scoped`, less those the priority filter hides: the list, its counts and the pins. */
+  const listed = useMemo(() => filterByPriority(scoped, priorityFilter), [scoped, priorityFilter]);
+  /** The list in the order picked: pin number, or priority (D11). */
+  const ordered = useMemo(
+    () => sortComments(listed, commentView.sort, numbers),
+    [listed, commentView.sort, numbers],
+  );
   /** Each listed comment's breakpoint, while the list shows them all: cards name it. */
   const listedBreakpoints = useMemo(
     () =>
@@ -280,7 +302,7 @@ export function ViewerView({
     [severalPages, project],
   );
   // Not `listed`: with "All breakpoints", Desktop's frame-anchored pins would land on a narrower frame.
-  const onStage = (website ? onBreakpoint : listed).filter(
+  const onStage = (website ? filterByPriority(onBreakpoint, priorityFilter) : listed).filter(
     (comment) => commentSurfaceKey(comment) === stageKey,
   );
   // Resolved pins only show on the Resolved tab.
@@ -361,8 +383,22 @@ export function ViewerView({
     mode === "comment" && !stageDraft && !openComment,
   );
 
-  /** After the composer closes, keyboard users carry on from the canvas instead of the page top. */
-  const returnFocusToCanvas = () => overlayRef.current?.focus({ preventScroll: true });
+  /** The comments panel's heading, focusable from script: where focus goes when nothing nearer is left. */
+  const focusPanelHeading = () => {
+    const heading = document.querySelector<HTMLElement>('[data-testid="comments-panel"] h2');
+    if (!heading) return;
+    heading.tabIndex = -1;
+    heading.focus();
+  };
+
+  /**
+   * After the composer or a pin's popover closes, keyboard users carry on from the canvas instead
+   * of the page top. Browse mode has no comment layer to take focus, so the panel's heading does.
+   */
+  const returnFocusToCanvas = () => {
+    if (overlayRef.current) overlayRef.current.focus({ preventScroll: true });
+    else focusPanelHeading();
+  };
 
   // Entering Comment mode (toolbar or C) puts focus on the canvas, so the arrow keys and
   // Enter place a pin right away. A snapshot may still be loading, so this waits for it.
@@ -439,6 +475,7 @@ export function ViewerView({
     setDraft({
       ...point,
       body: draft?.body ?? "",
+      ...(draft?.priority ? { priority: draft.priority } : {}),
       surfaceKey: stageKey,
       snapshotId: surface.kind === "snapshot" ? (surface.snapshot?.id ?? null) : null,
       pageId: surface.kind === "page" ? surface.page.id : null,
@@ -469,7 +506,7 @@ export function ViewerView({
   const submitDraft = async (body: string, author: string) => {
     if (!draft || draft.sending) return;
     if (author.trim() !== data.authorName) backend.setAuthorName(author);
-    const { commentId, x, y, snapshotId, pageId, surfaceKey: draftSurface } = draft;
+    const { commentId, x, y, snapshotId, pageId, priority, surfaceKey: draftSurface } = draft;
     const update = (change: Partial<Draft>) =>
       setDraft((current) =>
         current?.commentId === commentId ? { ...current, ...change } : current,
@@ -501,6 +538,7 @@ export function ViewerView({
             author,
             ...(snapshotId ? { snapshotId } : {}),
             ...(pageId ? { pageId } : {}),
+            ...(priority ? { priority } : {}),
             ...(clientInfo ? { clientInfo } : {}),
           },
           ready,
@@ -513,6 +551,8 @@ export function ViewerView({
     }
     setDraft((current) => (current?.commentId === commentId ? null : current));
     setTab("active");
+    // The new comment is selected, so a filter that would hide it shows every priority again.
+    if (!showsPriority(priority, priorityFilter)) setFilter("all");
     setSelectedId(result.value.id);
     returnFocusToCanvas();
     // Posted without its screenshot (every try failed): said here, since the card's mark may be
@@ -525,6 +565,15 @@ export function ViewerView({
   };
 
   const forget = (id: string) => setSelectedId((current) => (current === id ? null : current));
+
+  const setFilter = (filter: CommentView["filter"]) =>
+    setCommentView((current) => ({ ...current, filter }));
+
+  /** "Sort and filter": on a phone, a collapsed sheet opens to show the result, as a tab does. */
+  const changeView = (next: CommentView) => {
+    setCommentView(next);
+    if (docked) setSheetOpen(true);
+  };
 
   const commentActions = useCommentActions({
     backend,
@@ -562,7 +611,7 @@ export function ViewerView({
    * on this tab, else the one before, else the panel's heading: never the page.
    */
   const focusAfterRemoval = (removed: Comment) => {
-    const shown = listed.filter((comment) => comment.status === tab);
+    const shown = ordered.filter((comment) => comment.status === tab);
     const at = shown.findIndex((comment) => comment.id === removed.id);
     const neighbour = shown[at + 1] ?? shown[at - 1];
     forget(removed.id);
@@ -575,13 +624,44 @@ export function ViewerView({
               `[data-comment-id="${CSS.escape(neighbour.id)}"] [data-card-select]`,
             )
           : null;
-        const heading = document.querySelector<HTMLElement>('[data-testid="comments-panel"] h2');
         if (card) card.focus();
-        else if (heading) {
-          heading.tabIndex = -1;
-          heading.focus();
-        }
+        else focusPanelHeading();
       }),
+    );
+  };
+
+  /**
+   * The team's priority change (any member, D10), said out loud, since focus goes back to the
+   * More button. One the filter now hides leaves the list and the stage, so focus moves on: from
+   * a card as after a delete; from the pin's popover, which closes with its pin, to the canvas,
+   * as after a resolve there.
+   */
+  const setPriority = (
+    comment: Comment,
+    priority: CommentPriority | null,
+    from: "card" | "popover" = "card",
+  ) => {
+    const saved = commentActions.setPriority(comment.id, priority);
+    if (!saved) return;
+    if (priority !== (comment.priority ?? null)) {
+      setPriorityNote(priorityChangeNote(numbers.get(comment.id) ?? 0, priority));
+    }
+    if (showsPriority(priority ?? undefined, priorityFilter)) return;
+    if (from === "card") {
+      focusAfterRemoval(comment);
+      return;
+    }
+    setOpenId(null);
+    returnFocusToCanvas();
+  };
+
+  /** "Show all" in the filtered-out list: every priority again, focus on the list's first card. */
+  const showAllPriorities = () => {
+    setFilter("all");
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() =>
+        listRef.current?.querySelector<HTMLElement>("[data-card-select]")?.focus(),
+      ),
     );
   };
 
@@ -624,6 +704,9 @@ export function ViewerView({
         onResolve={resolveFromPopover}
         onReopen={commentActions.reopen}
         onGetInfo={owner ? () => getInfo(openComment) : undefined}
+        onSetPriority={
+          owner ? (priority) => setPriority(openComment, priority, "popover") : undefined
+        }
         onClose={closePopover}
       />
     </CommentThreadsContext>
@@ -648,6 +731,13 @@ export function ViewerView({
       onDraftChange={(body) => setDraft((current) => (current ? { ...current, body } : current))}
       onDraftAuthorChange={(author) =>
         setDraft((current) => (current ? { ...current, author } : current))
+      }
+      onDraftPriorityChange={(priority) =>
+        setDraft((current) => {
+          if (!current) return current;
+          const { priority: _previous, ...rest } = current;
+          return priority ? { ...rest, priority } : rest;
+        })
       }
       onDraftSubmit={(body, author) => void submitDraft(body, author)}
       onDraftCancel={() => {
@@ -678,11 +768,33 @@ export function ViewerView({
 
   /** How many comments the list holds, for the scope filters' live region. */
   const listedSummary = listed.length === 1 ? "1 comment" : `${listed.length} comments`;
+  /** Where the scope filters narrow the list to, as the live region says it; null for all. */
+  const listedWhere =
+    severalPages && pageScope === "page"
+      ? ` on page ${pages.number}`
+      : severalBreakpoints && breakpointScope === "breakpoint"
+        ? ` on ${BREAKPOINT_LABEL[breakpoint]}`
+        : null;
+  /** The live region's line: "{n} comments shown" while the priority filter is on. */
+  const listedAnnouncement =
+    priorityFilter !== "all"
+      ? `${listedSummary} shown${listedWhere ?? ""}`
+      : listedWhere
+        ? `${listedSummary}${listedWhere}`
+        : "";
+  // An empty tab says the filter hid its comments only when it did: else the usual empty state.
+  const filteredOut =
+    priorityFilter !== "all" &&
+    scoped.some(
+      (comment) => comment.status === tab && !showsPriority(comment.priority, priorityFilter),
+    )
+      ? { title: filteredOutTitle(priorityFilter), onShowAll: showAllPriorities }
+      : null;
 
   const commentsBody = (
     <CommentThreadsContext value={replyThreads.value}>
       <CommentsBody
-        comments={listed}
+        comments={ordered}
         numbers={numbers}
         placements={placements}
         tab={tab}
@@ -693,7 +805,7 @@ export function ViewerView({
         // With comments at another breakpoint (or page) left out, an empty list names this one.
         // "All breakpoints" leaves none out, so it gets the unscoped copy.
         scope={
-          comments.length > listed.length
+          comments.length > scoped.length
             ? website
               ? BREAKPOINT_LABEL[breakpoint]
               : `page ${pages.number}`
@@ -711,6 +823,8 @@ export function ViewerView({
         onReopen={commentActions.reopen}
         onDelete={askToDelete}
         onGetInfo={owner ? getInfo : undefined}
+        onSetPriority={owner ? setPriority : undefined}
+        filteredOut={filteredOut}
       />
     </CommentThreadsContext>
   );
@@ -753,6 +867,10 @@ export function ViewerView({
         {openedOnSnapshot
           ? "This site can't be shown here, so it opened on a snapshot in Comment mode."
           : ""}
+      </p>
+      {/* Always present and empty until a priority is changed from More, so each change is heard. */}
+      <p role="status" className="sr-only" data-testid="priority-status">
+        {priorityNote}
       </p>
       <AnimatePresence>
         {notice}
@@ -817,6 +935,7 @@ export function ViewerView({
           resolved={listedCounts.resolved}
           celebrating={celebrating}
           note={sheetNote}
+          tools={<CommentViewMenu view={commentView} onChange={changeView} />}
         >
           <div className="flex min-h-0 flex-1 flex-col gap-3">
             {panelNotice && !docked ? panelNotice : null}
@@ -831,15 +950,12 @@ export function ViewerView({
               />
             ) : null}
             {/*
-             * Like "n projects shown" on folder pages: what "This page", or the one breakpoint,
-             * leaves in the list. The "All" options leave nothing out, so they stay quiet.
+             * Like "n projects shown" on folder pages: what "This page", the one breakpoint, or
+             * the priority filter leaves in the list. The "All" options leave nothing out, so
+             * they stay quiet.
              */}
-            <p aria-live="polite" className="sr-only">
-              {severalPages && pageScope === "page"
-                ? `${listedSummary} on page ${pages.number}`
-                : severalBreakpoints && breakpointScope === "breakpoint"
-                  ? `${listedSummary} on ${BREAKPOINT_LABEL[breakpoint]}`
-                  : ""}
+            <p aria-live="polite" className="sr-only" data-testid="comments-shown">
+              {listedAnnouncement}
             </p>
             {commentsBody}
           </div>

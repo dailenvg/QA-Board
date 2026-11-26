@@ -5,6 +5,7 @@ import { MAX_INVITES_PER_SEND } from "../share/invite-addresses";
 import { SHARE_LIMITS } from "../share/limits";
 import { REVIEW_WINDOWS } from "../share/review-window";
 import { isSecretShape } from "../share/tokens";
+import { COMMENT_PRIORITIES } from "../store/priority";
 import { BLOB_CONTENT_TYPES, WORKSPACE_LIMITS as LIMITS } from "./limits";
 
 /**
@@ -123,6 +124,9 @@ export const snapshotSchema = z.object({
 
 const cropSchema = z.object({ blobKey: blobKeySchema, rect });
 
+/** Must fix, Should fix or Nit; null for none. */
+const prioritySchema = z.enum(COMMENT_PRIORITIES).nullable();
+
 export const commentCreateSchema = z.object({
   id: idSchema,
   x: percent,
@@ -142,6 +146,11 @@ export const commentCreateSchema = z.object({
   pageId: idSchema.optional(),
   crop: cropSchema.optional(),
   /**
+   * How much it matters, picked when posting; missing or null for none. A
+   * guest's (`fromShare`) comes as the owner's browser pulled it from the link.
+   */
+  priority: prioritySchema.optional(),
+  /**
    * The browser it's posted from. A new comment leaves out `userAgent`: the
    * server records the request's. An Undo of the member's own comment sends
    * back what was recorded, `userAgent` included. Ignored on a guest's,
@@ -160,6 +169,8 @@ export const commentPatchSchema = z
     body: text(LIMITS.body).optional(),
     status: z.enum(["active", "resolved"]).optional(),
     crop: cropSchema.optional(),
+    /** Any member sets or clears it (null), on anyone's comment, as they resolve. */
+    priority: prioritySchema.optional(),
   })
   .refine((patch) => Object.values(patch).some((value) => value !== undefined), {
     message: "Nothing to change",

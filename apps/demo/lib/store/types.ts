@@ -105,6 +105,9 @@ export interface Project {
 
 export type CommentStatus = "active" | "resolved";
 
+/** How much a comment matters (055): Must fix, Should fix or Nit (`lib/store/priority.ts`). */
+export type CommentPriority = "must" | "should" | "nit";
+
 /** A region in surface pixels: a snapshot's page px, or a page's natural px. */
 export interface Rect {
   x: number;
@@ -175,6 +178,12 @@ export interface Comment {
   pageId?: string;
   /** Added shortly after the comment is posted, once the picture is saved. */
   crop?: CommentCrop;
+  /**
+   * How much it matters (055); missing for none, where every comment starts.
+   * Picked when posting (a guest's too, only then); any member changes it
+   * later. Never an edit: `editedAt` stays. Pushed to the review link (D26).
+   */
+  priority?: CommentPriority;
   /**
    * Posted by a client on the project's review link (no account), then pulled
    * into the workspace. Missing on the team's own comments.

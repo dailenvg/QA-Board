@@ -5,7 +5,7 @@ import { useId, useRef, useState } from "react";
 import { instant, spring, useRevealVariants, useSwapVariants } from "@/lib/motion";
 import { absoluteTime, relativeTime } from "@/lib/relative-time";
 import type { Breakpoint } from "@/lib/store/breakpoints";
-import type { Comment, Reply } from "@/lib/store/types";
+import type { Comment, CommentPriority, Reply } from "@/lib/store/types";
 import type { EditOutcome, EditRefusal } from "@/lib/viewer-backend/backend";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
@@ -21,6 +21,7 @@ import { CommentTeamNote } from "./CommentTeamNote";
 import { CommentThread } from "./CommentThread";
 import { showsReplyBox, useCommentThreads } from "./comment-threads";
 import { PlacementChip } from "./PlacementChip";
+import { PriorityChip } from "./PriorityChip";
 import { replyClosedNote } from "./reply-rights";
 import { ReplySlot } from "./ReplySlot";
 import { CardReplyBox } from "./CardReplyBox";
@@ -43,6 +44,8 @@ export interface CommentCardActions {
   onDelete: (comment: Comment) => void;
   /** The team's "Get info" (browser details) in the card's More menu; guests get none. */
   onGetInfo?: (comment: Comment) => void;
+  /** The team's Priority choices in the card's More menu (D10); guests get none. */
+  onSetPriority?: (comment: Comment, priority: CommentPriority | null) => void;
 }
 
 interface CommentCardProps extends CommentCardActions {
@@ -123,6 +126,7 @@ export function CommentCard({
   onReopen,
   onDelete,
   onGetInfo,
+  onSetPriority,
 }: CommentCardProps) {
   const [editing, setEditing] = useState(false);
   const [save, setSave] = useState<SaveState>(SAVE_IDLE);
@@ -138,6 +142,7 @@ export function CommentCard({
   const breakpointId = useId();
   const pendingId = useId();
   const summaryId = useId();
+  const priorityId = useId();
   const threads = useCommentThreads();
   const replies = threads?.repliesOf(comment.id) ?? NO_REPLIES;
   // The thread and its box show in one place at a time: the popover, while it's open.
@@ -171,6 +176,7 @@ export function CommentCard({
     bodyId,
     comment.editedAt ? editedId : null,
     resolvedNote ? noteId : null,
+    comment.priority ? priorityId : null,
     pageNumber ? pageId : null,
     breakpoint ? breakpointId : null,
     placement ? placementId : null,
@@ -330,6 +336,8 @@ export function CommentCard({
                 {RESOLVED_NOTE}
               </p>
             ) : null}
+            {/* Beside the page or breakpoint chip that may follow, on one line while they fit. */}
+            <PriorityChip id={priorityId} priority={comment.priority} className="mt-2 mr-2" />
             {pageNumber ? (
               <p
                 id={pageId}
@@ -389,8 +397,13 @@ export function CommentCard({
               Edit
             </Button>
           ) : null}
-          {onGetInfo ? (
-            <CommentMoreMenu number={number} onGetInfo={() => onGetInfo(comment)} />
+          {onGetInfo && onSetPriority ? (
+            <CommentMoreMenu
+              number={number}
+              priority={comment.priority ?? null}
+              onSetPriority={(priority) => onSetPriority(comment, priority)}
+              onGetInfo={() => onGetInfo(comment)}
+            />
           ) : null}
           {canDelete ? (
             <Button

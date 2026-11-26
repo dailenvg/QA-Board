@@ -130,6 +130,20 @@ describe.each([
     ).toBeGreaterThanOrEqual(TEXT);
   });
 
+  it("draws a pin's priority dot at 3:1 on the pin's white halo", () => {
+    const halo = color(tokens, "pin-halo");
+    for (const dot of ["pin-must", "pin-should", "pin-nit"] as const) {
+      expect(contrast(color(tokens, dot), halo), dot).toBeGreaterThanOrEqual(MARK);
+    }
+  });
+
+  it("draws a badge's priority dot at 3:1 on the cards and panels it sits on", () => {
+    const behind = surfaces(tokens, ["card", "panel"]);
+    for (const dot of ["danger", "warning", "muted"] as const) {
+      expect(worst(color(tokens, dot), behind), dot).toBeGreaterThanOrEqual(MARK);
+    }
+  });
+
   it("edges resolved pins at 3:1 on their white halo and on their Mint fill", () => {
     // Mint is about as light as the halo, so this line is what draws the pin's edge.
     const line = color(tokens, "resolved-pin-line");

@@ -4,7 +4,7 @@ import { personAvatarSrc } from "../routes";
 import { logoVersion } from "../share/brand";
 import type { Queryable } from "../share/migrate";
 import { createPostgresStore } from "../share/postgres-store";
-import type { Comment, CommentCrop } from "../store/types";
+import type { Comment, CommentCrop, CommentPriority } from "../store/types";
 import { personKey } from "./members/person-key";
 import type { CommentCreate, CommentPatch } from "./schemas";
 import { linkedShareId, type GuestComment } from "./share-links";
@@ -31,6 +31,8 @@ interface CommentRow {
   updated_at: Date;
   resolved_at: Date | null;
   edited_at: Date | null;
+  /** Must fix, Should fix or Nit (055); null for none. */
+  priority: CommentPriority | null;
   /** The browser it was posted from (052); null on comments from before. */
   client_info: ClientInfo | null;
   /** Its `origin` is 'client': a guest's comment, pulled from the review link. */
@@ -70,7 +72,7 @@ const columns = (alias: string) => `${alias}.project_id, ${alias}.id, ${alias}.x
     ELSE ${alias}.author_name END AS author_name,
   ${alias}.author_user_id, ${alias}.status, ${alias}.snapshot_id, ${alias}.page_id, ${alias}.crop,
   ${alias}.created_at, ${alias}.updated_at, ${alias}.resolved_at, ${alias}.edited_at,
-  ${alias}.client_info, ${alias}.origin = 'client' AS from_client, ${authorAvatarKey(alias)}`;
+  ${alias}.priority, ${alias}.client_info, ${alias}.origin = 'client' AS from_client, ${authorAvatarKey(alias)}`;
 const COLUMNS = columns("comment");
 const RETURNING = columns("comments");
 
@@ -118,6 +120,7 @@ function toComment(row: CommentRow, workspaceId: string, viewerId?: string): Com
     ...(row.snapshot_id ? { snapshotId: row.snapshot_id } : {}),
     ...(row.page_id ? { pageId: row.page_id } : {}),
     ...(row.crop ? { crop: row.crop } : {}),
+    ...(row.priority ? { priority: row.priority } : {}),
     ...(row.client_info ? { clientInfo: row.client_info } : {}),
     ...(row.from_client ? { fromClient: true as const } : {}),
     ...(mine ? { mine: true as const } : {}),
@@ -179,7 +182,9 @@ export function clampEditedAt(editedAt: number | undefined, createdAt: number, n
  * `findGuestComment`) takes its words, name, position, creation, `editedAt`
  * and browser details from there, never from the browser, so they can't be
  * changed on the way in. A team comment keeps `clientInfo` as the route
- * recorded it (with the request's user agent).
+ * recorded it (with the request's user agent). The priority is the body's
+ * either way: for a guest's, what they picked as the owner's pull brought it
+ * (any member may change it anyway); for an Undo, what it was.
  * Run the project check first for a 404.
  */
 export async function addComment(
@@ -213,11 +218,11 @@ export async function addComment(
   const { rows } = await db.query<CommentRow>(
     `INSERT INTO comments (project_id, id, x, y, body, author_name, author_user_id, status,
        snapshot_id, page_id, crop, created_at, updated_at, resolved_at, edited_at, origin,
-       client_info)
+       client_info, priority)
      SELECT project.id, $3, $4, $5, $6,
        COALESCE((SELECT name FROM users WHERE id = $8::uuid), $7), $8, $9, $10, $11,
        $12::jsonb, $13, $14, $15, $16,
-       CASE WHEN $8::uuid IS NULL THEN 'client' ELSE 'team' END, $17::jsonb
+       CASE WHEN $8::uuid IS NULL THEN 'client' ELSE 'team' END, $17::jsonb, $18
      FROM projects AS project
      WHERE project.workspace_id = $1 AND project.id = $2 AND project.deleted_at IS NULL
      ON CONFLICT (project_id, id) DO NOTHING RETURNING ${RETURNING}`,
@@ -239,6 +244,7 @@ export async function addComment(
       resolvedAt === null ? null : toDate(resolvedAt),
       editedAt === null ? null : toDate(editedAt),
       clientInfo ? JSON.stringify(clientInfo) : null,
+      sent.priority ?? null,
     ],
   );
   return rows[0]
@@ -247,12 +253,13 @@ export async function addComment(
 }
 
 /**
- * Edits a comment's text, resolves or reopens it, or adds its crop. Any member
- * resolves and reopens; only the author changes the text or crop, so a patch
- * with either matches only `actor`'s own comment. Null when there's no such
- * comment, or one the patch may not change: the same answer, so nothing about
- * the comment shows. Different text marks it edited (`edited_at`); the same
- * text, a status or a crop never does.
+ * Edits a comment's text, resolves or reopens it, sets or clears its priority
+ * (null), or adds its crop. Any member resolves, reopens and sets the
+ * priority, on anyone's comment; only the author changes the text or crop, so
+ * a patch with either matches only `actor`'s own comment. Null when there's no
+ * such comment, or one the patch may not change: the same answer, so nothing
+ * about the comment shows. Different text marks it edited (`edited_at`); the
+ * same text, a status, a priority or a crop never does.
  */
 export async function updateComment(
   db: Queryable,
@@ -273,6 +280,7 @@ export async function updateComment(
          WHEN $5 = 'resolved' THEN COALESCE(comment.resolved_at, $7)
        END,
        crop = COALESCE($6::jsonb, comment.crop),
+       priority = CASE WHEN $9::boolean THEN $10::text ELSE comment.priority END,
        updated_at = $7
      FROM projects AS project
      WHERE project.id = comment.project_id AND project.workspace_id = $1
@@ -288,6 +296,8 @@ export async function updateComment(
       patch.crop ? JSON.stringify(patch.crop) : null,
       toDate(now),
       actor.userId,
+      patch.priority !== undefined,
+      patch.priority ?? null,
     ],
   );
   return rows[0] ? toComment(rows[0], workspaceId, actor.userId) : null;

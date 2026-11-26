@@ -147,12 +147,18 @@ export function createMemoryStore(): ShareStore {
     upsertComment(id, comment, origin) {
       const comments = shares.get(id)?.comments;
       const existing = comments?.get(comment.id);
-      // A client's row only takes where the pin is (4.12), as `UPSERT_COMMENT` does.
+      // A client's row only takes where the pin is (4.12) and the team's priority (D26), as
+      // `UPSERT_COMMENT` does: a push without a priority clears it.
       if (existing?.origin === "client") {
-        const pageId = comment.pageId ?? existing.item.pageId;
+        const { priority: _previous, ...item } = existing.item;
+        const pageId = comment.pageId ?? item.pageId;
         comments?.set(comment.id, {
           ...existing,
-          item: { ...existing.item, ...(pageId === undefined ? {} : { pageId }) },
+          item: {
+            ...item,
+            ...(pageId === undefined ? {} : { pageId }),
+            ...(comment.priority ? { priority: comment.priority } : {}),
+          },
         });
       } else upsert(comments, comment, origin);
       return done(undefined);

@@ -1,4 +1,5 @@
 import type { ImageUpload } from "@/lib/store/actions";
+import type { CommentPriority } from "@/lib/store/types";
 import type { ReadyCrop } from "@/lib/viewer-backend/backend";
 
 export type ViewerMode = "browse" | "comment";
@@ -35,6 +36,8 @@ export interface Draft extends PinPoint {
   crop: ReadyCrop | null;
   /** The name typed in this draft, kept with it (a reload restores both). */
   author?: string;
+  /** The priority picked in this draft (missing for none), kept with it like the name. */
+  priority?: CommentPriority;
 }
 
 /** Saves an uploaded screenshot as the project's image; resolves to an error message, or null. */

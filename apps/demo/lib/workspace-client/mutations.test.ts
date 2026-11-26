@@ -80,6 +80,34 @@ describe("writesFor", () => {
     expect(writes({ type: "comment/edit", id: "nope", body: "Done", at: 9 })).toEqual([]);
   });
 
+  it("sends a priority, or none as null, to the comment, and nothing when it's unchanged", () => {
+    expect(writes({ type: "comment/set-priority", id: "c1", priority: "must", at: 9 })).toEqual([
+      { method: "PATCH", path: "/projects/p1/comments/c1", body: { priority: "must" } },
+    ]);
+    const marked: Action = { type: "comment/set-priority", id: "c1", priority: "should", at: 9 };
+    const before = reduce(DATA, marked);
+    const clear: Action = { type: "comment/set-priority", id: "c1", priority: null, at: 10 };
+    expect(writesFor(clear, before, reduce(before, clear))).toEqual([
+      { method: "PATCH", path: "/projects/p1/comments/c1", body: { priority: null } },
+    ]);
+    expect(writes({ type: "comment/set-priority", id: "nope", priority: "nit", at: 9 })).toEqual(
+      [],
+    );
+    expect(refusalMessage(marked, 404, null, CONTEXT)).toBe(
+      "This comment is no longer here. It may have been deleted in another tab.",
+    );
+  });
+
+  it("restores a deleted comment with its priority, the member's own and a client's", () => {
+    for (const restored of [
+      { ...comment, id: "c2", priority: "must" as const, mine: true as const },
+      { ...comment, id: "c2", priority: "nit" as const, fromClient: true as const },
+    ]) {
+      const [write] = writes({ type: "comment/restore", comment: restored });
+      expect(write?.body).toMatchObject({ id: "c2", priority: restored.priority });
+    }
+  });
+
   it("sends a comment without its project id, and accepts a re-added one as done", () => {
     const [write] = writes({ type: "comment/restore", comment: { ...comment, id: "c2" } });
     expect(write).toEqual({
@@ -184,6 +212,19 @@ describe("writesFor", () => {
       "PATCH /projects/p3/share-link",
     ]);
     expect(result[2]?.body).toEqual({ cursor: 5, lastSyncedAt: 11 });
+  });
+
+  it("saves a guest's comment with the priority they picked", () => {
+    const pulled: Comment = { ...comment, id: "guest", projectId: "p3", fromClient: true };
+    const [write] = writes({
+      type: "share/merge",
+      id: "p3",
+      comments: [{ ...pulled, priority: "must" }],
+      snapshots: [],
+      cursor: 5,
+      at: 11,
+    });
+    expect(write?.body).toMatchObject({ id: "guest", priority: "must", fromShare: true });
   });
 
   it("saves a pull's guest replies after the comments they answer, sending nothing but their id", () => {

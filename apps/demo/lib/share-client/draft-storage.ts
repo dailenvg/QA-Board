@@ -1,3 +1,6 @@
+import { isPriority } from "../store/priority";
+import type { CommentPriority } from "../store/types";
+
 /** An unsent comment, kept per shared link for this browser tab. */
 export interface StoredDraft {
   x: number;
@@ -9,6 +12,8 @@ export interface StoredDraft {
   pageId?: string | null;
   commentId: string;
   author?: string;
+  /** Missing for none, and on drafts kept before priorities. */
+  priority?: CommentPriority;
 }
 
 export interface DraftStorage {
@@ -29,7 +34,8 @@ function isDraft(value: unknown): value is StoredDraft {
     (draft.snapshotId === null || typeof draft.snapshotId === "string") &&
     (draft.pageId === undefined || draft.pageId === null || typeof draft.pageId === "string") &&
     typeof draft.commentId === "string" &&
-    (draft.author === undefined || typeof draft.author === "string")
+    (draft.author === undefined || typeof draft.author === "string") &&
+    (draft.priority === undefined || isPriority(draft.priority))
   );
 }
 

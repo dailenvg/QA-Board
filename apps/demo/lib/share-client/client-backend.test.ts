@@ -207,6 +207,35 @@ describe("a comment's browser details", () => {
   });
 });
 
+describe("a comment's priority", () => {
+  it("goes with the guest's comment when they picked one, and shows with it", async () => {
+    const { store, backend, sent } = setup([
+      () =>
+        Response.json(
+          { ...input, priority: "should", status: "active", createdAt: 5, updatedAt: 5 },
+          { status: 201 },
+        ),
+    ]);
+    const result = await backend.addComment({ ...input, priority: "should" }, null);
+    const form = sent.find((init) => init.body instanceof FormData)?.body as FormData;
+    const json = form.get("comment");
+    const comment = JSON.parse(typeof json === "string" ? json : "{}") as Record<string, unknown>;
+    expect(comment.priority).toBe("should");
+    expect(result).toMatchObject({ ok: true, value: { priority: "should" } });
+    expect(store.getSnapshot().view.comments[0]).toMatchObject({ priority: "should" });
+  });
+
+  it("is left out without one, and only the team changes it afterwards", async () => {
+    const { backend, sent } = setup([accepted]);
+    await backend.addComment(input, null);
+    const form = sent.find((init) => init.body instanceof FormData)?.body as FormData;
+    const json = form.get("comment");
+    expect(JSON.parse(typeof json === "string" ? json : "{}")).not.toHaveProperty("priority");
+    expect(backend.setCommentPriority("draft-1", "must")).toMatchObject({ ok: false });
+    expect(sent).toHaveLength(1);
+  });
+});
+
 describe("a comment's screenshot", () => {
   it("goes with the comment and shows at once", async () => {
     const { store, backend, sent } = setup([withCrop]);

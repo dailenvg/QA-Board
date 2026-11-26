@@ -5,18 +5,22 @@ import {
   useCallback,
   useEffect,
   useId,
+  useRef,
   useState,
   type FormEvent,
   type KeyboardEvent,
   type RefObject,
 } from "react";
 import { fadeOnly, usePopVariants } from "@/lib/motion";
+import { useDockAboveKeyboard } from "@/lib/use-fit-above-keyboard";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { SHARE_LIMITS } from "@/lib/share/limits";
+import type { CommentPriority } from "@/lib/store/types";
 import { Button } from "../ui/Button";
 import { FieldError } from "../ui/FieldError";
 import { Icon } from "../ui/Icon";
 import { FIELD_CLASS } from "../ui/field-styles";
+import { PriorityField } from "./PriorityField";
 import type { Draft } from "./types";
 
 interface ComposerProps {
@@ -26,11 +30,20 @@ interface ComposerProps {
   onChange: (body: string) => void;
   /** The name as it's typed, so it stays with the draft. */
   onAuthorChange: (author: string) => void;
+  /** The priority as it's picked (missing for none), so it stays with the draft. */
+  onPriorityChange: (priority: CommentPriority | undefined) => void;
   onSubmit: (body: string, author: string) => void;
   onCancel: () => void;
 }
 
 const NAME_MISSING = "Add your name so others know who commented.";
+
+/**
+ * The docked composer's cap (`max-h-[calc(100dvh-1.5rem)]`, its 12px inset above and below),
+ * which the keyboard can only lower. With a name field and Priority it can outgrow a short phone
+ * screen once the keyboard is up; it then scrolls, so Priority and Post stay reachable.
+ */
+const DOCKED_MAX = "calc(100dvh - 1.5rem)";
 
 /**
  * A send still busy after this long says it's taking longer than usual: about when waiting
@@ -63,12 +76,16 @@ export function Composer({
   textareaRef,
   onChange,
   onAuthorChange,
+  onPriorityChange,
   onSubmit,
   onCancel,
 }: ComposerProps) {
   const docked = !useMediaQuery("(min-width: 640px)");
   const variants = usePopVariants();
   const present = useIsPresent();
+  const dockRef = useRef<HTMLDivElement>(null);
+  // Docked, the composer sits at the bottom of the screen, where a phone's keyboard opens.
+  useDockAboveKeyboard(dockRef, docked, DOCKED_MAX);
   // A composer fading out can outlive the next one's mount: it only clears the ref if it still holds its own.
   const attachTextarea = useCallback(
     (node: HTMLTextAreaElement | null) => {
@@ -141,6 +158,7 @@ export function Composer({
 
   return (
     <motion.div
+      ref={dockRef}
       role="dialog"
       aria-labelledby={titleId}
       data-testid="composer"
@@ -156,7 +174,7 @@ export function Composer({
       }
       className={`z-40 rounded-card bg-panel ${present ? "pointer-events-auto" : "pointer-events-none"} p-4 shadow-pop ring-1 ring-line ${
         docked
-          ? "fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))]"
+          ? "fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain"
           : "absolute w-76"
       }`}
     >
@@ -234,6 +252,13 @@ export function Composer({
             Enter to post · Shift+Enter for a new line
           </p>
         </div>
+        <PriorityField
+          value={draft.priority}
+          // The post already carries the priority: one picked while it's sent would be lost.
+          onChange={(priority) => {
+            if (!sending) onPriorityChange(priority);
+          }}
+        />
         {/* Always present, so each change is announced (a region added with its words isn't). */}
         <p role="status" className="sr-only" data-testid="composer-status">
           {status}

@@ -4,7 +4,7 @@ import { motion, useIsPresent } from "motion/react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { usePopVariants } from "@/lib/motion";
 import { absoluteTime, relativeTime } from "@/lib/relative-time";
-import type { Comment, Reply } from "@/lib/store/types";
+import type { Comment, CommentPriority, Reply } from "@/lib/store/types";
 import { useDockAboveKeyboard } from "@/lib/use-fit-above-keyboard";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { Button } from "../ui/Button";
@@ -18,6 +18,7 @@ import { CommentTeamNote } from "./CommentTeamNote";
 import { CommentThread } from "./CommentThread";
 import { showsReplyBox, useCommentThreads } from "./comment-threads";
 import { PlacementChip } from "./PlacementChip";
+import { PriorityChip } from "./PriorityChip";
 import { replyClosedNote } from "./reply-rights";
 import { ReplyComposer } from "./ReplyComposer";
 import { ReplySlot } from "./ReplySlot";
@@ -37,6 +38,8 @@ interface PinPopoverProps {
   onReopen: (id: string) => void;
   /** The team's "Get info" (browser details) in the More menu; guests get none. */
   onGetInfo?: () => void;
+  /** The team's Priority choices in the More menu (D10); guests get none. */
+  onSetPriority?: (priority: CommentPriority | null) => void;
   /** `returnFocus`: closed from the keyboard or the close button, so focus goes back to the pin. */
   onClose: (returnFocus: boolean) => void;
 }
@@ -138,6 +141,7 @@ export function PinPopover({
   onResolve,
   onReopen,
   onGetInfo,
+  onSetPriority,
   onClose,
 }: PinPopoverProps) {
   const docked = !useMediaQuery("(min-width: 640px)");
@@ -149,6 +153,7 @@ export function PinPopover({
   const bodyId = useId();
   const editedId = useId();
   const placementId = useId();
+  const priorityId = useId();
   const resolved = comment.status === "resolved";
   const threads = useCommentThreads();
   const replies = threads?.repliesOf(comment.id) ?? NO_REPLIES;
@@ -240,7 +245,13 @@ export function PinPopover({
       id={id}
       role="dialog"
       aria-labelledby={titleId}
-      aria-describedby={comment.editedAt ? `${bodyId} ${editedId}` : bodyId}
+      aria-describedby={[
+        bodyId,
+        comment.editedAt ? editedId : null,
+        comment.priority ? priorityId : null,
+      ]
+        .filter(Boolean)
+        .join(" ")}
       tabIndex={-1}
       data-testid="pin-popover"
       variants={variants}
@@ -326,6 +337,7 @@ export function PinPopover({
             {comment.body}
           </p>
           <CommentEdited id={editedId} editedAt={comment.editedAt} now={now} />
+          <PriorityChip id={priorityId} priority={comment.priority} className="self-start" />
           {placement ? <PlacementChip id={placementId} placement={placement} now={now} /> : null}
           {canModerate || onGetInfo ? (
             <div className="flex items-center justify-end gap-1 pt-1">
@@ -340,7 +352,14 @@ export function PinPopover({
                   Resolve
                 </Button>
               )}
-              {onGetInfo ? <CommentMoreMenu number={number} onGetInfo={onGetInfo} /> : null}
+              {onGetInfo && onSetPriority ? (
+                <CommentMoreMenu
+                  number={number}
+                  priority={comment.priority ?? null}
+                  onSetPriority={onSetPriority}
+                  onGetInfo={onGetInfo}
+                />
+              ) : null}
             </div>
           ) : null}
           {threads ? (

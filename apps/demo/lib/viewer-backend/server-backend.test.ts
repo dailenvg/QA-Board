@@ -29,6 +29,7 @@ vi.mock("../store/actions", () => ({
   restoreComment: vi.fn(),
   restoreReply: vi.fn(),
   setAuthorName: vi.fn(),
+  setCommentPriority: vi.fn(),
   setCommentStatus: vi.fn(),
 }));
 vi.mock("../workspace-client/blob-upload", () => ({

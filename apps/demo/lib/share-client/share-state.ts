@@ -36,6 +36,7 @@ function sharedComment(comment: Comment): SharedComment {
     ...(comment.snapshotId ? { snapshotId: comment.snapshotId } : {}),
     ...(comment.pageId ? { pageId: comment.pageId } : {}),
     ...(comment.crop ? { crop: { rect: comment.crop.rect } } : {}),
+    ...(comment.priority ? { priority: comment.priority } : {}),
   };
 }
 
@@ -83,8 +84,8 @@ function sharedSnapshot({
 }
 
 /**
- * What the owner pushes: the project's metadata, snapshots, comments and the
- * replies to those comments, without local keys. The one place that decides
+ * What the owner pushes: the project's metadata, snapshots, comments (with
+ * the team's priority, D26) and the replies to those comments, without local keys. The one place that decides
  * what reaches a review link (D21): a reply only under a comment it carries;
  * of a comment or a reply, whose it is, the author's photo and the browser it
  * was posted from (`clientInfo`, team only) never do. `replies` may be the

@@ -18,6 +18,8 @@ interface CommentsPanelProps {
   celebrating: boolean;
   /** A short line under the sheet's header on phones, visible while collapsed. */
   note?: string;
+  /** Beside the Active / Resolved switcher, such as the "Sort and filter" button. */
+  tools?: ReactNode;
   children: ReactNode;
 }
 
@@ -36,6 +38,7 @@ export function CommentsPanel({
   resolved,
   celebrating,
   note,
+  tools,
   children,
 }: CommentsPanelProps) {
   const headingId = useId();
@@ -62,7 +65,10 @@ export function CommentsPanel({
         data-testid="comments-panel"
         className="flex min-h-0 w-panel shrink-0 flex-col gap-3 rounded-panel bg-panel pt-3"
       >
-        <div className="px-3">{heading}</div>
+        <div className="flex items-center gap-1 px-3">
+          {heading}
+          {tools}
+        </div>
         {children}
       </aside>
     );
@@ -74,8 +80,13 @@ export function CommentsPanel({
       data-testid="comments-panel"
       className="fixed inset-x-0 bottom-0 z-30 flex max-h-[78dvh] flex-col rounded-t-panel bg-panel pb-[env(safe-area-inset-bottom)] shadow-pop"
     >
-      <div className="flex items-center gap-2 px-3 py-2">
+      {/*
+       * 4px apart on phones, as on the panel: with the tabs, Sort and filter and the sheet toggle
+       * in one row, 8px gaps left "Resolved" truncated at 375px.
+       */}
+      <div className="flex items-center gap-1 px-3 py-2 sm:gap-2">
         {heading}
+        {tools}
         <motion.button
           type="button"
           aria-expanded={sheetOpen}

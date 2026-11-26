@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { sentClientInfoSchema } from "../client-info/schema";
+import { COMMENT_PRIORITIES } from "../store/priority";
 import { SHARE_LIMITS } from "./limits";
 
 export { SHARE_LIMITS } from "./limits";
@@ -86,6 +87,11 @@ const commentFields = {
   snapshotId: id.optional(),
   pageId: id.optional(),
   crop: z.object({ rect }).optional(),
+  /**
+   * How much it matters; missing for none. The owner's push carries the
+   * team's (D26); a guest picks one only when posting, never in an edit (D10).
+   */
+  priority: z.enum(COMMENT_PRIORITIES).optional(),
 };
 
 /** A comment as the owner pushes it: any status, the owner's timestamps. */

@@ -1,5 +1,5 @@
 import { commentDeleteMode } from "@/lib/store/replies";
-import type { Comment, Reply } from "@/lib/store/types";
+import type { Comment, CommentPriority, Reply } from "@/lib/store/types";
 import type { ToastInput } from "../ui/ToastProvider";
 import type { EditOutcome, ViewerBackend } from "@/lib/viewer-backend/backend";
 
@@ -12,7 +12,10 @@ interface CommentActionsOptions {
   onRemoved: (id: string) => void;
 }
 
-/** Resolve, reopen, edit and delete a comment, each with its toast and Undo where it has one. */
+/**
+ * Resolve, reopen, edit, delete and set the priority of a comment, each with its toast and
+ * Undo where it has one.
+ */
 export function useCommentActions({
   backend,
   toast,
@@ -36,6 +39,9 @@ export function useCommentActions({
     reopen: (id: string) => {
       if (report(backend.setCommentStatus(id, "active"))) toast({ message: "Comment reopened" });
     },
+    /** The team's: sets or clears (null) the priority, shown at once by the chip; false if refused. */
+    setPriority: (id: string, priority: CommentPriority | null): boolean =>
+      report(backend.setCommentPriority(id, priority)),
     /**
      * The team's edit shows at once (a refusal is a toast); a guest's waits
      * for the server, and its editor shows a refusal (`EditOutcome`).

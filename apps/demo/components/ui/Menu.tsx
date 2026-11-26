@@ -15,8 +15,15 @@ import {
 } from "react";
 import { instant, spring, usePopVariants } from "@/lib/motion";
 import { Icon, type IconName } from "./Icon";
-import { closesOnSelect, itemRole, ITEM_SELECTOR, type MenuItem } from "./menu-item";
-import { chooseSide, type MenuPlacement } from "./menu-side";
+import {
+  closesOnSelect,
+  itemRole,
+  ITEM_SELECTOR,
+  menuSections,
+  type MenuItem,
+  type MenuSection,
+} from "./menu-item";
+import { cappedHeight, chooseSide, type MenuPlacement } from "./menu-side";
 
 export type { MenuItem } from "./menu-item";
 
@@ -82,36 +89,75 @@ function clippingBounds(anchor: HTMLElement): Bounds | null {
   };
 }
 
+/** Whether `node` cuts off what overflows it (it scrolls, or hides the rest). */
+function clips(node: Element): boolean {
+  const style = getComputedStyle(node);
+  return style.overflowX !== "visible" || style.overflowY !== "visible";
+}
+
+/**
+ * A popover's (a non-modal dialog's) bounds: its own box while it clips (a phone's docked pin
+ * popover scrolls), else the nearest box around it that clips (the stage, a live site's frame),
+ * cut to the screen; null for the screen. A menu in it may spill past its edge, over the stage,
+ * as menus float over what's around them; only a modal dialog keeps its menus inside it.
+ */
+function popoverBounds(dialog: Element): Bounds | null {
+  let node: Element | null = dialog;
+  while (node && node !== document.body && !clips(node)) node = node.parentElement;
+  if (!node || node === document.body) return null;
+  const box = node.getBoundingClientRect();
+  return {
+    top: Math.max(0, box.top),
+    bottom: Math.min(window.innerHeight, box.bottom),
+    left: Math.max(0, box.left),
+    right: Math.min(window.innerWidth, box.right),
+  };
+}
+
 /**
  * What the menu must stay inside: a `data-menu-bounds` scroller in (or without) a dialog, such
- * as the replies in a pin's popover; else the dialog; else null, for the screen.
+ * as the replies in a pin's popover; else a modal dialog, or what clips a popover
+ * (`popoverBounds`); else null, for the screen.
  */
 function menuBounds(anchor: HTMLElement): Bounds | DOMRect | null {
   const dialog = anchor.closest('[role="dialog"]');
   const scroller = anchor.closest("[data-menu-bounds]");
   const clip = !dialog || (scroller && dialog.contains(scroller)) ? clippingBounds(anchor) : null;
-  return clip ?? dialog?.getBoundingClientRect() ?? null;
+  if (clip || !dialog) return clip;
+  return dialog.getAttribute("aria-modal") === "true"
+    ? dialog.getBoundingClientRect()
+    : popoverBounds(dialog);
+}
+
+/** The side the menu opens on, and the height it's capped to there (null: uncapped). */
+interface MenuFit {
+  side: MenuPlacement;
+  maxHeight: number | null;
 }
 
 /**
  * `preferred`, unless the menu would cross the screen's (or its `menuBounds`') edge on that side and
  * fits on the other: a menu above a trigger scrolled to the top of a phone opens below it. Fitting
- * neither, it takes the side with more room (`chooseSide`).
+ * neither, it takes the side with more room (`chooseSide`) and scrolls inside itself there
+ * (`cappedHeight`), rather than being cut off.
  */
 function fittingSide(
   preferred: MenuPlacement,
   anchor: HTMLElement | null,
   menu: HTMLElement | null,
-): MenuPlacement {
-  if (!anchor || !menu) return preferred;
+): MenuFit {
+  const uncapped: MenuFit = { side: preferred, maxHeight: null };
+  if (!anchor || !menu) return uncapped;
   const box = anchor.getBoundingClientRect();
   // Not laid out (hidden): nothing to measure against.
-  if (!box.height) return preferred;
+  if (!box.height) return uncapped;
   const bounds = menuBounds(anchor) ?? { top: 0, bottom: window.innerHeight };
-  // offsetHeight ignores the pop-in's scale, so this is the menu's full height.
-  const needed = menu.offsetHeight + GAP + EDGE;
+  // scrollHeight ignores the pop-in's scale and a cap left from the last opening, so this is
+  // the menu's full height.
+  const needed = menu.scrollHeight + GAP + EDGE;
   const room = { above: box.top - bounds.top, below: bounds.bottom - box.bottom };
-  return chooseSide(preferred, room, needed);
+  const side = chooseSide(preferred, room, needed);
+  return { side, maxHeight: cappedHeight(side, room, needed, GAP + EDGE) };
 }
 
 /**
@@ -139,6 +185,11 @@ interface MenuProps {
   testId?: string;
   /** Trigger icon; `more` (···) by default. */
   icon?: IconName;
+  /**
+   * A dot on the trigger's corner, for a menu whose choice is changed from its default (a
+   * filter that's on). Visual only: say what changed elsewhere (a live region, the label).
+   */
+  indicator?: boolean;
   /** Visible trigger text, hidden on phones. Without it the trigger is icon-only. */
   text?: string;
   /** Replaces the trigger text's default classes (`max-sm:sr-only`), e.g. to keep it on phones. */
@@ -173,6 +224,7 @@ export function Menu({
   className = "",
   testId,
   icon = "more",
+  indicator = false,
   text,
   textClassName = "max-sm:sr-only",
   triggerClassName = TRIGGER_CLASS,
@@ -203,6 +255,8 @@ export function Menu({
   const side = placedSide ?? placement;
   /** Which edge of the trigger the open menu lines up with, measured with its side. */
   const [align, setAlign] = useState<MenuAlign>("end");
+  /** The open menu's cap where neither side has room for all of it (it scrolls); null: none. */
+  const [maxHeight, setMaxHeight] = useState<number | null>(null);
 
   const openMenu = (from: HTMLElement | null = null) => {
     if (disabledReason) return;
@@ -213,9 +267,11 @@ export function Menu({
 
   useLayoutEffect(() => {
     if (!open) return;
-    setPlacedSide(fittingSide(placement, root.current, menu.current));
-    // Kept after closing (no reset), so the menu fades out where it was; the next opening
-    // measures again before it paints.
+    const fit = fittingSide(placement, root.current, menu.current);
+    setPlacedSide(fit.side);
+    // The cap and the alignment are kept after closing (no reset), so the menu fades out as it
+    // was; the next opening measures again before it paints.
+    setMaxHeight(fit.maxHeight);
     setAlign(fittingAlign(root.current, menu.current));
     return () => setPlacedSide(null);
   }, [open, placement]);
@@ -231,11 +287,20 @@ export function Menu({
 
   useEffect(() => {
     if (!open || !placedSide) return;
-    // Options open on the current one; actions (and settings) on the first available.
+    const scope = root.current;
+    const items = Array.from(scope?.querySelectorAll<HTMLElement>(ITEM_SELECTOR) ?? []);
+    // A menu of options only (Sort, Sort and filter) opens on the current one. One that mixes
+    // actions in (a comment's More: Copy link, Priority, Get info) opens on its first available
+    // item, as a menu button does (WAI-ARIA), so its order never depends on the priority set:
+    // the check marks the current option, and arrow keys reach it.
+    const optionsOnly =
+      items.length > 0 && items.every((item) => item.getAttribute("role") === "menuitemradio");
     const first =
-      root.current?.querySelector<HTMLElement>('[role="menuitemradio"][aria-checked="true"]') ??
-      root.current?.querySelector<HTMLElement>(ENABLED_ITEM) ??
-      root.current?.querySelector<HTMLElement>(ITEM_SELECTOR);
+      (optionsOnly
+        ? scope?.querySelector<HTMLElement>('[role="menuitemradio"][aria-checked="true"]')
+        : null) ??
+      scope?.querySelector<HTMLElement>(ENABLED_ITEM) ??
+      items[0];
     first?.focus();
   }, [open, placedSide]);
 
@@ -335,9 +400,16 @@ export function Menu({
             setOpen(true);
           }
         }}
-        className={triggerClassName}
+        className={`${triggerClassName} ${indicator ? "relative" : ""}`}
       >
         <Icon name={icon} />
+        {indicator ? (
+          <span
+            aria-hidden="true"
+            data-testid={testId ? `${testId}-indicator` : undefined}
+            className="absolute top-2 right-2 size-2 rounded-pill bg-brand-text shadow-[0_0_0_2px_var(--color-panel)]"
+          />
+        ) : null}
         {text ? <span className={textClassName}>{text}</span> : null}
         {disabledReason ? (
           <span id={reasonId} className="sr-only">
@@ -374,20 +446,63 @@ export function Menu({
             initial="hidden"
             animate="visible"
             exit="exit"
-            style={{ transformOrigin: menuOrigin(side, align) }}
-            className={`absolute ${ALIGN_CLASS[align]} z-30 ${PLACEMENT_CLASS[side]} flex w-max max-w-72 min-w-52 flex-col rounded-tile bg-card p-2 shadow-pop ring-1 ring-line`}
+            style={{ transformOrigin: menuOrigin(side, align), maxHeight: maxHeight ?? undefined }}
+            className={`absolute ${ALIGN_CLASS[align]} z-30 ${PLACEMENT_CLASS[side]} flex w-max max-w-72 min-w-52 flex-col rounded-tile bg-card p-2 shadow-pop ring-1 ring-line ${
+              maxHeight === null ? "" : "overflow-y-auto overscroll-contain"
+            }`}
           >
-            {items.map((item) => (
-              <Fragment key={item.id ?? item.label}>
-                {item.separatorBefore ? (
-                  <div role="separator" className="mx-1 my-1 h-px shrink-0 bg-line" />
-                ) : null}
-                <MenuEntry item={item} onChoose={() => choose(item)} />
+            {menuSections(items).map((section, index) => (
+              <Fragment key={`section-${index}`}>
+                {index > 0 ? <Separator /> : null}
+                <MenuSectionItems
+                  section={section}
+                  headingId={`${menuId}-group-${index}`}
+                  onChoose={choose}
+                />
               </Fragment>
             ))}
           </motion.div>
         ) : null}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function Separator() {
+  return <div role="separator" className="mx-1 my-1 h-px shrink-0 bg-line" />;
+}
+
+/**
+ * A section's items: a labelled group under its heading (the heading names the group; it's
+ * hidden from reading on its own, so it isn't heard twice), or ungrouped ones, each with its
+ * own line above when it asks for one.
+ */
+function MenuSectionItems({
+  section,
+  headingId,
+  onChoose,
+}: {
+  section: MenuSection;
+  headingId: string;
+  onChoose: (item: MenuItem) => void;
+}) {
+  const entries = section.items.map((item, index) => (
+    <Fragment key={item.id ?? item.label}>
+      {item.separatorBefore && index > 0 ? <Separator /> : null}
+      <MenuEntry item={item} onChoose={() => onChoose(item)} />
+    </Fragment>
+  ));
+  if (section.label === null) return entries;
+  return (
+    <div role="group" aria-labelledby={headingId} className="flex flex-col">
+      <div
+        id={headingId}
+        aria-hidden="true"
+        className="px-3 pt-1 pb-1 text-label font-semibold text-muted"
+      >
+        {section.label}
+      </div>
+      {entries}
     </div>
   );
 }

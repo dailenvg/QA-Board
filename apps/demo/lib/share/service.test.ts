@@ -193,6 +193,67 @@ describe("browser details", () => {
   });
 });
 
+describe("priority", () => {
+  it("a guest's pick goes with their comment to the link, their view and the owner's pull", async () => {
+    const { services, share } = await shared();
+    const posted = await addClientComment(
+      services,
+      share,
+      { ...clientComment("k-1"), priority: "must" },
+      null,
+      200,
+    );
+    expect(posted.ok && posted.value).toMatchObject({ priority: "must" });
+    const view = await clientView(services.store, share, GUEST_TOKEN);
+    expect(view.comments.find((c) => c.id === "k-1")).toMatchObject({ priority: "must" });
+    const pulled = await pullChanges(services.store, share, 0);
+    expect(pulled.comments).toEqual([expect.objectContaining({ id: "k-1", priority: "must" })]);
+  });
+
+  it("the team's change on a client's comment reaches the link, and a push without one clears it (D26)", async () => {
+    const { services, share } = await shared();
+    await addClientComment(
+      services,
+      share,
+      { ...clientComment("k-1"), priority: "nit" },
+      null,
+      200,
+    );
+    const { cursor } = await pullChanges(services.store, share, 0);
+    const pulled = {
+      ...clientComment("k-1"),
+      status: "active" as const,
+      createdAt: 200,
+      updatedAt: 200,
+    };
+    const guestView = async () =>
+      (await clientView(services.store, share, GUEST_TOKEN)).comments.find((c) => c.id === "k-1");
+    await pushState(
+      services,
+      share,
+      { ...STATE, comments: [COMMENT, { ...pulled, priority: "must" }] },
+      cursor,
+      300,
+    );
+    expect(await guestView()).toMatchObject({ body: "From the client", priority: "must" });
+    await pushState(services, share, { ...STATE, comments: [COMMENT, pulled] }, cursor, 400);
+    expect(await guestView()).not.toHaveProperty("priority");
+    // The team's own comment takes it like the rest of the push.
+    await pushState(
+      services,
+      share,
+      { ...STATE, comments: [{ ...COMMENT, priority: "should" }, pulled] },
+      cursor,
+      500,
+    );
+    expect(
+      (await clientView(services.store, share, GUEST_TOKEN)).comments.find(
+        (c) => c.id === COMMENT.id,
+      ),
+    ).toMatchObject({ priority: "should" });
+  });
+});
+
 describe("blob rules", () => {
   it("accepts referenced images only, by their real type", async () => {
     const { services, share } = await shared();

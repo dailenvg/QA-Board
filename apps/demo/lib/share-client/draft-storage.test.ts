@@ -45,6 +45,14 @@ describe("a shared link's draft", () => {
     expect(storage.load()).toBeNull();
   });
 
+  it("keeps the priority picked, and reads one it doesn't know as no draft", () => {
+    const items = sessionStorageStub();
+    createDraftStorage("t1").save({ ...DRAFT, priority: "should" });
+    expect(createDraftStorage("t1").load()).toEqual({ ...DRAFT, priority: "should" });
+    items.set("squint:draft:t1", JSON.stringify({ ...DRAFT, priority: "urgent" }));
+    expect(createDraftStorage("t1").load()).toBeNull();
+  });
+
   it("is gone from both once posted or cancelled", () => {
     const items = sessionStorageStub();
     const storage = createDraftStorage("t1");

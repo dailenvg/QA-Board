@@ -189,6 +189,17 @@ describe("toShareState", () => {
     expect(fromSharedComment(shared, "p1")).toEqual(pageComment);
   });
 
+  it("pushes each comment's priority, and leaves it out for none (D26)", () => {
+    const marked: Comment = { ...pageComment, priority: "must", fromClient: true };
+    const { comments } = toShareState(project, [marked, comment], [], []);
+    expect(comments[0]).toMatchObject({ id: "c2", priority: "must" });
+    expect(comments[1]).not.toHaveProperty("priority");
+    expect(stateSchema.safeParse(toShareState(project, [marked], [], [])).success).toBe(true);
+    if (!comments[0]) throw new Error("no comment");
+    // A guest's pick, pulled, keeps its priority in the workspace.
+    expect(fromSharedComment(comments[0], "p1")).toMatchObject({ priority: "must" });
+  });
+
   it("trims comment text that predates the length limit instead of failing the push", () => {
     expect(state.comments[0]?.body).toHaveLength(5000);
   });

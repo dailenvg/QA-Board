@@ -2,7 +2,9 @@
 
 import { motion, useReducedMotion } from "motion/react";
 import { press, spring } from "@/lib/motion";
+import type { CommentPriority } from "@/lib/store/types";
 import { commentTone, type CommentTone } from "./comment-tone";
+import { PriorityDot } from "./PriorityDot";
 
 type PinTone = "active" | "resolved" | "draft" | "unsent";
 
@@ -14,6 +16,8 @@ interface PinProps {
   tone: PinTone;
   /** Colors an active pin by its commenter (resolved pins are green for everyone). */
   author?: string;
+  /** Marks the pin's top-right corner; the pin keeps its commenter's color (U3). */
+  priority?: CommentPriority;
   selected?: boolean;
   /** The comment's popover is open; it's controlled by `popoverId`. */
   expanded?: boolean;
@@ -41,6 +45,7 @@ export function Pin({
   y,
   tone,
   author = "",
+  priority,
   selected = false,
   expanded = false,
   popoverId,
@@ -86,9 +91,10 @@ export function Pin({
         aria-hidden="true"
         data-selected={selected || undefined}
         style={paint.style}
-        className={`pin-marker grid size-8 place-items-center rounded-pin text-label font-bold transition-shadow ${paint.className}`}
+        className={`pin-marker relative grid size-8 place-items-center rounded-pin text-label font-bold transition-shadow ${paint.className}`}
       >
         {number ?? (tone === "unsent" ? "!" : "+")}
+        <PriorityDot priority={priority} on="pin" />
       </span>
     </motion.button>
   );
