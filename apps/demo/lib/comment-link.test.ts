@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { loginHref, safeNextPath } from "./auth/next-path";
 import {
   parseCommentParam,
   projectCommentHref,
@@ -48,17 +49,19 @@ describe("withoutCommentParam", () => {
 
 describe("projectReturnHref", () => {
   it("carries a comment and a page through sign-in", () => {
-    expect(projectReturnHref("p1", { comment: "c1", page: "2" })).toBe(
-      "/p/p1?page=2&comment=c1",
-    );
+    expect(projectReturnHref("p1", { comment: "c1", page: "2" })).toBe("/p/p1?page=2&comment=c1");
   });
 
   it("keeps only well-formed values, and nothing else", () => {
     expect(
       projectReturnHref("p1", { comment: "//evil.example", page: "0", next: "https://evil" }),
     ).toBe("/p/p1");
-    expect(projectReturnHref("p1", { comment: ["c1", "c2"], page: "2x" })).toBe(
-      "/p/p1?comment=c1",
-    );
+    expect(projectReturnHref("p1", { comment: ["c1", "c2"], page: "2x" })).toBe("/p/p1?comment=c1");
+  });
+
+  it("goes through sign-in as a same-site path, and back unchanged", () => {
+    const path = projectReturnHref("p1", { comment: "c1", page: "2" });
+    expect(loginHref(path)).toBe("/login?next=%2Fp%2Fp1%3Fpage%3D2%26comment%3Dc1");
+    expect(safeNextPath(path)).toBe(path);
   });
 });
