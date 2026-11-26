@@ -324,8 +324,13 @@ test("signed out, a comment's link survives Sign in and opens on its page, tab a
   // Read once, then gone from the address; the page it opened stays.
   await expect(member).toHaveURL(new RegExp(`/p/${projectId}\\?page=2$`));
 
-  // The team's Copy link is the project's link to the comment, absolute.
-  await popover.getByRole("button", { name: "Copy link" }).click();
+  // The popover's More leaves Copy link to the header's button, which copies the project's link
+  // to the comment, absolute.
+  await popover.getByRole("button", { name: "Actions for comment 14" }).click();
+  await expect(member.getByRole("menuitem", { name: "Get info" })).toBeVisible();
+  await expect(member.getByRole("menuitem", { name: "Copy link" })).toHaveCount(0);
+  await member.keyboard.press("Escape");
+  await popover.getByRole("button", { name: "Copy link to comment 14" }).click();
   await expect(member.getByTestId("toast").filter({ hasText: "Link copied." })).toBeVisible();
   expect(await member.evaluate(() => navigator.clipboard.readText())).toBe(
     `${baseURL}/p/${projectId}?comment=on-two`,

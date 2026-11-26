@@ -17,6 +17,7 @@ import { CommentCropThumb } from "./CommentCropThumb";
 import { CommentEdited } from "./CommentEdited";
 import { CommentEditor, EMPTY_CLIENT_EDIT } from "./CommentEditor";
 import { CommentMoreMenu } from "./CommentMoreMenu";
+import { CopyLinkButton } from "./CopyLinkButton";
 import { CommentTeamNote } from "./CommentTeamNote";
 import { CommentThread } from "./CommentThread";
 import { showsReplyBox, useCommentThreads } from "./comment-threads";
@@ -46,8 +47,11 @@ export interface CommentCardActions {
   onGetInfo?: (comment: Comment) => void;
   /** The team's Priority choices in the card's More menu (D10); guests get none. */
   onSetPriority?: (comment: Comment, priority: CommentPriority | null) => void;
-  /** Copy link, first in the card's More menu: the team's and a guest's (U6). */
-  onCopyLink?: (comment: Comment) => void;
+  /**
+   * Copies the comment's link; resolves true once the clipboard has it. First in the team's
+   * More menu (U6); a guest's card has it as a button of its own.
+   */
+  onCopyLink?: (comment: Comment) => Promise<boolean>;
 }
 
 interface CommentCardProps extends CommentCardActions {
@@ -400,15 +404,19 @@ export function CommentCard({
               Edit
             </Button>
           ) : null}
-          {onCopyLink ? (
+          {onGetInfo && onSetPriority ? (
             <CommentMoreMenu
               number={number}
-              onCopyLink={() => onCopyLink(comment)}
+              onCopyLink={onCopyLink ? () => void onCopyLink(comment) : undefined}
               priority={comment.priority ?? null}
-              onSetPriority={
-                onSetPriority ? (priority) => onSetPriority(comment, priority) : undefined
-              }
-              onGetInfo={onGetInfo ? () => onGetInfo(comment) : undefined}
+              onSetPriority={(priority) => onSetPriority(comment, priority)}
+              onGetInfo={() => onGetInfo(comment)}
+            />
+          ) : onCopyLink ? (
+            <CopyLinkButton
+              number={number}
+              onCopy={() => onCopyLink(comment)}
+              testId="card-copy-link"
             />
           ) : null}
           {canDelete ? (

@@ -128,7 +128,7 @@ function measure(node: HTMLElement, { x, y }: Comment): Side | null {
  * A pin's comment, opened from the pin: who said it (their avatar, with the
  * company badge for the team) and when, the full text,
  * where it was placed, Copy link beside Close, and (for the team) Resolve or
- * Reopen, the More menu (Copy link, Priority, Get info), the whole thread and
+ * Reopen, the More menu (Priority, Get info), the whole thread and
  * the reply box (U1). A non-modal
  * dialog beside the pin, flipped (and if need be slid) to stay inside the stage; docked to the
  * bottom on phones, like the composer. Between its header and the reply box
@@ -366,7 +366,6 @@ export function PinPopover({
               {onGetInfo && onSetPriority ? (
                 <CommentMoreMenu
                   number={number}
-                  onCopyLink={onCopyLink}
                   priority={comment.priority ?? null}
                   onSetPriority={onSetPriority}
                   onGetInfo={onGetInfo}

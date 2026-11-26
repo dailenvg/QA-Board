@@ -622,12 +622,9 @@ test("a guest picks a priority when posting, and the team's change reaches the l
   await showComments(client);
   const guestCard = card(client, "Swap the hero photo.");
   await expect(guestCard.getByTestId("comment-priority")).toHaveText("Priority: Should fix");
-  // Guests pick only when posting (D10): their More menu has Copy link only, nothing to change it.
-  await guestCard.getByRole("button", { name: /^Actions for comment/ }).click();
-  const guestMore = client.getByRole("menu", { name: /^Actions for comment/ });
-  await expect(guestMore.getByRole("menuitem")).toHaveText(["Copy link"]);
-  await expect(guestMore.getByRole("menuitemradio")).toHaveCount(0);
-  await client.keyboard.press("Escape");
+  // Guests pick only when posting (D10): no More menu to change it, only a Copy link button.
+  await expect(guestCard.getByRole("button", { name: /^Actions for comment/ })).toHaveCount(0);
+  await expect(guestCard.getByRole("button", { name: "Copy link to comment 2" })).toBeVisible();
 
   // Team: the pull brings it in with its priority; the team makes it Must fix.
   const ownerCard = card(page, "Swap the hero photo.");
@@ -681,12 +678,24 @@ test("a guest's comment link opens its pin's popover, copies as the review link'
   await expect(popover).toContainText("Owner note");
   await expect(client).toHaveURL(link);
 
-  // A guest copies the review link's address for the comment, never the project's.
-  await popover.getByRole("button", { name: "Copy link" }).click();
+  // A guest copies the review link's address for the comment, never the project's; the button
+  // shows a tick for a moment, then its link icon again.
+  const copyButton = popover.getByRole("button", { name: "Copy link to comment 1" });
+  await copyButton.click();
   await expect(client.getByTestId("toast").filter({ hasText: "Link copied." })).toBeVisible();
+  await expect(copyButton).toHaveAttribute("data-copied", "true");
   expect(await client.evaluate(() => navigator.clipboard.readText())).toBe(
     `${link}?comment=${commentId}`,
   );
+  await expect(copyButton).not.toHaveAttribute("data-copied");
+
+  // The card's button copies the same link.
+  await client.evaluate(() => navigator.clipboard.writeText(""));
+  await showComments(client);
+  await card(client, "Owner note").getByRole("button", { name: "Copy link to comment 1" }).click();
+  await expect
+    .poll(() => client.evaluate(() => navigator.clipboard.readText()))
+    .toBe(`${link}?comment=${commentId}`);
 
   await client.goto(`${link}?comment=not-on-this-review`);
   await expect(
