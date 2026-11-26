@@ -40,6 +40,8 @@ interface PinPopoverProps {
   onGetInfo?: () => void;
   /** The team's Priority choices in the More menu (D10); guests get none. */
   onSetPriority?: (priority: CommentPriority | null) => void;
+  /** Copies the comment's link: the header's button (everyone's), and first in the team's More. */
+  onCopyLink: () => void;
   /** `returnFocus`: closed from the keyboard or the close button, so focus goes back to the pin. */
   onClose: (returnFocus: boolean) => void;
 }
@@ -124,8 +126,9 @@ function measure(node: HTMLElement, { x, y }: Comment): Side | null {
 /**
  * A pin's comment, opened from the pin: who said it (their avatar, with the
  * company badge for the team) and when, the full text,
- * where it was placed, and (for the team) Resolve or Reopen, the More
- * menu (Get info), the whole thread and the reply box (U1). A non-modal
+ * where it was placed, Copy link beside Close, and (for the team) Resolve or
+ * Reopen, the More menu (Copy link, Priority, Get info), the whole thread and
+ * the reply box (U1). A non-modal
  * dialog beside the pin, flipped (and if need be slid) to stay inside the stage; docked to the
  * bottom on phones, like the composer. Between its header and the reply box
  * it scrolls, so a long thread never pushes either away. Escape, the close
@@ -142,6 +145,7 @@ export function PinPopover({
   onReopen,
   onGetInfo,
   onSetPriority,
+  onCopyLink,
   onClose,
 }: PinPopoverProps) {
   const docked = !useMediaQuery("(min-width: 640px)");
@@ -311,15 +315,29 @@ export function PinPopover({
             {relativeTime(comment.createdAt, now)}
           </time>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Close"
-          className="text-muted hover:text-ink"
-          onClick={() => onClose(true)}
-        >
-          <Icon name="close" className="size-4" />
-        </Button>
+        {/* Side by side with no gap: each keeps its 44px target, and the name keeps the room. */}
+        <div className="flex shrink-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Copy link"
+            title="Copy link"
+            className="text-muted hover:text-ink"
+            onClick={onCopyLink}
+            data-testid="popover-copy-link"
+          >
+            <Icon name="link" className="size-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Close"
+            className="text-muted hover:text-ink"
+            onClick={() => onClose(true)}
+          >
+            <Icon name="close" className="size-4" />
+          </Button>
+        </div>
       </div>
       {/*
        * The comment, its actions and its thread, scrolling once they outgrow the popover (a long
@@ -355,6 +373,7 @@ export function PinPopover({
               {onGetInfo && onSetPriority ? (
                 <CommentMoreMenu
                   number={number}
+                  onCopyLink={onCopyLink}
                   priority={comment.priority ?? null}
                   onSetPriority={onSetPriority}
                   onGetInfo={onGetInfo}

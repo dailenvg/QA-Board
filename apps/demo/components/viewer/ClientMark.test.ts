@@ -56,6 +56,7 @@ function popover(comment: Comment, owner: boolean): string {
       canModerate: owner,
       onResolve: noop,
       onReopen: noop,
+      onCopyLink: noop,
       onClose: noop,
     }),
   );
