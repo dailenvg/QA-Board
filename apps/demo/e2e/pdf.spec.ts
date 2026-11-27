@@ -219,6 +219,8 @@ test("zooming a PDF page keeps the point under it, pins land on the same spot, a
   // the stage stays there.
   await page.getByTestId("zoom-level").click();
   await page.getByTestId("zoom-200").click();
+  // The menu fades out over the stage: point at the stage once it's gone.
+  await expect(page.getByRole("menu")).toHaveCount(0);
   await expect(page.getByTestId("zoom-level")).toHaveText("200%");
   const natural = await image.evaluate((node: HTMLImageElement) => node.naturalWidth);
   await expect.poll(async () => (await surface.boundingBox())?.width).toBeCloseTo(natural * 2, 0);
@@ -248,6 +250,7 @@ test("zooming a PDF page keeps the point under it, pins land on the same spot, a
   await expect(page.getByTestId("zoom-level")).toHaveText("100%");
   await page.getByTestId("zoom-level").click();
   await page.getByTestId("zoom-400").click();
+  await expect(page.getByRole("menu")).toHaveCount(0);
   await expect(page.getByTestId("zoom-in")).toHaveAttribute("aria-disabled", "true");
   await page.mouse.move(centre.x, centre.y);
   const start = await stage.evaluate((node) => ({ left: node.scrollLeft, top: node.scrollTop }));
@@ -263,8 +266,9 @@ test("zooming a PDF page keeps the point under it, pins land on the same spot, a
   await expect(page.getByTestId("draft-pin")).toHaveCount(0);
   await expect(page.getByTestId("composer")).toHaveCount(0);
 
-  // 0 goes back to Fit.
+  // 0 goes back to Fit, measured again: Zoom in works from it. (Zoom out may not: on a phone
+  // the page fits below 25%.)
   await page.keyboard.press("0");
   await expect(page.getByTestId("zoom-level")).toHaveText("Fit");
-  await expect(page.getByTestId("zoom-out")).not.toHaveAttribute("aria-disabled", "true");
+  await expect(page.getByTestId("zoom-in")).not.toHaveAttribute("aria-disabled", "true");
 });
