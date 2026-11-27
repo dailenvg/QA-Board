@@ -3,6 +3,8 @@ import { type ClientInfo, parseClientInfo } from "../client-info/schema";
 import { hashPassword } from "../auth/password";
 import type { Database } from "../db/database";
 import type { Queryable } from "../share/migrate";
+import { shareServices } from "../share/server";
+import type { BlobLocation } from "../share/types";
 import { isExpired } from "../share/retention";
 import { reviewDeadline, windowHours } from "../share/review-window";
 import { secretMatches } from "../share/tokens";
@@ -432,6 +434,16 @@ export async function findGuestReply(
   if (createdAt === null) return null;
   const { body, author } = data;
   return { body, author, createdAt, clientInfo: parseClientInfo(row?.client_info) };
+}
+
+/**
+ * Discards the files of blob rows a committed change took off a review link
+ * (a comment gone team only: its crop). Best effort, as every discard.
+ */
+export async function discardLinkFiles(locations: readonly BlobLocation[]): Promise<void> {
+  if (locations.length === 0) return;
+  const { blobs } = await shareServices();
+  await blobs.discard(locations);
 }
 
 /** The id of the share linked to the workspace's live project, or null without one. */

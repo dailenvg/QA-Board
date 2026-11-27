@@ -4,6 +4,8 @@ import { personAvatarSrc } from "../routes";
 import { logoVersion } from "../share/brand";
 import type { Queryable } from "../share/migrate";
 import { createPostgresStore } from "../share/postgres-store";
+import { lockShare } from "../share/share-lock";
+import type { BlobLocation } from "../share/types";
 import type { Comment, CommentCrop, CommentPriority } from "../store/types";
 import { personKey } from "./members/person-key";
 import type { CommentCreate, CommentPatch } from "./schemas";
@@ -37,6 +39,8 @@ interface CommentRow {
   client_info: ClientInfo | null;
   /** Its `origin` is 'client': a guest's comment, pulled from the review link. */
   from_client: boolean;
+  /** Kept off review links (057). */
+  team_only: boolean;
   /**
    * A team comment's author's avatar key, while they're an active member of
    * the comment's workspace and have a photo; else null. Server-side only.
@@ -72,7 +76,8 @@ const columns = (alias: string) => `${alias}.project_id, ${alias}.id, ${alias}.x
     ELSE ${alias}.author_name END AS author_name,
   ${alias}.author_user_id, ${alias}.status, ${alias}.snapshot_id, ${alias}.page_id, ${alias}.crop,
   ${alias}.created_at, ${alias}.updated_at, ${alias}.resolved_at, ${alias}.edited_at,
-  ${alias}.priority, ${alias}.client_info, ${alias}.origin = 'client' AS from_client, ${authorAvatarKey(alias)}`;
+  ${alias}.priority, ${alias}.client_info, ${alias}.origin = 'client' AS from_client,
+  ${alias}.team_only, ${authorAvatarKey(alias)}`;
 const COLUMNS = columns("comment");
 const RETURNING = columns("comments");
 
@@ -123,6 +128,7 @@ function toComment(row: CommentRow, workspaceId: string, viewerId?: string): Com
     ...(row.priority ? { priority: row.priority } : {}),
     ...(row.client_info ? { clientInfo: row.client_info } : {}),
     ...(row.from_client ? { fromClient: true as const } : {}),
+    ...(row.team_only ? { teamOnly: true as const } : {}),
     ...(mine ? { mine: true as const } : {}),
     ...(authorAvatar ? { authorAvatar } : {}),
   };
@@ -184,7 +190,8 @@ export function clampEditedAt(editedAt: number | undefined, createdAt: number, n
  * changed on the way in. A team comment keeps `clientInfo` as the route
  * recorded it (with the request's user agent). The priority is the body's
  * either way: for a guest's, what they picked as the owner's pull brought it
- * (any member may change it anyway); for an Undo, what it was.
+ * (any member may change it anyway); for an Undo, what it was. Only a team
+ * comment can be team only (`teamOnly`): a guest's never is.
  * Run the project check first for a 404.
  */
 export async function addComment(
@@ -218,11 +225,12 @@ export async function addComment(
   const { rows } = await db.query<CommentRow>(
     `INSERT INTO comments (project_id, id, x, y, body, author_name, author_user_id, status,
        snapshot_id, page_id, crop, created_at, updated_at, resolved_at, edited_at, origin,
-       client_info, priority)
+       client_info, priority, team_only)
      SELECT project.id, $3, $4, $5, $6,
        COALESCE((SELECT name FROM users WHERE id = $8::uuid), $7), $8, $9, $10, $11,
        $12::jsonb, $13, $14, $15, $16,
-       CASE WHEN $8::uuid IS NULL THEN 'client' ELSE 'team' END, $17::jsonb, $18
+       CASE WHEN $8::uuid IS NULL THEN 'client' ELSE 'team' END, $17::jsonb, $18,
+       $8::uuid IS NOT NULL AND $19::boolean
      FROM projects AS project
      WHERE project.workspace_id = $1 AND project.id = $2 AND project.deleted_at IS NULL
      ON CONFLICT (project_id, id) DO NOTHING RETURNING ${RETURNING}`,
@@ -245,6 +253,7 @@ export async function addComment(
       editedAt === null ? null : toDate(editedAt),
       clientInfo ? JSON.stringify(clientInfo) : null,
       sent.priority ?? null,
+      sent.teamOnly === true,
     ],
   );
   return rows[0]
@@ -332,6 +341,123 @@ export async function changeComment(
     }
     return comment;
   });
+}
+
+/** A team-only change, and the link's files it took off: discard them once it commits. */
+export interface TeamOnlyChange<T> {
+  value: T;
+  discard: BlobLocation[];
+}
+
+/**
+ * Whose comment or reply may change who sees it (D9): its author's, and the
+ * owner's (`canModerate`), both ways. Only the team's: a client's never is.
+ * The query passes the actor's user id as $4 and `canModerate` as $5.
+ */
+export const MAY_SHARE = (alias: string) =>
+  `${alias}.origin = 'team' AND ($5::boolean OR ${alias}.author_user_id = $4::uuid)`;
+
+/**
+ * Makes a team comment team only, or shows it to clients again (D9-D12):
+ * its author or the owner, both ways. `not-found` (a 404) for anything else,
+ * as for a comment that isn't there. Never an edit: `edited_at` stays.
+ *
+ * Making it team only takes it off the project's review link in the same
+ * transaction (D11, layer 1), with its team replies (the foreign key's
+ * cascade) and its crop's row: under the share's lock, then the link row's
+ * lock, so a push and a guest's reply each go wholly before or after. A
+ * comment a client has replied to, pulled or still on the link, can't be
+ * (`has-client-replies`, D10): that reply would go with it. Showing it only
+ * clears the flag; the next push puts it on the link, with its replies that
+ * were never team only (the others stay so, B2).
+ */
+export async function setCommentTeamOnly(
+  db: Database,
+  target: { workspaceId: string; projectId: string; id: string },
+  teamOnly: boolean,
+  now: number,
+  actor: CommentActor,
+): Promise<QueryResult<TeamOnlyChange<Comment>>> {
+  return db.transaction(async (tx) => {
+    const shareId = teamOnly ? await linkedShareId(tx, target.workspaceId, target.projectId) : null;
+    if (shareId) {
+      await lockShare(tx, shareId);
+      await tx.query(
+        "SELECT 1 FROM squint_share_comments WHERE share_id = $1 AND id = $2 FOR UPDATE",
+        [shareId, target.id],
+      );
+    }
+    return flipComment(tx, target, teamOnly, now, actor, shareId);
+  });
+}
+
+/** Whether a client has replied to the comment: pulled into the workspace, or still on `shareId`. */
+async function hasClientReplies(
+  tx: Queryable,
+  projectId: string,
+  commentId: string,
+  shareId: string | null,
+): Promise<boolean> {
+  const { rows } = await tx.query<{ found: boolean }>(
+    `SELECT EXISTS (SELECT 1 FROM comment_replies
+         WHERE project_id = $1 AND comment_id = $2 AND origin = 'client')
+       OR EXISTS (SELECT 1 FROM squint_share_replies
+         WHERE share_id = $3 AND comment_id = $2 AND origin = 'client') AS found`,
+    [projectId, commentId, shareId],
+  );
+  return rows[0]?.found === true;
+}
+
+/** `setCommentTeamOnly` inside its transaction, holding the link's lock (`shareId`) when hiding. */
+async function flipComment(
+  tx: Queryable,
+  { workspaceId, projectId, id }: { workspaceId: string; projectId: string; id: string },
+  teamOnly: boolean,
+  now: number,
+  actor: CommentActor,
+  shareId: string | null,
+): Promise<QueryResult<TeamOnlyChange<Comment>>> {
+  const { rows: found } = await tx.query(
+    `SELECT 1 FROM comments AS comment JOIN projects AS project ON project.id = comment.project_id
+     WHERE project.workspace_id = $1 AND project.id = $2 AND project.deleted_at IS NULL
+       AND comment.id = $3 AND ${MAY_SHARE("comment")}
+     FOR UPDATE OF comment`,
+    [workspaceId, projectId, id, actor.userId, actor.canModerate],
+  );
+  if (found.length === 0) return refuse("not-found");
+  if (teamOnly && (await hasClientReplies(tx, projectId, id, shareId))) {
+    return refuse("has-client-replies");
+  }
+  const { rows } = await tx.query<CommentRow>(
+    `UPDATE comments AS comment SET team_only = $3, updated_at = $4
+     WHERE comment.project_id = $1 AND comment.id = $2
+     RETURNING ${COLUMNS}`,
+    [projectId, id, teamOnly, toDate(now)],
+  );
+  const row = rows[0];
+  if (!row) return refuse("not-found");
+  const discard = shareId ? await takeOffLink(tx, shareId, "comment", id) : [];
+  return done({ value: toComment(row, workspaceId, actor.userId), discard });
+}
+
+/**
+ * Deletes the owner's row of a comment (its team replies go with it, by the
+ * foreign key) or of a reply from the link `shareId`, and a comment's crop's
+ * row, so the link can't serve it. Where that crop's file was, to discard.
+ */
+export async function takeOffLink(
+  tx: Queryable,
+  shareId: string,
+  kind: "comment" | "reply",
+  id: string,
+): Promise<BlobLocation[]> {
+  const table = kind === "comment" ? "squint_share_comments" : "squint_share_replies";
+  const { rows } = await tx.query(
+    `DELETE FROM ${table} WHERE share_id = $1 AND id = $2 AND origin = 'owner' RETURNING id`,
+    [shareId, id],
+  );
+  if (kind === "reply" || rows.length === 0) return [];
+  return createPostgresStore(tx).deleteBlobs(shareId, [`crop:${id}`]);
 }
 
 /**

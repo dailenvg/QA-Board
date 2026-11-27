@@ -1,13 +1,15 @@
 import type { ClientInfo } from "../client-info/schema";
+import type { Database } from "../db/database";
 import { personAvatarSrc } from "../routes";
 import { logoVersion } from "../share/brand";
 import type { Queryable } from "../share/migrate";
+import { lockShare } from "../share/share-lock";
 import type { Reply } from "../store/types";
-import { clampEditedAt, type CommentActor } from "./comments";
+import { clampEditedAt, MAY_SHARE, takeOffLink, type CommentActor } from "./comments";
 import { personKey } from "./members/person-key";
 import { done, refuse, type QueryResult } from "./query-result";
 import type { ReplyCreate, ReplyPatch } from "./schemas";
-import type { GuestReply } from "./share-links";
+import { linkedShareId, type GuestReply } from "./share-links";
 import { toDate, toMs } from "./times";
 
 /**
@@ -30,6 +32,8 @@ interface ReplyRow {
   client_info: ClientInfo | null;
   /** Its `origin` is 'client': a guest's reply, from the review link. */
   from_client: boolean;
+  /** Kept off review links (057); a reply under a team-only comment is kept off anyway. */
+  team_only: boolean;
   /** A team reply's author's avatar key while they're an active member with a photo. Server-side only. */
   author_avatar_key: string | null;
 }
@@ -44,7 +48,7 @@ interface ReplyRow {
 const SELECT = (source: string) => `SELECT reply.project_id, reply.comment_id, reply.id,
     reply.body, COALESCE(author.name, reply.author_name) AS author_name, reply.author_user_id,
     reply.created_at, reply.edited_at, reply.client_info, reply.origin = 'client' AS from_client,
-    avatar.key AS author_avatar_key
+    reply.team_only, avatar.key AS author_avatar_key
   FROM ${source} AS reply
   JOIN projects AS project ON project.id = reply.project_id
   LEFT JOIN users AS author ON reply.origin = 'team' AND author.id = reply.author_user_id
@@ -119,6 +123,7 @@ function toReply(row: ReplyRow, avatarOf: AvatarOf, viewerId?: string): Reply {
     ...(row.edited_at ? { editedAt: toMs(row.edited_at) } : {}),
     ...(row.client_info ? { clientInfo: row.client_info } : {}),
     ...(row.from_client ? { fromClient: true as const } : {}),
+    ...(row.team_only ? { teamOnly: true as const } : {}),
     ...(mine ? { mine: true as const } : {}),
     ...(authorAvatar ? { authorAvatar } : {}),
   };
@@ -169,7 +174,10 @@ async function commentExists(
  * back by Undo, keeps `editedAt` (clamped). `clientInfo` is kept as the
  * route recorded it. A guest's is saved without an author account, as the
  * review link holds it (`postedAs`). `not-found` without the comment,
- * `exists` for a taken id.
+ * `exists` for a taken id. A team reply is team only when it asks
+ * (`teamOnly`), and always under a team-only comment, for good (B2): showing
+ * the comment later never shows it. A guest's never is, even pulled in under
+ * a comment that went team only after they replied.
  */
 export async function addReply(
   db: Queryable,
@@ -187,10 +195,10 @@ export async function addReply(
   const { rows } = await db.query<ReplyRow>(
     `WITH added AS (
        INSERT INTO comment_replies (project_id, comment_id, id, body, author_name, author_user_id,
-         origin, client_info, created_at, edited_at)
+         origin, client_info, created_at, edited_at, team_only)
        SELECT comment.project_id, comment.id, $4, $5,
          COALESCE((SELECT name FROM users WHERE id = $7::uuid), $6), $7::uuid, $8, $9::jsonb,
-         $10, $11
+         $10, $11, $8 = 'team' AND (comment.team_only OR $12::boolean)
        FROM comments AS comment JOIN projects AS project ON project.id = comment.project_id
        WHERE project.workspace_id = $1 AND project.id = $2 AND project.deleted_at IS NULL
          AND comment.id = $3
@@ -208,6 +216,7 @@ export async function addReply(
       input.clientInfo ? JSON.stringify(input.clientInfo) : null,
       toDate(createdAt),
       editedAt === null ? null : toDate(editedAt),
+      author.kind === "team" && sent.teamOnly === true,
     ],
   );
   if (rows[0]) return done(toReply(rows[0], avatarSources(workspaceId), userId ?? undefined));
@@ -226,7 +235,7 @@ export async function updateReply(
   db: Queryable,
   workspaceId: string,
   target: { projectId: string; commentId: string; id: string },
-  patch: ReplyPatch,
+  patch: Required<Pick<ReplyPatch, "body">>,
   now: number,
   actor: Pick<CommentActor, "userId">,
 ): Promise<Reply | null> {
@@ -251,6 +260,51 @@ export async function updateReply(
     ],
   );
   return rows[0] ? toReply(rows[0], avatarSources(workspaceId), actor.userId) : null;
+}
+
+/**
+ * Makes a team reply team only, or shows it to clients again (D9): its
+ * author or the owner, both ways, under a comment clients see (a team-only
+ * comment's replies are kept off anyway). `not-found` (a 404) for anything
+ * else, as for a reply that isn't there. Never an edit: `edited_at` stays.
+ * Making it team only takes its row off the project's review link in the
+ * same transaction, under the share's lock (D41); showing it only clears the
+ * flag, and the next push puts it on the link.
+ */
+export async function setReplyTeamOnly(
+  db: Database,
+  workspaceId: string,
+  target: { projectId: string; commentId: string; id: string },
+  teamOnly: boolean,
+  actor: CommentActor,
+): Promise<QueryResult<Reply>> {
+  return db.transaction(async (tx) => {
+    const shareId = teamOnly ? await linkedShareId(tx, workspaceId, target.projectId) : null;
+    if (shareId) await lockShare(tx, shareId);
+    const { rows } = await tx.query<ReplyRow>(
+      `WITH changed AS (
+         UPDATE comment_replies AS reply SET team_only = $6
+         FROM projects AS project, comments AS parent
+         WHERE project.id = reply.project_id AND project.workspace_id = $1
+           AND project.deleted_at IS NULL AND reply.project_id = $2 AND reply.comment_id = $3
+           AND reply.id = $7 AND parent.project_id = reply.project_id
+           AND parent.id = reply.comment_id AND NOT parent.team_only AND ${MAY_SHARE("reply")}
+         RETURNING reply.*)
+       ${SELECT("changed")}`,
+      [
+        workspaceId,
+        target.projectId,
+        target.commentId,
+        actor.userId,
+        actor.canModerate,
+        teamOnly,
+        target.id,
+      ],
+    );
+    if (!rows[0]) return refuse("not-found");
+    if (shareId) await takeOffLink(tx, shareId, "reply", target.id);
+    return done(toReply(rows[0], avatarSources(workspaceId), actor.userId));
+  });
 }
 
 /**

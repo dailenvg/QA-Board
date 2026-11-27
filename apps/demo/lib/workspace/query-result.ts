@@ -11,7 +11,8 @@ export type Refusal =
   | "quota"
   | "too-large"
   | "wrong-kind"
-  | "not-uploaded";
+  | "not-uploaded"
+  | "has-client-replies";
 
 export type QueryResult<T> = { ok: true; value: T } | { ok: false; reason: Refusal };
 
