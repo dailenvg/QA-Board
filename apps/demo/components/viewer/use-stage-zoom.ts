@@ -50,7 +50,8 @@ export function useStageZoomSurface(): StageZoomSurface {
 /** For a stage's "can't be shown" state: while it's up, there's nothing to zoom. */
 export function useMissingSurface(): void {
   const { markMissing } = useStageZoomSurface();
-  useEffect(() => markMissing(), [markMissing]);
+  // Before paint, so the control never shows for a frame over a failed surface.
+  useLayoutEffect(() => markMissing(), [markMissing]);
 }
 
 export interface StageZoom {
