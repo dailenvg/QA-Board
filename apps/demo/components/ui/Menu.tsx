@@ -203,6 +203,11 @@ interface MenuProps {
   textClassName?: string;
   /** Replaces the default (ghost) trigger styling. */
   triggerClassName?: string;
+  /**
+   * What the trigger shows in place of its icon and text, such as a chip that opens its own
+   * menu (the viewer's stage). Visual only: `label` stays the trigger's name.
+   */
+  triggerContent?: ReactNode;
   /** Unavailable right now: the trigger stays focusable and explains why. */
   disabledReason?: string | null;
   /**
@@ -235,6 +240,7 @@ export function Menu({
   text,
   textClassName = "max-sm:sr-only",
   triggerClassName = TRIGGER_CLASS,
+  triggerContent,
   disabledReason = null,
   triggerTabIndex,
   handle,
@@ -409,7 +415,7 @@ export function Menu({
         }}
         className={`${triggerClassName} ${indicator ? "relative" : ""}`}
       >
-        {icon ? <Icon name={icon} /> : null}
+        {triggerContent ?? (icon ? <Icon name={icon} /> : null)}
         {indicator ? (
           <span
             aria-hidden="true"
@@ -417,7 +423,7 @@ export function Menu({
             className="absolute top-2 right-2 size-2 rounded-pill bg-brand-text shadow-[0_0_0_2px_var(--color-panel)]"
           />
         ) : null}
-        {text ? <span className={textClassName}>{text}</span> : null}
+        {text && !triggerContent ? <span className={textClassName}>{text}</span> : null}
         {disabledReason ? (
           <span id={reasonId} className="sr-only">
             {disabledReason}
