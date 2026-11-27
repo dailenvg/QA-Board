@@ -26,11 +26,16 @@ export interface CropPlan {
   pin: { x: number; y: number };
   /** Output px per surface px (crops are scaled down to `MAX_CROP_EDGE`). */
   scale: number;
-  /** Marker size in output px, matching the pin's on-screen size. */
+  /** Marker size in output px, matching the pin's on-screen size (zoomed in, its size at 100%). */
   markerSize: number;
 }
 
 export const MAX_CROP_EDGE = 1600;
+/**
+ * The least a crop shows, in surface px: zoomed in, the stage may show only a few hundred
+ * surface px around the pin, too little to tell where it is.
+ */
+export const MIN_CROP_WINDOW = { width: 480, height: 320 } as const;
 /** The pin marker is 2rem (32px) on screen. */
 const MARKER_CSS_PX = 32;
 
@@ -67,6 +72,24 @@ function centredOn(
   return { x, y, width: w, height: h };
 }
 
+/** `start`, `size` long, grown about its centre to at least `least` and kept in `0..limit`. */
+function grownSpan(start: number, size: number, least: number, limit: number): [number, number] {
+  if (size >= least) return [start, size];
+  const grown = Math.min(least, limit);
+  const from = start + size / 2 - grown / 2;
+  return [Math.min(Math.max(0, from), limit - grown), grown];
+}
+
+/**
+ * `region`, grown to at least `MIN_CROP_WINDOW` (or the whole surface, if smaller) about its
+ * centre and kept inside the surface. It only grows, so the pin it holds stays in it.
+ */
+export function atLeastCropWindow(region: Rect, natural: { width: number; height: number }): Rect {
+  const [x, width] = grownSpan(region.x, region.width, MIN_CROP_WINDOW.width, natural.width);
+  const [y, height] = grownSpan(region.y, region.height, MIN_CROP_WINDOW.height, natural.height);
+  return { x, y, width, height };
+}
+
 function rounded(rect: Rect): Rect {
   const x = Math.round(rect.x);
   const y = Math.round(rect.y);
@@ -81,6 +104,7 @@ function rounded(rect: Rect): Rect {
 /**
  * The part of the surface the commenter could see when they posted. If the
  * pin has scrolled out of view, a view-sized region centred on it instead.
+ * Either way at least `MIN_CROP_WINDOW` around the pin, for a stage zoomed in.
  */
 export function planCrop({ image, view, natural, pin }: CropInput): CropPlan | null {
   if (image.width <= 0 || image.height <= 0 || natural.width <= 0 || natural.height <= 0) {
@@ -100,9 +124,11 @@ export function planCrop({ image, view, natural, pin }: CropInput): CropPlan | n
     visible && contains(visible, point)
       ? visible
       : centredOn(point, view.width * perX, view.height * perY, natural);
-  const rect = rounded(region);
+  const rect = rounded(atLeastCropWindow(region, natural));
   const scale = Math.min(1, MAX_CROP_EDGE / Math.max(rect.width, rect.height));
-  return { rect, pin: point, scale, markerSize: MARKER_CSS_PX * perX * scale };
+  // Zoomed in, the pin covers fewer surface px than at 100%; the crop draws it as at 100% at
+  // least, so it still stands out in a crop grown past what was on screen.
+  return { rect, pin: point, scale, markerSize: MARKER_CSS_PX * Math.max(1, perX) * scale };
 }
 
 /** A rect in image px as page px, for an image rendered at `scale` image px per page px. */
