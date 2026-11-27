@@ -67,9 +67,9 @@ export function ImageStage({
     return <ImageUnavailable onReplace={onReplace} />;
   }
   // As wide as a zoomed image, so its padding scrolls with it; room at the bottom for the zoom
-  // control, so the image's last row can scroll out from under it.
+  // control (its inset plus its 52px), so the image's last row can scroll out from under it.
   return (
-    <div className="w-fit min-w-full px-3 pt-3 pb-16 sm:px-5 sm:pt-5">
+    <div className="w-fit min-w-full px-3 pt-3 pb-16 sm:px-5 sm:pt-5 sm:pb-18">
       <SurfaceImage
         src={image.url}
         alt={`${projectName}, ${pageLabel ? `${pageLabel}, ` : ""}the image under review`}

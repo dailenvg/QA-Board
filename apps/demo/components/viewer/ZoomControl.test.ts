@@ -7,12 +7,18 @@ import { ZoomControl } from "./ZoomControl";
 
 const noop = () => {};
 
-function control(zoom: Zoom, effective: number | null, shown = true): string {
+function control(
+  zoom: Zoom,
+  effective: number | null,
+  shown = true,
+  announced: number | null = null,
+): string {
   return renderToStaticMarkup(
     createElement(ZoomControl, {
       shown,
       zoom,
       effective,
+      announced,
       onZoomIn: noop,
       onZoomOut: noop,
       onZoomTo: noop,
@@ -44,9 +50,14 @@ describe("the zoom control", () => {
     expect(html).toMatch(/data-testid="zoom-level"[^>]*>(?:<[^>]*>)*200%</);
   });
 
-  it("says the level to screen readers", () => {
-    expect(control("fit", 0.457)).toMatch(/data-testid="zoom-status"[^>]*>Zoom 46%</);
-    expect(control(1, 1)).toMatch(/data-testid="zoom-status"[^>]*>Zoom 100%</);
+  it("says the level a zoom landed on to screen readers", () => {
+    expect(control("fit", 0.457, true, 0.457)).toMatch(/data-testid="zoom-status"[^>]*>Zoom 46%</);
+    expect(control(1, 1, true, 1)).toMatch(/data-testid="zoom-status"[^>]*>Zoom 100%</);
+  });
+
+  it("says nothing of a level no zoom was asked for, such as a Fit that moved", () => {
+    expect(control("fit", 0.457)).toMatch(/data-testid="zoom-status"[^>]*><\/p>/);
+    expect(control("fit", 0.5, true, 0.457)).toMatch(/data-testid="zoom-status"[^>]*>Zoom 46%</);
   });
 
   it("makes the button past a limit unavailable, keeping it focusable", () => {

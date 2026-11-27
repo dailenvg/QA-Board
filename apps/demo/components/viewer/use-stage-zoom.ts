@@ -48,6 +48,11 @@ export interface StageZoom {
   zoom: Zoom;
   /** The level shown now (at Fit, the fit's); null until a surface is on stage and measured. */
   effective: number | null;
+  /**
+   * The level the last zoom asked for (buttons, menu, keys, wheel) landed on, for screen readers;
+   * null until one is. A Fit that changes with the window or the page isn't announced.
+   */
+  announced: number | null;
   pan: PanState;
   surface: StageZoomSurface;
   zoomIn: () => void;
@@ -79,6 +84,9 @@ export function useStageZoom(scroller: RefObject<HTMLElement | null>): StageZoom
   const node = useRef<HTMLElement | null>(null);
   const widthRef = useRef<number | null>(null);
   const anchor = useRef<Anchor | null>(null);
+  /** A zoom was asked for and isn't drawn yet: its level is announced once it is. */
+  const unannounced = useRef(false);
+  const [announced, setAnnounced] = useState<number | null>(null);
   const attached = surfaceWidth !== null;
 
   const measureFit = useCallback(() => {
@@ -117,7 +125,15 @@ export function useStageZoom(scroller: RefObject<HTMLElement | null>): StageZoom
     if (!surface || target === zoomRef.current) return;
     if (point) anchor.current = { point, on: anchorOn(point, surface.getBoundingClientRect()) };
     zoomRef.current = target;
+    unannounced.current = true;
     setZoom(target);
+  }, []);
+
+  /** Once a zoom asked for is drawn (and a Fit measured), its level for screen readers. */
+  const announce = useCallback(() => {
+    if (!unannounced.current) return;
+    unannounced.current = false;
+    setAnnounced(effectiveZoom(zoomRef.current, fitLevelRef.current));
   }, []);
 
   /** The centre of the stage's visible part, where keys and buttons zoom around. */
@@ -151,6 +167,7 @@ export function useStageZoom(scroller: RefObject<HTMLElement | null>): StageZoom
   // measure the fit when it's Fit (a surface the same width at Fit doesn't resize).
   useLayoutEffect(() => {
     measureFit();
+    announce();
     const area = scroller.current;
     const surface = node.current;
     const asked = anchor.current;
@@ -158,7 +175,7 @@ export function useStageZoom(scroller: RefObject<HTMLElement | null>): StageZoom
     if (!area || !surface || !asked) return;
     const by = anchorCorrection(asked.on, surface.getBoundingClientRect(), asked.point);
     area.scrollBy({ left: by.x, top: by.y, behavior: "instant" });
-  }, [zoom, scroller, measureFit]);
+  }, [zoom, scroller, measureFit, announce]);
 
   // Cmd/Ctrl+wheel, and a trackpad's pinch (a wheel with ctrlKey), zoom around the pointer.
   // Not passive, to keep the browser's own page zoom out of it; a plain wheel still scrolls.
@@ -182,6 +199,7 @@ export function useStageZoom(scroller: RefObject<HTMLElement | null>): StageZoom
   return {
     zoom,
     effective: attached ? effectiveZoom(zoom, fitLevel) : null,
+    announced,
     pan,
     surface,
     zoomIn,

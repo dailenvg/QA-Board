@@ -14,6 +14,8 @@ interface ZoomControlProps {
   zoom: Zoom;
   /** The level shown now (`StageZoom.effective`); null until it's measured. */
   effective: number | null;
+  /** The level a zoom asked for landed on (`StageZoom.announced`), the only one announced. */
+  announced: number | null;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onZoomTo: (zoom: Zoom) => void;
@@ -30,12 +32,14 @@ function levelName(zoom: Zoom): string {
 /**
  * Zoom out, the level (a menu of Fit width and set levels) and Zoom in, floating at the bottom
  * right of the stage. At 25% and 400% the button that would pass the limit is unavailable, but
- * keeps focus. Screen readers hear each new level.
+ * keeps focus. Screen readers hear each level a zoom lands on, not a Fit that moves with the
+ * window or the page.
  */
 export function ZoomControl({
   shown,
   zoom,
   effective,
+  announced,
   onZoomIn,
   onZoomOut,
   onZoomTo,
@@ -59,7 +63,9 @@ export function ZoomControl({
           animate="visible"
           exit="exit"
           style={{ transformOrigin: "bottom right" }}
-          className="absolute right-3 bottom-3 z-30 flex items-center gap-0.5 rounded-pill bg-panel/95 p-1 shadow-float ring-1 ring-line backdrop-blur"
+          // In from the stage's edges by its gutter (the content's padding, the snapshot bar's
+          // margin), which also keeps it off a classic scrollbar. Stages leave room under it.
+          className="absolute right-3 bottom-3 z-30 flex items-center gap-1 rounded-pill bg-panel/95 p-1 shadow-float ring-1 ring-line backdrop-blur sm:right-5 sm:bottom-5"
         >
           {/* aria-disabled, not disabled: at a limit the button keeps keyboard focus. */}
           <Button
@@ -95,7 +101,7 @@ export function ZoomControl({
             <Icon name="zoomIn" />
           </Button>
           <p aria-live="polite" className="sr-only" data-testid="zoom-status">
-            {effective === null ? "" : `Zoom ${Math.round(effective * 100)}%`}
+            {announced === null ? "" : `Zoom ${Math.round(announced * 100)}%`}
           </p>
         </motion.div>
       ) : null}

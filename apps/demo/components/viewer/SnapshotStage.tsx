@@ -119,7 +119,7 @@ export function SnapshotStage({
         ref={bodyRef}
         tabIndex={snapshot ? undefined : -1}
         // With a snapshot, room at the bottom for the zoom control (as on an image's stage).
-        className={`flex-1 px-3 pt-3 focus:outline-none sm:px-5 sm:pt-5 ${snapshot ? "pb-16" : "pb-3 sm:pb-5"}`}
+        className={`flex-1 px-3 pt-3 focus:outline-none sm:px-5 sm:pt-5 ${snapshot ? "pb-16 sm:pb-18" : "pb-3 sm:pb-5"}`}
       >
         {body}
       </div>
