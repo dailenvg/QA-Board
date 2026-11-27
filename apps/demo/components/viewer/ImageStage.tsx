@@ -42,7 +42,7 @@ function ImageUnavailable({ onReplace }: { onReplace: ScreenshotHandler | null }
   );
 }
 
-/** Image canvas at its natural aspect ratio (never upscaled); the canvas area scrolls. */
+/** Image canvas at its natural aspect ratio, at the stage's zoom; the canvas area scrolls. */
 export function ImageStage({
   blobKey,
   projectName,
@@ -66,8 +66,10 @@ export function ImageStage({
   if (image.status === "missing" || failed === image.url) {
     return <ImageUnavailable onReplace={onReplace} />;
   }
+  // As wide as a zoomed image, so its padding scrolls with it; room at the bottom for the zoom
+  // control, so the image's last row can scroll out from under it.
   return (
-    <div className="p-3 sm:p-5">
+    <div className="w-fit min-w-full px-3 pt-3 pb-16 sm:px-5 sm:pt-5">
       <SurfaceImage
         src={image.url}
         alt={`${projectName}, ${pageLabel ? `${pageLabel}, ` : ""}the image under review`}

@@ -46,7 +46,9 @@ export function SnapshotBar({
       initial="hidden"
       animate="visible"
       data-testid="snapshot-bar"
-      className="sticky top-3 z-30 mx-3 mt-3 flex flex-col gap-2 sm:mx-5 sm:mt-5"
+      // The stage's width (`@container`) less its margins, stuck to its left edge too: on a
+      // snapshot zoomed wider than the stage, the bar stays in view as it scrolls sideways.
+      className="sticky top-3 left-3 z-30 mx-3 mt-3 flex w-[calc(100cqw-1.5rem)] flex-col gap-2 sm:left-5 sm:mx-5 sm:mt-5 sm:w-[calc(100cqw-2.5rem)]"
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-card bg-panel/95 py-1 pr-1 pl-4 shadow-float ring-1 ring-line backdrop-blur">
         <Icon name={isLatest ? "camera" : "history"} className="size-4 shrink-0 text-muted" />

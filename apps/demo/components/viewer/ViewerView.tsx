@@ -64,6 +64,7 @@ import {
   type CommentView,
 } from "./priority-view";
 import { sendDraft } from "./send-draft";
+import { StageZoom } from "./StageZoom";
 import { commentSurfaceKey, pinInSurface, placementOf, surfaceKey } from "./surface";
 import { useCommentActions } from "./use-comment-actions";
 import { LINK_MISSING, useCommentLink } from "./use-comment-link";
@@ -972,30 +973,40 @@ export function ViewerView({
               onStep={pages.step}
             />
           ) : null}
-          <main
-            id="main"
-            ref={canvasAreaRef}
-            data-testid="canvas-area"
-            data-mode={mode}
-            data-surface={surface.kind}
-            className={`relative min-h-0 min-w-0 flex-1 overflow-auto rounded-panel bg-tile ${scrollInset}`}
+          <StageZoom
+            scroller={canvasAreaRef}
+            zoomable={
+              surface.kind === "page" || (surface.kind === "snapshot" && !!surface.snapshot)
+            }
           >
-            <ViewerStage
-              project={project}
-              surface={surface}
-              latest={view.latest}
-              frame={frame}
-              overlay={overlay}
-              imageRef={imageRef}
-              onReady={() => setStageVersion((value) => value + 1)}
-              capture={view.capture.state}
-              onCapture={view.capture.capture}
-              frameWidth={website && breakpoint !== "desktop" ? BREAKPOINT_WIDTH[breakpoint] : null}
-              onShowLatest={view.showLatest}
-              onBrowse={() => chooseMode("browse")}
-              onScreenshot={owner ? saveScreenshot : null}
-            />
-          </main>
+            {/* A container, so the snapshot bar can match its width on a zoomed snapshot. */}
+            <main
+              id="main"
+              ref={canvasAreaRef}
+              data-testid="canvas-area"
+              data-mode={mode}
+              data-surface={surface.kind}
+              className={`@container relative min-h-0 min-w-0 flex-1 scroll-pb-16 overflow-auto rounded-panel bg-tile ${scrollInset}`}
+            >
+              <ViewerStage
+                project={project}
+                surface={surface}
+                latest={view.latest}
+                frame={frame}
+                overlay={overlay}
+                imageRef={imageRef}
+                onReady={() => setStageVersion((value) => value + 1)}
+                capture={view.capture.state}
+                onCapture={view.capture.capture}
+                frameWidth={
+                  website && breakpoint !== "desktop" ? BREAKPOINT_WIDTH[breakpoint] : null
+                }
+                onShowLatest={view.showLatest}
+                onBrowse={() => chooseMode("browse")}
+                onScreenshot={owner ? saveScreenshot : null}
+              />
+            </main>
+          </StageZoom>
         </div>
         <CommentsPanel
           docked={docked}
