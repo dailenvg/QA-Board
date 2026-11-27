@@ -6,7 +6,8 @@ import { Menu, type MenuItem } from "../ui/Menu";
 import { LabelFilter } from "./LabelFilter";
 import { PROJECT_SORT, type ProjectSort, type SortKey } from "./project-sort";
 import { SortControls } from "./SortControls";
-import type { ProjectFilter, StatusFilterValue } from "./status-filter";
+import { StageFilter } from "./StageFilter";
+import type { ProjectFilter, StageFilterValue, StatusFilterValue } from "./status-filter";
 import { StatusFilter } from "./StatusFilter";
 
 interface DashboardHeaderProps {
@@ -15,8 +16,11 @@ interface DashboardHeaderProps {
   filter: ProjectFilter;
   /** The labels of the folder's projects, for the label filter. */
   labels: readonly string[];
+  /** Whether any of the folder's projects has a stage, for the stage filter. */
+  stagesInUse: boolean;
   onStatus: (value: StatusFilterValue) => void;
   onLabel: (label: string | null) => void;
+  onStage: (stage: StageFilterValue) => void;
   sort: ProjectSort;
   onSortKey: (key: SortKey) => void;
   onReverseSort: () => void;
@@ -27,16 +31,18 @@ interface DashboardHeaderProps {
 }
 
 /**
- * Folder title with summary chips, folder actions, the status and label filters and the sort
- * controls.
+ * Folder title with summary chips, folder actions, the status, label and stage filters and the
+ * sort controls.
  */
 export function DashboardHeader({
   folder,
   chips,
   filter,
   labels,
+  stagesInUse,
   onStatus,
   onLabel,
+  onStage,
   sort,
   onSortKey,
   onReverseSort,
@@ -64,13 +70,14 @@ export function DashboardHeader({
         </ul>
       </div>
       {/*
-        Wraps on narrow screens: the status filter scrolls across the full width, the label
-        filter and sort drop below it (sort on the right; its menu opens leftward from there,
-        staying on screen).
+        Wraps on narrow screens: the status filter scrolls across the full width, the label and
+        stage filters and sort drop below it (sort on the right; its menu opens leftward from
+        there, staying on screen).
       */}
       <div className="flex max-w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
         <StatusFilter value={filter.status} onChange={onStatus} />
         <LabelFilter labels={labels} value={filter.label} onChange={onLabel} />
+        <StageFilter inUse={stagesInUse} value={filter.stage} onChange={onStage} />
         <div className="ml-auto">
           <SortControls
             sort={sort}

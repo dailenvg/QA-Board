@@ -3,10 +3,17 @@
 import { useMemo } from "react";
 import { workspaceLabels } from "@/lib/store/archive";
 import { childFolders } from "@/lib/store/folders";
+import { anyStaged } from "@/lib/store/stage";
 import { DashboardEmpty } from "../dashboard/DashboardEmpty";
 import { LabelFilter } from "../dashboard/LabelFilter";
 import { SortControls } from "../dashboard/SortControls";
-import { noMatchKind, STATUS_FILTER_OPTIONS, type ProjectFilter } from "../dashboard/status-filter";
+import { StageFilter } from "../dashboard/StageFilter";
+import {
+  noMatchKind,
+  stageFilterLabel,
+  STATUS_FILTER_OPTIONS,
+  type ProjectFilter,
+} from "../dashboard/status-filter";
 import { focusStatusFilter, StatusFilter } from "../dashboard/StatusFilter";
 import { useFilterAnnouncement } from "../dashboard/use-filter-announcement";
 import { useProjectFilter } from "../dashboard/use-project-filter";
@@ -20,15 +27,19 @@ function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
-/** What the live region says the filters are: "Archived", "Comments in, Urgent". */
+/** What the live region says the filters are: "Archived", "Comments in, Urgent, On hold". */
 function filterName(filter: ProjectFilter): string {
   const status = STATUS_FILTER_OPTIONS.find((option) => option.value === filter.status)?.label;
-  return filter.label === null ? (status ?? "") : `${status ?? ""}, ${filter.label}`;
+  return [
+    status ?? "",
+    ...(filter.label === null ? [] : [filter.label]),
+    ...(filter.stage === "all" ? [] : [stageFilterLabel(filter.stage)]),
+  ].join(", ");
 }
 
 /**
- * Folders' top-level folders in the chosen order, under the status and label filters (as on
- * folder pages) and, once there are two or more to order, the sort controls. A filter shows
+ * Folders' top-level folders in the chosen order, under the status, label and stage filters (as
+ * on folder pages) and, once there are two or more to order, the sort controls. A filter shows
  * only the folders holding a project it shows, subfolders included, each holding and counting
  * just those projects; the sort then goes by them too. Archived projects show under Archived
  * only.
@@ -37,7 +48,8 @@ export function OverviewFolders({ workspace }: { workspace: Workspace }) {
   const { allData: data, waiting, folders } = workspace;
   const { sort, setKey, reverse } = useFolderSort();
   const labels = useMemo(() => workspaceLabels(data), [data]);
-  const { filter, setStatus, setLabel, reset } = useProjectFilter(labels);
+  const stagesInUse = useMemo(() => anyStaged(data.projects), [data]);
+  const { filter, setStatus, setLabel, setStage, reset } = useProjectFilter(labels);
   const topLevel = useMemo(() => childFolders(folders, null), [folders]);
   const sorted = useMemo(
     () =>
@@ -62,12 +74,13 @@ export function OverviewFolders({ workspace }: { workspace: Workspace }) {
       {/*
         On touch, folder cards pull their headroom up (FolderCard); this padding takes it, so
         the first row never sits over the controls. The filter scrolls across the full width on
-        narrow screens; the label filter and sort drop below it (sort on the right, its menu
-        opening leftward from there).
+        narrow screens; the label and stage filters and sort drop below it (sort on the right,
+        its menu opening leftward from there).
       */}
       <div className="flex max-w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-2 [@media(hover:none)]:pb-10">
         <StatusFilter value={filter.status} onChange={setStatus} />
         <LabelFilter labels={labels} value={filter.label} onChange={setLabel} />
+        <StageFilter inUse={stagesInUse} value={filter.stage} onChange={setStage} />
         {sorted.length > 1 ? (
           <div className="ml-auto">
             <SortControls sort={sort} options={FOLDER_SORT} onKey={setKey} onReverse={reverse} />

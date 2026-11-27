@@ -8,11 +8,20 @@ import { StateArt, type ArtScene } from "../ui/line-art/StateArt";
 
 /**
  * `folder`: nothing in this folder yet. `filter`: none of its projects matches the status
- * filter, `archived`: none is archived, `label`: none matches the label (and status) chosen.
- * `folders`, `foldersArchived` and `foldersLabel`: the same, for the folders on Folders.
+ * filter, `archived`: none is archived, `label`: none matches the label (and status) chosen,
+ * `stage`: none matches the stage (and label and status) chosen. `folders`, `foldersArchived`,
+ * `foldersLabel` and `foldersStage`: the same, for the folders on Folders.
  */
 export type DashboardEmptyKind =
-  "folder" | "filter" | "archived" | "label" | "folders" | "foldersArchived" | "foldersLabel";
+  | "folder"
+  | "filter"
+  | "archived"
+  | "label"
+  | "stage"
+  | "folders"
+  | "foldersArchived"
+  | "foldersLabel"
+  | "foldersStage";
 
 interface DashboardEmptyProps {
   kind: DashboardEmptyKind;
@@ -55,6 +64,16 @@ const COPY = {
     body: "Try another label or status, or show every folder.",
     action: "Show all",
   },
+  stage: {
+    title: "No projects match these filters",
+    body: "Try another stage, label or status, or show every project in this folder.",
+    action: "Show all",
+  },
+  foldersStage: {
+    title: "No projects match these filters",
+    body: "Try another stage, label or status, or show every folder.",
+    action: "Show all",
+  },
 } as const satisfies Record<DashboardEmptyKind, { title: string; body: string; action: string }>;
 
 /** Each kind's line-art scene: the empty folder, nothing archived, or no match. */
@@ -66,6 +85,8 @@ const SCENE = {
   foldersArchived: "archive",
   label: "noMatch",
   foldersLabel: "noMatch",
+  stage: "noMatch",
+  foldersStage: "noMatch",
 } as const satisfies Record<DashboardEmptyKind, ArtScene>;
 
 /** Empty folder or empty filter result, over its line-art scene (`StateArt`). */

@@ -13,6 +13,7 @@ import {
 import { isArchived, labelsOf, workspaceLabels } from "@/lib/store/archive";
 import { ancestorsOf, childFolders } from "@/lib/store/folders";
 import { folderSummaries } from "@/lib/store/selectors";
+import { anyStaged } from "@/lib/store/stage";
 import type { Folder, Project } from "@/lib/store/types";
 import { useDialogState } from "@/lib/use-dialog-state";
 import { useNow } from "@/lib/use-now";
@@ -64,7 +65,11 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
   );
   const labels = useMemo(() => labelsOf(summaries.map((entry) => entry.project)), [summaries]);
   const allLabels = useMemo(() => workspaceLabels(allData), [allData]);
-  const { filter, setStatus, setLabel, reset } = useProjectFilter(labels);
+  const stagesInUse = useMemo(
+    () => anyStaged(summaries.map((entry) => entry.project)),
+    [summaries],
+  );
+  const { filter, setStatus, setLabel, setStage, reset } = useProjectFilter(labels);
   const active = useMemo(
     () => summaries.filter((entry) => !isArchived(entry.project)),
     [summaries],
@@ -125,8 +130,10 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
         chips={chips}
         filter={filter}
         labels={labels}
+        stagesInUse={stagesInUse}
         onStatus={setStatus}
         onLabel={setLabel}
+        onStage={setStage}
         sort={sort}
         onSortKey={setKey}
         onReverseSort={reverse}

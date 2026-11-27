@@ -27,3 +27,8 @@ export function withStage(project: Project, stage: ProjectStage | null, at: numb
   const { stage: _stage, stageChangedAt: _stageChangedAt, ...rest } = project;
   return stage === null ? rest : { ...rest, stage, stageChangedAt: at };
 }
+
+/** Whether any of `projects` has a stage: the stage filter shows from then on (U5). */
+export function anyStaged(projects: readonly Project[]): boolean {
+  return projects.some((project) => project.stage !== undefined);
+}

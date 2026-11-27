@@ -37,6 +37,7 @@ const TOP = DATA.folders.filter((entry) => entry.parentId === null);
 const by = (status: StatusFilterValue, label: string | null = null): ProjectFilter => ({
   status,
   label,
+  stage: "all",
 });
 const ids = (items: ReadonlyArray<{ id: string }>) => items.map((item) => item.id);
 
