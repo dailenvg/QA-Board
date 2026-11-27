@@ -163,3 +163,108 @@ test("pdf.js's data is served by the app, without its scripting sandbox", async 
   }
   expect((await request.get(`/pdfjs/${version}/wasm/quickjs-eval.wasm`)).status()).toBe(404);
 });
+
+/** The middle of the stage on screen, where the zoom keys and buttons zoom around. */
+async function stageCentre(page: Page): Promise<{ x: number; y: number }> {
+  const box = await page.getByTestId("canvas-area").boundingBox();
+  if (!box) throw new Error("no stage");
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+
+/** Where `point` falls on the page's surface, as percentages of its width and height. */
+async function surfaceSpot(page: Page, point: { x: number; y: number }) {
+  const box = await page.locator('main [data-testid="canvas"]').boundingBox();
+  if (!box) throw new Error("no surface");
+  return { x: ((point.x - box.x) / box.width) * 100, y: ((point.y - box.y) / box.height) * 100 };
+}
+
+/** Clicks `point` in Comment mode and reads the new pin's position, then closes the composer. */
+async function pinAt(page: Page, point: { x: number; y: number }) {
+  await page.mouse.click(point.x, point.y);
+  const pin = page.getByTestId("draft-pin");
+  await expect(pin).toHaveCount(1);
+  const spot = await pin.evaluate((node: HTMLElement) => ({
+    x: Number.parseFloat(node.style.left),
+    y: Number.parseFloat(node.style.top),
+  }));
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("composer")).toHaveCount(0);
+  return spot;
+}
+
+test("zooming a PDF page keeps the point under it, pins land on the same spot, and Space-drag moves around", async ({
+  page,
+}) => {
+  await openFolder(page);
+  const dialog = await pdfMode(page);
+  await dialog.getByTestId("pdf-input").setInputFiles({
+    name: "zoom.pdf",
+    mimeType: "application/pdf",
+    buffer: samplePdf(["Zoom"]),
+  });
+  await expect(dialog.getByTestId("pdf-ready")).toContainText("1 page, ready");
+  await dialog.getByTestId("create-project").click();
+  const image = page.getByRole("img", { name: /the image under review/ });
+  await expect(image).toBeVisible();
+  const surface = page.locator('main [data-testid="canvas"]');
+  const stage = page.getByTestId("canvas-area");
+  await expect(page.getByTestId("zoom-level")).toHaveText("Fit");
+
+  await page.getByTestId("mode-comment").click();
+  const centre = await stageCentre(page);
+  const atFit = await pinAt(page, centre);
+  const spotAtFit = await surfaceSpot(page, centre);
+
+  // 200% from the level menu: the page is twice its own width, and the spot in the middle of
+  // the stage stays there.
+  await page.getByTestId("zoom-level").click();
+  await page.getByTestId("zoom-200").click();
+  await expect(page.getByTestId("zoom-level")).toHaveText("200%");
+  const natural = await image.evaluate((node: HTMLImageElement) => node.naturalWidth);
+  await expect.poll(async () => (await surface.boundingBox())?.width).toBeCloseTo(natural * 2, 0);
+  const spotZoomed = await surfaceSpot(page, centre);
+  expect(spotZoomed.x).toBeCloseTo(spotAtFit.x, 0);
+  expect(spotZoomed.y).toBeCloseTo(spotAtFit.y, 0);
+
+  // A pin dropped there now lands on the same spot of the page as at Fit.
+  const zoomed = await pinAt(page, centre);
+  expect(Math.abs(zoomed.x - atFit.x)).toBeLessThan(0.5);
+  expect(Math.abs(zoomed.y - atFit.y)).toBeLessThan(0.5);
+
+  // Ctrl+wheel (a trackpad's pinch) zooms around the pointer, which stays on its spot.
+  const pointer = { x: centre.x + 80, y: centre.y - 60 };
+  await page.mouse.move(pointer.x, pointer.y);
+  const beforeWheel = await surfaceSpot(page, pointer);
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, -100);
+  await page.keyboard.up("Control");
+  await expect(page.getByTestId("zoom-level")).not.toHaveText("200%");
+  const afterWheel = await surfaceSpot(page, pointer);
+  expect(afterWheel.x).toBeCloseTo(beforeWheel.x, 0);
+  expect(afterWheel.y).toBeCloseTo(beforeWheel.y, 0);
+
+  // Holding Space over the page and dragging scrolls the stage, and drops no pin.
+  await page.keyboard.press("1");
+  await expect(page.getByTestId("zoom-level")).toHaveText("100%");
+  await page.getByTestId("zoom-level").click();
+  await page.getByTestId("zoom-400").click();
+  await expect(page.getByTestId("zoom-in")).toHaveAttribute("aria-disabled", "true");
+  await page.mouse.move(centre.x, centre.y);
+  const start = await stage.evaluate((node) => ({ left: node.scrollLeft, top: node.scrollTop }));
+  await page.keyboard.down("Space");
+  await expect(page.getByTestId("comment-overlay")).toHaveCSS("cursor", "grab");
+  await page.mouse.down();
+  await page.mouse.move(centre.x - 150, centre.y - 100, { steps: 5 });
+  await page.mouse.up();
+  await page.keyboard.up("Space");
+  const end = await stage.evaluate((node) => ({ left: node.scrollLeft, top: node.scrollTop }));
+  expect(end.left - start.left).toBeCloseTo(150, -1);
+  expect(end.top - start.top).toBeCloseTo(100, -1);
+  await expect(page.getByTestId("draft-pin")).toHaveCount(0);
+  await expect(page.getByTestId("composer")).toHaveCount(0);
+
+  // 0 goes back to Fit.
+  await page.keyboard.press("0");
+  await expect(page.getByTestId("zoom-level")).toHaveText("Fit");
+  await expect(page.getByTestId("zoom-out")).not.toHaveAttribute("aria-disabled", "true");
+});
