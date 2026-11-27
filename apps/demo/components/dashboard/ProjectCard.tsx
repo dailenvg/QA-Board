@@ -1,13 +1,13 @@
 "use client";
 
-import { motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
-import { hoverGrow, useRevealVariants } from "@/lib/motion";
+import { hoverGrow, usePopVariants, useRevealVariants } from "@/lib/motion";
 import { relativeTime } from "@/lib/relative-time";
 import { projectHref } from "@/lib/routes";
 import { isArchived } from "@/lib/store/archive";
 import type { ProjectSummary } from "@/lib/store/selectors";
-import type { Project } from "@/lib/store/types";
+import type { Project, ProjectStage } from "@/lib/store/types";
 import { useCan } from "@/lib/workspace-client/use-workspace-access";
 import { shortDate } from "../ui/deletion-when";
 import { Icon } from "../ui/Icon";
@@ -18,11 +18,15 @@ import { LabelChip } from "./LabelChip";
 import { sourceLabel } from "./project-source";
 import { ProjectThumbnail } from "./ProjectThumbnail";
 import { ProjectTypeTag } from "./ProjectTypeTag";
+import { StageChip } from "./StageChip";
+import { stageMenuItems } from "./stage-menu-items";
 
 export interface ProjectCardActions {
   onRename: (project: Project) => void;
   onMove: (project: Project) => void;
   onLabel: (project: Project) => void;
+  /** Sets the project's stage, or clears it (null), from the menu's Stage group (U3). */
+  onStage: (project: Project, stage: ProjectStage | null) => void;
   /** Archives the project, or unarchives an archived one. */
   onArchive: (project: Project) => void;
   onDelete: (project: Project) => void;
@@ -34,11 +38,14 @@ interface ProjectCardProps extends ProjectCardActions {
   now: number;
 }
 
-/** The card's menu; Delete only for whoever may move projects to the trash. */
+/**
+ * The card's menu: its actions, the Stage group after the label, then archiving; Delete only
+ * for whoever may move projects to the trash.
+ */
 function menuItems(
   project: Project,
   { canMove, canTrash }: { canMove: boolean; canTrash: boolean },
-  { onRename, onMove, onLabel, onArchive, onDelete }: ProjectCardActions,
+  { onRename, onMove, onLabel, onStage, onArchive, onDelete }: ProjectCardActions,
 ): MenuItem[] {
   const archived = isArchived(project);
   const items: MenuItem[] = [
@@ -54,6 +61,7 @@ function menuItems(
       icon: "tag",
       onSelect: () => onLabel(project),
     },
+    ...stageMenuItems(project.stage ?? null, (stage) => onStage(project, stage)),
     {
       label: archived ? "Unarchive" : "Archive",
       icon: archived ? "archiveRestore" : "archive",
@@ -77,6 +85,7 @@ export function ProjectCard({ summary, canMove, now, ...actions }: ProjectCardPr
   const { project, counts, status, previewKey } = summary;
   const reduce = useReducedMotion();
   const variants = useRevealVariants();
+  const pop = usePopVariants();
   const canTrash = useCan("projects.trash");
   // Dates wait for the browser's clock and locale (`now` is 0 on the server).
   const deletesOn = project.deleteAfter !== undefined && now ? project.deleteAfter : null;
@@ -121,6 +130,21 @@ export function ProjectCard({ summary, canMove, now, ...actions }: ProjectCardPr
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-2">
         <div className="flex max-w-full min-w-0 flex-wrap items-center gap-2">
           {isArchived(project) ? <ArchivedChip /> : <StatusChip status={status} />}
+          {/* Display only, so the card stays one link: it's set from the menu's Stage group. */}
+          <AnimatePresence initial={false}>
+            {project.stage ? (
+              <motion.span
+                key="stage"
+                variants={pop}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                className="inline-flex"
+              >
+                <StageChip stage={project.stage} />
+              </motion.span>
+            ) : null}
+          </AnimatePresence>
           {project.label ? <LabelChip label={project.label} /> : null}
         </div>
         <p className="flex items-center gap-3 text-meta text-muted">

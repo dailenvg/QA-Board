@@ -144,6 +144,12 @@ describe.each([
     }
   });
 
+  it("reads a stage's ink-2 at 4.5:1 on its card fill, and Set stage's on the top bar", () => {
+    const ink = color(tokens, "ink-2");
+    expect(contrast(ink, color(tokens, "card"))).toBeGreaterThanOrEqual(TEXT);
+    expect(contrast(ink, color(tokens, "panel"))).toBeGreaterThanOrEqual(TEXT);
+  });
+
   it("edges resolved pins at 3:1 on their white halo and on their Mint fill", () => {
     // Mint is about as light as the halo, so this line is what draws the pin's edge.
     const line = color(tokens, "resolved-pin-line");
