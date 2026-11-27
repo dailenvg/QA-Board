@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
+import { useCallback, useRef } from "react";
 import { usePopVariants } from "@/lib/motion";
 import { STAGE_LABEL } from "@/lib/store/stage";
 import type { Project } from "@/lib/store/types";
@@ -23,39 +24,53 @@ const SET_STAGE = `inline-flex h-6 items-center gap-1 rounded-pill border border
  * (D3). A change shows at once, with the stage toast's Undo.
  */
 export function StageMenu({ project }: { project: Project }) {
-  const change = useStageChange();
+  const box = useRef<HTMLDivElement>(null);
+  // After the toast's Undo or Retry, focus comes back to the trigger as the toast leaves
+  // (as a card's does), unless it has gone somewhere else since.
+  const refocus = useCallback(() => {
+    requestAnimationFrame(() => {
+      const active = document.activeElement;
+      const adrift =
+        !active || active === document.body || active.closest('[role="status"], [role="alert"]');
+      if (adrift) box.current?.querySelector<HTMLElement>('[aria-haspopup="menu"]')?.focus();
+    });
+  }, []);
+  const change = useStageChange({ onUndo: refocus });
   const pop = usePopVariants();
   const stage = project.stage ?? null;
   return (
-    <Menu
-      label={stage ? `Stage: ${STAGE_LABEL[stage]}, change stage` : "Set stage"}
-      testId="stage-menu"
-      triggerClassName={TRIGGER}
-      items={stageMenuItems(stage, (next) => change(project, next))}
-      triggerContent={
-        <AnimatePresence initial={false} mode="popLayout">
-          <motion.span
-            key={stage ? "stage" : "none"}
-            variants={pop}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            className="inline-flex items-center gap-1"
-          >
-            {stage ? (
-              <>
-                <StageChip stage={stage} />
-                <Icon name="chevronDown" className="size-3.5 text-ink-2" />
-              </>
-            ) : (
-              <span className={SET_STAGE}>
-                <Icon name="plus" className="size-4 shrink-0" />
-                Set stage
-              </span>
-            )}
-          </motion.span>
-        </AnimatePresence>
-      }
-    />
+    // `contents`: the menu stays the top bar's flex item; the box only finds its trigger.
+    <div ref={box} className="contents">
+      <Menu
+        label={stage ? `Stage: ${STAGE_LABEL[stage]}, change stage` : "Set stage"}
+        testId="stage-menu"
+        triggerClassName={TRIGGER}
+        items={stageMenuItems(stage, (next) => change(project, next))}
+        triggerContent={
+          <AnimatePresence initial={false} mode="popLayout">
+            <motion.span
+              key={stage ? "stage" : "none"}
+              variants={pop}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="inline-flex items-center gap-1"
+            >
+              {stage ? (
+                <>
+                  <StageChip stage={stage} />
+                  <Icon name="chevronDown" className="size-3.5 text-ink-2" />
+                </>
+              ) : (
+                <span className={SET_STAGE}>
+                  <Icon name="plus" className="size-4 shrink-0" />
+                  Set stage
+                </span>
+              )}
+            </motion.span>
+          </AnimatePresence>
+        }
+      />
+    </div>
   );
 }
