@@ -979,14 +979,18 @@ export function ViewerView({
               surface.kind === "page" || (surface.kind === "snapshot" && !!surface.snapshot)
             }
           >
-            {/* A container, so the snapshot bar can match its width on a zoomed snapshot. */}
+            {/*
+             * Not a CSS container (see `StageZoom`), so the docked composer and pin popover stay
+             * fixed to the screen. Scroll padding at the bottom keeps scrolled-to pins clear of
+             * the zoom control (its inset plus its height).
+             */}
             <main
               id="main"
               ref={canvasAreaRef}
               data-testid="canvas-area"
               data-mode={mode}
               data-surface={surface.kind}
-              className={`@container relative min-h-0 min-w-0 flex-1 scroll-pb-16 overflow-auto rounded-panel bg-tile ${scrollInset}`}
+              className={`relative min-h-0 min-w-0 flex-1 scroll-pb-16 overflow-auto rounded-panel bg-tile sm:scroll-pb-18 ${scrollInset}`}
             >
               <ViewerStage
                 project={project}
