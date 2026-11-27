@@ -50,14 +50,18 @@ describe("the zoom control", () => {
     expect(html).toMatch(/data-testid="zoom-level"[^>]*>(?:<[^>]*>)*200%</);
   });
 
-  it("says the level a zoom landed on to screen readers", () => {
-    expect(control("fit", 0.457, true, 0.457)).toMatch(/data-testid="zoom-status"[^>]*>Zoom 46%</);
+  it("says the level a zoom landed on to screen readers, naming Fit", () => {
+    expect(control("fit", 0.457, true, 0.457)).toMatch(
+      /data-testid="zoom-status"[^>]*>Fit width, 46%</,
+    );
     expect(control(1, 1, true, 1)).toMatch(/data-testid="zoom-status"[^>]*>Zoom 100%</);
   });
 
   it("says nothing of a level no zoom was asked for, such as a Fit that moved", () => {
     expect(control("fit", 0.457)).toMatch(/data-testid="zoom-status"[^>]*><\/p>/);
-    expect(control("fit", 0.5, true, 0.457)).toMatch(/data-testid="zoom-status"[^>]*>Zoom 46%</);
+    expect(control("fit", 0.5, true, 0.457)).toMatch(
+      /data-testid="zoom-status"[^>]*>Fit width, 46%</,
+    );
   });
 
   it("makes the button past a limit unavailable, keeping it focusable", () => {

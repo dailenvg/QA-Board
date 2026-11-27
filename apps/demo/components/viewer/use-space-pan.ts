@@ -3,7 +3,7 @@ import { lastInputWasKeyboard } from "@/lib/last-input";
 import { isTyping } from "@/lib/use-shortcut";
 import { canArmPan, spacePresses, type SpaceTarget } from "./space-pan";
 
-/** The zoom control (`ZoomControl`), whose buttons a click leaves Space-drag to. */
+/** The zoom control (`ZoomControl`): its buttons, once clicked, leave Space to Space-drag. */
 const ZOOM_CONTROL = "[data-zoom-control]";
 
 /** Space-drag: off, armed (Space held over a surface that overflows), or dragging. */

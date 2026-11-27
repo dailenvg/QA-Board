@@ -142,8 +142,8 @@ export function CommentOverlay({ onPlace, onExit, ref }: CommentOverlayProps) {
       <span id={helpId} className="sr-only">
         Click or tap anywhere to add a comment. With a keyboard, use the arrow keys to move the
         crosshair (hold Shift for bigger steps), press Enter to place a pin, and press Escape to
-        leave Comment mode. Press + or - to zoom, 0 to fit the width, and 1 for 100%. When zoomed
-        in, hold Space and drag to move around.
+        leave Comment mode. Press + to zoom in, - to zoom out, 0 to fit the width, and 1 for 100%.
+        When zoomed in, hold Space and drag to move around.
       </span>
       <span
         aria-hidden="true"

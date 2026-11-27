@@ -30,6 +30,16 @@ function levelName(zoom: Zoom): string {
 }
 
 /**
+ * What screen readers hear once a zoom lands: "Fit width, 46%" or "Zoom 200%". Naming Fit means
+ * a move between Fit and the same level (a small image fits at 100%) is still heard.
+ */
+function statusLine(zoom: Zoom, announced: number | null): string {
+  if (announced === null) return "";
+  const percent = `${Math.round(announced * 100)}%`;
+  return zoom === "fit" ? `Fit width, ${percent}` : `Zoom ${percent}`;
+}
+
+/**
  * Zoom out, the level (a menu of Fit width and set levels) and Zoom in, floating at the bottom
  * right of the stage. At 25% and 400% the button that would pass the limit is unavailable, but
  * keeps focus. Screen readers hear each level a zoom lands on, not a Fit that moves with the
@@ -56,7 +66,7 @@ export function ZoomControl({
           role="group"
           aria-label="Zoom"
           data-testid="zoom-control"
-          // Clicked, its buttons leave Space to Space-drag (`useSpacePan`).
+          // A button here focused by a click doesn't take Space: Space-drag does (`useSpacePan`).
           data-zoom-control=""
           variants={variants}
           initial="hidden"
@@ -101,7 +111,7 @@ export function ZoomControl({
             <Icon name="zoomIn" />
           </Button>
           <p aria-live="polite" className="sr-only" data-testid="zoom-status">
-            {announced === null ? "" : `Zoom ${Math.round(announced * 100)}%`}
+            {statusLine(zoom, announced)}
           </p>
         </motion.div>
       ) : null}
