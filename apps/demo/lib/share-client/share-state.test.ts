@@ -172,6 +172,27 @@ describe("toShareState", () => {
     expect(pushed).toEqual(without);
   });
 
+  it("leaves out team-only comments, every reply under one, and team-only replies (057)", () => {
+    const reply = (id: string, commentId: string, teamOnly?: true): Reply => ({
+      id,
+      projectId: "p1",
+      commentId,
+      body: "Yes",
+      author: "Leo",
+      createdAt: 7,
+      ...(teamOnly ? { teamOnly } : {}),
+    });
+    const pushed = toShareState(
+      project,
+      [comment, { ...pageComment, teamOnly: true }],
+      [],
+      [reply("r1", "c1"), reply("r2", "c1", true), reply("r3", "c2")],
+    );
+    expect(pushed.comments.map((shared) => shared.id)).toEqual(["c1"]);
+    expect(pushed.replies.map((shared) => shared.id)).toEqual(["r1"]);
+    expect(JSON.stringify(pushed)).not.toContain("teamOnly");
+  });
+
   it("keeps a pulled comment's browser details in the workspace", () => {
     const clientInfo = { userAgent: "Mozilla/5.0", dpr: 3 };
     const [shared] = toShareState(project, [pageComment], [], []).comments;

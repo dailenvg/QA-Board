@@ -64,6 +64,11 @@ export type Action =
   | { type: "comment/set-status"; id: string; status: CommentStatus; at: number }
   /** Sets how much a comment matters, or clears it (null). Never an edit: `editedAt` stays. */
   | { type: "comment/set-priority"; id: string; priority: CommentPriority | null; at: number }
+  /**
+   * Keeps a team comment to the team, or shows it to clients again (057). Its
+   * replies written while it's team only stay so (the server's rule too).
+   */
+  | { type: "comment/set-team-only"; id: string; teamOnly: boolean; at: number }
   /** Deletes a comment, and its replies with it. */
   | { type: "comment/delete"; id: string }
   /**
@@ -79,6 +84,8 @@ export type Action =
   | { type: "reply/restore"; reply: Reply }
   /** New words for a reply; different ones mark it edited. */
   | { type: "reply/edit"; id: string; body: string; at: number }
+  /** Keeps a team reply to the team, or shows it to clients again (057). Never an edit. */
+  | { type: "reply/set-team-only"; id: string; teamOnly: boolean }
   | { type: "reply/delete"; id: string }
   /** Takes out a reply the server has already deleted (someone else's, after a confirm); sends nothing. */
   | { type: "reply/removed"; id: string }
@@ -258,6 +265,24 @@ function updateComment(
   };
 }
 
+/** `item` with `teamOnly` set, or without it: the flag is only ever there as true. */
+function withTeamOnly<T extends { teamOnly?: true }>(item: T, teamOnly: boolean): T {
+  const { teamOnly: _previous, ...rest } = item;
+  return (teamOnly ? { ...rest, teamOnly: true } : rest) as T;
+}
+
+/**
+ * A new reply of the team's under a team-only comment is team only too, for
+ * good, as the server stores it (B2); a client's never is.
+ */
+function inheritTeamOnly(data: SquintData, reply: Reply): Reply {
+  if (reply.fromClient || reply.teamOnly) return reply;
+  const parent = data.comments.find(
+    (comment) => comment.id === reply.commentId && comment.projectId === reply.projectId,
+  );
+  return parent?.teamOnly ? { ...reply, teamOnly: true } : reply;
+}
+
 /**
  * Adds replies under comments the data has (a reply whose comment is gone has
  * nowhere to show); ids already here are skipped. Null when none was added.
@@ -420,6 +445,14 @@ export function reduce(data: SquintData, action: Action): SquintData {
           ? { ...comment, updatedAt: action.at }
           : { ...comment, priority: action.priority, updatedAt: action.at },
       );
+    case "comment/set-team-only": {
+      const target = data.comments.find((comment) => comment.id === action.id);
+      if (!target || Boolean(target.teamOnly) === action.teamOnly || target.fromClient) return data;
+      return updateComment(data, action.id, action.at, (comment) => ({
+        ...withTeamOnly(comment, action.teamOnly),
+        updatedAt: action.at,
+      }));
+    }
     case "comment/delete":
     case "comment/removed":
       return removeComment(data, action.id);
@@ -432,8 +465,19 @@ export function reduce(data: SquintData, action: Action): SquintData {
         ),
       };
     case "reply/add":
+      return addReplies(data, [inheritTeamOnly(data, action.reply)]) ?? data;
     case "reply/restore":
       return addReplies(data, [action.reply]) ?? data;
+    case "reply/set-team-only": {
+      const target = data.replies.find((reply) => reply.id === action.id);
+      if (!target || Boolean(target.teamOnly) === action.teamOnly || target.fromClient) return data;
+      return {
+        ...data,
+        replies: data.replies.map((reply) =>
+          reply.id === action.id ? withTeamOnly(reply, action.teamOnly) : reply,
+        ),
+      };
+    }
     case "reply/edit":
       if (!data.replies.some((reply) => reply.id === action.id && reply.body !== action.body)) {
         return data;

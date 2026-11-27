@@ -375,6 +375,8 @@ export function addComment(input: {
   pageId?: string;
   priority?: CommentPriority;
   clientInfo?: ClientInfo;
+  /** Kept to the team (057): never on a review link. */
+  teamOnly?: boolean;
 }): Promise<Result<Comment>> {
   const now = Date.now();
   // The server gives the member's photo on every read; stamped now, it shows from the start.
@@ -393,6 +395,7 @@ export function addComment(input: {
     ...(input.pageId ? { pageId: input.pageId } : {}),
     ...(input.priority ? { priority: input.priority } : {}),
     ...(input.clientInfo ? { clientInfo: input.clientInfo } : {}),
+    ...(input.teamOnly ? { teamOnly: true as const } : {}),
     mine: true,
     ...(avatar ? { authorAvatar: avatar } : {}),
   };
@@ -421,6 +424,14 @@ export function setCommentStatus(id: string, status: CommentStatus): Result {
 /** Sets a comment's priority, or clears it (null); rolled back with a notice if the server refuses. */
 export const setCommentPriority = (id: string, priority: CommentPriority | null) =>
   commit({ type: "comment/set-priority", id, priority, at: Date.now() });
+
+/**
+ * Keeps a comment to the team, or shows it to clients again (057), and
+ * resolves once the server has it; a refusal (a client replied, 409) rolls it
+ * back, and the caller says why.
+ */
+export const setCommentTeamOnly = (id: string, teamOnly: boolean) =>
+  dispatchConfirmed({ type: "comment/set-team-only", id, teamOnly, at: Date.now() });
 
 export const deleteComment = (id: string) =>
   deleted("comment", commit({ type: "comment/delete", id }));
@@ -493,6 +504,8 @@ export function addReply(input: {
   body: string;
   author: string;
   clientInfo?: ClientInfo;
+  /** Kept to the team (057); under a team-only comment it is anyway. */
+  teamOnly?: boolean;
 }): Promise<Result<Reply>> {
   const avatar = ownAvatarSrc();
   const reply: Reply = {
@@ -503,6 +516,7 @@ export function addReply(input: {
     author: cleanName(input.author),
     createdAt: Date.now(),
     ...(input.clientInfo ? { clientInfo: input.clientInfo } : {}),
+    ...(input.teamOnly ? { teamOnly: true as const } : {}),
     mine: true,
     ...(avatar ? { authorAvatar: avatar } : {}),
   };
@@ -512,6 +526,10 @@ export function addReply(input: {
 /** New words for the member's own reply. */
 export const editReply = (id: string, body: string) =>
   commit({ type: "reply/edit", id, body: body.trim(), at: Date.now() });
+
+/** Keeps a reply to the team, or shows it to clients again (057); resolves once the server has it. */
+export const setReplyTeamOnly = (id: string, teamOnly: boolean) =>
+  dispatchConfirmed({ type: "reply/set-team-only", id, teamOnly });
 
 /** Deletes the member's own reply; `restoreReply` is its Undo. */
 export const deleteReply = (id: string) => deleted("reply", commit({ type: "reply/delete", id }));
