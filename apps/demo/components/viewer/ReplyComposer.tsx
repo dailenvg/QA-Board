@@ -226,7 +226,7 @@ export function ReplyComposer({
               labelledBy={teamOnlyLabelId}
               // The post already carries the choice: one changed while it's sent would be lost.
               inactive={sending}
-              testId="reply-team-only"
+              testId="reply-team-only-switch"
             />
             <label
               id={teamOnlyLabelId}

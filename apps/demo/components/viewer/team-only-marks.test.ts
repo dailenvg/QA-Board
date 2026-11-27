@@ -83,16 +83,16 @@ describe("team-only marks and switches (057)", () => {
     const shown = renderToStaticMarkup(
       createElement(ReplyComposer, { authorName: "Ana", onSend: sent, visibility: "choose" }),
     );
-    expect(shown).toContain('data-testid="reply-team-only"');
+    expect(shown).toContain('data-testid="reply-team-only-switch"');
     expect(shown).toContain('placeholder="Reply…"');
     const kept = renderToStaticMarkup(
       createElement(ReplyComposer, { authorName: "Ana", onSend: sent, visibility: "kept" }),
     );
-    expect(kept).not.toContain("reply-team-only");
+    expect(kept).not.toContain("reply-team-only-switch");
     expect(kept).toContain('placeholder="Reply to your team…"');
     const guest = renderToStaticMarkup(
       createElement(ReplyComposer, { authorName: "Ana", onSend: sent }),
     );
-    expect(guest).not.toContain("reply-team-only");
+    expect(guest).not.toContain("reply-team-only-switch");
   });
 });
