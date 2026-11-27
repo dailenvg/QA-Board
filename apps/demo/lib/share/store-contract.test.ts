@@ -314,6 +314,44 @@ describe.each(stores)("%s share store", (_name, make) => {
     expect(await store.teamAvatar(RECORD.id, "not-a-key")).toBeNull();
   });
 
+  it("has nothing team only on a share without a workspace, and runs a locked callback on itself", async () => {
+    const store = await make();
+    await store.create(RECORD);
+    await store.upsertComment(RECORD.id, COMMENT, "owner");
+    expect(await store.teamOnlyIds(RECORD.id)).toEqual({ comments: new Set(), replies: new Set() });
+    const seen = await store.withShareLock(RECORD.id, async (locked) => {
+      await locked.upsertReply(RECORD.id, REPLY);
+      return (await locked.replies(RECORD.id)).map((row) => row.item.id);
+    });
+    expect(seen).toEqual([REPLY.id]);
+    expect((await store.replies(RECORD.id)).map((row) => row.item.id)).toEqual([REPLY.id]);
+  });
+
+  it("serves a crop only while a visible comment with a crop has it (A42)", async () => {
+    const services: ShareServices = { store: await make(), blobs: inlineBackend };
+    await services.store.create(RECORD);
+    const crop = (id: string) =>
+      services.store.putBlob(RECORD.id, {
+        key: `crop:${id}`,
+        contentType: "image/png",
+        size: PNG.length,
+        location: { kind: "inline", bytes: PNG },
+      });
+    // The owner's comment keeps its crop at `crop:<id>` (no claim key).
+    await services.store.upsertComment(RECORD.id, COMMENT, "owner");
+    await crop(COMMENT.id);
+    expect((await readBlob(services, RECORD, `crop:${COMMENT.id}`))?.bytes).toEqual(PNG);
+    // A crop left behind once its comment went, or under a comment without one, isn't served.
+    const { crop: _none, ...plain } = COMMENT;
+    await services.store.upsertComment(RECORD.id, { ...plain, id: "plain" }, "owner");
+    await crop("plain");
+    await crop("gone");
+    expect(await readBlob(services, RECORD, "crop:plain")).toBeNull();
+    expect(await readBlob(services, RECORD, "crop:gone")).toBeNull();
+    await services.store.deleteComments(RECORD.id, [COMMENT.id]);
+    expect(await readBlob(services, RECORD, `crop:${COMMENT.id}`)).toBeNull();
+  });
+
   it("keeps an owner's reply under its comment, on the share's sequence, replaced in place", async () => {
     const store = await make();
     await store.create(RECORD);

@@ -74,7 +74,7 @@ describe("share links", () => {
       await attach(db, a.workspaceId, "p1", { ...input, cursor: 4, lastSyncedAt: NOW }),
     ).toEqual({
       ok: true,
-      value: null,
+      value: { purged: 0 },
     });
     const share = await store.byId(created.shareId);
     expect(share?.expiresAt).toBeNull();
@@ -141,7 +141,10 @@ describe("share links", () => {
       reason: "not-found",
     });
     // Attaching it again to the same project is harmless.
-    expect(await attach(db, a.workspaceId, "p1", input)).toEqual({ ok: true, value: null });
+    expect(await attach(db, a.workspaceId, "p1", input)).toEqual({
+      ok: true,
+      value: { purged: 0 },
+    });
   });
 
   it("refuses a second share on a linked project", async () => {
@@ -227,7 +230,7 @@ describe("share links", () => {
     expect(await inviterOf(db, created.shareId)).toBe(a.userId);
     expect(await attach(db, a.workspaceId, "p1", { ...input, invitedBy: ben })).toEqual({
       ok: true,
-      value: null,
+      value: { purged: 0 },
     });
     expect(await inviterOf(db, created.shareId)).toBe(a.userId);
   });

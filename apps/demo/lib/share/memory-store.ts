@@ -241,8 +241,8 @@ export function createMemoryStore(): ShareStore {
     },
     cropKeyOf(id, commentId) {
       const entry = shares.get(id);
-      if (!entry || entry.pending.has(commentId)) return done(null);
-      return done(entry.comments.get(commentId)?.cropKey ?? null);
+      const row = entry?.pending.has(commentId) ? undefined : entry?.comments.get(commentId);
+      return done(row?.item.crop ? (row.cropKey ?? `crop:${commentId}`) : null);
     },
     pendingSince(id, commentId) {
       const entry = shares.get(id);
@@ -303,6 +303,13 @@ export function createMemoryStore(): ShareStore {
       for (const replyId of ids) shares.get(id)?.replies.delete(replyId);
       return done(undefined);
     },
+    // Shares in memory belong to no workspace, so nothing is team only: the lock has nothing to
+    // guard. The store it's called on runs the callback, a wrapper (tests) included.
+    withShareLock(_id, run) {
+      return run(this);
+    },
+    // No workspaces in memory, so no project keeps anything to its team.
+    teamOnlyIds: () => done({ comments: new Set<string>(), replies: new Set<string>() }),
     blobSizes: (id) =>
       done([...(shares.get(id)?.blobs.values() ?? [])].map(({ key, size }) => ({ key, size }))),
     getBlob: (id, key) => done(shares.get(id)?.blobs.get(key) ?? null),
