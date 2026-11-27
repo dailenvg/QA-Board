@@ -183,8 +183,8 @@ interface MenuProps {
   items: readonly MenuItem[];
   className?: string;
   testId?: string;
-  /** Trigger icon; `more` (···) by default. */
-  icon?: IconName;
+  /** Trigger icon; `more` (···) by default, null for a trigger with only its `text`. */
+  icon?: IconName | null;
   /**
    * A dot on the trigger's corner, for a menu whose choice is changed from its default (a
    * filter that's on). Visual only: say what changed elsewhere (a live region, the label).
@@ -402,7 +402,7 @@ export function Menu({
         }}
         className={`${triggerClassName} ${indicator ? "relative" : ""}`}
       >
-        <Icon name={icon} />
+        {icon ? <Icon name={icon} /> : null}
         {indicator ? (
           <span
             aria-hidden="true"
