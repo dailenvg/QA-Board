@@ -230,6 +230,9 @@ export function PinPopover({
       // its select surface only, so its Resolve, Edit, Delete or More still close the popover.
       const card = target?.closest(`[data-comment-id="${CSS.escape(comment.id)}"]`);
       if (card && target?.closest("[data-card-select]")) return;
+      // A Space-drag on the stage (`useSpacePan`) moves around under the popover, as a scroll
+      // does, and swallows its click: it stays open, its comment beside what's being looked at.
+      if (target?.closest('[data-pan="armed"] main, [data-pan="dragging"] main')) return;
       onCloseRef.current(false);
     };
     document.addEventListener("keydown", onKeyDown);

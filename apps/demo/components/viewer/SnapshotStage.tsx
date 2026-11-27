@@ -99,7 +99,8 @@ export function SnapshotStage({
   );
 
   return (
-    <div data-testid="snapshot-stage" className="flex min-h-full flex-col">
+    // As wide as a zoomed snapshot, so its padding scrolls with it and the bar can stay in view.
+    <div data-testid="snapshot-stage" className="flex min-h-full w-fit min-w-full flex-col">
       <p role="status" className="sr-only">
         {announcement(snapshot, isLatest, capture)}
       </p>
@@ -117,7 +118,8 @@ export function SnapshotStage({
       <div
         ref={bodyRef}
         tabIndex={snapshot ? undefined : -1}
-        className="flex-1 p-3 focus:outline-none sm:p-5"
+        // With a snapshot, room at the bottom for the zoom control (as on an image's stage).
+        className={`flex-1 px-3 pt-3 focus:outline-none sm:px-5 sm:pt-5 ${snapshot ? "pb-16 sm:pb-18" : "pb-3 sm:pb-5"}`}
       >
         {body}
       </div>

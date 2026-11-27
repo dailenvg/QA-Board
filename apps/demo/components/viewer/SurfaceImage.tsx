@@ -1,8 +1,17 @@
 "use client";
 
 import Image from "next/image";
-import { useState, type ReactNode, type Ref } from "react";
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type Ref,
+} from "react";
 import { Skeleton } from "../ui/Skeleton";
+import type { Zoom } from "./stage-zoom";
+import { useStageZoomSurface } from "./use-stage-zoom";
 
 interface SurfaceImageProps {
   src: string;
@@ -16,8 +25,18 @@ interface SurfaceImageProps {
 }
 
 /**
- * An image surface at its natural width (never upscaled) with the pins layer
- * over it. Pins are percentages of the image, so they scroll with it.
+ * At Fit, as wide as the stage up to its own width (never upscaled); zoomed, its width in
+ * surface px times the zoom, however wide that is (the stage scrolls both ways).
+ */
+function surfaceStyle(zoom: Zoom, width: number | undefined): CSSProperties | undefined {
+  if (!width) return undefined;
+  return zoom === "fit" ? { maxWidth: width } : { width: width * zoom };
+}
+
+/**
+ * An image surface with the pins layer over it, drawn at the stage's zoom (`StageZoomContext`):
+ * at Fit, its natural width (never upscaled). Pins are percentages of the image, so they scroll
+ * and zoom with it.
  */
 export function SurfaceImage({
   src,
@@ -30,13 +49,24 @@ export function SurfaceImage({
 }: SurfaceImageProps) {
   const [loaded, setLoaded] = useState<{ src: string; width: number } | null>(null);
   const ready = loaded?.src === src;
-  const maxWidth = size?.width ?? (ready ? loaded.width : undefined);
+  /** Its width in surface px: a snapshot's page width, or the image's own. */
+  const width = size?.width ?? (ready ? loaded.width : undefined);
+  const { zoom, attach } = useStageZoomSurface();
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const zoomed = zoom !== "fit" && Boolean(width);
+
+  useLayoutEffect(() => {
+    const node = canvasRef.current;
+    if (!node || !width) return;
+    return attach(node, width);
+  }, [attach, width]);
 
   return (
     <div
+      ref={canvasRef}
       data-testid="canvas"
-      className="relative mx-auto w-full"
-      style={maxWidth ? { maxWidth } : undefined}
+      className={`relative mx-auto ${zoomed ? "max-w-none" : "w-full"}`}
+      style={surfaceStyle(zoom, width)}
     >
       {ready ? null : <Skeleton className="absolute inset-0 min-h-80" />}
       <Image

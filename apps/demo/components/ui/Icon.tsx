@@ -47,6 +47,8 @@ import {
   LinkIcon,
   LockSimpleIcon,
   MagnifyingGlassIcon,
+  MagnifyingGlassMinusIcon,
+  MagnifyingGlassPlusIcon,
   MinusIcon,
   MonitorIcon,
   MoonIcon,
@@ -139,6 +141,8 @@ const ICONS = {
   upload: UploadSimpleIcon,
   user: UserIcon,
   users: UsersIcon,
+  zoomIn: MagnifyingGlassPlusIcon,
+  zoomOut: MagnifyingGlassMinusIcon,
 } satisfies Record<string, PhosphorIcon>;
 
 export type IconName = keyof typeof ICONS;

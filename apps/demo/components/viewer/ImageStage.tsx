@@ -6,6 +6,7 @@ import { Skeleton } from "../ui/Skeleton";
 import { ScreenshotUpload } from "./ScreenshotUpload";
 import { SurfaceImage } from "./SurfaceImage";
 import type { ScreenshotHandler } from "./types";
+import { useMissingSurface } from "./use-stage-zoom";
 import { StateArt } from "../ui/line-art/StateArt";
 
 interface ImageStageProps {
@@ -20,6 +21,7 @@ interface ImageStageProps {
 }
 
 function ImageUnavailable({ onReplace }: { onReplace: ScreenshotHandler | null }) {
+  useMissingSurface();
   return (
     <div role="alert" className="grid h-full min-h-80 place-items-center p-6 text-center">
       <div className="flex max-w-sm flex-col items-center gap-3">
@@ -42,7 +44,7 @@ function ImageUnavailable({ onReplace }: { onReplace: ScreenshotHandler | null }
   );
 }
 
-/** Image canvas at its natural aspect ratio (never upscaled); the canvas area scrolls. */
+/** Image canvas at its natural aspect ratio, at the stage's zoom; the canvas area scrolls. */
 export function ImageStage({
   blobKey,
   projectName,
@@ -66,8 +68,10 @@ export function ImageStage({
   if (image.status === "missing" || failed === image.url) {
     return <ImageUnavailable onReplace={onReplace} />;
   }
+  // As wide as a zoomed image, so its padding scrolls with it; room at the bottom for the zoom
+  // control (its inset plus its 52px), so the image's last row can scroll out from under it.
   return (
-    <div className="p-3 sm:p-5">
+    <div className="w-fit min-w-full px-3 pt-3 pb-16 sm:px-5 sm:pt-5 sm:pb-18">
       <SurfaceImage
         src={image.url}
         alt={`${projectName}, ${pageLabel ? `${pageLabel}, ` : ""}the image under review`}

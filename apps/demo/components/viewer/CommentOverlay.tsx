@@ -1,7 +1,16 @@
 "use client";
 
-import { useId, useState, type KeyboardEvent, type MouseEvent, type Ref } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+  type Ref,
+} from "react";
 import { lastInputWasKeyboard } from "@/lib/last-input";
+import { spacePressStep, type SpacePress, type SpacePressEvent } from "./space-place";
 import type { PinPoint } from "./types";
 
 interface CommentOverlayProps {
@@ -36,14 +45,38 @@ function visibleCentre(node: HTMLElement): PinPoint {
 }
 
 /**
+ * Space pressed on the canvas: `press(event)` steps it (`spacePressStep`) and says whether to
+ * place the pin. A pointer going down anywhere while Space is held (a Space-drag) cancels it.
+ */
+function useSpacePress(): (event: SpacePressEvent) => boolean {
+  const state = useRef<SpacePress>("up");
+  const step = (event: SpacePressEvent) => {
+    const { next, place } = spacePressStep(state.current, event);
+    state.current = next;
+    return place;
+  };
+  useEffect(() => {
+    const onPointerDown = () => {
+      state.current = spacePressStep(state.current, "pointerdown").next;
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+  }, []);
+  return step;
+}
+
+/**
  * Transparent click catcher over the preview in comment mode. Keyboard users
- * focus it, move a crosshair with the arrow keys and press Enter to drop a pin.
+ * focus it, move a crosshair with the arrow keys and press Enter to drop a pin,
+ * or Space, which drops it as the key comes up: held, Space and a drag move
+ * around a zoomed surface instead.
  */
 export function CommentOverlay({ onPlace, onExit, ref }: CommentOverlayProps) {
   const [cursor, setCursor] = useState<PinPoint | null>(null);
   // The crosshair is for keyboard use. It stays hidden when focus comes back from a click or a mouse-driven post.
   const [keyboardFocus, setKeyboardFocus] = useState(false);
   const helpId = useId();
+  const spacePress = useSpacePress();
 
   const onClick = (event: MouseEvent<HTMLDivElement>) => {
     const box = event.currentTarget.getBoundingClientRect();
@@ -68,9 +101,12 @@ export function CommentOverlay({ onPlace, onExit, ref }: CommentOverlayProps) {
     if (move) {
       event.preventDefault();
       setCursor({ x: clamp(move.x), y: clamp(move.y) });
-    } else if (event.key === "Enter" || event.key === " ") {
+    } else if (event.key === "Enter") {
       event.preventDefault();
       onPlace(current);
+    } else if (event.key === " ") {
+      event.preventDefault();
+      spacePress("keydown");
     } else if (event.key === "Escape") {
       event.preventDefault();
       onExit();
@@ -87,12 +123,17 @@ export function CommentOverlay({ onPlace, onExit, ref }: CommentOverlayProps) {
       data-testid="comment-overlay"
       onClick={onClick}
       onKeyDown={onKeyDown}
+      onKeyUp={(event) => {
+        if (event.key !== " " || !spacePress("keyup")) return;
+        onPlace(cursor ?? visibleCentre(event.currentTarget));
+      }}
       onFocus={(event) => {
         const node = event.currentTarget;
         setCursor((value) => value ?? visibleCentre(node));
         setKeyboardFocus(lastInputWasKeyboard());
       }}
       onBlur={() => {
+        spacePress("blur");
         setCursor(null);
         setKeyboardFocus(false);
       }}
@@ -101,7 +142,8 @@ export function CommentOverlay({ onPlace, onExit, ref }: CommentOverlayProps) {
       <span id={helpId} className="sr-only">
         Click or tap anywhere to add a comment. With a keyboard, use the arrow keys to move the
         crosshair (hold Shift for bigger steps), press Enter to place a pin, and press Escape to
-        leave Comment mode.
+        leave Comment mode. Press + to zoom in, - to zoom out, 0 to fit the width, and 1 for 100%.
+        When zoomed in, hold Space and drag to move around.
       </span>
       <span
         aria-hidden="true"

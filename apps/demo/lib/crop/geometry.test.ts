@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_CROP_EDGE, planCrop, toPagePx } from "./geometry";
+import { atLeastCropWindow, MAX_CROP_EDGE, MIN_CROP_WINDOW, planCrop, toPagePx } from "./geometry";
 
 /** A 1000 × 4000 px snapshot drawn at half size, scrolled so its top 400px are above the view. */
 const base = {
@@ -43,6 +43,76 @@ describe("planCrop", () => {
     expect(
       planCrop({ ...base, image: { ...base.image, width: 0 }, pin: { x: 1, y: 1 } }),
     ).toBeNull();
+  });
+});
+
+describe("a crop on a zoomed-in stage", () => {
+  /** A 1440 × 6000 px snapshot at 400%, the stage showing 600 × 400 css px of it. */
+  const zoomed = {
+    image: { left: -2000, top: -8000, width: 5760, height: 24000 },
+    view: { left: 0, top: 0, width: 600, height: 400 },
+    natural: { width: 1440, height: 6000 },
+  };
+
+  it("never cuts less than the minimum window around the pin", () => {
+    // On screen: x 500 to 650, y 2000 to 2100 in surface px; the pin at (575, 2050).
+    const plan = planCrop({ ...zoomed, pin: { x: (575 / 1440) * 100, y: (2050 / 6000) * 100 } });
+    expect(plan?.rect).toEqual({ x: 335, y: 1890, width: 480, height: 320 });
+    expect(plan?.pin.x).toBeCloseTo(575);
+    expect(plan?.scale).toBe(1);
+  });
+
+  it("grows a pin that scrolled out of view to the minimum window too", () => {
+    const plan = planCrop({ ...zoomed, pin: { x: 50, y: 90 } });
+    expect(plan?.rect).toEqual({ x: 480, y: 5240, width: 480, height: 320 });
+  });
+
+  it("draws the marker at least as big as at 100%", () => {
+    const plan = planCrop({ ...zoomed, pin: { x: 40, y: 34 } });
+    expect(plan?.markerSize).toBe(32);
+  });
+
+  it("keeps the 1600 px output cap", () => {
+    const plan = planCrop({
+      image: { left: 0, top: 0, width: 4000, height: 4000 },
+      view: { left: 0, top: 0, width: 4000, height: 4000 },
+      natural: { width: 4000, height: 4000 },
+      pin: { x: 50, y: 50 },
+    });
+    expect(plan?.scale).toBe(MAX_CROP_EDGE / 4000);
+  });
+});
+
+describe("atLeastCropWindow", () => {
+  const natural = { width: 1440, height: 6000 };
+
+  it("leaves a region at least the minimum as it is", () => {
+    const region = { x: 10, y: 20, width: 800, height: 600 };
+    expect(atLeastCropWindow(region, natural)).toEqual(region);
+  });
+
+  it("grows a small region about its centre", () => {
+    expect(atLeastCropWindow({ x: 600, y: 1000, width: 100, height: 100 }, natural)).toEqual({
+      x: 410,
+      y: 890,
+      width: MIN_CROP_WINDOW.width,
+      height: MIN_CROP_WINDOW.height,
+    });
+  });
+
+  it("slides a grown region back inside the surface at its edges", () => {
+    expect(atLeastCropWindow({ x: 0, y: 5950, width: 100, height: 50 }, natural)).toEqual({
+      x: 0,
+      y: 5680,
+      width: 480,
+      height: 320,
+    });
+  });
+
+  it("stops at the whole surface on one smaller than the minimum", () => {
+    expect(
+      atLeastCropWindow({ x: 50, y: 40, width: 100, height: 80 }, { width: 300, height: 200 }),
+    ).toEqual({ x: 0, y: 0, width: 300, height: 200 });
   });
 });
 

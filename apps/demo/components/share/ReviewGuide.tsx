@@ -88,6 +88,14 @@ function ReviewGuideBody({
       className="flex flex-col gap-5"
     >
       <WelcomeStories playback={playback} stories={stories} />
+      {/* A pointer's tip: phones zoom with their own pinch. */}
+      <motion.p
+        variants={reveal}
+        data-testid="review-guide-zoom"
+        className="text-meta text-muted pointer-coarse:hidden"
+      >
+        When zoomed in, hold Space and drag to move around.
+      </motion.p>
       {/*
        * Pinned to the dialog's bottom edge (over its padding), so on phones and short screens
        * Pause (WCAG 2.2.2) and the way out stay in reach instead of after three stacked stories.
