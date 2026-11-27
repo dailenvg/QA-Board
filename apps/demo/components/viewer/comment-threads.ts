@@ -10,7 +10,16 @@ export interface ReplyDraft {
   id: string;
   body: string;
   author: string;
+  /** The team's reply box: kept to the team (057). */
+  teamOnly?: boolean;
 }
+
+/**
+ * Whether the team's reply box under a comment offers "Team only" (057): `choose` under a comment
+ * clients see; `kept` under a team-only one, whose replies are all the team's anyway. A guest's
+ * box has neither.
+ */
+export type ReplyVisibility = "choose" | "kept" | undefined;
 
 /**
  * The viewer's threads (U1): each comment's replies, who's reading them, and
@@ -34,6 +43,8 @@ export interface CommentThreads extends ReplyDrafts {
   remove: (reply: Reply, afterRemoval: () => void) => void;
   /** Opens the reply's browser details (the team's "Get info"). */
   getInfo: (reply: Reply) => void;
+  /** Makes a reply team only, or shows it to the client (asking first, `useTeamOnlyChange`). */
+  setTeamOnly: (reply: Reply, teamOnly: boolean) => void;
   /**
    * The comment's reply box stays though its viewer may no longer reply there
    * (a guest whose window closed, or whose comment the team resolved): words
@@ -47,6 +58,12 @@ export const CommentThreadsContext = createContext<CommentThreads | null>(null);
 /** Whether the comment's reply box shows: where its viewer may reply, or where words are kept. */
 export function showsReplyBox(threads: CommentThreads, comment: Comment): boolean {
   return canReply(threads.viewer, comment) || threads.keepsBox(comment.id);
+}
+
+/** `ReplyVisibility` for `comment`'s box. */
+export function replyVisibility(threads: CommentThreads, comment: Comment): ReplyVisibility {
+  if (!threads.viewer.team) return undefined;
+  return comment.teamOnly ? "kept" : "choose";
 }
 
 /** The viewer's threads, or null where there are none to show. */

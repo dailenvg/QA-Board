@@ -284,6 +284,7 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
     setCommentStatus: ownerOnly,
     setCommentPriority: ownerOnly,
     editComment: ownerOnly,
+    setCommentTeamOnly: () => Promise.resolve(ownerOnly()),
     /**
      * Only with the key this browser got when posting it. A refusal for good
      * reads the link again, which the open editor outlasts (its card stays
@@ -349,6 +350,7 @@ export function createClientBackend({ token, store, blobs }: ClientBackendOption
       return { ok: false, error: await replyRefusal(result) };
     },
     editReply: ownerOnly,
+    setReplyTeamOnly: () => Promise.resolve(ownerOnly()),
     deleteReply: ownerOnly,
     restoreReply: ownerOnly,
     replaceWithImage: () => Promise.resolve(ownerOnly()),

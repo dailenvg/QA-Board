@@ -21,6 +21,8 @@ interface ViewerThreadsOptions {
   toast: (toast: ToastInput) => void;
   /** Opens a reply's browser details (Get info). */
   onGetInfo: (reply: Reply) => void;
+  /** Makes a reply team only, or shows it to the client (`useTeamOnlyChange`). */
+  onSetTeamOnly: (reply: Reply, teamOnly: boolean) => void;
 }
 
 /** Someone else's reply the owner is deleting, and where focus goes once it's gone. */
@@ -54,6 +56,7 @@ export function useViewerThreads({
   viewer,
   toast,
   onGetInfo,
+  onSetTeamOnly,
 }: ViewerThreadsOptions) {
   const threads = useMemo(() => threadsOf(data.replies, projectId), [data.replies, projectId]);
   const actions = useReplyActions({ backend, toast });
@@ -79,6 +82,7 @@ export function useViewerThreads({
         body: draft.body,
         author: draft.author,
         ...(clientInfo ? { clientInfo } : {}),
+        ...(draft.teamOnly ? { teamOnly: true } : {}),
       });
     });
     if (result.ok) setKeptBoxes((ids) => withoutId(ids, comment.id));
@@ -104,6 +108,7 @@ export function useViewerThreads({
       } else actions.remove(reply, afterRemoval);
     },
     getInfo: onGetInfo,
+    setTeamOnly: onSetTeamOnly,
   };
 
   return { byComment: threads, value, moderating };

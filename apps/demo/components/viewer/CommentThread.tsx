@@ -27,6 +27,8 @@ interface CommentThreadProps {
   replies: readonly Reply[];
   /** The comment's pin number as shown ("4", "T1"), for the list's name. */
   number: string;
+  /** The comment is team only (057): its whole thread is, so no reply is marked or changed. */
+  commentTeamOnly: boolean;
   threads: CommentThreads;
   /** What the thread sits on, for the avatars' badge ring. */
   surface: AvatarSurface;
@@ -66,6 +68,7 @@ function focusAfterLeaving(list: HTMLElement | null, replies: readonly Reply[], 
 export function CommentThread({
   replies,
   number,
+  commentTeamOnly,
   threads,
   surface,
   now,
@@ -120,7 +123,8 @@ export function CommentThread({
               <ReplyItem
                 key={reply.id}
                 reply={reply}
-                rights={replyRights(reply, threads.viewer)}
+                rights={replyRights(reply, threads.viewer, commentTeamOnly)}
+                commentTeamOnly={commentTeamOnly}
                 owner={threads.viewer.team}
                 surface={surface}
                 now={now}
@@ -129,6 +133,7 @@ export function CommentThread({
                   threads.remove(reply, () => focusAfterLeaving(listRef.current, replies, reply.id))
                 }
                 onGetInfo={() => threads.getInfo(reply)}
+                onSetTeamOnly={(teamOnly) => threads.setTeamOnly(reply, teamOnly)}
               />
             ))}
           </AnimatePresence>

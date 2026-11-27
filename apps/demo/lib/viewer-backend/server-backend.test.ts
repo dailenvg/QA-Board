@@ -31,6 +31,8 @@ vi.mock("../store/actions", () => ({
   setAuthorName: vi.fn(),
   setCommentPriority: vi.fn(),
   setCommentStatus: vi.fn(),
+  setCommentTeamOnly: vi.fn(),
+  setReplyTeamOnly: vi.fn(),
 }));
 vi.mock("../workspace-client/blob-upload", () => ({
   storeWorkspaceBlob: mocks.storeWorkspaceBlob,

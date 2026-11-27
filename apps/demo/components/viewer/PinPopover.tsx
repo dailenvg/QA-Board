@@ -17,12 +17,14 @@ import { CommentMoreMenu } from "./CommentMoreMenu";
 import { CommentTeamNote } from "./CommentTeamNote";
 import { CommentThread } from "./CommentThread";
 import { CopyLinkButton } from "./CopyLinkButton";
-import { showsReplyBox, useCommentThreads } from "./comment-threads";
+import { commentRights } from "./comment-rights";
+import { replyVisibility, showsReplyBox, useCommentThreads } from "./comment-threads";
 import { PlacementChip } from "./PlacementChip";
 import { PriorityChip } from "./PriorityChip";
 import { replyClosedNote } from "./reply-rights";
 import { ReplyComposer } from "./ReplyComposer";
 import { ReplySlot } from "./ReplySlot";
+import { TeamOnlyMark } from "./TeamOnlyMark";
 import { useOverflowing } from "./use-overflowing";
 import type { Placement } from "./surface";
 
@@ -42,6 +44,11 @@ interface PinPopoverProps {
   onGetInfo?: () => void;
   /** The team's Priority choices in the More menu (D10); guests get none. */
   onSetPriority?: (priority: CommentPriority | null) => void;
+  /**
+   * The team's "Make team only" or "Show to client" in the More menu (057), shown to the
+   * comment's author or the owner (`commentRights`, D9); guests get none.
+   */
+  onSetTeamOnly?: (teamOnly: boolean) => void;
   /** Copies the comment's link (the header's button, everyone's); true once the clipboard has it. */
   onCopyLink: () => Promise<boolean>;
   /** `returnFocus`: closed from the keyboard or the close button, so focus goes back to the pin. */
@@ -147,6 +154,7 @@ export function PinPopover({
   onReopen,
   onGetInfo,
   onSetPriority,
+  onSetTeamOnly,
   onCopyLink,
   onClose,
 }: PinPopoverProps) {
@@ -312,6 +320,7 @@ export function PinPopover({
               <CommentTeamNote comment={comment} />
             </span>
             <ClientMark comment={comment} owner={canModerate} />
+            <TeamOnlyMark teamOnly={canModerate && comment.teamOnly === true} kind="chip" />
             {resolved ? <span className="sr-only">, resolved</span> : null}
           </h2>
           <time
@@ -373,6 +382,11 @@ export function PinPopover({
                   priority={comment.priority ?? null}
                   onSetPriority={onSetPriority}
                   onGetInfo={onGetInfo}
+                  visibility={
+                    onSetTeamOnly && threads && commentRights(comment, threads.viewer).share
+                      ? { teamOnly: comment.teamOnly === true, onChange: onSetTeamOnly }
+                      : undefined
+                  }
                 />
               ) : null}
             </div>
@@ -381,6 +395,7 @@ export function PinPopover({
             <CommentThread
               replies={replies}
               number={number}
+              commentTeamOnly={comment.teamOnly === true}
               threads={threads}
               surface="panel"
               now={now}
@@ -400,6 +415,7 @@ export function PinPopover({
                   onSend={(draft) => threads.send(comment, draft)}
                   initialBody={threads.draftOf(comment.id)}
                   onDraftChange={(body) => threads.keepDraft(comment.id, body)}
+                  visibility={replyVisibility(threads, comment)}
                 />
               ) : null
             }

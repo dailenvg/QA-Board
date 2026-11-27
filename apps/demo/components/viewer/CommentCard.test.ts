@@ -298,6 +298,7 @@ describe("the thread (U1)", () => {
     edit: noop,
     remove: noop,
     getInfo: noop,
+    setTeamOnly: noop,
     keepsBox: () => false,
   });
   const withThreads = (element: ReactElement, value: CommentThreads | null) =>
@@ -388,6 +389,7 @@ describe("the thread (U1)", () => {
       onSend: () => Promise.resolve({ ok: true as const, value: null }),
       onDraftChange: noop,
       onOpen: noop,
+      visibility: "choose" as const,
     };
     const closed = renderToStaticMarkup(createElement(CardReplyBox, { ...props, open: false }));
     expect(closed).toContain('data-testid="reply-start"');

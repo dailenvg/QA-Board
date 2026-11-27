@@ -19,27 +19,56 @@ const member: CommentViewer = { team: true, moderator: false };
 const guest: CommentViewer = { team: false, moderator: false };
 
 describe("replyRights", () => {
-  it("lets the author edit and delete their own, with Undo, owner or not", () => {
+  it("lets the author edit and delete their own, with Undo, and change who sees it", () => {
     for (const viewer of [member, owner]) {
-      expect(replyRights(MINE, viewer)).toEqual({ edit: true, delete: "undo", getInfo: true });
+      expect(replyRights(MINE, viewer)).toEqual({
+        edit: true,
+        delete: "undo",
+        getInfo: true,
+        share: true,
+      });
     }
   });
 
   it("gives a member only Get info on someone else's reply or a client's", () => {
     for (const reply of [TEAM, CLIENT]) {
-      expect(replyRights(reply, member)).toEqual({ edit: false, delete: null, getInfo: true });
+      expect(replyRights(reply, member)).toEqual({
+        edit: false,
+        delete: null,
+        getInfo: true,
+        share: false,
+      });
     }
   });
 
-  it("lets the owner delete anyone else's after a confirm, and never edit it", () => {
-    for (const reply of [TEAM, CLIENT]) {
-      expect(replyRights(reply, owner)).toEqual({ edit: false, delete: "confirm", getInfo: true });
-    }
+  it("lets the owner delete anyone else's after a confirm, never edit it, and share only the team's", () => {
+    expect(replyRights(TEAM, owner)).toEqual({
+      edit: false,
+      delete: "confirm",
+      getInfo: true,
+      share: true,
+    });
+    expect(replyRights(CLIENT, owner)).toEqual({
+      edit: false,
+      delete: "confirm",
+      getInfo: true,
+      share: false,
+    });
+  });
+
+  it("changes nobody's reply under a team-only comment, whose thread is the team's anyway", () => {
+    expect(replyRights(MINE, member, true).share).toBe(false);
+    expect(replyRights(TEAM, owner, true).share).toBe(false);
   });
 
   it("gives a review link's guest nothing, not even on a reply from their browser", () => {
     for (const reply of [TEAM, CLIENT, MINE, { ...TEAM, team: true as const }]) {
-      expect(replyRights(reply, guest)).toEqual({ edit: false, delete: null, getInfo: false });
+      expect(replyRights(reply, guest)).toEqual({
+        edit: false,
+        delete: null,
+        getInfo: false,
+        share: false,
+      });
     }
   });
 });

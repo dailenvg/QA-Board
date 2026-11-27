@@ -10,7 +10,8 @@ import { Button } from "../ui/Button";
 import { FieldError } from "../ui/FieldError";
 import { FIELD_CLASS } from "../ui/field-styles";
 import { Icon } from "../ui/Icon";
-import type { ReplyDraft } from "./comment-threads";
+import { Switch } from "../ui/Switch";
+import type { ReplyDraft, ReplyVisibility } from "./comment-threads";
 import { sendsOnEnter } from "./send-key";
 
 interface ReplyComposerProps {
@@ -27,11 +28,17 @@ interface ReplyComposerProps {
    * else the reply.
    */
   autoFocus?: boolean;
+  /**
+   * The team's box (057): `choose` offers a "Team only" switch beside Reply, off every time;
+   * `kept` (under a team-only comment) has none and says the reply stays with the team.
+   */
+  visibility?: ReplyVisibility;
 }
 
 const EMPTY = "Write a reply first.";
 const NAME_MISSING = "Add your name so others know who replied.";
 const HINT = "Enter to send · Shift+Enter for a new line";
+const PLACEHOLDER = { shown: "Reply…", kept: "Reply to your team…" } as const;
 
 type FieldProblem = { field: "name" | "body"; message: string } | null;
 
@@ -47,8 +54,12 @@ export function ReplyComposer({
   initialBody = "",
   onDraftChange,
   autoFocus = false,
+  visibility,
 }: ReplyComposerProps) {
   const [body, setBody] = useState(initialBody);
+  /** The switch, off every time (D15): after each reply sent, too. */
+  const [teamOnly, setTeamOnly] = useState(false);
+  const choose = visibility === "choose";
   const [author, setAuthor] = useState(authorName ?? "");
   /** Typed in the name field: it then stays, whatever name arrives, so nothing typed is lost. */
   const [nameTyped, setNameTyped] = useState(false);
@@ -70,6 +81,8 @@ export function ReplyComposer({
   const bodyErrorId = useId();
   const nameErrorId = useId();
   const hintId = useId();
+  const teamOnlyId = useId();
+  const teamOnlyLabelId = useId();
   const bodyError = problem?.field === "body" ? problem.message : null;
   const nameError = problem?.field === "name" ? problem.message : null;
 
@@ -89,7 +102,12 @@ export function ReplyComposer({
     setSending(true);
     setSendError(null);
     setStatus("Sending…");
-    const result = await onSend({ id, body, author: name });
+    const result = await onSend({
+      id,
+      body,
+      author: name,
+      ...(choose && teamOnly ? { teamOnly: true } : {}),
+    });
     setSending(false);
     if (!result.ok) {
       setStatus("");
@@ -99,6 +117,7 @@ export function ReplyComposer({
     // The send took the words out of the draft as it started (`sendReplyDraft`).
     setBody("");
     setId(newId());
+    setTeamOnly(false);
     setStatus("Reply sent.");
   };
 
@@ -170,7 +189,7 @@ export function ReplyComposer({
           autoFocus={autoFocus && !askName}
           // The post already carries the words: any typed while it's sent would be lost.
           readOnly={sending}
-          placeholder="Reply…"
+          placeholder={visibility === "kept" ? PLACEHOLDER.kept : PLACEHOLDER.shown}
           // Enter sends here (U2), so a phone's keyboard labels the key Send rather than Return.
           enterKeyHint="send"
           aria-invalid={bodyError ? true : undefined}
@@ -190,11 +209,39 @@ export function ReplyComposer({
         {status}
       </p>
       <FormAlert message={sendError} testId="reply-send-error" className="-mt-2 has-[p]:mt-0" />
-      <div className="flex items-center justify-between gap-3">
-        {/* Phones have no Shift on their Enter, so the hint is for keyboards (as the Composer's). */}
-        <p id={hintId} className="hidden text-label text-muted sm:block">
+      {/* Phones have no Shift on their Enter, so the hint is for keyboards (as the Composer's). */}
+      {choose ? (
+        // The switch takes the hint's place in the row, so the hint goes above it (from `sm:` up).
+        <p id={hintId} className="-mt-1 hidden text-label text-muted sm:block">
           {HINT}
         </p>
+      ) : null}
+      <div className="flex items-center justify-between gap-3">
+        {choose ? (
+          <div className="-ml-2 flex min-w-0 items-center">
+            <Switch
+              id={teamOnlyId}
+              checked={teamOnly}
+              onChange={() => setTeamOnly((on) => !on)}
+              labelledBy={teamOnlyLabelId}
+              // The post already carries the choice: one changed while it's sent would be lost.
+              inactive={sending}
+              testId="reply-team-only"
+            />
+            <label
+              id={teamOnlyLabelId}
+              htmlFor={teamOnlyId}
+              className="flex min-h-11 cursor-pointer items-center gap-1 pr-1 text-meta font-semibold"
+            >
+              <Icon name="lock" className="size-3.5 shrink-0" />
+              Team only
+            </label>
+          </div>
+        ) : (
+          <p id={hintId} className="hidden text-label text-muted sm:block">
+            {HINT}
+          </p>
+        )}
         {/* aria-disabled, not disabled: focus stays put, so sending again is right here on failure. */}
         <Button
           type="submit"

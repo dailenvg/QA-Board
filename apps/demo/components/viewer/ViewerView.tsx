@@ -55,6 +55,7 @@ import { openingMode } from "./opening-mode";
 import { PageFilter, type PageScope } from "./PageFilter";
 import { PageStrip } from "./PageStrip";
 import { PinPopover } from "./PinPopover";
+import { TeamOnlyConfirm } from "./TeamOnlyConfirm";
 import {
   DEFAULT_VIEW,
   filterByPriority,
@@ -68,6 +69,7 @@ import { sendDraft } from "./send-draft";
 import { StageZoom } from "./StageZoom";
 import { commentSurfaceKey, pinInSurface, placementOf, surfaceKey } from "./surface";
 import { useCommentActions } from "./use-comment-actions";
+import { useTeamOnlyChange } from "./use-team-only-change";
 import { LINK_MISSING, useCommentLink } from "./use-comment-link";
 import { useViewerDraft } from "./use-viewer-draft";
 import { useViewerPage } from "./use-viewer-page";
@@ -244,6 +246,18 @@ export function ViewerView({
   const numberOf = (id: string) => numbers.get(id)?.label ?? "";
   // A guest replies only while the review window is open (D3): `locked` is its closing.
   const viewer = { team: owner, moderator, reviewOpen: !locked };
+  const linked = project.share !== undefined;
+  const teamOnlyChange = useTeamOnlyChange({
+    backend,
+    toast,
+    comments,
+    // Read when a change is asked for, never while rendering.
+    repliesOf: (commentId) =>
+      data.replies.filter(
+        (reply) => reply.commentId === commentId && reply.projectId === project.id,
+      ),
+    linked,
+  });
   const replyThreads = useViewerThreads({
     data,
     projectId: project.id,
@@ -256,6 +270,7 @@ export function ViewerView({
         id: reply.id,
         subject: { ...infoOf(reply), caption: `Reply by ${reply.author}` },
       }),
+    onSetTeamOnly: teamOnlyChange.setReply,
   });
   // A comment or reply deleted while its details are open (here, in another tab, by the owner)
   // takes them with it; the dialog leaves named as it was opened.
@@ -533,6 +548,8 @@ export function ViewerView({
       ...point,
       body: draft?.body ?? "",
       ...(draft?.priority ? { priority: draft.priority } : {}),
+      // Moving the draft pin keeps its "Team only"; a new draft starts with it off (D15).
+      ...(draft?.teamOnly ? { teamOnly: true } : {}),
       surfaceKey: stageKey,
       snapshotId: surface.kind === "snapshot" ? (surface.snapshot?.id ?? null) : null,
       pageId: surface.kind === "page" ? surface.page.id : null,
@@ -564,6 +581,8 @@ export function ViewerView({
     if (!draft || draft.sending) return;
     if (author.trim() !== data.authorName) backend.setAuthorName(author);
     const { commentId, x, y, snapshotId, pageId, priority, surfaceKey: draftSurface } = draft;
+    // Only the team's composer has the switch, so only its drafts can be team only.
+    const teamOnly = owner && draft.teamOnly === true;
     const update = (change: Partial<Draft>) =>
       setDraft((current) =>
         current?.commentId === commentId ? { ...current, ...change } : current,
@@ -597,6 +616,7 @@ export function ViewerView({
             ...(pageId ? { pageId } : {}),
             ...(priority ? { priority } : {}),
             ...(clientInfo ? { clientInfo } : {}),
+            ...(teamOnly ? { teamOnly } : {}),
           },
           ready,
         );
@@ -784,6 +804,9 @@ export function ViewerView({
         onSetPriority={
           owner ? (priority) => setPriority(openComment, priority, "popover") : undefined
         }
+        onSetTeamOnly={
+          owner ? (teamOnly) => teamOnlyChange.setComment(openComment, teamOnly) : undefined
+        }
         onCopyLink={() => copyLink(openComment)}
         onClose={closePopover}
       />
@@ -816,6 +839,16 @@ export function ViewerView({
           const { priority: _previous, ...rest } = current;
           return priority ? { ...rest, priority } : rest;
         })
+      }
+      onDraftTeamOnlyChange={
+        owner
+          ? (teamOnly) =>
+              setDraft((current) => {
+                if (!current) return current;
+                const { teamOnly: _previous, ...rest } = current;
+                return teamOnly ? { ...rest, teamOnly } : rest;
+              })
+          : undefined
       }
       onDraftSubmit={(body, author) => void submitDraft(body, author)}
       onDraftCancel={() => {
@@ -902,6 +935,7 @@ export function ViewerView({
         onDelete={askToDelete}
         onGetInfo={owner ? getInfo : undefined}
         onSetPriority={owner ? setPriority : undefined}
+        onSetTeamOnly={owner ? teamOnlyChange.setComment : undefined}
         onCopyLink={copyLink}
         filteredOut={filteredOut}
       />
@@ -1069,6 +1103,15 @@ export function ViewerView({
           deleting.close();
           if (target) commentActions.remove(target, replyThreads.byComment.get(target.id));
         }}
+      />
+      <TeamOnlyConfirm
+        asking={teamOnlyChange.asking}
+        numberOf={numberOf}
+        keptBack={(commentId) =>
+          (replyThreads.byComment.get(commentId) ?? []).filter((reply) => reply.teamOnly).length
+        }
+        linked={linked}
+        onConfirm={teamOnlyChange.confirm}
       />
       <GetInfoDialog
         open={inspecting.open}

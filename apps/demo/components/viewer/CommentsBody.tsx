@@ -168,6 +168,7 @@ export function CommentsBody({
                 canModerate={canModerate}
                 canEdit={rights.edit}
                 canDelete={rights.delete !== null}
+                canShare={rights.share}
                 resolvedNote={rights.resolvedNote}
                 onEditing={onEditing}
                 selected={comment.id === selectedId}

@@ -6,7 +6,7 @@ import { useSwapVariants } from "@/lib/motion";
 import type { Result } from "@/lib/store/store";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
-import type { ReplyDraft } from "./comment-threads";
+import type { ReplyDraft, ReplyVisibility } from "./comment-threads";
 import { ReplyComposer } from "./ReplyComposer";
 
 interface CardReplyBoxProps {
@@ -17,6 +17,8 @@ interface CardReplyBoxProps {
   initialBody: string;
   onSend: (draft: ReplyDraft) => Promise<Result<unknown>>;
   onDraftChange: (body: string) => void;
+  /** The team's "Team only" choice for the reply (`ReplyComposer`). */
+  visibility: ReplyVisibility;
 }
 
 /**
@@ -32,6 +34,7 @@ export function CardReplyBox({
   initialBody,
   onSend,
   onDraftChange,
+  visibility,
 }: CardReplyBoxProps) {
   const swap = useSwapVariants();
   /** Opened from the button: the box takes focus as it arrives, never otherwise. */
@@ -47,6 +50,7 @@ export function CardReplyBox({
             initialBody={initialBody}
             onDraftChange={onDraftChange}
             autoFocus={pressed}
+            visibility={visibility}
           />
         </motion.div>
       ) : (

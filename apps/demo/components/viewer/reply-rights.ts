@@ -9,20 +9,33 @@ export interface ReplyRights {
   delete: DeleteMode | null;
   /** "Get info", its browser details: the team's, never a guest's. */
   getInfo: boolean;
+  /**
+   * Make it team only, or show it to clients again (057, D9 a): its author or
+   * the owner, on the team's own replies under a comment clients see (under a
+   * team-only comment, the whole thread is kept to the team anyway).
+   */
+  share: boolean;
 }
 
-const NONE: ReplyRights = { edit: false, delete: null, getInfo: false };
+const NONE: ReplyRights = { edit: false, delete: null, getInfo: false, share: false };
 
 /**
  * What `viewer` may do to `reply` (D1, decision 6): only its author edits it;
- * its author or the owner deletes it. A client's has no author here, so only
- * the owner deletes it, after a confirm. A review link's guest gets nothing
- * (D2).
+ * its author or the owner deletes it, and changes who sees it while its
+ * comment (`commentTeamOnly`) is one clients see. A client's has no author
+ * here, so only the owner deletes it, after a confirm, and it's never team
+ * only. A review link's guest gets nothing (D2).
  */
-export function replyRights(reply: Reply, viewer: CommentViewer): ReplyRights {
+export function replyRights(
+  reply: Reply,
+  viewer: CommentViewer,
+  commentTeamOnly = false,
+): ReplyRights {
   if (!viewer.team) return NONE;
-  if (reply.mine) return { edit: true, delete: "undo", getInfo: true };
-  return { edit: false, delete: viewer.moderator ? replyDeleteMode(reply) : null, getInfo: true };
+  const share = !commentTeamOnly && !reply.fromClient && (reply.mine === true || viewer.moderator);
+  if (reply.mine) return { edit: true, delete: "undo", getInfo: true, share };
+  const remove = viewer.moderator ? replyDeleteMode(reply) : null;
+  return { edit: false, delete: remove, getInfo: true, share };
 }
 
 /**

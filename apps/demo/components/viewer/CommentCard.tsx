@@ -20,7 +20,7 @@ import { CommentMoreMenu } from "./CommentMoreMenu";
 import { CopyLinkButton } from "./CopyLinkButton";
 import { CommentTeamNote } from "./CommentTeamNote";
 import { CommentThread } from "./CommentThread";
-import { showsReplyBox, useCommentThreads } from "./comment-threads";
+import { replyVisibility, showsReplyBox, useCommentThreads } from "./comment-threads";
 import { PlacementChip } from "./PlacementChip";
 import { PriorityChip } from "./PriorityChip";
 import { replyClosedNote } from "./reply-rights";
@@ -28,6 +28,7 @@ import { ReplySlot } from "./ReplySlot";
 import { CardReplyBox } from "./CardReplyBox";
 import { isScreenshotPending } from "./screenshot-pending";
 import { ScreenshotPending } from "./ScreenshotPending";
+import { TeamOnlyMark } from "./TeamOnlyMark";
 import type { Placement } from "./surface";
 import { threadSummary } from "./thread-summary";
 import { ThreadSummaryLine } from "./ThreadSummaryLine";
@@ -47,6 +48,11 @@ export interface CommentCardActions {
   onGetInfo?: (comment: Comment) => void;
   /** The team's Priority choices in the card's More menu (D10); guests get none. */
   onSetPriority?: (comment: Comment, priority: CommentPriority | null) => void;
+  /**
+   * "Make team only" or "Show to client" in the card's More menu (057), where the member may
+   * (`canShare`, D9); guests get none.
+   */
+  onSetTeamOnly?: (comment: Comment, teamOnly: boolean) => void;
   /**
    * Copies the comment's link; resolves true once the clipboard has it. First in the team's
    * More menu (U6); a guest's card has it as a button of its own.
@@ -76,6 +82,8 @@ interface CommentCardProps extends CommentCardActions {
   canEdit: boolean;
   /** Shows Delete: their own, or anyone's for the owner (`commentRights`). */
   canDelete: boolean;
+  /** Offers "Make team only" / "Show to client": its author or the owner (`commentRights`, D9). */
+  canShare?: boolean;
   /** Says the team resolved it, so its words are locked: a guest's own (`commentRights`). */
   resolvedNote: boolean;
   /** Its editor opened or closed, so the list can keep the card in place meanwhile. */
@@ -122,6 +130,7 @@ export function CommentCard({
   canModerate,
   canEdit,
   canDelete,
+  canShare = false,
   resolvedNote,
   onEditing,
   selected,
@@ -134,6 +143,7 @@ export function CommentCard({
   onDelete,
   onGetInfo,
   onSetPriority,
+  onSetTeamOnly,
   onCopyLink,
 }: CommentCardProps) {
   const [editing, setEditing] = useState(false);
@@ -155,7 +165,8 @@ export function CommentCard({
   const replies = threads?.repliesOf(comment.id) ?? NO_REPLIES;
   // The thread and its box show in one place at a time: the popover, while it's open.
   const threadHere = selected && !threadInPopover;
-  const summary = threads && !threadHere ? threadSummary(replies, now) : null;
+  const summary =
+    threads && !threadHere ? threadSummary(replies, now, comment.teamOnly === true) : null;
   const boxHere = threads !== null && showsReplyBox(threads, comment);
   // The card's resolved note already says there's no replying (`RESOLVED_NOTE`).
   const closedNote = threads && !resolvedNote ? replyClosedNote(threads.viewer, comment) : null;
@@ -320,6 +331,7 @@ export function CommentCard({
                     <CommentTeamNote comment={comment} />
                   </span>
                   <ClientMark comment={comment} owner={canModerate} />
+                  <TeamOnlyMark teamOnly={canModerate && comment.teamOnly === true} kind="chip" />
                 </span>
                 <time
                   dateTime={new Date(comment.createdAt).toISOString()}
@@ -412,6 +424,14 @@ export function CommentCard({
               priority={comment.priority ?? null}
               onSetPriority={(priority) => onSetPriority(comment, priority)}
               onGetInfo={() => onGetInfo(comment)}
+              visibility={
+                canShare && onSetTeamOnly
+                  ? {
+                      teamOnly: comment.teamOnly === true,
+                      onChange: (teamOnly) => onSetTeamOnly(comment, teamOnly),
+                    }
+                  : undefined
+              }
             />
           ) : onCopyLink ? (
             <CopyLinkButton
@@ -450,6 +470,7 @@ export function CommentCard({
             <CommentThread
               replies={replies}
               number={number}
+              commentTeamOnly={comment.teamOnly === true}
               threads={threads}
               surface="card"
               now={now}
@@ -464,6 +485,7 @@ export function CommentCard({
                     onSend={(reply) => threads.send(comment, reply)}
                     initialBody={draft}
                     onDraftChange={(body) => threads.keepDraft(comment.id, body)}
+                    visibility={replyVisibility(threads, comment)}
                   />
                 ) : null
               }

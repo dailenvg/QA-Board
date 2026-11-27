@@ -31,6 +31,8 @@ interface CanvasLayerProps {
   onDraftChange: (body: string) => void;
   onDraftAuthorChange: (author: string) => void;
   onDraftPriorityChange: (priority: CommentPriority | undefined) => void;
+  /** The team's composer only: its "Team only" switch (057). */
+  onDraftTeamOnlyChange?: (teamOnly: boolean) => void;
   onDraftSubmit: (body: string, author: string) => void;
   onDraftCancel: () => void;
 }
@@ -70,6 +72,7 @@ export function CanvasLayer({
   onDraftChange,
   onDraftAuthorChange,
   onDraftPriorityChange,
+  onDraftTeamOnlyChange,
   onDraftSubmit,
   onDraftCancel,
 }: CanvasLayerProps) {
@@ -110,6 +113,7 @@ export function CanvasLayer({
             x={draft.x}
             y={draft.y}
             tone={draft.error ? "unsent" : "draft"}
+            teamOnly={draft.teamOnly === true}
             label={draft.error ? "Unsent comment position" : "New comment position"}
           />
         ) : null}
@@ -127,6 +131,7 @@ export function CanvasLayer({
               onChange={onDraftChange}
               onAuthorChange={onDraftAuthorChange}
               onPriorityChange={onDraftPriorityChange}
+              onTeamOnlyChange={onDraftTeamOnlyChange}
               onSubmit={onDraftSubmit}
               onCancel={onDraftCancel}
             />

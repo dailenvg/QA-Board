@@ -11,8 +11,10 @@ import { ClientMark } from "./ClientMark";
 import { CommentAuthorAvatar } from "./CommentAuthorAvatar";
 import { CommentEdited } from "./CommentEdited";
 import { CommentEditor } from "./CommentEditor";
+import { teamOnlyItem } from "./CommentMoreMenu";
 import { CommentTeamNote } from "./CommentTeamNote";
 import type { ReplyRights } from "./reply-rights";
+import { TeamOnlyMark } from "./TeamOnlyMark";
 
 /** The More button's test id, which focus goes back to once the editor closes. */
 export const REPLY_MORE = "reply-more";
@@ -22,6 +24,8 @@ const EMPTY_REPLY_EDIT = "A reply can't be empty. Delete it instead.";
 interface ReplyItemProps {
   reply: Reply;
   rights: ReplyRights;
+  /** Its comment is team only: the comment's chip covers the thread, so the reply has no mark. */
+  commentTeamOnly: boolean;
   /** The workspace's viewer: marks a client's reply (`ClientMark`). */
   owner: boolean;
   /** What the thread sits on, for the avatar's badge ring. */
@@ -30,16 +34,29 @@ interface ReplyItemProps {
   onEdit: (body: string) => void;
   onDelete: () => void;
   onGetInfo: () => void;
+  /** Makes it team only, or shows it to the client (`rights.share`). */
+  onSetTeamOnly: (teamOnly: boolean) => void;
 }
 
-/** The reply's More menu items, in order: Edit, Get info, then Delete set apart. */
+/**
+ * The reply's More menu items, in order: Edit, who sees it, Get info, then Delete set apart.
+ */
 function replyMenuItems(
   rights: ReplyRights,
-  actions: { edit: () => void; getInfo: () => void; remove: () => void },
+  teamOnly: boolean,
+  actions: {
+    edit: () => void;
+    getInfo: () => void;
+    remove: () => void;
+    setTeamOnly: (teamOnly: boolean) => void;
+  },
 ): MenuItem[] {
   const items: MenuItem[] = [];
   if (rights.edit) {
     items.push({ label: "Edit", icon: "pencil", onSelect: actions.edit, testId: "reply-edit" });
+  }
+  if (rights.share) {
+    items.push(teamOnlyItem({ teamOnly, onChange: actions.setTeamOnly }, false));
   }
   if (rights.getInfo) {
     items.push({
@@ -71,12 +88,14 @@ function replyMenuItems(
 export function ReplyItem({
   reply,
   rights,
+  commentTeamOnly,
   owner,
   surface,
   now,
   onEdit,
   onDelete,
   onGetInfo,
+  onSetTeamOnly,
 }: ReplyItemProps) {
   const [editing, setEditing] = useState(false);
   const reduce = useReducedMotion();
@@ -99,10 +118,11 @@ export function ReplyItem({
     node.querySelector<HTMLElement>(`[data-testid="${REPLY_MORE}"]`)?.focus();
   };
 
-  const items = replyMenuItems(rights, {
+  const items = replyMenuItems(rights, reply.teamOnly === true, {
     edit: () => setEditing(true),
     getInfo: onGetInfo,
     remove: onDelete,
+    setTeamOnly: onSetTeamOnly,
   });
   const menu = items.length > 0;
 
@@ -154,6 +174,10 @@ export function ReplyItem({
                       <CommentTeamNote comment={reply} />
                     </span>
                     <ClientMark comment={reply} owner={owner} />
+                    <TeamOnlyMark
+                      teamOnly={owner && reply.teamOnly === true && !commentTeamOnly}
+                      kind="compact"
+                    />
                   </p>
                   <time
                     dateTime={new Date(reply.createdAt).toISOString()}
