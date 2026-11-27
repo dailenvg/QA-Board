@@ -60,6 +60,11 @@ export function ViewerTopBar({
   titleFirst = false,
 }: ViewerTopBarProps) {
   const wide = useMediaQuery("(min-width: 640px)");
+  // The title row's least width. Beside the status, the stage (up to about 136px) needs room
+  // too: without it the chips overflow onto the controls and the title shrinks to nothing, so
+  // from 640px up the row keeps 384px (about 8 characters of title) and the controls wrap
+  // below it instead. Guests never have a stage, so `titleFirst` keeps its own minimum.
+  const titleRoom = stage ? "sm:min-w-96" : titleFirst ? "md:min-w-80" : "";
   return (
     // Its own layer, so the Export menu opens over the snapshot bar and pins below it.
     <header className="relative z-40 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-panel bg-panel p-2">
@@ -75,7 +80,7 @@ export function ViewerTopBar({
        * With `titleFirst` the title outranks the controls: from tablets up it keeps about 20
        * characters beside its status, and when that doesn't fit, the controls wrap below it.
        */}
-      <div className={`flex min-w-40 flex-1 items-center gap-2 ${titleFirst ? "md:min-w-80" : ""}`}>
+      <div className={`flex min-w-40 flex-1 items-center gap-2 ${titleRoom}`}>
         <h1 title={project.name} className="truncate text-heading font-bold">
           {project.name}
         </h1>
