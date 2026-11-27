@@ -18,6 +18,7 @@ export type ReactionSpeech =
   | { kind: "just-created"; projectName: string }
   | { kind: "just-deleted"; undoable: boolean }
   | { kind: "just-archived" }
+  | { kind: "just-approved" }
   | { kind: "save-failed" }
   | { kind: "just-imported"; partial: boolean };
 
@@ -53,6 +54,8 @@ export function reactionSpeech(event: SquiggyEvent): ReactionSpeech {
       return { kind: "just-deleted", undoable: event.item !== "folder" };
     case "project-archived":
       return { kind: "just-archived" };
+    case "stage-changed":
+      return { kind: "just-approved" };
     case "save-failed":
       return { kind: "save-failed" };
     case "imported":

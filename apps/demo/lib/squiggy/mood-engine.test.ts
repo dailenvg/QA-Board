@@ -226,6 +226,7 @@ describe("reactionMood", () => {
     expect(reactionMood({ type: "item-deleted", item: "comment" })).toBe("surprised");
     expect(reactionMood({ type: "save-failed" })).toBe("surprised");
     expect(reactionMood({ type: "project-archived" })).toBe("sleeping");
+    expect(reactionMood({ type: "stage-changed", stage: "approved" })).toBe("happy");
     expect(reactionMood({ type: "imported", partial: false })).toBe("happy");
   });
 });

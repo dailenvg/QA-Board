@@ -3,6 +3,7 @@ import { isArchived, withArchived, withLabel } from "./archive";
 import { folderMoveProblem, subtreeIds } from "./folders";
 import { placeComment } from "./pages";
 import { prunableSnapshotIds } from "./snapshots";
+import { withStage } from "./stage";
 import type {
   ClientEdit,
   Comment,
@@ -13,6 +14,7 @@ import type {
   Project,
   ProjectShare,
   ProjectSource,
+  ProjectStage,
   Reply,
   Snapshot,
   SquintData,
@@ -39,6 +41,8 @@ export type Action =
   | { type: "project/archive"; id: string; archived: boolean; at: number }
   /** Gives a project a label, or takes it away (null). */
   | { type: "project/label"; id: string; label: string | null }
+  /** Sets where a project stands (`at` is when), or clears it (null). The same stage changes nothing. */
+  | { type: "project/stage"; id: string; stage: ProjectStage | null; at: number }
   /**
    * Undo for a delete: puts the project, its comments, their replies and its
    * snapshots back exactly as they were.
@@ -365,6 +369,12 @@ export function reduce(data: SquintData, action: Action): SquintData {
     case "project/label":
       return updateProject(data, action.id, (project) =>
         (project.label ?? null) === action.label ? null : withLabel(project, action.label),
+      );
+    case "project/stage":
+      return updateProject(data, action.id, (project) =>
+        (project.stage ?? null) === action.stage
+          ? null
+          : withStage(project, action.stage, action.at),
       );
     case "project/restore":
       if (data.projects.some((project) => project.id === action.project.id)) return data;

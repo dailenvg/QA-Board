@@ -14,6 +14,8 @@ export type SquiggyEvent =
   | { type: "project-created"; projectName: string }
   | { type: "item-deleted"; item: "project" | "folder" | "comment" | "reply" }
   | { type: "project-archived" }
+  /** A project set to Approved by hand (only that stage: the others pass without a reaction). */
+  | { type: "stage-changed"; stage: "approved" }
   | { type: "save-failed" }
   | { type: "imported"; partial: boolean };
 

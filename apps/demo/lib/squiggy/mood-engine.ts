@@ -40,6 +40,7 @@ export const REACTION_MOOD: Record<SquiggyEventType, Mood> = {
   "project-created": "happy",
   "item-deleted": "surprised",
   "project-archived": "sleeping",
+  "stage-changed": "happy",
   "save-failed": "surprised",
   imported: "happy",
 };

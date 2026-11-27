@@ -270,6 +270,8 @@ export function writesFor(action: Action, before: SquintData, after: SquintData)
       return [write("PUT", `${projectPath(action.id)}/archive`, { archived: action.archived })];
     case "project/label":
       return [write("PUT", `${projectPath(action.id)}/label`, { label: action.label })];
+    case "project/stage":
+      return [write("PUT", `${projectPath(action.id)}/stage`, { stage: action.stage })];
     case "project/restore":
       return [write("POST", `${projectPath(action.project.id)}/restore`)];
     case "comment/add":

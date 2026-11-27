@@ -35,6 +35,7 @@ import type {
   Project,
   ProjectShare,
   ProjectSource,
+  ProjectStage,
   Reply,
   Snapshot,
 } from "./types";
@@ -338,6 +339,17 @@ export function setProjectArchived(id: string, archived: boolean): Result {
 export function setProjectLabel(id: string, label: string | null): Result {
   const cleaned = label === null ? null : cleanLabel(label);
   return commit({ type: "project/label", id, label: cleaned || null });
+}
+
+/**
+ * Sets where a project stands, or clears it with null. It shows at once and resolves once the
+ * server has it; a refusal rolls it back, and the caller says so (with Retry). Squiggy is
+ * happy once a project is Approved.
+ */
+export async function setProjectStage(id: string, stage: ProjectStage | null): Promise<Result> {
+  const result = await dispatchConfirmed({ type: "project/stage", id, stage, at: Date.now() });
+  if (result.ok && stage === "approved") emitSquiggy({ type: "stage-changed", stage });
+  return result;
 }
 
 export const deleteProject = (id: string) =>

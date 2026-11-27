@@ -54,6 +54,8 @@ function reactionLine(speech: ReactionSpeech): string {
       return speech.undoable ? "Gone. You can still undo it." : "Gone. That one can't be undone.";
     case "just-archived":
       return "Archived. It's tucked away until you need it.";
+    case "just-approved":
+      return "Approved. Nice work.";
     case "save-failed":
       return "That didn't save. Check your connection and try again.";
     case "just-imported":

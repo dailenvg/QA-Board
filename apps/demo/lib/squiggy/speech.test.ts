@@ -62,6 +62,9 @@ describe("reactionSpeech", () => {
     });
     expect(reactionSpeech({ type: "save-failed" })).toEqual({ kind: "save-failed" });
     expect(reactionSpeech({ type: "project-archived" })).toEqual({ kind: "just-archived" });
+    expect(reactionSpeech({ type: "stage-changed", stage: "approved" })).toEqual({
+      kind: "just-approved",
+    });
     expect(reactionSpeech({ type: "imported", partial: false })).toEqual({
       kind: "just-imported",
       partial: false,

@@ -451,6 +451,17 @@ describe("archive and label writes", () => {
   });
 });
 
+describe("stage writes", () => {
+  it("sets and clears a stage through the stage route", () => {
+    expect(writes({ type: "project/stage", id: "p2", stage: "on-hold", at: 9 })).toEqual([
+      { method: "PUT", path: "/projects/p2/stage", body: { stage: "on-hold" } },
+    ]);
+    expect(writes({ type: "project/stage", id: "p2", stage: null, at: 9 })).toEqual([
+      { method: "PUT", path: "/projects/p2/stage", body: { stage: null } },
+    ]);
+  });
+});
+
 describe("refusalMessage", () => {
   it("says a thing was deleted elsewhere for a 404, and asks to retry otherwise", () => {
     const rename: Action = { type: "project/rename", id: "p1", name: "X", at: 2 };
