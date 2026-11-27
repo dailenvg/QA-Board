@@ -1,12 +1,14 @@
 import { z } from "zod";
 import { MEMBER_SWITCHES, type MemberSwitch } from "../auth/permissions";
 import { REVIEW_WINDOWS, type ReviewWindowChoice } from "../share/review-window";
+import { PROJECT_STAGES } from "../store/stage";
+import type { ProjectStage } from "../store/types";
 
 /**
  * What the admin panel shows of an audit entry's `meta`: only what
  * `AuditEntry` (`lib/account/audit.ts`) documents as safe to keep, and less.
- * Field names; a review link's new window; that a membership came from an
- * invite; a member's switches before and after; how many people an invitation
+ * Field names; a review link's new window; a project's new stage (null for
+ * none); that a membership came from an invite; a member's switches before and after; how many people an invitation
  * went to (never the keyed HMACs themselves); and whether a project sent to
  * ClickUp was assigned (never its ClickUp ids). Anything else in `meta` is
  * dropped, whatever it holds.
@@ -14,6 +16,7 @@ import { REVIEW_WINDOWS, type ReviewWindowChoice } from "../share/review-window"
 export interface AuditDetails {
   fields: string[];
   reviewWindow?: ReviewWindowChoice;
+  stage?: ProjectStage | null;
   viaInvite?: true;
   switches?: { before: MemberSwitch[]; after: MemberSwitch[] };
   recipients?: number;
@@ -34,6 +37,7 @@ const switchList = z.array(z.enum(MEMBER_SWITCHES as [MemberSwitch, ...MemberSwi
 const metaSchema = z.object({
   fields: z.array(z.unknown()).optional().catch(undefined),
   reviewWindow: z.enum(REVIEW_WINDOWS).optional().catch(undefined),
+  stage: z.enum(PROJECT_STAGES).nullable().optional().catch(undefined),
   source: z.literal("invite").optional().catch(undefined),
   before: switchList.optional().catch(undefined),
   after: switchList.optional().catch(undefined),
@@ -44,12 +48,13 @@ const metaSchema = z.object({
 export function auditDetails(meta: unknown): AuditDetails {
   const parsed = metaSchema.safeParse(meta);
   if (!parsed.success) return { fields: [] };
-  const { fields, reviewWindow, source, before, after, recipients, assigned } = parsed.data;
+  const { fields, reviewWindow, stage, source, before, after, recipients, assigned } = parsed.data;
   return {
     fields: (fields ?? []).filter(
       (field): field is string => typeof field === "string" && FIELD_NAME.test(field),
     ),
     ...(reviewWindow ? { reviewWindow } : {}),
+    ...(stage !== undefined ? { stage } : {}),
     ...(source === "invite" ? { viaInvite: true } : {}),
     ...(before && after ? { switches: { before, after } } : {}),
     ...(recipients ? { recipients: recipients.length } : {}),

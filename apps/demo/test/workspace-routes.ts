@@ -17,6 +17,7 @@ import * as replies from "@/app/api/w/[workspaceId]/projects/[projectId]/comment
 import * as label from "@/app/api/w/[workspaceId]/projects/[projectId]/label/route";
 import * as pages from "@/app/api/w/[workspaceId]/projects/[projectId]/pages/route";
 import * as restore from "@/app/api/w/[workspaceId]/projects/[projectId]/restore/route";
+import * as stage from "@/app/api/w/[workspaceId]/projects/[projectId]/stage/route";
 import * as abandon from "@/app/api/w/[workspaceId]/projects/[projectId]/abandon/route";
 import * as personAvatar from "@/app/api/w/[workspaceId]/people/[personKey]/avatar/route";
 import * as project from "@/app/api/w/[workspaceId]/projects/[projectId]/route";
@@ -47,6 +48,7 @@ const ROUTES: Array<[string, Partial<Record<string, unknown>>]> = [
   ["/projects/:projectId/abandon", abandon],
   ["/projects/:projectId/archive", archive],
   ["/projects/:projectId/label", label],
+  ["/projects/:projectId/stage", stage],
   ["/projects/:projectId/pages", pages],
   ["/projects/:projectId/snapshots", snapshots],
   ["/projects/:projectId/snapshots/:snapshotId", snapshot],

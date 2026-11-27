@@ -16,6 +16,7 @@ function detailLines(details: AuditDetails): string[] {
   return [
     ...(details.fields.length > 0 ? [DETAILS.fields(details.fields)] : []),
     ...(details.reviewWindow ? [DETAILS.reviewWindow(details.reviewWindow)] : []),
+    ...(details.stage !== undefined ? [DETAILS.stage(details.stage)] : []),
     ...(details.viaInvite ? [DETAILS.viaInvite] : []),
     ...(details.switches
       ? [DETAILS.switches(details.switches.before, details.switches.after)]

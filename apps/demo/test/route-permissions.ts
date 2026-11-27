@@ -53,6 +53,8 @@ export const ROUTE_PERMISSIONS: Record<string, Record<string, RouteAccess>> = {
   "/api/w/:workspaceId/projects/:projectId/abandon": { POST: WRITE },
   "/api/w/:workspaceId/projects/:projectId/archive": { PUT: WRITE },
   "/api/w/:workspaceId/projects/:projectId/label": { PUT: WRITE },
+  // Any member sets the stage, as the label (D1): audited, no switch of its own.
+  "/api/w/:workspaceId/projects/:projectId/stage": { PUT: WRITE },
   "/api/w/:workspaceId/projects/:projectId/pages": { GET: READ, PUT: WRITE },
   "/api/w/:workspaceId/projects/:projectId/snapshots": { GET: READ, POST: WRITE },
   "/api/w/:workspaceId/projects/:projectId/snapshots/:snapshotId": { DELETE: WRITE },

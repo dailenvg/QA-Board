@@ -1,6 +1,7 @@
 import type { Database } from "../db/database";
 import type { Queryable } from "../share/migrate";
-import type { Page, PagesSource, ProjectSource } from "../store/types";
+import { audit } from "../account/audit";
+import type { Page, PagesSource, ProjectSource, ProjectStage } from "../store/types";
 import { placeFrameComments } from "./comments";
 import { ARCHIVE_GRACE_MS } from "./limits";
 import { pagesByProject, replacePages } from "./pages";
@@ -16,6 +17,8 @@ interface ProjectRow {
   name: string;
   source: StoredSource;
   label: string | null;
+  stage: ProjectStage | null;
+  stage_changed_at: Date | null;
   archived_at: Date | null;
   delete_after: Date | null;
   created_at: Date;
@@ -33,7 +36,7 @@ interface ProjectRow {
 
 /** A project row with its review link, if it has one (never the link's secrets). */
 const SELECT = `SELECT project.id, project.folder_id, project.name, project.source, project.label,
-    project.archived_at, project.delete_after, project.created_at, project.updated_at, project.deleted_at,
+    project.stage, project.stage_changed_at, project.archived_at, project.delete_after, project.created_at, project.updated_at, project.deleted_at,
     link.share_id, share.created_at AS share_created_at, link.cursor AS share_cursor,
     link.last_synced_at AS share_synced_at, share.review_window_hours AS share_review_window_hours,
     share.password_set_at AS share_password_set_at, share.client_name AS share_client_name,
@@ -68,6 +71,8 @@ function toProject(row: ProjectRow, pages: Map<string, Page[]>): WorkspaceProjec
     createdAt: toMs(row.created_at),
     updatedAt: toMs(row.updated_at),
     label: row.label,
+    stage: row.stage,
+    stageChangedAt: toMsOrNull(row.stage_changed_at),
     archivedAt: toMsOrNull(row.archived_at),
     deleteAfter: toMsOrNull(row.delete_after),
   };
@@ -302,6 +307,49 @@ export function setLabel(
   label: string | null,
 ): Promise<WorkspaceProject | null> {
   return updateLive(db, workspaceId, id, "label = $3", [label]);
+}
+
+/**
+ * Sets a live project's stage, or clears it with null, and records who did it
+ * (`project.stage_changed`, with the new stage). `stage_changed_at` moves only
+ * when the stage does: setting the one it has changes nothing and records
+ * nothing. Null for a project that isn't live here (trashed, another
+ * workspace's or unknown).
+ */
+export async function setStage(
+  db: Database,
+  actor: { userId: string; workspaceId: string },
+  id: string,
+  stage: ProjectStage | null,
+  now: number,
+): Promise<WorkspaceProject | null> {
+  const { workspaceId } = actor;
+  return db.transaction(async (tx) => {
+    const { rows } = await tx.query<{ stage: ProjectStage | null }>(
+      `SELECT project.stage FROM projects AS project
+       WHERE project.workspace_id = $1 AND project.id = $2 AND ${LIVE} FOR UPDATE`,
+      [workspaceId, id],
+    );
+    const row = rows[0];
+    if (!row) return null;
+    if (row.stage === stage) return getProject(tx, workspaceId, id);
+    await audit(
+      tx,
+      {
+        actorUserId: actor.userId,
+        workspaceId,
+        action: "project.stage_changed",
+        target: { type: "project", id },
+        fields: ["stage"],
+        meta: { stage },
+      },
+      now,
+    );
+    return updateLive(tx, workspaceId, id, "stage = $3, stage_changed_at = $4", [
+      stage,
+      toDate(now),
+    ]);
+  });
 }
 
 /** Moves a live project to the trash. Its share stops answering until it's restored. */

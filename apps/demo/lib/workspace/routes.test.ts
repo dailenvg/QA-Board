@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as DatabaseModule from "@/lib/db/database";
 import {
   addFolder,
+  memberSeat,
   NOW,
   PAGES_PROJECT,
   PNG,
@@ -16,7 +17,7 @@ import { STATE } from "@/test/share-fixture";
 import { inlineBackend } from "../share/blob-backend";
 import { createPostgresStore } from "../share/postgres-store";
 import { createShare } from "../share/service";
-import { createProject } from "./projects";
+import { createProject, trashProject } from "./projects";
 
 const HOUR = 60 * 60 * 1000;
 
@@ -125,6 +126,7 @@ describe("request bodies", () => {
     ["PATCH", "/projects/p1", { name: " " }, "name"],
     ["PUT", "/projects/p1/archive", { archived: "yes" }, "archived"],
     ["PUT", "/projects/p1/label", { label: "x".repeat(41) }, "label"],
+    ["PUT", "/projects/p1/stage", { stage: "With client" }, "stage"],
     ["PUT", "/projects/p1/pages", { pages: [] }, "pages"],
     ["POST", "/projects/p1/snapshots", { id: "s1" }, "width"],
     ["POST", "/projects/p1/comments", { id: "c1", x: 101, y: 0, body: "Hi", author: "A" }, "x"],
@@ -515,6 +517,37 @@ describe("happy paths", () => {
     expect((await call("DELETE", unlinked, { cookie: a.cookie, body: {} })).status).toBe(404);
     const theirs = await call("PUT", `${link}/password`, { cookie: b.cookie, body: password });
     expect(theirs.status).toBe(404);
+  });
+
+  it("lets any member set and clear a project's stage, audited as them; 404 once it's trashed", async () => {
+    // No switches at all: the stage is every member's, as the label is (D1).
+    const member = await memberSeat(db, a.workspaceId, []);
+    const stage = path(a.workspaceId, "/projects/:projectId/stage");
+    const set = await call("PUT", stage, { cookie: member.cookie, body: { stage: "approved" } });
+    expect(set.status).toBe(200);
+    expect(await set.json()).toMatchObject({ id: "p1", stage: "approved" });
+    const cleared = await call("PUT", stage, { cookie: a.cookie, body: { stage: null } });
+    expect(await cleared.json()).toMatchObject({ id: "p1", stage: null });
+    const { rows } = await db.query(
+      "SELECT actor_user_id, action, target_id, meta FROM audit_log ORDER BY id",
+    );
+    expect(rows).toEqual([
+      {
+        actor_user_id: member.userId,
+        action: "project.stage_changed",
+        target_id: "p1",
+        meta: { fields: ["stage"], stage: "approved" },
+      },
+      {
+        actor_user_id: a.userId,
+        action: "project.stage_changed",
+        target_id: "p1",
+        meta: { fields: ["stage"], stage: null },
+      },
+    ]);
+    await trashProject(db, a.workspaceId, "p1", NOW + 1);
+    const gone = await call("PUT", stage, { cookie: member.cookie, body: { stage: "editing" } });
+    expect(gone.status).toBe(404);
   });
 
   it("sets and reads the member's author name", async () => {

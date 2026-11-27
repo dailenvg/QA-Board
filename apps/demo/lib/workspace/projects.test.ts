@@ -14,6 +14,7 @@ import {
   restoreProject,
   setArchived,
   setLabel,
+  setStage,
   trashProject,
   updateProject,
 } from "./projects";
@@ -48,6 +49,8 @@ describe("projects", () => {
         createdAt: NOW,
         updatedAt: NOW,
         label: null,
+        stage: null,
+        stageChangedAt: null,
         archivedAt: null,
         deleteAfter: null,
       },
@@ -166,5 +169,79 @@ describe("projects", () => {
     expect((await restoreProject(db, a.workspaceId, "p1"))?.id).toBe("p1");
     expect(await restoreProject(db, a.workspaceId, "p1")).toBeNull();
     expect(await listTrash(db, a.workspaceId)).toEqual([]);
+  });
+
+  describe("setStage", () => {
+    async function stageAudit(db: Awaited<ReturnType<typeof twoWorkspaces>>["db"]) {
+      const { rows } = await db.query(
+        `SELECT actor_user_id, workspace_id, action, target_type, target_id, meta
+         FROM audit_log WHERE action = 'project.stage_changed' ORDER BY id`,
+      );
+      return rows;
+    }
+
+    it("sets and clears a stage, moving stage_changed_at and auditing each change", async () => {
+      const { db, a } = await twoWorkspaces();
+      await addFolder(db, a.workspaceId);
+      await createProject(db, a.workspaceId, URL_PROJECT("p1"), NOW);
+      expect(await getProject(db, a.workspaceId, "p1")).toMatchObject({
+        stage: null,
+        stageChangedAt: null,
+      });
+
+      const set = await setStage(db, a, "p1", "on-hold", NOW + 1);
+      expect(set).toMatchObject({ id: "p1", stage: "on-hold", stageChangedAt: NOW + 1 });
+      // As with the label, the project's own dates stay as they were.
+      expect(set?.updatedAt).toBe(NOW);
+      expect(await setStage(db, a, "p1", "approved", NOW + 2)).toMatchObject({
+        stage: "approved",
+        stageChangedAt: NOW + 2,
+      });
+      expect(await setStage(db, a, "p1", null, NOW + 3)).toMatchObject({
+        stage: null,
+        stageChangedAt: NOW + 3,
+      });
+
+      expect(await stageAudit(db)).toEqual(
+        ["on-hold", "approved", null].map((stage) => ({
+          actor_user_id: a.userId,
+          workspace_id: a.workspaceId,
+          action: "project.stage_changed",
+          target_type: "project",
+          target_id: "p1",
+          meta: { fields: ["stage"], stage },
+        })),
+      );
+    });
+
+    it("changes nothing and records nothing when the stage is the one it has", async () => {
+      const { db, a } = await twoWorkspaces();
+      await addFolder(db, a.workspaceId);
+      await createProject(db, a.workspaceId, URL_PROJECT("p1"), NOW);
+      await setStage(db, a, "p1", "editing", NOW + 1);
+      expect(await setStage(db, a, "p1", "editing", NOW + 5)).toMatchObject({
+        stage: "editing",
+        stageChangedAt: NOW + 1,
+      });
+      await setStage(db, a, "p1", null, NOW + 6);
+      expect(await setStage(db, a, "p1", null, NOW + 9)).toMatchObject({
+        stage: null,
+        stageChangedAt: NOW + 6,
+      });
+      expect(await stageAudit(db)).toHaveLength(2);
+    });
+
+    it("answers null for a trashed project, another workspace's or an unknown one", async () => {
+      const { db, a, b } = await twoWorkspaces();
+      await addFolder(db, a.workspaceId);
+      await createProject(db, a.workspaceId, URL_PROJECT("p1"), NOW);
+      expect(await setStage(db, b, "p1", "approved", NOW + 1)).toBeNull();
+      expect(await setStage(db, a, "nope", "approved", NOW + 1)).toBeNull();
+      await trashProject(db, a.workspaceId, "p1", NOW + 2);
+      expect(await setStage(db, a, "p1", "approved", NOW + 3)).toBeNull();
+      expect(await stageAudit(db)).toEqual([]);
+      await restoreProject(db, a.workspaceId, "p1");
+      expect(await getProject(db, a.workspaceId, "p1")).toMatchObject({ stage: null });
+    });
   });
 });

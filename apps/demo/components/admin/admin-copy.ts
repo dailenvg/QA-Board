@@ -9,6 +9,8 @@ import type { CronTrigger, ExpiryStep } from "@/lib/cron/expiry-steps";
 import type { CRON_SCHEDULE } from "@/lib/cron/schedule";
 import type { MemberSwitch } from "@/lib/auth/permissions";
 import { REVIEW_WINDOW_LABELS, type ReviewWindowChoice } from "@/lib/share/review-window";
+import { STAGE_LABEL } from "@/lib/store/stage";
+import type { ProjectStage } from "@/lib/store/types";
 import { MEMBERS_COPY } from "../account/members-copy";
 
 /** Every line the admin panel shows, in one place for review. */
@@ -134,6 +136,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   senderName: "email sender name",
   reviewWindow: "review window",
   clientName: "client name",
+  stage: "stage",
   "archive-expired": "archive period ended",
 };
 
@@ -566,6 +569,8 @@ export const ADMIN_COPY = {
     /** "Changed: name, brand color". */
     fields: (names: readonly string[]) => `Changed: ${names.map(fieldLabel).join(", ")}`,
     reviewWindow: (choice: ReviewWindowChoice) => `Review window: ${REVIEW_WINDOW_LABELS[choice]}`,
+    /** "Stage: On hold", or "Stage: none" once cleared. */
+    stage: (stage: ProjectStage | null) => `Stage: ${stage ? STAGE_LABEL[stage] : "none"}`,
     viaInvite: "Joined from an invite",
     /** "Switches before: review links, trash; after: trash, people". */
     switches: (before: readonly MemberSwitch[], after: readonly MemberSwitch[]) =>
@@ -615,6 +620,7 @@ export const ACTION_LABELS: Readonly<Record<string, string>> = {
   "member.invite_cancelled": "Cancelled invite",
   "project.deleted": "Deleted project",
   "project.clickup_sent": "Sent project to ClickUp",
+  "project.stage_changed": "Changed project stage",
   "share.settings_changed": "Changed review link settings",
   "share.password_set": "Set review link password",
   "share.password_removed": "Removed review link password",

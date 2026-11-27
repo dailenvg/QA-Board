@@ -22,6 +22,8 @@ const project = (id: string, folderId: string | null, share = false): WorkspaceP
   createdAt: 1,
   updatedAt: 2,
   label: null,
+  stage: null,
+  stageChangedAt: null,
   archivedAt: null,
   deleteAfter: null,
   ...(share

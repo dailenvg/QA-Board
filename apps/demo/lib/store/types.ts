@@ -94,6 +94,10 @@ export interface Project {
   share?: ProjectShare;
   /** A short tag the team gives it (one per project), for filtering. */
   label?: string;
+  /** Where the team says it stands (056, `lib/store/stage.ts`); missing for no stage. */
+  stage?: ProjectStage;
+  /** When its stage last changed (epoch ms); set with `stage`. */
+  stageChangedAt?: number;
   /**
    * Set while archived: out of the folder grids, counts and the Overview, its
    * review link closed, until it's unarchived or deleted for good at `deleteAfter`.
@@ -102,6 +106,9 @@ export interface Project {
   /** When an archived project is deleted for good (epoch ms); set with `archivedAt`. */
   deleteAfter?: number;
 }
+
+/** Where a project stands, set by hand (056): With client, Editing, On hold or Approved. */
+export type ProjectStage = "open-for-review" | "editing" | "on-hold" | "approved";
 
 export type CommentStatus = "active" | "resolved";
 

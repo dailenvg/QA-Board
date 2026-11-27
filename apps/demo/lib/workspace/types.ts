@@ -1,6 +1,6 @@
 import type { MembershipRole } from "../auth/memberships";
 import type { MemberSwitch } from "../auth/permissions";
-import type { Comment, Folder, ProjectSource, Reply, Snapshot } from "../store/types";
+import type { Comment, Folder, ProjectSource, ProjectStage, Reply, Snapshot } from "../store/types";
 
 /**
  * What the workspace API sends and takes. The shapes are the browser store's
@@ -47,6 +47,10 @@ export interface WorkspaceProject {
   createdAt: number;
   updatedAt: number;
   label: string | null;
+  /** Where the team says it stands (056); null for no stage. */
+  stage: ProjectStage | null;
+  /** When its stage last changed; null before the first change. */
+  stageChangedAt: number | null;
   archivedAt: number | null;
   /** When an archived project is due to be deleted for good; null unless archived. */
   deleteAfter: number | null;
