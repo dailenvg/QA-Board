@@ -90,6 +90,8 @@ interface ViewerViewProps {
   leading: ReactNode;
   /** Extra top-bar actions, such as the owner's Share button. */
   actions?: ReactNode;
+  /** The team's stage menu in the top bar (`StageMenu`); guests have none. */
+  stage?: ReactNode;
   /** Shown above the comment list on wide screens, such as what a client can do on a shared link. */
   panelNotice?: ReactNode;
   /** Its short form, shown in the comments sheet's header on phones (visible while collapsed). */
@@ -145,6 +147,7 @@ export function ViewerView({
   project,
   leading,
   actions,
+  stage,
   panelNotice,
   panelNote,
   draftStorage,
@@ -908,6 +911,7 @@ export function ViewerView({
         project={project}
         leading={leading}
         status={deriveStatus(counts)}
+        stage={stage}
         mode={view.modeDecided ? mode : null}
         onMode={chooseMode}
         commentLocked={commentLocked}
