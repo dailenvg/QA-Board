@@ -55,7 +55,60 @@ describe("buildExportDocument", () => {
       createdAt: Date.UTC(2026, 9, 24, 9, 0, 48),
       editedAt: null,
       fromClient: true,
+      teamOnly: false,
       clientInfo: null,
+    });
+  });
+
+  describe("with team-only comments (D13, D14, D39)", () => {
+    const [legacy, old, latest] = URL_EXPORT.comments;
+    if (!legacy || !old || !latest) throw new Error("fixture");
+    const clientInfo = { userAgent: "Mozilla/5.0", dpr: 2 };
+    const input = {
+      ...URL_EXPORT,
+      comments: [{ ...legacy, teamOnly: true as const }, { ...old, clientInfo }, latest],
+      replies: URL_EXPORT.replies.map((reply) =>
+        reply.id === "r-team" ? { ...reply, teamOnly: true as const, clientInfo } : reply,
+      ),
+    };
+
+    it("numbers the team's T1.. apart, marks them, and names their screenshots T01-", () => {
+      const team = buildExportDocument({
+        ...input,
+        comments: [
+          { ...legacy, teamOnly: true as const },
+          { ...old, teamOnly: true as const },
+          latest,
+        ],
+      });
+      expect(team.audience).toBe("team");
+      expect(team.comments.map((comment) => [comment.label, comment.teamOnly])).toEqual([
+        ["T1", true],
+        ["1", false],
+        ["T2", true],
+      ]);
+      expect(team.comments.map((comment) => comment.screenshot?.file ?? null)).toEqual([
+        null,
+        "screenshots/01-cccc3333.jpg",
+        "screenshots/T02-bbbb2222.png",
+      ]);
+      const thread = team.comments.find((comment) => comment.id === latest.id)?.replies;
+      expect(thread?.map((reply) => [reply.id, reply.teamOnly])).toEqual([
+        ["r-team", true],
+        ["r-client", false],
+      ]);
+    });
+
+    it("leaves team-only comments and replies, and every browser's details, out of a client's", () => {
+      const client = buildExportDocument({ ...input, audience: "client" });
+      expect(client.audience).toBe("client");
+      expect(client.comments.map((comment) => comment.label)).toEqual(["2", "1"]);
+      expect(client.comments.every((comment) => !comment.teamOnly)).toBe(true);
+      expect(client.comments.every((comment) => comment.clientInfo === null)).toBe(true);
+      const thread = client.comments.find((comment) => comment.id === latest.id)?.replies;
+      expect(thread?.map((reply) => reply.id)).toEqual(["r-client"]);
+      expect(JSON.stringify(client)).not.toContain(legacy.body);
+      expect(JSON.stringify(client)).not.toContain("Mozilla");
     });
   });
 

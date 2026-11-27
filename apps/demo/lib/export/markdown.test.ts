@@ -52,6 +52,24 @@ describe("toMarkdown", () => {
     expect(bare).not.toContain("**Replies:**");
   });
 
+  it("marks team-only comments and replies in the team's export", () => {
+    const comments = URL_EXPORT.comments.map((comment) =>
+      comment.id === "bbbb2222-old" ? { ...comment, teamOnly: true as const } : comment,
+    );
+    const replies = URL_EXPORT.replies.map((reply) =>
+      reply.id === "r-team" ? { ...reply, teamOnly: true as const } : reply,
+    );
+    const markdown = toMarkdown(buildExportDocument({ ...URL_EXPORT, comments, replies }), {
+      withFiles: true,
+    });
+    expect(structure(markdown)).toContain("### Comment T1 · Team only · Nit");
+    expect(markdown).toContain("![Screenshot for comment T1](screenshots/T01-bbbb2222.png)");
+    expect(markdown).toContain("- (Team only) Leo, ");
+    expect(markdown).not.toContain("- (Team only) Cleo");
+    // Under a team-only comment, its heading covers the thread.
+    expect(markdown).not.toContain("- (Team only) Ana");
+  });
+
   it("keeps hostile comment text from changing the document's structure", () => {
     expect(structure(zipMarkdown)).toEqual([
       "# Squint review: Acme \\*launch\\* \\[v2\\]",

@@ -2,6 +2,15 @@ import type { ExportDocument } from "./types";
 
 /**
  * Changelog:
+ * - `squint.comments/3` (team only, D39): comments are numbered in two
+ *   sequences. `number` is now within the comment's own sequence (1..n for
+ *   comments clients see, 1..n for team-only ones), so it no longer names a
+ *   comment on its own; `label` does: "4", or "T1" for a team-only comment.
+ *   Each comment and reply has `teamOnly`. A team-only comment's screenshot is
+ *   `screenshots/T<NN>-…`, padded over the team-only count. `audience` says who
+ *   the export is for: "team" (everything, team-only marked) or "client"
+ *   (only what the review link shows, with every `clientInfo` null). Comments
+ *   are in pin order (when each was made) within active and resolved.
  * - `squint.comments/2` (pages): image projects became page projects.
  *   `project.source` is `{ kind: "pages", origin, fileName, referenceUrl,
  *   pages }` (was `{ kind: "image", fileName, referenceUrl, width, height,
@@ -18,7 +27,7 @@ import type { ExportDocument } from "./types";
  *   and its `priority`, "must", "should" or "nit" (Must fix, Should fix, Nit), or null.
  * - `squint.comments/1`: the first version.
  */
-export const JSON_SCHEMA = "squint.comments/2";
+export const JSON_SCHEMA = "squint.comments/3";
 
 const iso = (time: number) => new Date(time).toISOString();
 const isoOrNull = (time: number | null) => (time === null ? null : iso(time));
@@ -32,6 +41,7 @@ export function toJson(document: ExportDocument, options: { withFiles: boolean }
   const active = document.comments.filter((comment) => comment.status === "active").length;
   const body = {
     schema: JSON_SCHEMA,
+    audience: document.audience,
     exportedAt: iso(document.exportedAt),
     /** False for the bare JSON download: the paths describe the ZIP export's layout. */
     filesIncluded: options.withFiles,

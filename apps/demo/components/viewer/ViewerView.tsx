@@ -936,6 +936,7 @@ export function ViewerView({
               data={data}
               project={project}
               commentCount={comments.length}
+              team={owner}
               handle={exportMenuRef}
             />
             {actions}
