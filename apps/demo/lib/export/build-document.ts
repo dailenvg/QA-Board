@@ -1,5 +1,5 @@
 import { pagesOf } from "../store/pages";
-import { pinNumbers } from "../store/selectors";
+import { pinNumbers } from "../store/pin-numbers";
 import type { Comment, Project, Reply, Snapshot } from "../store/types";
 import { screenshotPath } from "./paths";
 import type {
@@ -148,7 +148,7 @@ export function buildExportDocument({
   const pages = exportPages(project, assets.pages);
   const pagesById = new Map(pages.map((page) => [page.id, page]));
   const entries: ExportComment[] = comments.map((comment) => {
-    const number = numbers.get(comment.id) ?? 0;
+    const number = numbers.get(comment.id)?.number ?? 0;
     const snapshot = comment.snapshotId ? byId.get(comment.snapshotId) : undefined;
     const page = comment.pageId && !comment.snapshotId ? pagesById.get(comment.pageId) : undefined;
     const onPage = page ? { number: page.number, total: pages.length } : null;

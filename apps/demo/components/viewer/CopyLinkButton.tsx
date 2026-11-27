@@ -11,8 +11,8 @@ import { Icon } from "../ui/Icon";
 const TICK_MS = 1500;
 
 interface CopyLinkButtonProps {
-  /** The comment's pin number, for the button's name. */
-  number: number;
+  /** The comment's pin number as shown ("4", "T1"), for the button's name. */
+  number: string;
   /** Copies the comment's link (`copyCommentLink`); resolves true once the clipboard has it. */
   onCopy: () => Promise<boolean>;
   testId?: string;

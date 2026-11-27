@@ -5,8 +5,8 @@ import type { CommentPriority } from "@/lib/store/types";
 import { Menu, type MenuItem } from "../ui/Menu";
 
 interface CommentMoreMenuProps {
-  /** The comment's pin number, for the trigger's name. */
-  number: number;
+  /** The comment's pin number as shown ("4", "T1"), for the trigger's name. */
+  number: string;
   /**
    * Copies the comment's project link (D14): first on the card's menu (U6). The pin popover
    * has its own button for it, so its menu leaves it out.

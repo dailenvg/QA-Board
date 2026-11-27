@@ -56,7 +56,8 @@ export interface CommentCardActions {
 
 interface CommentCardProps extends CommentCardActions {
   comment: Comment;
-  number: number;
+  /** Its pin number as shown: "4", or "T1" for a team-only comment (D13). */
+  number: string;
   /** Where the pin lives, when that isn't the current snapshot. */
   placement: Placement | null;
   /** The page it's on, on projects with several pages. */

@@ -30,7 +30,8 @@ interface PinPopoverProps {
   /** DOM id, referenced by the pin's `aria-controls`. */
   id: string;
   comment: Comment;
-  number: number;
+  /** Its pin number as shown: "4", or "T1" for a team-only comment (D13). */
+  number: string;
   placement: Placement | null;
   now: number;
   /** The owner only: shows Resolve or Reopen, and marks client comments. */

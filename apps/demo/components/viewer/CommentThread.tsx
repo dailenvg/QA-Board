@@ -25,8 +25,8 @@ const listVariants = {
 interface CommentThreadProps {
   /** The comment's replies, oldest first. */
   replies: readonly Reply[];
-  /** The comment's pin number, for the list's name. */
-  number: number;
+  /** The comment's pin number as shown ("4", "T1"), for the list's name. */
+  number: string;
   threads: CommentThreads;
   /** What the thread sits on, for the avatars' badge ring. */
   surface: AvatarSurface;

@@ -19,7 +19,8 @@ import {
 import { newId } from "@/lib/store/id";
 import { pagesOf } from "@/lib/store/pages";
 import { commentDeleteMode } from "@/lib/store/replies";
-import { commentsFor, pageCounts, pinNumbers } from "@/lib/store/selectors";
+import { pinNumbers, pinOrder } from "@/lib/store/pin-numbers";
+import { commentsFor, pageCounts } from "@/lib/store/selectors";
 import { countComments, deriveStatus } from "@/lib/store/status";
 import type { Comment, CommentPriority, Project, Reply, SquintData } from "@/lib/store/types";
 import { useDialogState } from "@/lib/use-dialog-state";
@@ -239,6 +240,8 @@ export function ViewerView({
   const stageKey = surfaceKey(surface);
   const comments = useMemo(() => commentsFor(data, project.id), [data, project.id]);
   const numbers = useMemo(() => pinNumbers(comments), [comments]);
+  const order = useMemo(() => pinOrder(comments), [comments]);
+  const numberOf = (id: string) => numbers.get(id)?.label ?? "";
   // A guest replies only while the review window is open (D3): `locked` is its closing.
   const viewer = { team: owner, moderator, reviewOpen: !locked };
   const replyThreads = useViewerThreads({
@@ -271,7 +274,7 @@ export function ViewerView({
       id: comment.id,
       subject: {
         ...infoOf(comment),
-        caption: `Comment ${numbers.get(comment.id) ?? 0} by ${comment.author}`,
+        caption: `Comment ${numberOf(comment.id)} by ${comment.author}`,
       },
     });
   const severalPages = pages.total > 1;
@@ -302,8 +305,8 @@ export function ViewerView({
   const listed = useMemo(() => filterByPriority(scoped, priorityFilter), [scoped, priorityFilter]);
   /** The list in the order picked: pin number, or priority (D11). */
   const ordered = useMemo(
-    () => sortComments(listed, commentView.sort, numbers),
-    [listed, commentView.sort, numbers],
+    () => sortComments(listed, commentView.sort, order),
+    [listed, commentView.sort, order],
   );
   /** Each listed comment's breakpoint, while the list shows them all: cards name it. */
   const listedBreakpoints = useMemo(
@@ -672,7 +675,7 @@ export function ViewerView({
    */
   const askToDelete = (comment: Comment) => {
     const replies = replyThreads.byComment.get(comment.id) ?? [];
-    const forGood = { comment, number: numbers.get(comment.id) ?? 0, replyCount: replies.length };
+    const forGood = { comment, number: numberOf(comment.id), replyCount: replies.length };
     if (commentRights(comment, viewer).delete === "confirm") {
       moderating.show({ ...forGood, reason: "others" });
     } else if (commentDeleteMode(replies) === "confirm") {
@@ -718,7 +721,7 @@ export function ViewerView({
     const saved = commentActions.setPriority(comment.id, priority);
     if (!saved) return;
     if (priority !== (comment.priority ?? null)) {
-      setPriorityNote(priorityChangeNote(numbers.get(comment.id) ?? 0, priority));
+      setPriorityNote(priorityChangeNote(numberOf(comment.id), priority));
     }
     if (showsPriority(priority ?? undefined, priorityFilter)) return;
     if (from === "card") {
@@ -771,7 +774,7 @@ export function ViewerView({
       <PinPopover
         id={popoverId}
         comment={openComment}
-        number={numbers.get(openComment.id) ?? 0}
+        number={numberOf(openComment.id)}
         placement={placements.get(openComment.id) ?? null}
         now={now}
         canModerate={owner}
@@ -1056,9 +1059,7 @@ export function ViewerView({
         open={deleting.open}
         onClose={deleting.close}
         title={
-          deleting.payload
-            ? `Delete comment ${numbers.get(deleting.payload.id) ?? ""}?`
-            : "Delete comment?"
+          deleting.payload ? `Delete comment ${numberOf(deleting.payload.id)}?` : "Delete comment?"
         }
         description="The comment and its pin will be removed. You'll have a few seconds to undo it."
         confirmLabel="Delete comment"

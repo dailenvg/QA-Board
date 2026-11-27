@@ -26,7 +26,7 @@ function card(comment: Comment, owner: boolean): string {
   return renderToStaticMarkup(
     createElement(CommentCard, {
       comment,
-      number: 1,
+      number: "1",
       placement: null,
       pageNumber: null,
       breakpoint: null,
@@ -51,7 +51,7 @@ function popover(comment: Comment, owner: boolean): string {
     createElement(PinPopover, {
       id: "popover",
       comment,
-      number: 1,
+      number: "1",
       placement: null,
       now: 2_000,
       canModerate: owner,

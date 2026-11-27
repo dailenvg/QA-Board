@@ -15,7 +15,8 @@ interface CommentCropThumbProps {
   crop: CommentCrop;
   /** The pin in surface px, like `crop.rect`; null when unknown. */
   pin: { x: number; y: number } | null;
-  number: number;
+  /** The comment's pin number as shown ("4", "T1"). */
+  number: string;
 }
 
 /**

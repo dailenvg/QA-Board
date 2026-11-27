@@ -4,13 +4,16 @@ import { motion, useReducedMotion } from "motion/react";
 import { press, spring } from "@/lib/motion";
 import type { CommentPriority } from "@/lib/store/types";
 import { commentTone, type CommentTone } from "./comment-tone";
+import { PinNumberText } from "./PinNumberText";
 import { PriorityDot } from "./PriorityDot";
+import { TeamOnlyBadge } from "./TeamOnlyBadge";
 
 type PinTone = "active" | "resolved" | "draft" | "unsent";
 
 interface PinProps {
   id?: string;
-  number: number | null;
+  /** The number shown ("4", or "T1" for a team-only comment, D13); null for a draft. */
+  number: string | null;
   x: number;
   y: number;
   tone: PinTone;
@@ -18,6 +21,8 @@ interface PinProps {
   author?: string;
   /** Marks the pin's top-right corner; the pin keeps its commenter's color (U3). */
   priority?: CommentPriority;
+  /** Kept to the team (057): a lock on the bottom-right corner (U6). */
+  teamOnly?: boolean;
   selected?: boolean;
   /** The comment's popover is open; it's controlled by `popoverId`. */
   expanded?: boolean;
@@ -46,6 +51,7 @@ export function Pin({
   tone,
   author = "",
   priority,
+  teamOnly = false,
   selected = false,
   expanded = false,
   popoverId,
@@ -93,8 +99,9 @@ export function Pin({
         style={paint.style}
         className={`pin-marker relative grid size-8 place-items-center rounded-pin text-label font-bold transition-shadow ${paint.className}`}
       >
-        {number ?? (tone === "unsent" ? "!" : "+")}
+        {number === null ? tone === "unsent" ? "!" : "+" : <PinNumberText number={number} />}
         <PriorityDot priority={priority} on="pin" />
+        <TeamOnlyBadge show={teamOnly} />
       </span>
     </motion.button>
   );
