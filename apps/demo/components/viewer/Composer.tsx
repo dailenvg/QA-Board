@@ -270,7 +270,8 @@ export function Composer({
           }}
         />
         {onTeamOnlyChange ? (
-          <div className="-mr-2 flex min-h-11 items-center justify-between gap-3">
+          // No negative margin: the Switch's track fills its 44px target, edge to edge.
+          <div className="flex min-h-11 items-center justify-between gap-3">
             <label
               id={teamOnlyLabelId}
               htmlFor={teamOnlyId}

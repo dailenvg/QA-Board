@@ -218,7 +218,8 @@ export function ReplyComposer({
       ) : null}
       <div className="flex items-center justify-between gap-3">
         {choose ? (
-          <div className="-ml-2 flex min-w-0 items-center">
+          // No negative margin: the Switch's track fills its 44px target, edge to edge.
+          <div className="flex min-w-0 items-center">
             <Switch
               id={teamOnlyId}
               checked={teamOnly}
