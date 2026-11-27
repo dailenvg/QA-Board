@@ -294,6 +294,43 @@ describe("the workspace store", () => {
     expect((await getProject(db, owner.workspaceId, "p1"))?.label).toBeNull();
   });
 
+  it("sets a stage at once, saves it with its audit entry, and clears it", async () => {
+    const { db, owner, actions, data } = await connected(async (db, id) => {
+      await createProject(db, id, URL_PROJECT("p1"), 1);
+    });
+    const saved = actions.setProjectStage("p1", "approved");
+    expect(data().projects[0]?.stage).toBe("approved");
+    expect(await saved).toEqual({ ok: true, value: undefined });
+    expect(await getProject(db, owner.workspaceId, "p1")).toMatchObject({ stage: "approved" });
+
+    expect((await actions.setProjectStage("p1", null)).ok).toBe(true);
+    expect(data().projects[0]).not.toHaveProperty("stage");
+    expect(data().projects[0]).not.toHaveProperty("stageChangedAt");
+    expect((await getProject(db, owner.workspaceId, "p1"))?.stage).toBeNull();
+    const { rows } = await db.query(
+      "SELECT actor_user_id, meta FROM audit_log WHERE action = 'project.stage_changed' ORDER BY id",
+    );
+    expect(rows).toEqual([
+      { actor_user_id: owner.userId, meta: { fields: ["stage"], stage: "approved" } },
+      { actor_user_id: owner.userId, meta: { fields: ["stage"], stage: null } },
+    ]);
+  });
+
+  it("rolls back a stage the server refused, and leaves the caller to say so", async () => {
+    const { db, owner, store, actions, notices, data } = await connected(async (db, id) => {
+      await createProject(db, id, URL_PROJECT("p1"), 1);
+    });
+    intercept = () => Promise.resolve(Response.json({ error: "storage" }, { status: 500 }));
+    const saved = actions.setProjectStage("p1", "on-hold");
+    expect(data().projects[0]?.stage).toBe("on-hold");
+    expect((await saved).ok).toBe(false);
+    expect(data().projects[0]).not.toHaveProperty("stage");
+    await store.whenSaved();
+    // Quiet: the stage's own toast offers Retry, so no second notice.
+    expect(notices).toEqual([]);
+    expect((await getProject(db, owner.workspaceId, "p1"))?.stage).toBeNull();
+  });
+
   it("sets a link's password on the server, keeping only when it was set, and removes it", async () => {
     const { db, owner, store, actions, data } = await connected(async (db, id) => {
       await createProject(db, id, URL_PROJECT("p1"), 1);

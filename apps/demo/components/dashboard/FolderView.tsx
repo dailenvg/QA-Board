@@ -13,7 +13,8 @@ import {
 import { isArchived, labelsOf, workspaceLabels } from "@/lib/store/archive";
 import { ancestorsOf, childFolders } from "@/lib/store/folders";
 import { folderSummaries } from "@/lib/store/selectors";
-import type { Folder, Project } from "@/lib/store/types";
+import { anyStaged } from "@/lib/store/stage";
+import type { Folder, Project, ProjectStage } from "@/lib/store/types";
 import { useDialogState } from "@/lib/use-dialog-state";
 import { useNow } from "@/lib/use-now";
 import { FolderGrid } from "../overview/FolderGrid";
@@ -31,6 +32,7 @@ import { focusStatusFilter } from "./StatusFilter";
 import { useFilterAnnouncement } from "./use-filter-announcement";
 import { useProjectFilter } from "./use-project-filter";
 import { useProjectSort } from "./use-project-sort";
+import { useStageChange } from "./use-stage-change";
 import { useWorkspace, type Workspace } from "./workspace-context";
 
 function plural(count: number, noun: string): string {
@@ -64,7 +66,11 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
   );
   const labels = useMemo(() => labelsOf(summaries.map((entry) => entry.project)), [summaries]);
   const allLabels = useMemo(() => workspaceLabels(allData), [allData]);
-  const { filter, setStatus, setLabel, reset } = useProjectFilter(labels);
+  const stagesInUse = useMemo(
+    () => anyStaged(summaries.map((entry) => entry.project)),
+    [summaries],
+  );
+  const { filter, setStatus, setLabel, setStage, reset } = useProjectFilter(labels);
   const active = useMemo(
     () => summaries.filter((entry) => !isArchived(entry.project)),
     [summaries],
@@ -118,6 +124,15 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
     });
   };
 
+  const changeStage = useStageChange({ onUndo: focusProjectCard });
+  // Under a stage filter, a card whose stage no longer matches leaves: focus moves on with it.
+  const stage = (project: Project, next: ProjectStage | null) => {
+    const leaves = filter.stage !== "all" && filter.stage !== (next ?? "none");
+    const handOffFocus = leaves ? cardFocusHandoff(project.id) : () => {};
+    changeStage(project, next);
+    handOffFocus();
+  };
+
   return (
     <>
       <DashboardHeader
@@ -125,8 +140,10 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
         chips={chips}
         filter={filter}
         labels={labels}
+        stagesInUse={stagesInUse}
         onStatus={setStatus}
         onLabel={setLabel}
+        onStage={setStage}
         sort={sort}
         onSortKey={setKey}
         onReverseSort={reverse}
@@ -184,6 +201,7 @@ function FolderContent({ workspace, folder }: { workspace: Workspace; folder: Fo
             onRename={projectRename.show}
             onMove={projectMove.show}
             onLabel={projectLabel.show}
+            onStage={stage}
             onArchive={archive}
             onDelete={projectDelete.show}
           />

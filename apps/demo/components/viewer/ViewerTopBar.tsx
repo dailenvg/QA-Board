@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import type { ProjectStatus } from "@/lib/store/status";
 import type { Project } from "@/lib/store/types";
+import { useMediaQuery } from "@/lib/use-media-query";
 import { ButtonLink } from "../ui/ButtonLink";
 import { Icon } from "../ui/Icon";
 import { Kbd } from "../ui/Kbd";
@@ -15,6 +16,11 @@ interface ViewerTopBarProps {
   /** A way back (owner) or the logo (shared link). */
   leading: ReactNode;
   status: ProjectStatus;
+  /**
+   * The team's stage menu (`StageMenu`): beside the status from 640px up, and first among the
+   * actions on phones, so the title keeps its width. Guests have none.
+   */
+  stage?: ReactNode;
   /** Null while the mode the viewer opens in is still being worked out: neither is selected. */
   mode: ViewerMode | null;
   onMode: (mode: ViewerMode) => void;
@@ -36,13 +42,14 @@ interface ViewerTopBarProps {
 }
 
 /**
- * Leading slot, project name and status, Browse/Comment toggle, the breakpoint
- * switcher (websites), actions, and the original site link.
+ * Leading slot, project name, status and the team's stage, Browse/Comment toggle, the
+ * breakpoint switcher (websites), actions, and the original site link.
  */
 export function ViewerTopBar({
   project,
   leading,
   status,
+  stage,
   mode,
   onMode,
   originalUrl,
@@ -52,6 +59,12 @@ export function ViewerTopBar({
   accentRule = false,
   titleFirst = false,
 }: ViewerTopBarProps) {
+  const wide = useMediaQuery("(min-width: 640px)");
+  // The title row's least width. Beside the status, the stage (up to about 136px) needs room
+  // too: without it the chips overflow onto the controls and the title shrinks to nothing, so
+  // from 640px up the row keeps 384px (about 8 characters of title) and the controls wrap
+  // below it instead. Guests never have a stage, so `titleFirst` keeps its own minimum.
+  const titleRoom = stage ? "sm:min-w-96" : titleFirst ? "md:min-w-80" : "";
   return (
     // Its own layer, so the Export menu opens over the snapshot bar and pins below it.
     <header className="relative z-40 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-panel bg-panel p-2">
@@ -67,11 +80,12 @@ export function ViewerTopBar({
        * With `titleFirst` the title outranks the controls: from tablets up it keeps about 20
        * characters beside its status, and when that doesn't fit, the controls wrap below it.
        */}
-      <div className={`flex min-w-40 flex-1 items-center gap-2 ${titleFirst ? "md:min-w-80" : ""}`}>
+      <div className={`flex min-w-40 flex-1 items-center gap-2 ${titleRoom}`}>
         <h1 title={project.name} className="truncate text-heading font-bold">
           {project.name}
         </h1>
         <StatusChip status={status} />
+        {wide ? stage : null}
       </div>
       {/*
        * Phones: the mode switch fills the row, and when the breakpoints and actions don't
@@ -110,6 +124,7 @@ export function ViewerTopBar({
         {breakpoints}
         {/* Wraps too, so large text or a long countdown can't push the bar off-screen. */}
         <div className="flex flex-wrap items-center justify-end gap-2">
+          {wide ? null : stage}
           {actions}
           {originalUrl ? (
             <ButtonLink

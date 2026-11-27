@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ProjectFilter } from "./status-filter";
 
-const keyOf = ({ status, label }: ProjectFilter) => `${status}\n${label ?? ""}`;
+const keyOf = ({ status, label, stage }: ProjectFilter) => `${status}\n${label ?? ""}\n${stage}`;
 
 /**
  * What a filter's live region says: `message` as it was when `filter` last

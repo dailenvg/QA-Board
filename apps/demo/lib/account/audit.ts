@@ -1,6 +1,7 @@
 import type { MemberSwitch } from "../auth/permissions";
 import type { Queryable } from "../share/migrate";
 import type { ReviewWindowChoice } from "../share/review-window";
+import type { ProjectStage } from "../store/types";
 
 /** What the account settings record in the audit log. */
 export type AccountAction =
@@ -45,9 +46,10 @@ export type MemberInviteAction =
 
 /**
  * What happens to a workspace's projects: the daily cron deleting an archived
- * one once its date came, or a member sending one to ClickUp.
+ * one once its date came, a member sending one to ClickUp, or a member
+ * changing its stage.
  */
-export type ProjectAction = "project.deleted" | "project.clickup_sent";
+export type ProjectAction = "project.deleted" | "project.clickup_sent" | "project.stage_changed";
 
 /**
  * A member changed a project's review link settings or password, or emailed
@@ -109,11 +111,13 @@ export interface AuditEntry {
    * Share window can count people without the log holding an address; or
    * which ClickUp channel a project went to, and whether it was assigned to
    * someone (never the message, a ClickUp user or the token); that a
-   * membership came from accepting an invite; or a member's switches before
-   * and after the owner changed them (their names only).
+   * membership came from accepting an invite; a member's switches before
+   * and after the owner changed them (their names only); or a project's new
+   * stage (a fixed choice, null for none).
    */
   meta?:
     | { reviewWindow: ReviewWindowChoice }
+    | { stage: ProjectStage | null }
     | { source: "invite" }
     | { before: readonly MemberSwitch[]; after: readonly MemberSwitch[] }
     | { shareId: string; recipients: readonly string[] }

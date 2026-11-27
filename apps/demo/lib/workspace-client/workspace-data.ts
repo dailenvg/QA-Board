@@ -20,7 +20,7 @@ const NO_FOLDER = "";
 
 function toProject(project: WorkspaceProject, links: ReadonlyMap<string, ShareLink>): Project {
   const { id, folderId, name, source, createdAt, updatedAt, share } = project;
-  const { label, archivedAt, deleteAfter } = project;
+  const { label, stage, stageChangedAt, archivedAt, deleteAfter } = project;
   const link = share ? links.get(share.id) : undefined;
   return {
     id,
@@ -30,6 +30,8 @@ function toProject(project: WorkspaceProject, links: ReadonlyMap<string, ShareLi
     createdAt,
     updatedAt,
     ...(label ? { label } : {}),
+    // A stage from before its date was kept can't be; its date falls back to the project's.
+    ...(stage ? { stage, stageChangedAt: stageChangedAt ?? updatedAt } : {}),
     // Archiving sets both dates (032 gave older archives theirs); the fallback is archiving's own.
     ...(archivedAt === null
       ? {}

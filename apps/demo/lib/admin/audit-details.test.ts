@@ -17,6 +17,15 @@ describe("auditDetails", () => {
       reviewWindow: "7d",
     });
     expect(auditDetails({ fields: ["archive-expired"] })).toEqual({ fields: ["archive-expired"] });
+    expect(auditDetails({ fields: ["stage"], stage: "on-hold" })).toEqual({
+      fields: ["stage"],
+      stage: "on-hold",
+    });
+    // Cleared: "none" is a detail too.
+    expect(auditDetails({ fields: ["stage"], stage: null })).toEqual({
+      fields: ["stage"],
+      stage: null,
+    });
     expect(auditDetails({ fields: ["membership"], source: "invite" })).toEqual({
       fields: ["membership"],
       viaInvite: true,
@@ -63,6 +72,7 @@ describe("auditDetails", () => {
           null,
         ],
         reviewWindow: "1y",
+        stage: "Shipped",
         source: "seed-accounts",
         before: ["trash", "root"],
         after: ["trash"],

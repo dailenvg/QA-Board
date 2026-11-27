@@ -10,6 +10,7 @@ import { ArchivedBanner } from "./ArchivedBanner";
 import { ClickUpControl } from "./ClickUpControl";
 import { FolderBackLink } from "./FolderBackLink";
 import { ShareControl } from "./ShareControl";
+import { StageMenu } from "./StageMenu";
 import { ViewerNotFound } from "./ViewerNotFound";
 import { ViewerSkeleton } from "./ViewerSkeleton";
 import { ViewerView } from "./ViewerView";
@@ -20,7 +21,8 @@ import { ViewerView } from "./ViewerView";
  * `WorkspaceProvider`; changes go through the server backend. An archived
  * project opens as usual under a bar that offers Unarchive; its review link is
  * closed meanwhile, so Share (and the link's sync) and Send to ClickUp wait
- * until it's back. `sender` is how a ClickUp message names the member.
+ * until it's back. The stage menu sits by the status for every member, archived or
+ * not. `sender` is how a ClickUp message names the member.
  */
 export function Viewer({ projectId, sender }: { projectId: string; sender: string }) {
   const state = useSquint();
@@ -39,6 +41,7 @@ export function Viewer({ projectId, sender }: { projectId: string; sender: strin
         modeScope={project.id}
         commentHref={(commentId) => projectCommentHref(project.id, commentId)}
         leading={<FolderBackLink folder={folder} />}
+        stage={<StageMenu project={project} />}
         actions={
           archived ? null : (
             <>

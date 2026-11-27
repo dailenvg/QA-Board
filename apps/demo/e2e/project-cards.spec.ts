@@ -150,3 +150,35 @@ test("sorting a folder's projects reorders the cards and is remembered after a r
   await expect(options).toHaveCount(0);
   await expect(trigger).toBeFocused();
 });
+
+test("the viewer's top bar sets a project's stage, with Undo, and its card shows it", async ({
+  page,
+}) => {
+  await seedWorkspace(page, WORKSPACE_SEED, "/p/single");
+  const stage = page.getByTestId("stage-menu");
+  await expect(stage).toHaveAccessibleName("Set stage");
+
+  await stage.click();
+  const menu = page.getByRole("menu", { name: "Set stage" });
+  await menu.getByRole("menuitemradio", { name: "Editing" }).click();
+  await expect(menu).toHaveCount(0);
+  await expect(stage).toHaveAccessibleName("Stage: Editing, change stage");
+  await expect(stage.getByTestId("stage-chip")).toHaveAttribute("data-stage", "editing");
+  // Focus is back on the trigger, which now names the stage.
+  await expect(stage).toBeFocused();
+
+  const toast = page.getByTestId("toast").filter({ hasText: "Stage set to Editing" });
+  await toast.getByRole("button", { name: "Undo" }).click();
+  await expect(stage).toHaveAccessibleName("Set stage");
+
+  await stage.click();
+  await page.getByRole("menuitemradio", { name: "Approved" }).click();
+  await expect(stage).toHaveAccessibleName("Stage: Approved, change stage");
+  await expect(
+    page.getByTestId("toast").filter({ hasText: "Stage set to Approved" }),
+  ).toBeVisible();
+
+  await page.getByRole("link", { name: `Back to ${DEFAULT_FOLDER.name}` }).click();
+  const card = page.getByTestId("project-card").filter({ hasText: "Hero shot" });
+  await expect(card.getByTestId("stage-chip")).toHaveText("Stage: Approved");
+});

@@ -6,6 +6,7 @@ import { SHARE_LIMITS } from "../share/limits";
 import { REVIEW_WINDOWS } from "../share/review-window";
 import { isSecretShape } from "../share/tokens";
 import { COMMENT_PRIORITIES } from "../store/priority";
+import { PROJECT_STAGES } from "../store/stage";
 import { BLOB_CONTENT_TYPES, WORKSPACE_LIMITS as LIMITS } from "./limits";
 
 /**
@@ -109,6 +110,9 @@ export const projectPatchSchema = z
 export const archiveSchema = z.object({ archived: z.boolean() });
 
 export const labelSchema = z.object({ label: text(LIMITS.label).nullable() });
+
+/** One of the four stages, or null for none. */
+export const stageSchema = z.object({ stage: z.enum(PROJECT_STAGES).nullable() });
 
 export const pagesBodySchema = z.object({ pages: pagesSchema });
 
