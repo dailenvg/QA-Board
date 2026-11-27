@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 
-function isTyping(target: EventTarget | null): boolean {
+/** Whether `target` takes typing (a text field, a select, an editable element). */
+export function isTyping(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   return (
     target.isContentEditable ||
