@@ -19,6 +19,7 @@ const TEAM: Comment = {
 const CLIENT: Comment = { ...TEAM, fromClient: true };
 
 const noop = () => {};
+const copied = () => Promise.resolve(true);
 const CHIP = 'data-testid="client-chip"';
 
 function card(comment: Comment, owner: boolean): string {
@@ -56,6 +57,7 @@ function popover(comment: Comment, owner: boolean): string {
       canModerate: owner,
       onResolve: noop,
       onReopen: noop,
+      onCopyLink: copied,
       onClose: noop,
     }),
   );

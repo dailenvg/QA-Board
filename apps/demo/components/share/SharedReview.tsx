@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { BlobSourceContext } from "@/lib/blob-store/blob-source";
+import { reviewCommentHref } from "@/lib/comment-link";
 import { createClientBackend } from "@/lib/share-client/client-backend";
 import { createClientStore, toViewerData } from "@/lib/share-client/client-store";
 import type { DraftStorage } from "@/lib/share-client/draft-storage";
@@ -149,6 +150,7 @@ export function SharedReview({
               project={project}
               // Every shared link's project has the same id here, so each link keeps its own.
               modeScope={`share:${token}`}
+              commentHref={(commentId) => reviewCommentHref(token, commentId)}
               leading={<BrandLockup token={token} brand={brand} />}
               accentRule={brand.color !== null}
               actions={

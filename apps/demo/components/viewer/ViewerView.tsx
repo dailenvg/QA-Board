@@ -44,6 +44,7 @@ import { CommentsPanel } from "./CommentsPanel";
 import { commentRights } from "./comment-rights";
 import { CommentThreadsContext } from "./comment-threads";
 import { CommentViewMenu } from "./CommentViewMenu";
+import { copyCommentLink } from "./copy-comment-link";
 import { DeleteOthersCommentDialog, type ForGoodComment } from "./DeleteOthersCommentDialog";
 import { DeleteOthersReplyDialog } from "./DeleteOthersReplyDialog";
 import { ExportMenu } from "./ExportMenu";
@@ -65,6 +66,7 @@ import {
 import { sendDraft } from "./send-draft";
 import { commentSurfaceKey, pinInSurface, placementOf, surfaceKey } from "./surface";
 import { useCommentActions } from "./use-comment-actions";
+import { LINK_MISSING, useCommentLink } from "./use-comment-link";
 import { useViewerDraft } from "./use-viewer-draft";
 import { useViewerPage } from "./use-viewer-page";
 import { useViewerSurface } from "./use-viewer-surface";
@@ -106,9 +108,20 @@ interface ViewerViewProps {
    * an exit: it enters and leaves in the same AnimatePresence as the deletion notice.
    */
   notice?: ReactNode;
+  /** A comment's link, as Copy link puts it on the clipboard: the project's, or the review link's. */
+  commentHref: (commentId: string) => string;
 }
 
-type ScrollRequest = { id: string; target: "pin" | "card"; nonce: number } | null;
+/**
+ * The other half of a selection to bring into view. `alsoCard` (a comment link's): the card
+ * too, at once, before the pin's smooth scroll, which an instant one can't cancel.
+ */
+type ScrollRequest = {
+  id: string;
+  target: "pin" | "card";
+  nonce: number;
+  alsoCard?: true;
+} | null;
 
 /** Browser details open on a comment or a reply, by its id, so they close once it's gone. */
 type Inspected = { kind: "comment" | "reply"; id: string; subject: InfoSubject };
@@ -139,6 +152,7 @@ export function ViewerView({
   expiresAt,
   accentRule,
   notice,
+  commentHref,
 }: ViewerViewProps) {
   const toast = useToast();
   const backend = useViewerBackend();
@@ -200,6 +214,8 @@ export function ViewerView({
   const listRef = useRef<HTMLUListElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const handledScroll = useRef(0);
+  /** The request (`nonce`) whose `alsoCard` scroll is done. */
+  const handledCardScroll = useRef(0);
   const focusCanvasPending = useRef(false);
 
   const { mode, surface, breakpoint, snapshots, latestOf } = view;
@@ -432,6 +448,15 @@ export function ViewerView({
   // pin on another snapshot, once that snapshot has loaded).
   useEffect(() => {
     if (!scrollRequest || handledScroll.current === scrollRequest.nonce) return;
+    if (scrollRequest.alsoCard && handledCardScroll.current !== scrollRequest.nonce) {
+      const card = listRef.current?.querySelector(
+        `[data-comment-id="${CSS.escape(scrollRequest.id)}"]`,
+      );
+      if (card) {
+        handledCardScroll.current = scrollRequest.nonce;
+        card.scrollIntoView({ block: "nearest", behavior: "auto" });
+      }
+    }
     const behavior: ScrollBehavior = reduce ? "auto" : "smooth";
     const selector =
       scrollRequest.target === "pin"
@@ -444,7 +469,8 @@ export function ViewerView({
     element.scrollIntoView({ block: "nearest", inline: "nearest", behavior });
   }, [scrollRequest, reduce, stageVersion]);
 
-  const select = (id: string, from: "pin" | "card") => {
+  /** `alsoCard`: a comment link's, so the list shows the card too (`ScrollRequest`). */
+  const select = (id: string, from: "pin" | "card", alsoCard = false) => {
     const comment = comments.find((entry) => entry.id === id);
     if (!comment) return;
     // A second click on a card deselects it, unless its pin is on another surface: then it shows
@@ -461,7 +487,31 @@ export function ViewerView({
     } else {
       view.showSurfaceOf(comment);
     }
-    setScrollRequest({ id, target: from === "pin" ? "card" : "pin", nonce: Date.now() });
+    setScrollRequest({
+      id,
+      target: from === "pin" ? "card" : "pin",
+      nonce: Date.now(),
+      ...(alsoCard ? { alsoCard: true } : {}),
+    });
+  };
+
+  /**
+   * Selects a card without touching the stage, as a comment link does while a restored draft
+   * holds it: the list scrolls to the card, which takes focus, rather than the draft's canvas.
+   */
+  const selectInList = (id: string) => {
+    setSelectedId(id);
+    setOpenId(null);
+    setScrollRequest({ id, target: "card", nonce: Date.now() });
+    focusCanvasPending.current = false;
+    // Two frames: once the widened list has the card.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() =>
+        document
+          .querySelector<HTMLElement>(`[data-comment-id="${CSS.escape(id)}"] [data-card-select]`)
+          ?.focus({ preventScroll: true }),
+      ),
+    );
   };
 
   const place = (point: PinPoint) => {
@@ -574,6 +624,26 @@ export function ViewerView({
     setCommentView(next);
     if (docked) setSheetOpen(true);
   };
+
+  // A `?comment=` link, followed once now that the data is here (D15, D16).
+  useCommentLink({
+    comments,
+    view: { tab, filter: priorityFilter, draftSurfaceKey: draft?.surfaceKey ?? null, scoped },
+    selectedId,
+    missing: owner ? LINK_MISSING.team : LINK_MISSING.guest,
+    toast,
+    widen: ({ tab: linkedTab, showAllPriorities, showAllScope }) => {
+      if (linkedTab) setTab(linkedTab);
+      if (showAllPriorities) setFilter("all");
+      if (!showAllScope) return;
+      setPageScope("all");
+      setBreakpointScope("all");
+    },
+    select: (id, keepStage) => (keepStage ? selectInList(id) : select(id, "card", true)),
+    open: setOpenId,
+  });
+
+  const copyLink = (comment: Comment) => copyCommentLink(commentHref(comment.id), toast);
 
   const commentActions = useCommentActions({
     backend,
@@ -707,6 +777,7 @@ export function ViewerView({
         onSetPriority={
           owner ? (priority) => setPriority(openComment, priority, "popover") : undefined
         }
+        onCopyLink={() => copyLink(openComment)}
         onClose={closePopover}
       />
     </CommentThreadsContext>
@@ -824,6 +895,7 @@ export function ViewerView({
         onDelete={askToDelete}
         onGetInfo={owner ? getInfo : undefined}
         onSetPriority={owner ? setPriority : undefined}
+        onCopyLink={copyLink}
         filteredOut={filteredOut}
       />
     </CommentThreadsContext>

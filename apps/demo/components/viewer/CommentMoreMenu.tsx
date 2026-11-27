@@ -7,19 +7,24 @@ import { Menu, type MenuItem } from "../ui/Menu";
 interface CommentMoreMenuProps {
   /** The comment's pin number, for the trigger's name. */
   number: number;
+  /**
+   * Copies the comment's project link (D14): first on the card's menu (U6). The pin popover
+   * has its own button for it, so its menu leaves it out.
+   */
+  onCopyLink?: () => void;
   /** The comment's priority now; null for none. */
   priority: CommentPriority | null;
-  /** Sets or clears (null) the comment's priority. */
+  /** Sets or clears (null) the comment's priority (any member, D10). */
   onSetPriority: (priority: CommentPriority | null) => void;
   /** Opens "Browser details" for the comment (`GetInfoDialog`). */
   onGetInfo: () => void;
 }
 
 /** None, then Must fix, Should fix and Nit: the composer's choices, the current one checked. */
-function priorityItems({
-  priority,
-  onSetPriority,
-}: Pick<CommentMoreMenuProps, "priority" | "onSetPriority">): MenuItem[] {
+function priorityItems(
+  priority: CommentPriority | null,
+  onSetPriority: (priority: CommentPriority | null) => void,
+): MenuItem[] {
   const choices: Array<CommentPriority | null> = [null, ...COMMENT_PRIORITIES];
   return choices.map((choice) => ({
     id: `priority-${choice ?? "none"}`,
@@ -31,21 +36,27 @@ function priorityItems({
   }));
 }
 
-/**
- * The team's own items for a comment, in their menu's order: Priority (any
- * member sets it, D10), then Get info. Copy link joins first (PR 7). Guests
- * never get this menu.
- */
-function commentMenuItems(props: Omit<CommentMoreMenuProps, "number">): MenuItem[] {
+/** The items in their menu's order (U6): Copy link (the card's), Priority, then Get info. */
+function commentMenuItems({
+  onCopyLink,
+  priority,
+  onSetPriority,
+  onGetInfo,
+}: Omit<CommentMoreMenuProps, "number">): MenuItem[] {
+  const copy: MenuItem[] = onCopyLink
+    ? [{ label: "Copy link", icon: "link", onSelect: onCopyLink, testId: "comment-copy-link" }]
+    : [];
   return [
-    ...priorityItems(props),
-    { label: "Get info", icon: "info", onSelect: props.onGetInfo, testId: "comment-get-info" },
+    ...copy,
+    ...priorityItems(priority, onSetPriority),
+    { label: "Get info", icon: "info", onSelect: onGetInfo, testId: "comment-get-info" },
   ];
 }
 
 /**
- * A comment's "More" button (···) on its card and in its pin's popover, right
- * of Edit. Delete stays its own button.
+ * The team's "More" button (···) for a comment, on its card and in its pin's
+ * popover, right of Edit. Delete stays its own button; guests get none (a
+ * guest's card has a Copy link button instead).
  */
 export function CommentMoreMenu({ number, ...props }: CommentMoreMenuProps) {
   return (

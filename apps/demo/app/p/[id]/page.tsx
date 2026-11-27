@@ -3,14 +3,15 @@ import { ProjectSignIn } from "@/components/auth/ProjectSignIn";
 import { Viewer } from "@/components/viewer/Viewer";
 import { getSession } from "@/lib/auth/guards";
 import { loginHref } from "@/lib/auth/next-path";
+import { projectReturnHref } from "@/lib/comment-link";
 import { projectLinkMetadata } from "@/lib/project-link-metadata";
-import { projectHref } from "@/lib/routes";
+import type { SearchParams } from "@/lib/search-params";
 import { projectIconPath } from "@/lib/share/brand";
 import { openProjectPreview } from "@/lib/workspace/project-preview";
 
 export const dynamic = "force-dynamic";
 
-type Props = { params: Promise<{ id: string }> };
+type Props = { params: Promise<{ id: string }>; searchParams: Promise<SearchParams> };
 
 /**
  * Signed out, a live project's link previews as its company's card (see
@@ -39,9 +40,10 @@ export async function generateMetadata(
 /**
  * A project's viewer, for its workspace's members (the layout checks the
  * membership). Signed out, the link shows whose project it is and Sign in,
- * which returns here; nothing of the project itself.
+ * which returns here, with the comment and page it named; nothing of the
+ * project itself.
  */
-export default async function ProjectPage({ params }: Props) {
+export default async function ProjectPage({ params, searchParams }: Props) {
   const { id } = await params;
   const user = await getSession();
   // Send to ClickUp names the sender as the message will: their name, else their email.
@@ -59,5 +61,10 @@ export default async function ProjectPage({ params }: Props) {
         })
       : null,
   };
-  return <ProjectSignIn brand={brand} signInHref={loginHref(projectHref(id))} />;
+  return (
+    <ProjectSignIn
+      brand={brand}
+      signInHref={loginHref(projectReturnHref(id, await searchParams))}
+    />
+  );
 }

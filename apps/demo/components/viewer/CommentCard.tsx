@@ -17,6 +17,7 @@ import { CommentCropThumb } from "./CommentCropThumb";
 import { CommentEdited } from "./CommentEdited";
 import { CommentEditor, EMPTY_CLIENT_EDIT } from "./CommentEditor";
 import { CommentMoreMenu } from "./CommentMoreMenu";
+import { CopyLinkButton } from "./CopyLinkButton";
 import { CommentTeamNote } from "./CommentTeamNote";
 import { CommentThread } from "./CommentThread";
 import { showsReplyBox, useCommentThreads } from "./comment-threads";
@@ -46,6 +47,11 @@ export interface CommentCardActions {
   onGetInfo?: (comment: Comment) => void;
   /** The team's Priority choices in the card's More menu (D10); guests get none. */
   onSetPriority?: (comment: Comment, priority: CommentPriority | null) => void;
+  /**
+   * Copies the comment's link; resolves true once the clipboard has it. First in the team's
+   * More menu (U6); a guest's card has it as a button of its own.
+   */
+  onCopyLink?: (comment: Comment) => Promise<boolean>;
 }
 
 interface CommentCardProps extends CommentCardActions {
@@ -62,7 +68,7 @@ interface CommentCardProps extends CommentCardActions {
   /**
    * The workspace's viewer: shows Resolve/Reopen (anyone in the workspace),
    * and marks client comments. Off on a shared link, whose guest only gets
-   * Edit, on their own comments.
+   * Edit, on their own comments, and Copy link.
    */
   canModerate: boolean;
   /** Shows Edit: the signed-in member's own comment, or a guest's own active one (`commentRights`). */
@@ -127,6 +133,7 @@ export function CommentCard({
   onDelete,
   onGetInfo,
   onSetPriority,
+  onCopyLink,
 }: CommentCardProps) {
   const [editing, setEditing] = useState(false);
   const [save, setSave] = useState<SaveState>(SAVE_IDLE);
@@ -186,9 +193,9 @@ export function CommentCard({
     .filter(Boolean)
     .join(" ");
   const resolved = comment.status === "resolved";
-  const actions = canModerate || canEdit || Boolean(onGetInfo);
+  const actions = canModerate || canEdit || Boolean(onGetInfo) || Boolean(onCopyLink);
   const summaryShown = summary !== null && !editing;
-  // Without the action row (shared link), this keeps the card's bottom inset at 16px. The summary
+  // Without the action row (no action to offer), this keeps the card's bottom inset at 16px. The summary
   // line (12px under it) and the thread (16px) bring their own, as on the team's cards.
   const bottomInset = actions || summaryShown || showThread ? "" : "pb-2";
 
@@ -400,9 +407,16 @@ export function CommentCard({
           {onGetInfo && onSetPriority ? (
             <CommentMoreMenu
               number={number}
+              onCopyLink={onCopyLink ? () => void onCopyLink(comment) : undefined}
               priority={comment.priority ?? null}
               onSetPriority={(priority) => onSetPriority(comment, priority)}
               onGetInfo={() => onGetInfo(comment)}
+            />
+          ) : onCopyLink ? (
+            <CopyLinkButton
+              number={number}
+              onCopy={() => onCopyLink(comment)}
+              testId="card-copy-link"
             />
           ) : null}
           {canDelete ? (

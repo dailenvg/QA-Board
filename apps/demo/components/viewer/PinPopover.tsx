@@ -16,6 +16,7 @@ import { CommentEdited } from "./CommentEdited";
 import { CommentMoreMenu } from "./CommentMoreMenu";
 import { CommentTeamNote } from "./CommentTeamNote";
 import { CommentThread } from "./CommentThread";
+import { CopyLinkButton } from "./CopyLinkButton";
 import { showsReplyBox, useCommentThreads } from "./comment-threads";
 import { PlacementChip } from "./PlacementChip";
 import { PriorityChip } from "./PriorityChip";
@@ -40,6 +41,8 @@ interface PinPopoverProps {
   onGetInfo?: () => void;
   /** The team's Priority choices in the More menu (D10); guests get none. */
   onSetPriority?: (priority: CommentPriority | null) => void;
+  /** Copies the comment's link (the header's button, everyone's); true once the clipboard has it. */
+  onCopyLink: () => Promise<boolean>;
   /** `returnFocus`: closed from the keyboard or the close button, so focus goes back to the pin. */
   onClose: (returnFocus: boolean) => void;
 }
@@ -124,8 +127,9 @@ function measure(node: HTMLElement, { x, y }: Comment): Side | null {
 /**
  * A pin's comment, opened from the pin: who said it (their avatar, with the
  * company badge for the team) and when, the full text,
- * where it was placed, and (for the team) Resolve or Reopen, the More
- * menu (Get info), the whole thread and the reply box (U1). A non-modal
+ * where it was placed, Copy link beside Close, and (for the team) Resolve or
+ * Reopen, the More menu (Priority, Get info), the whole thread and
+ * the reply box (U1). A non-modal
  * dialog beside the pin, flipped (and if need be slid) to stay inside the stage; docked to the
  * bottom on phones, like the composer. Between its header and the reply box
  * it scrolls, so a long thread never pushes either away. Escape, the close
@@ -142,6 +146,7 @@ export function PinPopover({
   onReopen,
   onGetInfo,
   onSetPriority,
+  onCopyLink,
   onClose,
 }: PinPopoverProps) {
   const docked = !useMediaQuery("(min-width: 640px)");
@@ -289,11 +294,13 @@ export function PinPopover({
         <div className="flex min-w-0 flex-1 flex-col">
           <h2
             id={titleId}
-            className="flex min-h-6 min-w-0 items-center gap-2 text-body font-semibold"
+            className="flex min-h-6 min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-body font-semibold"
           >
             {/*
              * Two lines, not one: with the Client chip, a single line left room for about
              * seven characters of the name in the 304px popover, where the comment is read in full.
+             * With Copy link and Close beside it, the chip wraps under a name it doesn't fit beside,
+             * so the name keeps the column's full width rather than breaking mid-word.
              */}
             <span className="line-clamp-2 min-w-0 wrap-break-word">
               <span className="sr-only">Comment {number} by </span>
@@ -311,15 +318,19 @@ export function PinPopover({
             {relativeTime(comment.createdAt, now)}
           </time>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Close"
-          className="text-muted hover:text-ink"
-          onClick={() => onClose(true)}
-        >
-          <Icon name="close" className="size-4" />
-        </Button>
+        {/* Side by side with no gap: each keeps its 44px target, and the name keeps the room. */}
+        <div className="flex shrink-0">
+          <CopyLinkButton number={number} onCopy={onCopyLink} testId="popover-copy-link" />
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Close"
+            className="text-muted hover:text-ink"
+            onClick={() => onClose(true)}
+          >
+            <Icon name="close" className="size-4" />
+          </Button>
+        </div>
       </div>
       {/*
        * The comment, its actions and its thread, scrolling once they outgrow the popover (a long

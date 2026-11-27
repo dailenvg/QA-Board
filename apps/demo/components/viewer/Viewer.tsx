@@ -1,5 +1,6 @@
 "use client";
 
+import { projectCommentHref } from "@/lib/comment-link";
 import { isArchived } from "@/lib/store/archive";
 import { useSquint } from "@/lib/store/use-squint";
 import { ViewerBackendContext } from "@/lib/viewer-backend/backend";
@@ -36,6 +37,7 @@ export function Viewer({ projectId, sender }: { projectId: string; sender: strin
         data={state.data}
         project={project}
         modeScope={project.id}
+        commentHref={(commentId) => projectCommentHref(project.id, commentId)}
         leading={<FolderBackLink folder={folder} />}
         actions={
           archived ? null : (

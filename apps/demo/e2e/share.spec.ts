@@ -622,8 +622,9 @@ test("a guest picks a priority when posting, and the team's change reaches the l
   await showComments(client);
   const guestCard = card(client, "Swap the hero photo.");
   await expect(guestCard.getByTestId("comment-priority")).toHaveText("Priority: Should fix");
-  // Guests pick only when posting (D10): no More menu to change it.
+  // Guests pick only when posting (D10): no More menu to change it, only a Copy link button.
   await expect(guestCard.getByRole("button", { name: /^Actions for comment/ })).toHaveCount(0);
+  await expect(guestCard.getByRole("button", { name: "Copy link to comment 2" })).toBeVisible();
 
   // Team: the pull brings it in with its priority; the team makes it Must fix.
   const ownerCard = card(page, "Swap the hero photo.");
@@ -650,6 +651,58 @@ test("a guest picks a priority when posting, and the team's change reaches the l
   await expect(
     client.getByRole("button", { name: "Comment 2 by Cleo, must fix", exact: true }),
   ).toBeVisible();
+  await context.close();
+});
+
+test("a guest's comment link opens its pin's popover, copies as the review link's, and says when it's gone", async ({
+  page,
+  browser,
+  baseURL,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "One desktop browser is enough for this.");
+  await openFolder(page);
+  await createImageProject(page, "linked.png");
+  await postComment(page, "Owner note", { x: 100, y: 80 }, "Ana");
+  await showComments(page);
+  const commentId = (await card(page, "Owner note").getAttribute("data-comment-id"))!;
+  await page.getByTestId("share-button").click();
+  const dialog = page.getByTestId("share-dialog");
+  const link = (await dialog.getByTestId("copy-share-link").getAttribute("data-url"))!;
+  await expect(dialog.getByTestId("share-sync")).toHaveAttribute("data-sync", "synced");
+  await page.keyboard.press("Escape");
+
+  const { client, context } = await guestBrowser(browser);
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: baseURL });
+  await client.goto(`${link}?comment=${commentId}`);
+  const popover = client.getByTestId("pin-popover");
+  await expect(popover).toContainText("Owner note");
+  await expect(client).toHaveURL(link);
+
+  // A guest copies the review link's address for the comment, never the project's; the button
+  // shows a tick for a moment, then its link icon again.
+  const copyButton = popover.getByRole("button", { name: "Copy link to comment 1" });
+  await copyButton.click();
+  await expect(client.getByTestId("toast").filter({ hasText: "Link copied." })).toBeVisible();
+  await expect(copyButton).toHaveAttribute("data-copied", "true");
+  expect(await client.evaluate(() => navigator.clipboard.readText())).toBe(
+    `${link}?comment=${commentId}`,
+  );
+  await expect(copyButton).not.toHaveAttribute("data-copied");
+
+  // The card's button copies the same link.
+  await client.evaluate(() => navigator.clipboard.writeText(""));
+  await showComments(client);
+  await card(client, "Owner note").getByRole("button", { name: "Copy link to comment 1" }).click();
+  await expect
+    .poll(() => client.evaluate(() => navigator.clipboard.readText()))
+    .toBe(`${link}?comment=${commentId}`);
+
+  await client.goto(`${link}?comment=not-on-this-review`);
+  await expect(
+    client.getByTestId("toast").filter({ hasText: "That comment isn't on this review any more." }),
+  ).toBeVisible();
+  await expect(client).toHaveURL(link);
+  await expect(popover).toHaveCount(0);
   await context.close();
 });
 

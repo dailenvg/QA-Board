@@ -5,7 +5,13 @@ import { MAIN_PREVIEW, TEAM_REVIEW_CARD_ALT, teamReviewPreview } from "../lib/li
 import { signIn, SIGNED_OUT } from "./auth-fixtures";
 import { E2E_COMPANY } from "./e2e-env";
 import { snapshotPng } from "./sample-snapshot";
-import { addDefaultFolder, DEFAULT_FOLDER, mockFrameCheck } from "./squint-fixtures";
+import {
+  addDefaultFolder,
+  DEFAULT_FOLDER,
+  mockFrameCheck,
+  seedFile,
+  seedWorkspace,
+} from "./squint-fixtures";
 import { expectCard, expectLargeCard, iconLinks, tag, unfurl } from "./unfurl-fixtures";
 import { brandWorkspace, e2eWorkspaceId } from "./workspace-db";
 
@@ -223,4 +229,121 @@ test("signed in, the project's link still opens the viewer, with Squint's own pr
   expect(new URL(tag(tags, "og:image")).pathname).toBe("/opengraph-image");
   // The viewer's own posts need their Origin: no referrer policy on its page.
   expect(tags.has("referrer")).toBe(false);
+});
+
+test("signed out, a comment's link survives Sign in and opens on its page, tab and popover", async ({
+  page,
+  browser,
+  baseURL,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "One desktop browser is enough for this.");
+  const projectId = `linked-${Date.now().toString(36)}`;
+  const at = 1_700_000_000_000;
+  const note = { projectId, author: "Ana", createdAt: at, updatedAt: at } as const;
+  await seedWorkspace(page, {
+    version: 3,
+    folders: [{ id: "linked", name: "Linked", parentId: null, createdAt: at }],
+    projects: [
+      {
+        id: projectId,
+        folderId: "linked",
+        name: "Two pages",
+        source: {
+          kind: "pages",
+          origin: "image",
+          fileName: "home.png",
+          pages: [
+            { id: "page-1", blobKey: "page:home", name: "home.png" },
+            { id: "page-2", blobKey: "page:about", name: "about.png" },
+          ],
+        },
+        createdAt: at,
+        updatedAt: at,
+      },
+    ],
+    comments: [
+      {
+        ...note,
+        id: "on-one",
+        x: 20,
+        y: 30,
+        body: "First page note",
+        status: "active",
+        pageId: "page-1",
+      },
+      // Enough resolved ones before it that its card starts below the list's fold.
+      ...Array.from({ length: 12 }, (_, index) => ({
+        ...note,
+        id: `done-${index}`,
+        x: 10 + index * 5,
+        y: 20,
+        body: `Done note ${index}`,
+        status: "resolved" as const,
+        resolvedAt: at,
+        pageId: "page-1",
+      })),
+      {
+        ...note,
+        id: "on-two",
+        createdAt: at + 1_000,
+        x: 40,
+        y: 50,
+        body: "About page, done",
+        status: "resolved",
+        resolvedAt: at,
+        pageId: "page-2",
+      },
+    ],
+    snapshots: [],
+    replies: [],
+    authorName: "Ana",
+  });
+  await seedFile(page, projectId, "page:home", snapshotPng(1200, 900));
+  await seedFile(page, projectId, "page:about", snapshotPng(1200, 900));
+
+  const context = await browser.newContext({ storageState: SIGNED_OUT });
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: baseURL });
+  const member = await context.newPage();
+  await member.goto(`/p/${projectId}?comment=on-two`);
+  await member.getByTestId("project-sign-in").getByRole("link", { name: "Sign in" }).click();
+  await expect(member).toHaveURL(
+    new RegExp(`/login\\?next=%2Fp%2F${projectId}%3Fcomment%3Don-two$`),
+  );
+  await signIn(member, E2E_COMPANY);
+
+  // Page 2, the Resolved tab (it's resolved), the card selected and its pin's popover open.
+  await expect(member.getByTestId("page-position")).toHaveText("Page 2 of 2");
+  const popover = member.getByTestId("pin-popover");
+  await expect(popover).toContainText("About page, done");
+  const card = member.locator('[data-testid="comment-card"][data-comment-id="on-two"]');
+  await expect(card.locator("[data-card-select]")).toHaveAttribute("aria-pressed", "true");
+  // The list brought the card into view too, from below twelve other resolved ones.
+  await expect(card).toBeInViewport();
+  const list = member.getByRole("list", { name: "Resolved comments" });
+  expect(await list.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
+  // Read once, then gone from the address; the page it opened stays.
+  await expect(member).toHaveURL(new RegExp(`/p/${projectId}\\?page=2$`));
+
+  // The popover's More leaves Copy link to the header's button, which copies the project's link
+  // to the comment, absolute.
+  await popover.getByRole("button", { name: "Actions for comment 14" }).click();
+  await expect(member.getByRole("menuitem", { name: "Get info" })).toBeVisible();
+  await expect(member.getByRole("menuitem", { name: "Copy link" })).toHaveCount(0);
+  await member.keyboard.press("Escape");
+  await popover.getByRole("button", { name: "Copy link to comment 14" }).click();
+  await expect(member.getByTestId("toast").filter({ hasText: "Link copied." })).toBeVisible();
+  expect(await member.evaluate(() => navigator.clipboard.readText())).toBe(
+    `${baseURL}/p/${projectId}?comment=on-two`,
+  );
+
+  // A link to a comment that's gone says so, and drops the parameter.
+  await member.goto(`/p/${projectId}?comment=deleted-one`);
+  await expect(
+    member
+      .getByTestId("toast")
+      .filter({ hasText: "That comment is no longer here. It may have been deleted." }),
+  ).toBeVisible();
+  await expect(member).toHaveURL(new RegExp(`/p/${projectId}$`));
+  await expect(popover).toHaveCount(0);
+  await context.close();
 });

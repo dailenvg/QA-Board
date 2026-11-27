@@ -18,6 +18,8 @@ export interface ToastInput {
   action?: { label: string; onAction: () => void };
   /** Runs when the toast goes away without its action being used (timed out or replaced). */
   onDismiss?: () => void;
+  /** How long it stays (ms) when it's not hovered or focused; its tone's `DISMISS_MS` by default. */
+  duration?: number;
 }
 
 interface Toast extends ToastInput {
@@ -26,7 +28,8 @@ interface Toast extends ToastInput {
 
 const ToastContext = createContext<(toast: ToastInput) => void>(() => {});
 
-const DISMISS_MS = { neutral: 4000, error: 7000 } as const;
+/** How long a toast stays, by tone; `ToastInput.duration` overrides it. */
+export const DISMISS_MS = { neutral: 4000, error: 7000 } as const;
 
 const TOAST_REGION =
   "pointer-events-none fixed inset-x-0 bottom-[max(1.5rem,env(safe-area-inset-bottom))] z-[60] flex justify-center px-4";
@@ -62,7 +65,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!toast || paused) return;
-    const timer = window.setTimeout(() => replace(null, true), DISMISS_MS[toast.tone ?? "neutral"]);
+    const timer = window.setTimeout(
+      () => replace(null, true),
+      toast.duration ?? DISMISS_MS[toast.tone ?? "neutral"],
+    );
     return () => window.clearTimeout(timer);
   }, [toast, paused, replace]);
 
