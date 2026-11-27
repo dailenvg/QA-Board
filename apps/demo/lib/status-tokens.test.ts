@@ -147,7 +147,8 @@ describe.each([
   it("reads a stage's ink-2 at 4.5:1 on its card fill, and Set stage's on the top bar", () => {
     const ink = color(tokens, "ink-2");
     expect(contrast(ink, color(tokens, "card"))).toBeGreaterThanOrEqual(TEXT);
-    expect(contrast(ink, color(tokens, "panel"))).toBeGreaterThanOrEqual(TEXT);
+    // Set stage sits on the bar itself, its trigger's hover and open fill, and its pressed fill.
+    expect(worst(ink, surfaces(tokens, ["panel", "hover", "seg"]))).toBeGreaterThanOrEqual(TEXT);
   });
 
   it("edges resolved pins at 3:1 on their white halo and on their Mint fill", () => {
