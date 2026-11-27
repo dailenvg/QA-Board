@@ -2,12 +2,14 @@
 
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
+import { useMissingSurface } from "./use-stage-zoom";
 
 /**
  * A snapshot whose image can't be loaded: gone from this browser's storage
  * (owner) or from the share's server (client). The copy fits both.
  */
 export function SnapshotMissing({ onRetake }: { onRetake: (() => void) | null }) {
+  useMissingSurface();
   return (
     <div
       data-testid="snapshot-missing"

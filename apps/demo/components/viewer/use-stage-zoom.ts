@@ -32,16 +32,25 @@ export interface StageZoomSurface {
    * release, for when it leaves the stage or changes size.
    */
   attach: (node: HTMLElement, width: number) => () => void;
+  /** Says the stage can't show its surface (it failed to load); returns its release. */
+  markMissing: () => () => void;
 }
 
 /** Outside a zoomable stage, a surface is drawn at Fit. */
 export const StageZoomContext = createContext<StageZoomSurface>({
   zoom: "fit",
   attach: () => () => {},
+  markMissing: () => () => {},
 });
 
 export function useStageZoomSurface(): StageZoomSurface {
   return use(StageZoomContext);
+}
+
+/** For a stage's "can't be shown" state: while it's up, there's nothing to zoom. */
+export function useMissingSurface(): void {
+  const { markMissing } = useStageZoomSurface();
+  useEffect(() => markMissing(), [markMissing]);
 }
 
 export interface StageZoom {
@@ -53,6 +62,10 @@ export interface StageZoom {
    * null until one is. A Fit that changes with the window or the page isn't announced.
    */
   announced: number | null;
+  /** A surface is drawn on the stage now. */
+  attached: boolean;
+  /** The stage shows that its surface can't be loaded (`useMissingSurface`). */
+  missing: boolean;
   pan: PanState;
   surface: StageZoomSurface;
   zoomIn: () => void;
@@ -88,6 +101,7 @@ export function useStageZoom(scroller: RefObject<HTMLElement | null>): StageZoom
   const unannounced = useRef(false);
   const [announced, setAnnounced] = useState<number | null>(null);
   const attached = surfaceWidth !== null;
+  const [missingCount, setMissingCount] = useState(0);
 
   const measureFit = useCallback(() => {
     const surface = node.current;
@@ -118,6 +132,11 @@ export function useStageZoom(scroller: RefObject<HTMLElement | null>): StageZoom
     },
     [measureFit],
   );
+
+  const markMissing = useCallback(() => {
+    setMissingCount((count) => count + 1);
+    return () => setMissingCount((count) => count - 1);
+  }, []);
 
   const request = useCallback((next: Zoom, point: Point | null) => {
     const surface = node.current;
@@ -194,12 +213,14 @@ export function useStageZoom(scroller: RefObject<HTMLElement | null>): StageZoom
   }, [attached, scroller, current, request]);
 
   const pan = useSpacePan(scroller, node, attached);
-  const surface = useMemo(() => ({ zoom, attach }), [zoom, attach]);
+  const surface = useMemo(() => ({ zoom, attach, markMissing }), [zoom, attach, markMissing]);
 
   return {
     zoom,
     effective: attached ? effectiveZoom(zoom, fitLevel) : null,
     announced,
+    attached,
+    missing: missingCount > 0,
     pan,
     surface,
     zoomIn,

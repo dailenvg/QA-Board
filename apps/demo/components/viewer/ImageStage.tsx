@@ -6,6 +6,7 @@ import { Skeleton } from "../ui/Skeleton";
 import { ScreenshotUpload } from "./ScreenshotUpload";
 import { SurfaceImage } from "./SurfaceImage";
 import type { ScreenshotHandler } from "./types";
+import { useMissingSurface } from "./use-stage-zoom";
 import { StateArt } from "../ui/line-art/StateArt";
 
 interface ImageStageProps {
@@ -20,6 +21,7 @@ interface ImageStageProps {
 }
 
 function ImageUnavailable({ onReplace }: { onReplace: ScreenshotHandler | null }) {
+  useMissingSurface();
   return (
     <div role="alert" className="grid h-full min-h-80 place-items-center p-6 text-center">
       <div className="flex max-w-sm flex-col items-center gap-3">

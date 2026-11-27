@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { StageZoomContext, useStageZoom } from "./use-stage-zoom";
 import { ZoomControl } from "./ZoomControl";
 
@@ -27,6 +27,13 @@ interface StageZoomProps {
 export function StageZoom({ scroller, zoomable, children }: StageZoomProps) {
   const stage = useStageZoom(scroller);
   const root = useRef<HTMLDivElement>(null);
+  // The control waits for a surface to zoom, so it never offers dead buttons while the first
+  // one loads or when one can't be shown. Once there was one, it stays through the next one's
+  // loading (another page or snapshot), rather than leaving and coming back on every change.
+  const [hadSurface, setHadSurface] = useState(false);
+  const keepsSurface = zoomable && (hadSurface || stage.attached);
+  if (keepsSurface !== hadSurface) setHadSurface(keepsSurface);
+  const shown = zoomable && !stage.missing && (stage.attached || hadSurface);
 
   useLayoutEffect(() => {
     const area = scroller.current;
@@ -48,7 +55,7 @@ export function StageZoom({ scroller, zoomable, children }: StageZoomProps) {
       >
         {children}
         <ZoomControl
-          shown={zoomable}
+          shown={shown}
           zoom={stage.zoom}
           effective={stage.effective}
           announced={stage.announced}
