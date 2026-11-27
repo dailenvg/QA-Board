@@ -1,6 +1,12 @@
 "use client";
 
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import {
+  AnimatePresence,
+  motion,
+  useIsPresent,
+  useReducedMotion,
+  type Variants,
+} from "motion/react";
 import Link from "next/link";
 import {
   Fragment,
@@ -11,6 +17,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type ReactNode,
   type Ref,
 } from "react";
 import { instant, spring, usePopVariants } from "@/lib/motion";
@@ -437,19 +444,14 @@ export function Menu({
       </AnimatePresence>
       <AnimatePresence>
         {open ? (
-          <motion.div
+          <MenuPanel
             ref={menu}
             id={menuId}
-            role="menu"
-            aria-label={label}
+            label={label}
             variants={variants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            style={{ transformOrigin: menuOrigin(side, align), maxHeight: maxHeight ?? undefined }}
-            className={`absolute ${ALIGN_CLASS[align]} z-30 ${PLACEMENT_CLASS[side]} flex w-max max-w-72 min-w-52 flex-col rounded-tile bg-card p-2 shadow-pop ring-1 ring-line ${
-              maxHeight === null ? "" : "overflow-y-auto overscroll-contain"
-            }`}
+            side={side}
+            align={align}
+            maxHeight={maxHeight}
           >
             {menuSections(items).map((section, index) => (
               <Fragment key={`section-${index}`}>
@@ -461,10 +463,47 @@ export function Menu({
                 />
               </Fragment>
             ))}
-          </motion.div>
+          </MenuPanel>
         ) : null}
       </AnimatePresence>
     </div>
+  );
+}
+
+interface MenuPanelProps {
+  ref: Ref<HTMLDivElement>;
+  id: string;
+  label: string;
+  variants: Variants;
+  side: MenuPlacement;
+  align: MenuAlign;
+  maxHeight: number | null;
+  children: ReactNode;
+}
+
+/**
+ * The open menu. While it fades out it takes no pointer events, so a quick tap just after a
+ * pick lands on what's under it rather than picking again from the leaving items.
+ */
+function MenuPanel({ ref, id, label, variants, side, align, maxHeight, children }: MenuPanelProps) {
+  const present = useIsPresent();
+  return (
+    <motion.div
+      ref={ref}
+      id={id}
+      role="menu"
+      aria-label={label}
+      variants={variants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+      style={{ transformOrigin: menuOrigin(side, align), maxHeight: maxHeight ?? undefined }}
+      className={`absolute ${ALIGN_CLASS[align]} z-30 ${PLACEMENT_CLASS[side]} flex w-max max-w-72 min-w-52 flex-col rounded-tile bg-card p-2 shadow-pop ring-1 ring-line ${
+        maxHeight === null ? "" : "overflow-y-auto overscroll-contain"
+      } ${present ? "" : "pointer-events-none"}`}
+    >
+      {children}
+    </motion.div>
   );
 }
 
