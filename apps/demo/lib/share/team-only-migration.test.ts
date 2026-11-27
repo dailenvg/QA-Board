@@ -111,7 +111,9 @@ describe.each(databases)("migration 057 (%s)", (_name, make) => {
     expect(await flags(db, "comments")).toEqual({ c1: true, c2: false });
     const { rows } = await db.query<{ count: number }>(
       `SELECT count(*)::int AS count FROM pg_constraint
-       WHERE conname IN ('comments_team_only_origin', 'comment_replies_team_only_origin')`,
+       WHERE (conname = 'comments_team_only_origin' AND conrelid = 'comments'::regclass)
+         OR (conname = 'comment_replies_team_only_origin'
+           AND conrelid = 'comment_replies'::regclass)`,
     );
     expect(rows[0]?.count).toBe(2);
     await expect(db.query("UPDATE comments SET team_only = true")).rejects.toThrow();
