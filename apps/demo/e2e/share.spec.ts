@@ -654,6 +654,99 @@ test("a guest picks a priority when posting, and the team's change reaches the l
   await context.close();
 });
 
+test("a comment made team only leaves the guest's link at once, and Show to client asks first", async ({
+  page,
+  browser,
+}) => {
+  await openFolder(page);
+  await createImageProject(page, "team-only.png");
+  await postComment(page, "For the client", { x: 100, y: 80 }, "Ana");
+  await postComment(page, "Internal note", { x: 220, y: 140 });
+  await showComments(page);
+  await page.getByTestId("share-button").click();
+  const dialog = page.getByTestId("share-dialog");
+  const link = (await dialog.getByTestId("copy-share-link").getAttribute("data-url"))!;
+  await expect(dialog.getByTestId("share-sync")).toHaveAttribute("data-sync", "synced");
+  await page.keyboard.press("Escape");
+
+  const { client, context } = await guestBrowser(browser);
+  await client.goto(link);
+  await showComments(client);
+  await expect(card(client, "Internal note")).toBeVisible();
+
+  // On a live link, making it team only asks first: clients may have seen it (D11).
+  const ownerCard = card(page, "Internal note");
+  await ownerCard.getByRole("button", { name: "Actions for comment 2" }).click();
+  await page.getByRole("menuitem", { name: "Make team only" }).click();
+  const hide = page.getByRole("dialog", { name: "Make comment 2 team only?" });
+  const hidden = page.waitForResponse(
+    (response) =>
+      /\/comments\/[^/]+$/.test(new URL(response.url()).pathname) &&
+      response.request().method() === "PATCH" &&
+      (response.request().postData() ?? "").includes('"teamOnly":true'),
+  );
+  await hide.getByRole("button", { name: "Make team only" }).click();
+  expect((await hidden).status()).toBe(200);
+  await expect(
+    page.getByTestId("toast").filter({ hasText: "Comment 2 is now T1, team only" }),
+  ).toBeVisible();
+  await expect(ownerCard.getByTestId("team-only-chip")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Comment T1 by Ana, team only", exact: true }),
+  ).toBeVisible();
+
+  // The server took it off the link with the change itself: the guest's next read has it gone.
+  await expect(async () => {
+    await client.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await expect(card(client, "Internal note")).toHaveCount(0, { timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await expect(card(client, "For the client")).toBeVisible();
+
+  // A reply written while it's team only stays with the team for good (B2). The card is still
+  // selected from posting it.
+  await expect(ownerCard.locator("[data-card-select]")).toHaveAttribute("aria-pressed", "true");
+  await ownerCard.getByRole("button", { name: "Reply", exact: true }).click();
+  const box = ownerCard.getByRole("textbox", { name: "Reply", exact: true });
+  await expect(box).toHaveAttribute("placeholder", "Reply to your team…");
+  const replied = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname.endsWith("/replies") &&
+      response.request().method() === "POST",
+  );
+  await box.fill("Just us.");
+  await box.press("Enter");
+  expect(await (await replied).json()).toMatchObject({ teamOnly: true });
+
+  // Showing it always asks first, in the primary confirm, with Cancel first (D12, U19).
+  await ownerCard.getByRole("button", { name: "Actions for comment T1" }).click();
+  await page.getByRole("menuitem", { name: "Show to client" }).click();
+  const show = page.getByRole("dialog", { name: "Show comment T1 to your client?" });
+  await expect(show).toContainText("1 reply stays team only.");
+  await expect(show.getByRole("button", { name: "Cancel" })).toBeFocused();
+  const pushed = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname.startsWith("/api/shares/") &&
+      response.request().method() === "PATCH" &&
+      (response.request().postData() ?? "").includes("Internal note"),
+  );
+  await show.getByRole("button", { name: "Show to client" }).click();
+  await expect(
+    page.getByTestId("toast").filter({ hasText: "T1 is now comment 2, shown to your client" }),
+  ).toBeVisible();
+  expect((await pushed).status()).toBe(200);
+  await expect(ownerCard.getByTestId("reply-team-only")).toBeVisible();
+
+  // The guest gets it back as comment 2, without the reply kept to the team.
+  const back = card(client, "Internal note");
+  await expect(async () => {
+    await client.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await expect(back).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await expect(back.getByTestId("reply-summary")).toHaveCount(0);
+  await expect(client.getByText("Just us.")).toHaveCount(0);
+  await context.close();
+});
+
 test("a guest's comment link opens its pin's popover, copies as the review link's, and says when it's gone", async ({
   page,
   browser,

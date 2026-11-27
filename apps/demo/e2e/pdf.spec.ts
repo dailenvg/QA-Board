@@ -72,7 +72,10 @@ test("a PDF becomes a project with a page per PDF page, rendered without leaving
   await page.getByTestId("export-menu").click();
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    page.getByRole("menuitem", { name: "Markdown", exact: true }).click(),
+    page
+      .getByRole("group", { name: "For your team" })
+      .getByRole("menuitem", { name: "Markdown", exact: true })
+      .click(),
   ]);
   const markdown = await download.createReadStream().then(async (stream) => {
     const chunks: Buffer[] = [];
