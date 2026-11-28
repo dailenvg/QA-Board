@@ -270,7 +270,7 @@ test("a member can't edit the owner's reply; the owner deletes theirs, and the c
   const bensReply = { id: "r-ben", body: "I can take it.", author: "Ben Ito" };
   expect((await benPage.request.post(replies, { data: bensReply })).status()).toBe(201);
 
-  // Ben: Get info only on Olga's reply; Edit and Delete on his own.
+  // Ben: Get info only on Olga's reply; Edit, Make team only and Delete on his own (D9).
   await benPage.goto(`/p/${projectId}`);
   await showComments(benPage);
   await onlyCommentCard(benPage).locator("[data-card-select]").click();
@@ -285,7 +285,12 @@ test("a member can't edit the owner's reply; the owner deletes theirs, and the c
     .filter({ hasText: "I can take it." })
     .getByRole("button", { name: "Actions for reply by Ben Ito" })
     .click();
-  await expect(benPage.getByRole("menuitem")).toHaveText(["Edit", "Get info", "Delete"]);
+  await expect(benPage.getByRole("menuitem")).toHaveText([
+    "Edit",
+    "Make team only",
+    "Get info",
+    "Delete",
+  ]);
   await benPage.keyboard.press("Escape");
   // The server agrees: Olga's reply isn't Ben's to change.
   const edit = await benPage.request.patch(`${replies}/r-olga`, { data: { body: "Mine now." } });
@@ -302,7 +307,7 @@ test("a member can't edit the owner's reply; the owner deletes theirs, and the c
     .filter({ hasText: "I can take it." })
     .getByRole("button", { name: "Actions for reply by Ben Ito" })
     .click();
-  await expect(page.getByRole("menuitem")).toHaveText(["Get info", "Delete"]);
+  await expect(page.getByRole("menuitem")).toHaveText(["Make team only", "Get info", "Delete"]);
   await page.getByRole("menuitem", { name: "Delete" }).click();
   const confirmReply = page.getByRole("dialog", { name: "Delete Ben Ito's reply?" });
   await expect(confirmReply).toContainText("It will be removed for everyone.");

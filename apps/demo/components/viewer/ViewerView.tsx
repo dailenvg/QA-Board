@@ -1031,6 +1031,7 @@ export function ViewerView({
               id="main"
               ref={canvasAreaRef}
               data-testid="canvas-area"
+              data-pin-bounds
               data-mode={mode}
               data-surface={surface.kind}
               className={`relative min-h-0 min-w-0 flex-1 scroll-pb-16 overflow-auto rounded-panel bg-tile sm:scroll-pb-18 ${scrollInset}`}
