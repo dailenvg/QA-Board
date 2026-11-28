@@ -4,7 +4,7 @@ import { snapshotsFor } from "../store/snapshots";
 import { dispatch, getSnapshot } from "../store/store";
 import type { ClientEdit, Comment, Project, ProjectShare, Reply, Snapshot } from "../store/types";
 import { storeWorkspaceBlob } from "../workspace-client/blob-upload";
-import { workspaceBlobs } from "../workspace-client/workspace-store";
+import { whenSaved, workspaceBlobs } from "../workspace-client/workspace-store";
 import { ownerApi } from "./api";
 import type { ShareChanges, ShareState } from "../share/types";
 import { batchChange, diffState } from "./diff";
@@ -14,6 +14,7 @@ import {
   fromSharedReply,
   fromSharedSnapshot,
   localBlobKey,
+  teamOnlyIds,
   toShareState,
 } from "./share-state";
 
@@ -84,11 +85,20 @@ function current(projectId: string): { project: Project; share: ProjectShare } |
   return project?.share ? { project, share: project.share } : null;
 }
 
+/** What a push sends, and what it leaves as the link has it (`diffState`). */
+interface LocalState {
+  state: ShareState;
+  /** Clients' replies: sent only while the link lacks them. */
+  settled: Set<string>;
+  /** What the owner keeps to the team: never asked to be deleted (`teamOnlyIds`). */
+  kept: Set<string>;
+}
+
 /**
- * What the project pushes, and which of its replies are clients' (sent only
- * while the link lacks them: `diffState`).
+ * What the project pushes, which of its replies are clients', and what it
+ * keeps to the team.
  */
-function stateOf(project: Project): { state: ShareState; settled: Set<string> } | null {
+function stateOf(project: Project): LocalState | null {
   const state = getSnapshot();
   if (state.status !== "ready") return null;
   const { data } = state;
@@ -100,6 +110,7 @@ function stateOf(project: Project): { state: ShareState; settled: Set<string> } 
       data.replies,
     ),
     settled: clientReplyIds(data.replies, project.id),
+    kept: teamOnlyIds(project.id, data.comments, data.replies),
   };
 }
 
@@ -145,6 +156,12 @@ function scheduleRetry(projectId: string): void {
  * manifest, sends only what differs, in batches small enough for any request
  * limit, then uploads the images the server still lacks. Failures retry with
  * backoff; a 404 means the link was revoked (or the server forgot it).
+ *
+ * It first waits for the workspace's queued saves, then reads the state they
+ * left: a comment made team only or shown again is pushed only once the server
+ * has it, or as it was again once refused (a client replied, D10). So a push
+ * never runs ahead of a change the server might refuse, and the one after
+ * Show to client carries it (B1).
  */
 export async function pushNow(projectId: string): Promise<void> {
   const entry = controller(projectId);
@@ -152,10 +169,14 @@ export async function pushNow(projectId: string): Promise<void> {
     entry.dirty = true;
     return;
   }
+  entry.pushing = true;
+  await whenSaved();
   const found = current(projectId);
   const local = found && stateOf(found.project);
-  if (!found || !local) return;
-  entry.pushing = true;
+  if (!found || !local) {
+    entry.pushing = false;
+    return;
+  }
   update(projectId, { phase: "syncing" });
   const outcome = await sendChanges(found.project, found.share, local);
   entry.pushing = false;
@@ -181,12 +202,13 @@ export async function pushNow(projectId: string): Promise<void> {
 async function sendChanges(
   project: Project,
   share: ProjectShare,
-  { state, settled }: { state: ShareState; settled: ReadonlySet<string> },
+  { state, settled, kept }: LocalState,
 ): Promise<"done" | "failed" | "gone"> {
   const manifest = await ownerApi.manifest(share);
   if (!manifest.ok) return manifest.status === 404 ? "gone" : "failed";
   let missing = manifest.value.missingBlobs;
-  for (const batch of batchChange(diffState(state, manifest.value, settled), share.cursor)) {
+  const changes = diffState(state, manifest.value, settled, kept);
+  for (const batch of batchChange(changes, share.cursor)) {
     const applied = await ownerApi.change(share, batch);
     if (!applied.ok) return applied.status === 404 ? "gone" : "failed";
     missing = applied.value.missingBlobs;

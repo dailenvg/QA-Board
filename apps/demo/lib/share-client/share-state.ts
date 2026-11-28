@@ -118,6 +118,28 @@ export function toShareState(
 }
 
 /**
+ * The project's comments and replies the owner keeps to the team (057): its
+ * team-only comments, their replies, and team-only replies. `toShareState`
+ * leaves them out, and a push never asks the link to delete them
+ * (`diffState`'s `kept`): the server does, once it knows no client replied.
+ */
+export function teamOnlyIds(
+  projectId: string,
+  comments: readonly Comment[],
+  replies: readonly Reply[],
+): Set<string> {
+  const hidden = new Set(
+    comments
+      .filter((comment) => comment.projectId === projectId && comment.teamOnly)
+      .map((comment) => comment.id),
+  );
+  const hiddenReplies = replies.filter(
+    (reply) => reply.projectId === projectId && (reply.teamOnly || hidden.has(reply.commentId)),
+  );
+  return new Set([...hidden, ...hiddenReplies.map((reply) => reply.id)]);
+}
+
+/**
  * The local blob key for a share's blob key: a page's picture is wherever the
  * page says; null for a page (or a revision of it) the project doesn't have.
  */

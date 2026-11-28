@@ -52,6 +52,8 @@ function commentForm(id: string, withCrop: boolean, extra: { pageId?: string } =
 }
 
 let failCrops = false;
+/** One request held until `gate` opens (a slow save), then sent on as it was. */
+let held: { matches: (request: Request) => boolean; gate: Promise<void> } | null = null;
 /** Every request sent, with its method, path and body size. */
 const sent: Array<{ method: string; path: string; bytes: Promise<number> }> = [];
 
@@ -65,6 +67,7 @@ const shareRequests = (method: string) =>
 
 beforeEach(() => {
   failCrops = false;
+  held = null;
   sent.length = 0;
   (globalThis as { squintShares?: unknown }).squintShares = undefined;
 });
@@ -82,6 +85,17 @@ function intercept(request: Request): Promise<Response> | null {
     .arrayBuffer()
     .then((body) => body.byteLength);
   sent.push({ method: request.method, path: pathname, bytes });
+  if (held?.matches(request)) {
+    const { gate } = held;
+    held = null;
+    return gate.then(async () =>
+      fetch(request.url, {
+        method: request.method,
+        headers: request.headers,
+        body: await request.text(),
+      }),
+    );
+  }
   const crop = request.method === "GET" && pathname.includes("/blobs/crop");
   return failCrops && crop && pathname.startsWith("/api/shares/")
     ? Promise.resolve(new Response(null, { status: 503 }))
@@ -569,5 +583,95 @@ describe("a guest's reply, end to end", () => {
       ["k-on-own", false],
       ["r-team", true],
     ]);
+  }, 60_000);
+});
+
+describe("a team-only change and the owner's push (D10)", () => {
+  /** Holds the comment's next team-only PATCH until the returned `release`. */
+  function holdTeamOnlyChange(): () => void {
+    let release = () => {};
+    const gate = new Promise<void>((done) => {
+      release = done;
+    });
+    held = {
+      matches: (request) =>
+        request.method === "PATCH" && new URL(request.url).pathname.endsWith("/comments/c-team"),
+      gate,
+    };
+    return release;
+  }
+
+  /** The shared workspace with the team's comment `c-team` on its link. */
+  async function withTeamComment() {
+    const workspace = await sharedWorkspace(SITE_PROJECT, { ...STATE, snapshots: [] });
+    const added = await workspace.actions.addComment({
+      id: "c-team",
+      projectId: "p1",
+      x: 1,
+      y: 1,
+      body: "Bigger logo",
+      author: "Ana",
+    });
+    expect(added.ok).toBe(true);
+    await workspace.sync.pushNow("p1");
+    const { clientApi } = await import("./api");
+    const guest = clientApi(workspace.share.token);
+    const view = async () => {
+      const read = await guest.view();
+      if (!read.ok) throw new Error(read.error);
+      return read.value;
+    };
+    return { ...workspace, view };
+  }
+
+  const pause = (ms: number) => new Promise((done) => setTimeout(done, ms));
+
+  it("waits for a slow hide the server refuses, so a client's unpulled reply stays (B1)", async () => {
+    const { share, sync, data, actions, view } = await withTeamComment();
+    const { call, jsonInit } = await import("./api");
+    const replied = await call<SharedReply>(
+      `/api/s/${share.token}/comments/c-team/replies`,
+      jsonInit("POST", { id: "k-1", body: "Hm, not sure.", author: "Cleo" }),
+    );
+    expect(replied.ok).toBe(true);
+
+    const release = holdTeamOnlyChange();
+    const hidden = actions.setCommentTeamOnly("c-team", true);
+    // Hidden here at once, so the next push would leave it out...
+    expect(data().comments[0]?.teamOnly).toBe(true);
+    sent.length = 0;
+    let pushed = false;
+    const push = sync.pushNow("p1").then(() => {
+      pushed = true;
+    });
+    // ...but it waits for the change to be answered.
+    await pause(50);
+    expect(pushed).toBe(false);
+    expect(await shareRequests("PATCH")).toEqual([]);
+    release();
+    const { HAS_CLIENT_REPLIES } = await import("../workspace-client/mutations");
+    expect(await hidden).toEqual({ ok: false, error: HAS_CLIENT_REPLIES });
+    await push;
+    expect(data().comments[0]?.teamOnly).toBeUndefined();
+    const link = await view();
+    expect(link.comments.map((comment) => comment.id)).toEqual(["c-team"]);
+    expect(link.replies.map((reply) => reply.id)).toEqual(["k-1"]);
+  }, 60_000);
+
+  it("pushes a comment shown again once the server has it, never before (issue 1)", async () => {
+    const { sync, data, actions, view } = await withTeamComment();
+    expect(await actions.setCommentTeamOnly("c-team", true)).toMatchObject({ ok: true });
+    await sync.pushNow("p1");
+    expect((await view()).comments).toEqual([]);
+
+    const release = holdTeamOnlyChange();
+    const shown = actions.setCommentTeamOnly("c-team", false);
+    const push = sync.pushNow("p1");
+    await pause(50);
+    release();
+    expect(await shown).toMatchObject({ ok: true });
+    await push;
+    expect(data().comments[0]?.teamOnly).toBeUndefined();
+    expect((await view()).comments.map((comment) => comment.id)).toEqual(["c-team"]);
   }, 60_000);
 });

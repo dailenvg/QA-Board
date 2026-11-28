@@ -12,12 +12,17 @@ type Upserts = (typeof UPSERTS)[number];
  * What differs between the owner's state and the server's manifest. Replies
  * in `settled` (clients', `clientReplyIds`) are only sent while the server
  * lacks them: it keeps a client's reply as it is, so sending one it has
- * again, however it differs, would only repeat on every push.
+ * again, however it differs, would only repeat on every push. Comments and
+ * replies in `kept` are ones the owner still has but keeps to the team
+ * (`teamOnlyIds`): never asked to be deleted. The server takes them off the
+ * link itself once it has checked no client replied (D10, D41); a delete from
+ * here would take a client's reply it hasn't pulled yet with the comment.
  */
 export function diffState(
   local: ShareState,
   manifest: ShareManifest,
   settled: ReadonlySet<string> = new Set(),
+  kept: ReadonlySet<string> = new Set(),
 ): Changes {
   const changed = <T extends { id: string }>(
     items: readonly T[],
@@ -32,7 +37,9 @@ export function diffState(
   );
   const gone = (items: ReadonlyArray<{ id: string }>, remote: ShareManifest["comments"]) => {
     const ids = new Set(items.map((item) => item.id));
-    return remote.filter((entry) => !ids.has(entry.id)).map((entry) => entry.id);
+    return remote
+      .filter((entry) => !ids.has(entry.id) && !kept.has(entry.id))
+      .map((entry) => entry.id);
   };
   return {
     ...(digest(local.project) !== manifest.project ? { project: local.project } : {}),
