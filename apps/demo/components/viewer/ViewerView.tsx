@@ -16,6 +16,7 @@ import {
   spansBreakpoints,
   type Breakpoint,
 } from "@/lib/store/breakpoints";
+import { projectComments } from "@/lib/store/actions";
 import { newId } from "@/lib/store/id";
 import { pagesOf } from "@/lib/store/pages";
 import { commentDeleteMode } from "@/lib/store/replies";
@@ -250,7 +251,7 @@ export function ViewerView({
   const teamOnlyChange = useTeamOnlyChange({
     backend,
     toast,
-    comments,
+    commentsNow: () => projectComments(project.id),
     // Read when a change is asked for, never while rendering.
     repliesOf: (commentId) =>
       data.replies.filter(

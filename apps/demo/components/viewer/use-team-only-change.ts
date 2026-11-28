@@ -15,8 +15,11 @@ export type TeamOnlyAsk =
 interface TeamOnlyChangeOptions {
   backend: ViewerBackend;
   toast: (toast: ToastInput) => void;
-  /** The project's comments in pin order (`commentsFor`), to name the numbers before and after. */
-  comments: readonly Comment[];
+  /**
+   * The project's comments in pin order as the store has them now (`projectComments`), read at
+   * each change and Undo, so the numbers a toast names are the current ones (R7).
+   */
+  commentsNow: () => readonly Comment[];
   /** A comment's replies, oldest first. */
   repliesOf: (commentId: string) => readonly Reply[];
   /** The project has a review link: hiding a comment asks first, as clients may have seen it. */
@@ -33,7 +36,7 @@ function withFlag(comment: Comment, teamOnly: boolean): Comment {
 const flipped = (comments: readonly Comment[], id: string, teamOnly: boolean): Comment[] =>
   comments.map((comment) => (comment.id === id ? withFlag(comment, teamOnly) : comment));
 
-type TeamOnlyChangesOptions = Pick<TeamOnlyChangeOptions, "backend" | "toast" | "repliesOf">;
+type TeamOnlyChangesOptions = Omit<TeamOnlyChangeOptions, "linked">;
 
 /**
  * The changes themselves, without asking: at once, then a toast naming the new number with Undo
@@ -41,7 +44,12 @@ type TeamOnlyChangesOptions = Pick<TeamOnlyChangeOptions, "backend" | "toast" | 
  * toast says why, without Retry, as a server refusal (409) does after it's rolled back. Any other
  * failure is rolled back with Retry. The toast region is the live region: nothing else speaks.
  */
-export function teamOnlyChanges({ backend, toast, repliesOf }: TeamOnlyChangesOptions) {
+export function teamOnlyChanges({
+  backend,
+  toast,
+  repliesOf,
+  commentsNow,
+}: TeamOnlyChangesOptions) {
   /** True (and says why) when a client's reply is under `comment`, so it can't be team only. */
   const refuseForClientReply = (comment: Comment) => {
     if (!repliesOf(comment.id).some((reply) => reply.fromClient)) return false;
@@ -62,36 +70,30 @@ export function teamOnlyChanges({ backend, toast, repliesOf }: TeamOnlyChangesOp
     );
 
   /**
-   * Changes `comment` (as it is in `list`, the comments in pin order) and names the numbers
-   * before and after. `retried`: a Retry, whose toast has gone, so the change announces itself
-   * once it's saved.
+   * Changes comment `id` as the store has it now, and names its number before and after. Undo
+   * changes it back the same way, from the numbers as they are when it's pressed. `retried`: a
+   * Retry, whose toast has gone, so the change announces itself once it's saved.
    */
-  function changeComment(
-    comment: Comment,
-    teamOnly: boolean,
-    list: readonly Comment[],
-    retried = false,
-  ) {
+  function changeComment(id: string, teamOnly: boolean, retried = false) {
+    const list = commentsNow();
+    const comment = list.find((entry) => entry.id === id);
+    if (!comment || Boolean(comment.teamOnly) === teamOnly) return;
     if (teamOnly && refuseForClientReply(comment)) return;
-    const after = flipped(list, comment.id, teamOnly);
-    const before = pinNumbers(list).get(comment.id)?.label ?? "";
-    const now = pinNumbers(after).get(comment.id)?.label ?? "";
+    const before = pinNumbers(list).get(id)?.label ?? "";
+    const now = pinNumbers(flipped(list, id, teamOnly)).get(id)?.label ?? "";
     const announce = () =>
       toast({
         message: teamOnly
           ? COPY.toast.commentHidden(before, now)
           : COPY.toast.commentShown(before, now),
-        action: {
-          label: COPY.toast.undo,
-          onAction: () => changeComment(withFlag(comment, teamOnly), !teamOnly, after),
-        },
+        action: { label: COPY.toast.undo, onAction: () => changeComment(id, !teamOnly) },
       });
-    void backend.setCommentTeamOnly(comment.id, teamOnly).then((result) => {
+    void backend.setCommentTeamOnly(id, teamOnly).then((result) => {
       if (result.ok) {
         if (retried) announce();
         return;
       }
-      failed(result.error, () => changeComment(comment, teamOnly, list, true));
+      failed(result.error, () => changeComment(id, teamOnly, true));
     });
     if (!retried) announce();
   }
@@ -122,7 +124,7 @@ export function teamOnlyChanges({ backend, toast, repliesOf }: TeamOnlyChangesOp
  * review link (D11), as clients may have seen it; hiding a reply asks nothing. The changes are
  * `teamOnlyChanges`'.
  */
-export function useTeamOnlyChange({ comments, linked, ...options }: TeamOnlyChangeOptions) {
+export function useTeamOnlyChange({ linked, ...options }: TeamOnlyChangeOptions) {
   const asking = useDialogState<TeamOnlyAsk>();
   const changes = teamOnlyChanges(options);
 
@@ -133,7 +135,7 @@ export function useTeamOnlyChange({ comments, linked, ...options }: TeamOnlyChan
       if (teamOnly && changes.refuseForClientReply(comment)) return;
       if (!teamOnly) asking.show({ kind: "show-comment", comment });
       else if (linked) asking.show({ kind: "hide-comment", comment });
-      else changes.changeComment(comment, true, comments);
+      else changes.changeComment(comment.id, true);
     },
     /** From a reply's More menu: showing it asks first, hiding it doesn't. */
     setReply: (reply: Reply, teamOnly: boolean) => {
@@ -146,7 +148,7 @@ export function useTeamOnlyChange({ comments, linked, ...options }: TeamOnlyChan
       asking.close();
       if (!ask) return;
       if (ask.kind === "show-reply") changes.changeReply(ask.reply, false);
-      else changes.changeComment(ask.comment, ask.kind === "hide-comment", comments);
+      else changes.changeComment(ask.comment.id, ask.kind === "hide-comment");
     },
   };
 }

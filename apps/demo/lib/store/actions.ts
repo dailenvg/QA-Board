@@ -23,6 +23,7 @@ import {
   type Result,
 } from "./store";
 import type { Action } from "./reducer";
+import { commentsFor } from "./selectors";
 import type {
   Comment,
   CommentCrop,
@@ -424,6 +425,12 @@ export function setCommentStatus(id: string, status: CommentStatus): Result {
 /** Sets a comment's priority, or clears it (null); rolled back with a notice if the server refuses. */
 export const setCommentPriority = (id: string, priority: CommentPriority | null) =>
   commit({ type: "comment/set-priority", id, priority, at: Date.now() });
+
+/** The project's comments in pin order as the store has them now; none while it isn't loaded. */
+export function projectComments(projectId: string): readonly Comment[] {
+  const state = getSnapshot();
+  return state.status === "ready" ? commentsFor(state.data, projectId) : [];
+}
 
 /**
  * Keeps a comment to the team, or shows it to clients again (057), and
