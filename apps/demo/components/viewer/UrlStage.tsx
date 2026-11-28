@@ -52,6 +52,7 @@ export function UrlStage({
   return (
     <div
       data-testid="canvas"
+      data-pin-bounds
       hidden={commentMode}
       data-frame-width={frameWidth ?? undefined}
       style={frameWidth ? { maxWidth: frameWidth } : undefined}

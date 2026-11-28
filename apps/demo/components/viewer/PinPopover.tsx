@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useIsPresent } from "motion/react";
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { usePopVariants } from "@/lib/motion";
 import { absoluteTime, relativeTime } from "@/lib/relative-time";
 import type { Comment, CommentPriority, Reply } from "@/lib/store/types";
@@ -20,6 +20,7 @@ import { CopyLinkButton } from "./CopyLinkButton";
 import { commentRights } from "./comment-rights";
 import { replyVisibility, showsReplyBox, useCommentThreads } from "./comment-threads";
 import { PlacementChip } from "./PlacementChip";
+import { popoverSide, visibleBounds, type PopoverSide } from "./popover-side";
 import { PriorityChip } from "./PriorityChip";
 import { replyClosedNote } from "./reply-rights";
 import { ReplyComposer } from "./ReplyComposer";
@@ -55,20 +56,6 @@ interface PinPopoverProps {
   onClose: (returnFocus: boolean) => void;
 }
 
-interface Side {
-  horizontal: "right" | "left";
-  vertical: "down" | "up";
-  /** Px slid sideways to stay inside the stage when neither side has the popover's width. */
-  shift: number;
-}
-
-/** Space kept between the popover and the stage's edges, in px. */
-const MARGIN = 8;
-/** The pin button's width: the popover starts just past it on the right. */
-const PIN_WIDTH = 44;
-/** How far above the pin's point its marker's top sits. */
-const PIN_HEAD = 36;
-
 const NO_REPLIES: readonly Reply[] = [];
 
 /** The docked popover's cap (`max-h-[50dvh]`), which the keyboard can only lower. */
@@ -92,44 +79,54 @@ const TRANSLATE = {
 } as const;
 
 /** A first guess from the pin's position, refined once the popover can be measured. */
-function guess({ x, y }: Comment): Side {
-  return { horizontal: x > 60 ? "left" : "right", vertical: y > 55 ? "up" : "down", shift: 0 };
+function guess({ x, y }: Comment): PopoverSide {
+  return {
+    horizontal: x > 60 ? "left" : "right",
+    vertical: y > 55 ? "up" : "down",
+    shift: 0,
+    room: null,
+  };
 }
 
-function sameSide(a: Side, b: Side): boolean {
-  return a.horizontal === b.horizontal && a.vertical === b.vertical && a.shift === b.shift;
+function sameSide(a: PopoverSide, b: PopoverSide): boolean {
+  return (
+    a.horizontal === b.horizontal &&
+    a.vertical === b.vertical &&
+    a.shift === b.shift &&
+    a.room === b.room
+  );
 }
 
 /**
- * The side of the pin with room for the popover inside the visible stage
- * (the scrolling canvas, cut to the window), else the side with more room,
- * slid sideways as far as it takes to keep it inside.
+ * Every box that clips the pins' layer, nearest first: those marked `data-pin-bounds` (the
+ * stage's scroller, below the page strip; a website's frame, which can be narrower).
  */
-function measure(node: HTMLElement, { x, y }: Comment): Side | null {
+function clipsOf(node: HTMLElement): DOMRect[] {
+  const clips: DOMRect[] = [];
+  let clip = node.closest("[data-pin-bounds]");
+  while (clip) {
+    clips.push(clip.getBoundingClientRect());
+    clip = clip.parentElement?.closest("[data-pin-bounds]") ?? null;
+  }
+  return clips;
+}
+
+/**
+ * Where the popover goes beside its pin (`popoverSide`), inside what the stage shows. Its height
+ * as drawn, capped or not: once capped to the larger room, the other side can't hold it either.
+ */
+function measure(node: HTMLElement, { x, y }: Comment): PopoverSide | null {
   const layer = node.parentElement?.getBoundingClientRect();
   if (!layer || layer.width === 0) return null;
-  const stage = node.closest("main")?.getBoundingClientRect();
-  const left = Math.max(stage?.left ?? 0, 0) + MARGIN;
-  const right = Math.min(stage?.right ?? window.innerWidth, window.innerWidth) - MARGIN;
-  const top = Math.max(stage?.top ?? 0, 0) + MARGIN;
-  const bottom = Math.min(stage?.bottom ?? window.innerHeight, window.innerHeight) - MARGIN;
-  const anchorX = layer.left + (layer.width * x) / 100;
-  const anchorY = layer.top + (layer.height * y) / 100;
-  const roomRight = right - (anchorX + PIN_WIDTH);
-  const roomLeft = anchorX - MARGIN - left;
-  const roomDown = bottom - (anchorY - PIN_HEAD);
-  const roomUp = anchorY + MARGIN - top;
-  const width = node.offsetWidth;
-  const height = node.offsetHeight;
-  const horizontal = roomRight >= width || roomRight >= roomLeft ? "right" : "left";
-  const start = horizontal === "right" ? anchorX + PIN_WIDTH : anchorX - MARGIN - width;
-  // The left edge wins: on a stage narrower than the popover, its start stays in view.
-  const clamped = Math.max(left, Math.min(start, right - width));
-  return {
-    horizontal,
-    vertical: roomDown >= height || roomDown >= roomUp ? "down" : "up",
-    shift: Math.round(clamped - start),
+  const bounds = visibleBounds(clipsOf(node), {
+    width: window.innerWidth,
+    height: window.innerHeight,
+  });
+  const anchor = {
+    x: layer.left + (layer.width * x) / 100,
+    y: layer.top + (layer.height * y) / 100,
   };
+  return popoverSide(bounds, anchor, { width: node.offsetWidth, height: node.offsetHeight });
 }
 
 /**
@@ -138,7 +135,8 @@ function measure(node: HTMLElement, { x, y }: Comment): Side | null {
  * where it was placed, Copy link beside Close, and (for the team) Resolve or
  * Reopen, the More menu (Priority, Get info), the whole thread and
  * the reply box (U1). A non-modal
- * dialog beside the pin, flipped (and if need be slid) to stay inside the stage; docked to the
+ * dialog beside the pin, flipped (and if need be slid, or capped to the room there) to stay
+ * inside the stage, its header always in view; docked to the
  * bottom on phones, like the composer. Between its header and the reply box
  * it scrolls, so a long thread never pushes either away. Escape, the close
  * button, a click outside or another pin close it.
@@ -162,7 +160,7 @@ export function PinPopover({
   const variants = usePopVariants();
   const present = useIsPresent();
   const ref = useRef<HTMLDivElement>(null);
-  const [side, setSide] = useState<Side>(() => guess(comment));
+  const [side, setSide] = useState<PopoverSide>(() => guess(comment));
   const titleId = useId();
   const bodyId = useId();
   const editedId = useId();
@@ -279,18 +277,19 @@ export function PinPopover({
       style={
         docked
           ? undefined
-          : {
+          : ({
               left: `${comment.x}%`,
               top: `${comment.y}%`,
               translate: `calc(${TRANSLATE[side.horizontal]} + ${side.shift}px) ${TRANSLATE[side.vertical]}`,
               transformOrigin: origin,
-            }
+              "--popover-room": side.room === null ? undefined : `${side.room}px`,
+            } as CSSProperties)
       }
       data-thread-scope
       className={`${present ? "pointer-events-auto" : "pointer-events-none"} z-40 flex flex-col gap-2 rounded-card bg-panel p-4 pt-2 shadow-pop ring-1 ring-line focus:outline-none ${
         docked
           ? "fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] max-h-[50dvh] overflow-y-auto"
-          : "absolute max-h-[min(36rem,calc(100dvh-6rem))] w-76"
+          : "absolute max-h-[min(36rem,calc(100dvh-6rem),var(--popover-room,100dvh))] w-76"
       }`}
     >
       <div className="-mr-2 flex shrink-0 items-center gap-2">
