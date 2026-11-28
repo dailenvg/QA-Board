@@ -330,9 +330,10 @@ const canTransact = (db: Queryable | Database): db is Database =>
 /**
  * Shares in Postgres. Call `migrate()` on the pool first (see `server.ts`).
  * `withShareLock` opens a transaction over a `Database`; over a plain
- * `Queryable` it takes `db` to be a transaction already (a route's own, as
- * attaching a share or a team-only change hands over). `inTransaction` marks
- * the store it hands to its callback.
+ * `Queryable` it needs `inTransaction`, set by whoever knows `db` is a
+ * transaction already (a route's own, as attaching a share hands over), and
+ * refuses otherwise. Each reply insert of an `inTransaction` store runs under
+ * a savepoint (`unlessCommentGone`).
  */
 export function createPostgresStore(db: Queryable | Database, inTransaction = false): ShareStore {
   const one = async (where: string, value: string) => {
@@ -672,6 +673,9 @@ export function createPostgresStore(db: Queryable | Database, inTransaction = fa
     },
     async withShareLock(id, run) {
       if (!canTransact(db)) {
+        // An xact lock outside a transaction would be let go at once (a bare pool runs each
+        // statement on its own), so only a store known to be in one may take it here.
+        if (!inTransaction) throw new Error("withShareLock needs a Database or a transaction.");
         await lockShare(db, id);
         return run(createPostgresStore(db, true));
       }

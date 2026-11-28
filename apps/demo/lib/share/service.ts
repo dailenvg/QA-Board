@@ -294,11 +294,10 @@ function clientVisible(
  * crops once that commits (`sweepShareBlobs`). How many rows went.
  */
 export async function purgeTeamOnly(store: ShareStore, shareId: string): Promise<number> {
-  const [hidden, comments, replies] = await Promise.all([
-    store.teamOnlyIds(shareId),
-    store.comments(shareId, { includePending: true }),
-    store.replies(shareId),
-  ]);
+  // One after another: `store` is bound to one transaction's connection.
+  const hidden = await store.teamOnlyIds(shareId);
+  const comments = await store.comments(shareId, { includePending: true });
+  const replies = await store.replies(shareId);
   const commentIds = ownerRowsOf(comments, hidden.comments);
   const replyIds = ownerRowsOf(replies, hidden.replies);
   await store.deleteReplies(shareId, replyIds);
@@ -372,12 +371,11 @@ async function writeChanges(
   sent: ShareChange,
   now: number,
 ): Promise<Outcome<null>> {
-  const [hidden, snapshots, comments, replies] = await Promise.all([
-    store.teamOnlyIds(share.id),
-    store.snapshots(share.id),
-    store.comments(share.id),
-    store.replies(share.id),
-  ]);
+  // One after another: `store` holds the share's lock on one transaction's connection.
+  const hidden = await store.teamOnlyIds(share.id);
+  const snapshots = await store.snapshots(share.id);
+  const comments = await store.comments(share.id);
+  const replies = await store.replies(share.id);
   const change = clientVisible(sent, hidden, comments, replies);
   const deleteSnapshots = deletable(snapshots, change.deleteSnapshots, change.cursor);
   const deleteComments = deletable(comments, change.deleteComments, change.cursor);

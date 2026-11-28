@@ -1279,3 +1279,18 @@ describe("postgres store: a reply whose comment is deleted as it's written", () 
     await expect(store.addClientReply(RECORD.id, REPLY, REPLY_CAPS)).rejects.toThrow("disk full");
   });
 });
+
+describe("postgres store: the share's lock", () => {
+  it("refuses to take it over a bare connection, where it would be let go at once", async () => {
+    const db = await migratedPglite();
+    const bare = createPostgresStore({ query: (text, params) => db.query(text, params) });
+    await expect(bare.withShareLock(RECORD.id, () => Promise.resolve(1))).rejects.toThrow(
+      /transaction/,
+    );
+    // A store known to be in a transaction (as a route hands it over) takes it.
+    await db.transaction(async (tx) => {
+      const held = createPostgresStore(tx, true);
+      expect(await held.withShareLock(RECORD.id, () => Promise.resolve(2))).toBe(2);
+    });
+  });
+});
