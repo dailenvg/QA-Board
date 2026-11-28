@@ -11,6 +11,7 @@ import { lockShare } from "../share/share-lock";
 import { applyChanges, createShare, readBlob } from "../share/service";
 import type { ShareChange, SharedComment, SharedReply } from "../share/types";
 import { addComment, setCommentTeamOnly } from "./comments";
+import { addReply } from "./replies";
 import { createProject } from "./projects";
 import { attachShare } from "./share-links";
 
@@ -102,7 +103,7 @@ describe.skipIf(!TEST_DATABASE_URL)("team-only changes on Postgres, in parallel"
     const hide = (id: string) =>
       setCommentTeamOnly(db, { workspaceId: owner.workspaceId, projectId, id }, true, NOW, actor);
     const onLink = async () => (await services.store.comments(shareId)).map((row) => row.item.id);
-    return { share, shareId, hide, onLink };
+    return { share, shareId, hide, onLink, owner, projectId };
   }
 
   /** Resolves once `count` transactions wait for an advisory lock. */
@@ -189,5 +190,28 @@ describe.skipIf(!TEST_DATABASE_URL)("team-only changes on Postgres, in parallel"
     expect(await pushed).toMatchObject({ ok: true });
     expect(await onLink()).toEqual(["c2"]);
     expect(await services.store.replies(shareId)).toEqual([]);
+  });
+
+  it("stores a team reply racing the change as team only once it commits (the comment row's lock)", async () => {
+    const { owner, projectId } = await linked("reply-flip", ["c1"]);
+    const changing = await fresh.pool.connect();
+    await changing.query("BEGIN");
+    await changing.query(
+      "UPDATE comments SET team_only = true WHERE project_id = $1 AND id = 'c1'",
+      [projectId],
+    );
+    const reply = addReply(
+      db,
+      owner.workspaceId,
+      projectId,
+      "c1",
+      { id: "r1", body: "Yes", author: "Dailen" },
+      { kind: "team", userId: owner.userId },
+      NOW,
+    );
+    await pause(150);
+    await changing.query("COMMIT");
+    changing.release();
+    expect(await reply).toMatchObject({ ok: true, value: { id: "r1", teamOnly: true } });
   });
 });

@@ -176,8 +176,10 @@ async function commentExists(
  * review link holds it (`postedAs`). `not-found` without the comment,
  * `exists` for a taken id. A team reply is team only when it asks
  * (`teamOnly`), and always under a team-only comment, for good (B2): showing
- * the comment later never shows it. A guest's never is, even pulled in under
- * a comment that went team only after they replied.
+ * the comment later never shows it. The comment's row is locked for the
+ * insert, so a reply racing a team-only change waits and reads the comment as
+ * it left it. A guest's never is, even pulled in under a comment that went
+ * team only after they replied.
  */
 export async function addReply(
   db: Queryable,
@@ -202,6 +204,9 @@ export async function addReply(
        FROM comments AS comment JOIN projects AS project ON project.id = comment.project_id
        WHERE project.workspace_id = $1 AND project.id = $2 AND project.deleted_at IS NULL
          AND comment.id = $3
+       -- Waits for a team-only change to the comment under way, then reads it as that left it,
+       -- so a reply written as it's hidden can't be stored as one clients see.
+       FOR SHARE OF comment
        ON CONFLICT (project_id, id) DO NOTHING RETURNING *)
      ${SELECT("added")}`,
     [
