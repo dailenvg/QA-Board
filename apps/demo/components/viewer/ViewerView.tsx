@@ -16,10 +16,12 @@ import {
   spansBreakpoints,
   type Breakpoint,
 } from "@/lib/store/breakpoints";
+import { projectComments } from "@/lib/store/actions";
 import { newId } from "@/lib/store/id";
 import { pagesOf } from "@/lib/store/pages";
 import { commentDeleteMode } from "@/lib/store/replies";
-import { commentsFor, pageCounts, pinNumbers } from "@/lib/store/selectors";
+import { pinNumbers, pinOrder } from "@/lib/store/pin-numbers";
+import { commentsFor, pageCounts } from "@/lib/store/selectors";
 import { countComments, deriveStatus } from "@/lib/store/status";
 import type { Comment, CommentPriority, Project, Reply, SquintData } from "@/lib/store/types";
 import { useDialogState } from "@/lib/use-dialog-state";
@@ -54,6 +56,7 @@ import { openingMode } from "./opening-mode";
 import { PageFilter, type PageScope } from "./PageFilter";
 import { PageStrip } from "./PageStrip";
 import { PinPopover } from "./PinPopover";
+import { TeamOnlyConfirm } from "./TeamOnlyConfirm";
 import {
   DEFAULT_VIEW,
   filterByPriority,
@@ -67,6 +70,7 @@ import { sendDraft } from "./send-draft";
 import { StageZoom } from "./StageZoom";
 import { commentSurfaceKey, pinInSurface, placementOf, surfaceKey } from "./surface";
 import { useCommentActions } from "./use-comment-actions";
+import { useTeamOnlyChange } from "./use-team-only-change";
 import { LINK_MISSING, useCommentLink } from "./use-comment-link";
 import { useViewerDraft } from "./use-viewer-draft";
 import { useViewerPage } from "./use-viewer-page";
@@ -239,8 +243,22 @@ export function ViewerView({
   const stageKey = surfaceKey(surface);
   const comments = useMemo(() => commentsFor(data, project.id), [data, project.id]);
   const numbers = useMemo(() => pinNumbers(comments), [comments]);
+  const order = useMemo(() => pinOrder(comments), [comments]);
+  const numberOf = (id: string) => numbers.get(id)?.label ?? "";
   // A guest replies only while the review window is open (D3): `locked` is its closing.
   const viewer = { team: owner, moderator, reviewOpen: !locked };
+  const linked = project.share !== undefined;
+  const teamOnlyChange = useTeamOnlyChange({
+    backend,
+    toast,
+    commentsNow: () => projectComments(project.id),
+    // Read when a change is asked for, never while rendering.
+    repliesOf: (commentId) =>
+      data.replies.filter(
+        (reply) => reply.commentId === commentId && reply.projectId === project.id,
+      ),
+    linked,
+  });
   const replyThreads = useViewerThreads({
     data,
     projectId: project.id,
@@ -253,6 +271,7 @@ export function ViewerView({
         id: reply.id,
         subject: { ...infoOf(reply), caption: `Reply by ${reply.author}` },
       }),
+    onSetTeamOnly: teamOnlyChange.setReply,
   });
   // A comment or reply deleted while its details are open (here, in another tab, by the owner)
   // takes them with it; the dialog leaves named as it was opened.
@@ -271,7 +290,7 @@ export function ViewerView({
       id: comment.id,
       subject: {
         ...infoOf(comment),
-        caption: `Comment ${numbers.get(comment.id) ?? 0} by ${comment.author}`,
+        caption: `Comment ${numberOf(comment.id)} by ${comment.author}`,
       },
     });
   const severalPages = pages.total > 1;
@@ -302,8 +321,8 @@ export function ViewerView({
   const listed = useMemo(() => filterByPriority(scoped, priorityFilter), [scoped, priorityFilter]);
   /** The list in the order picked: pin number, or priority (D11). */
   const ordered = useMemo(
-    () => sortComments(listed, commentView.sort, numbers),
-    [listed, commentView.sort, numbers],
+    () => sortComments(listed, commentView.sort, order),
+    [listed, commentView.sort, order],
   );
   /** Each listed comment's breakpoint, while the list shows them all: cards name it. */
   const listedBreakpoints = useMemo(
@@ -530,6 +549,8 @@ export function ViewerView({
       ...point,
       body: draft?.body ?? "",
       ...(draft?.priority ? { priority: draft.priority } : {}),
+      // Moving the draft pin keeps its "Team only"; a new draft starts with it off (D15).
+      ...(draft?.teamOnly ? { teamOnly: true } : {}),
       surfaceKey: stageKey,
       snapshotId: surface.kind === "snapshot" ? (surface.snapshot?.id ?? null) : null,
       pageId: surface.kind === "page" ? surface.page.id : null,
@@ -561,6 +582,8 @@ export function ViewerView({
     if (!draft || draft.sending) return;
     if (author.trim() !== data.authorName) backend.setAuthorName(author);
     const { commentId, x, y, snapshotId, pageId, priority, surfaceKey: draftSurface } = draft;
+    // Only the team's composer has the switch, so only its drafts can be team only.
+    const teamOnly = owner && draft.teamOnly === true;
     const update = (change: Partial<Draft>) =>
       setDraft((current) =>
         current?.commentId === commentId ? { ...current, ...change } : current,
@@ -594,6 +617,7 @@ export function ViewerView({
             ...(pageId ? { pageId } : {}),
             ...(priority ? { priority } : {}),
             ...(clientInfo ? { clientInfo } : {}),
+            ...(teamOnly ? { teamOnly } : {}),
           },
           ready,
         );
@@ -672,7 +696,7 @@ export function ViewerView({
    */
   const askToDelete = (comment: Comment) => {
     const replies = replyThreads.byComment.get(comment.id) ?? [];
-    const forGood = { comment, number: numbers.get(comment.id) ?? 0, replyCount: replies.length };
+    const forGood = { comment, number: numberOf(comment.id), replyCount: replies.length };
     if (commentRights(comment, viewer).delete === "confirm") {
       moderating.show({ ...forGood, reason: "others" });
     } else if (commentDeleteMode(replies) === "confirm") {
@@ -718,7 +742,7 @@ export function ViewerView({
     const saved = commentActions.setPriority(comment.id, priority);
     if (!saved) return;
     if (priority !== (comment.priority ?? null)) {
-      setPriorityNote(priorityChangeNote(numbers.get(comment.id) ?? 0, priority));
+      setPriorityNote(priorityChangeNote(numberOf(comment.id), priority));
     }
     if (showsPriority(priority ?? undefined, priorityFilter)) return;
     if (from === "card") {
@@ -771,7 +795,7 @@ export function ViewerView({
       <PinPopover
         id={popoverId}
         comment={openComment}
-        number={numbers.get(openComment.id) ?? 0}
+        number={numberOf(openComment.id)}
         placement={placements.get(openComment.id) ?? null}
         now={now}
         canModerate={owner}
@@ -780,6 +804,9 @@ export function ViewerView({
         onGetInfo={owner ? () => getInfo(openComment) : undefined}
         onSetPriority={
           owner ? (priority) => setPriority(openComment, priority, "popover") : undefined
+        }
+        onSetTeamOnly={
+          owner ? (teamOnly) => teamOnlyChange.setComment(openComment, teamOnly) : undefined
         }
         onCopyLink={() => copyLink(openComment)}
         onClose={closePopover}
@@ -813,6 +840,16 @@ export function ViewerView({
           const { priority: _previous, ...rest } = current;
           return priority ? { ...rest, priority } : rest;
         })
+      }
+      onDraftTeamOnlyChange={
+        owner
+          ? (teamOnly) =>
+              setDraft((current) => {
+                if (!current) return current;
+                const { teamOnly: _previous, ...rest } = current;
+                return teamOnly ? { ...rest, teamOnly } : rest;
+              })
+          : undefined
       }
       onDraftSubmit={(body, author) => void submitDraft(body, author)}
       onDraftCancel={() => {
@@ -899,6 +936,7 @@ export function ViewerView({
         onDelete={askToDelete}
         onGetInfo={owner ? getInfo : undefined}
         onSetPriority={owner ? setPriority : undefined}
+        onSetTeamOnly={owner ? teamOnlyChange.setComment : undefined}
         onCopyLink={copyLink}
         filteredOut={filteredOut}
       />
@@ -933,6 +971,7 @@ export function ViewerView({
               data={data}
               project={project}
               commentCount={comments.length}
+              team={owner}
               handle={exportMenuRef}
             />
             {actions}
@@ -1056,9 +1095,7 @@ export function ViewerView({
         open={deleting.open}
         onClose={deleting.close}
         title={
-          deleting.payload
-            ? `Delete comment ${numbers.get(deleting.payload.id) ?? ""}?`
-            : "Delete comment?"
+          deleting.payload ? `Delete comment ${numberOf(deleting.payload.id)}?` : "Delete comment?"
         }
         description="The comment and its pin will be removed. You'll have a few seconds to undo it."
         confirmLabel="Delete comment"
@@ -1067,6 +1104,15 @@ export function ViewerView({
           deleting.close();
           if (target) commentActions.remove(target, replyThreads.byComment.get(target.id));
         }}
+      />
+      <TeamOnlyConfirm
+        asking={teamOnlyChange.asking}
+        numberOf={numberOf}
+        keptBack={(commentId) =>
+          (replyThreads.byComment.get(commentId) ?? []).filter((reply) => reply.teamOnly).length
+        }
+        linked={linked}
+        onConfirm={teamOnlyChange.confirm}
       />
       <GetInfoDialog
         open={inspecting.open}

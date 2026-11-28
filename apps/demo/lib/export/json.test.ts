@@ -10,7 +10,8 @@ describe("toJson", () => {
   };
 
   it("is versioned, with ISO dates and counts", () => {
-    expect(JSON_SCHEMA).toBe("squint.comments/2");
+    expect(JSON_SCHEMA).toBe("squint.comments/3");
+    expect(parsed.audience).toBe("team");
     expect(parsed.schema).toBe(JSON_SCHEMA);
     expect(parsed.exportedAt).toBe("2026-10-24T12:30:00.000Z");
     expect(parsed.filesIncluded).toBe(true);
@@ -34,6 +35,7 @@ describe("toJson", () => {
   it("has stable field names", () => {
     expect(Object.keys(parsed)).toEqual([
       "schema",
+      "audience",
       "exportedAt",
       "filesIncluded",
       "project",
@@ -43,6 +45,8 @@ describe("toJson", () => {
     ]);
     expect(Object.keys(parsed.comments[0] ?? {})).toEqual([
       "number",
+      "label",
+      "teamOnly",
       "id",
       "status",
       "priority",
@@ -77,6 +81,7 @@ describe("toJson", () => {
         createdAt: "2026-10-24T09:00:46.000Z",
         editedAt: "2026-10-24T09:00:47.000Z",
         fromClient: false,
+        teamOnly: false,
         clientInfo,
       },
       {
@@ -86,6 +91,7 @@ describe("toJson", () => {
         createdAt: "2026-10-24T09:00:48.000Z",
         editedAt: null,
         fromClient: true,
+        teamOnly: false,
         clientInfo: null,
       },
     ]);

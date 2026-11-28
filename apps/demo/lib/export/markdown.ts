@@ -165,7 +165,7 @@ function screenshotLine(comment: ExportComment, options: MarkdownOptions): strin
   if (!comment.screenshot) return "- **Screenshot:** none";
   if (!options.withFiles)
     return `- **Screenshot:** ${inlineCode(comment.screenshot.file)} in the ZIP export`;
-  return `- **Screenshot:** ![Screenshot for comment ${comment.number}](${comment.screenshot.file})`;
+  return `- **Screenshot:** ![Screenshot for comment ${comment.label}](${comment.screenshot.file})`;
 }
 
 function snapshotLine(snapshot: ExportSnapshot | undefined, options: MarkdownOptions): string[] {
@@ -190,8 +190,10 @@ function repliesLines(comment: ExportComment): string[] {
   if (comment.replies.length === 0) return [];
   const items = comment.replies.map((reply) => {
     const edited = reply.editedAt === null ? "" : ` (edited ${iso(reply.editedAt)})`;
+    // Under a team-only comment its heading says so for the whole thread, as the viewer's chip does.
+    const team = reply.teamOnly && !comment.teamOnly ? "(Team only) " : "";
     return [
-      `- ${inlineText(reply.author)}, ${iso(reply.createdAt)}${edited}:`,
+      `- ${team}${inlineText(reply.author)}, ${iso(reply.createdAt)}${edited}:`,
       "",
       ...indented(fencedText(reply.body)),
     ];
@@ -204,9 +206,13 @@ function repliesLines(comment: ExportComment): string[] {
   ];
 }
 
-/** "### Comment 3", with its priority when it has one: "### Comment 3 · Must fix". */
-function commentHeading({ number, priority }: ExportComment): string {
-  return `### Comment ${number}${priority ? ` · ${PRIORITY_LABEL[priority]}` : ""}`;
+/**
+ * "### Comment 3", with its priority when it has one: "### Comment 3 · Must fix". A team-only
+ * one says so: "### Comment T2 · Team only · Must fix".
+ */
+function commentHeading({ label, teamOnly, priority }: ExportComment): string {
+  const team = teamOnly ? " · Team only" : "";
+  return `### Comment ${label}${team}${priority ? ` · ${PRIORITY_LABEL[priority]}` : ""}`;
 }
 
 function commentSection(

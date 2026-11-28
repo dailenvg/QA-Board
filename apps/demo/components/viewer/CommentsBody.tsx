@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useState, type RefObject } from "react";
 import { staggerGroup, useRevealVariants } from "@/lib/motion";
 import type { Breakpoint } from "@/lib/store/breakpoints";
+import type { PinNumber } from "@/lib/store/pin-numbers";
 import type { Comment } from "@/lib/store/types";
 import { Button } from "../ui/Button";
 import { StateArt } from "../ui/line-art/StateArt";
@@ -15,7 +16,7 @@ import type { CommentTab } from "./types";
 
 interface CommentsBodyProps extends CommentCardActions {
   comments: readonly Comment[];
-  numbers: ReadonlyMap<string, number>;
+  numbers: ReadonlyMap<string, PinNumber>;
   placements: ReadonlyMap<string, Placement | null>;
   /** False on a shared link: comments can be read and selected, not changed. */
   canModerate: boolean;
@@ -159,7 +160,7 @@ export function CommentsBody({
               <CommentCard
                 key={comment.id}
                 comment={comment}
-                number={numbers.get(comment.id) ?? 0}
+                number={numbers.get(comment.id)?.label ?? ""}
                 placement={placements.get(comment.id) ?? null}
                 pageNumber={(comment.pageId && pageNumbers?.get(comment.pageId)) || null}
                 breakpoint={breakpoints?.get(comment.id) ?? null}
@@ -167,6 +168,7 @@ export function CommentsBody({
                 canModerate={canModerate}
                 canEdit={rights.edit}
                 canDelete={rights.delete !== null}
+                canShare={rights.share}
                 resolvedNote={rights.resolvedNote}
                 onEditing={onEditing}
                 selected={comment.id === selectedId}

@@ -23,6 +23,8 @@ import {
   setAuthorName,
   setCommentPriority,
   setCommentStatus,
+  setCommentTeamOnly,
+  setReplyTeamOnly,
 } from "../store/actions";
 import { newId } from "../store/id";
 import { storeWorkspaceBlob } from "../workspace-client/blob-upload";
@@ -129,6 +131,7 @@ export const serverBackend: ViewerBackend = {
   setCommentStatus,
   setCommentPriority,
   editComment,
+  setCommentTeamOnly,
   deleteComment,
   restoreComment,
   // The store's generic refusal is about the change ("didn't save and was undone"), so it's
@@ -140,6 +143,7 @@ export const serverBackend: ViewerBackend = {
     return { ok: false, error: REPLY_NOT_SENT };
   },
   editReply,
+  setReplyTeamOnly,
   deleteReply,
   restoreReply,
   replaceWithImage,

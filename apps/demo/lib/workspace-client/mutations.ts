@@ -33,6 +33,9 @@ const REPLY_GONE = "This reply is no longer here. It may have been deleted in an
 const LINK_GONE = "This share link is no longer here. It may have been revoked in another tab.";
 export const SAVE_FAILED =
   "That change didn't save and was undone. Check your connection and try again.";
+/** A comment a client has replied to can't be team only (409 `has-client-replies`, D10). */
+export const HAS_CLIENT_REPLIES =
+  "A client replied to this comment, so it can't be team only. Add a team-only reply instead.";
 
 const segment = encodeURIComponent;
 const folderPath = (id: string) => `/folders/${segment(id)}`;
@@ -295,6 +298,10 @@ export function writesFor(action: Action, before: SquintData, after: SquintData)
       return commentWrite(before, action.id, (projectId) =>
         write("PATCH", commentPath(projectId, action.id), { priority: action.priority }),
       );
+    case "comment/set-team-only":
+      return commentWrite(before, action.id, (projectId) =>
+        write("PATCH", commentPath(projectId, action.id), { teamOnly: action.teamOnly }),
+      );
     case "comment/set-crop":
       return commentWrite(before, action.id, (projectId) =>
         write("PATCH", commentPath(projectId, action.id), { crop: action.crop }),
@@ -312,6 +319,10 @@ export function writesFor(action: Action, before: SquintData, after: SquintData)
     case "reply/edit":
       return replyWrite(before, action.id, (reply) =>
         write("PATCH", replyPath(reply), { body: action.body }),
+      );
+    case "reply/set-team-only":
+      return replyWrite(before, action.id, (reply) =>
+        write("PATCH", replyPath(reply), { teamOnly: action.teamOnly }),
       );
     case "reply/delete":
       return replyWrite(before, action.id, (reply) => write("DELETE", replyPath(reply), {}, [404]));
@@ -392,6 +403,7 @@ export function refusalMessage(
   if (action.type === "comment/restore" && action.comment.fromClient && status === 404) {
     return CLIENT_COMMENT_GONE;
   }
+  if (action.type === "comment/set-team-only" && status === 409) return HAS_CLIENT_REPLIES;
   const gone = status === 404 || status === 422;
   if (!gone) return SAVE_FAILED;
   if (action.type.startsWith("folder/")) return FOLDER_GONE;

@@ -14,6 +14,7 @@ import type {
   ShareRecord,
   StoredBlob,
   TeamAvatar,
+  TeamOnlyIds,
 } from "./types";
 
 /**
@@ -178,7 +179,11 @@ export interface ShareStore {
    * given), atomically per row. Returns the ids it deleted.
    */
   deleteStalePending(id: string, cutoff: number, commentId?: string): Promise<string[]>;
-  /** The crop key recorded on a visible comment, or null (then it's `crop:<id>`). */
+  /**
+   * Where a visible comment's crop is stored: the key its claim recorded, else
+   * `crop:<id>` (the owner's, and older rows). Null while no visible comment
+   * of that id has a crop, so a crop is never served without its comment (A42).
+   */
   cropKeyOf(id: string, commentId: string): Promise<string | null>;
   deleteSnapshots(id: string, ids: readonly string[]): Promise<void>;
   deleteComments(id: string, ids: readonly string[]): Promise<void>;
@@ -208,6 +213,19 @@ export interface ShareStore {
     clientInfo?: ClientInfo,
   ): Promise<ClientReplyOutcome>;
   deleteReplies(id: string, ids: readonly string[]): Promise<void>;
+
+  /**
+   * Runs `run` in one transaction holding the share's lock (`lockShare`), with
+   * a store bound to it. Postgres only: the memory store just runs it.
+   */
+  withShareLock<T>(id: string, run: (locked: ShareStore) => Promise<T>): Promise<T>;
+  /**
+   * What the share's project keeps to its team (057), by id: its team-only
+   * comments, and every reply that's team only or under one. Read under
+   * `withShareLock` so a team-only change can't slip in between. Empty for a
+   * share with no project, and always in the memory store.
+   */
+  teamOnlyIds(id: string): Promise<TeamOnlyIds>;
 
   /** Keys and sizes of stored blobs, without their bytes. */
   blobSizes(id: string): Promise<Array<{ key: string; size: number }>>;

@@ -1,6 +1,6 @@
 import { json } from "@/lib/share/http";
 import { shareServices } from "@/lib/share/server";
-import { revokeShare } from "@/lib/share/service";
+import { revokeShare, sweepShareBlobs } from "@/lib/share/service";
 import { noContent, notFound, param, readBody, refusal } from "@/lib/workspace/http";
 import { isLiveProject } from "@/lib/workspace/projects";
 import { idSchema, shareAttachSchema, shareSyncSchema } from "@/lib/workspace/schemas";
@@ -35,7 +35,8 @@ export const GET = withMember<Params>(async (_request, { db, workspaceId }, para
  * The member attaching it is recorded as who invited its reviewers, unless
  * someone already is. The owner key and token must match the share; any
  * mismatch answers 404 like an unknown share. 409 `linked` when the project
- * already has another link (delete that first).
+ * already has another link (delete that first). Anything the project keeps to
+ * its team that the share holds is taken off it, crops included (D41).
  */
 export const PUT = withMember<Params>(
   async (request, { db, user, workspaceId, now }, params) => {
@@ -47,6 +48,7 @@ export const PUT = withMember<Params>(
       attachShare(tx, workspaceId, projectId, { ...body.value, invitedBy: user.id }, now),
     );
     if (!attached.ok) return refusal(attached.reason);
+    if (attached.value.purged > 0) await sweepShareBlobs(await shareServices(), body.value.shareId);
     const link = await getShareLink(db, workspaceId, projectId);
     return link ? json(link) : notFound();
   },

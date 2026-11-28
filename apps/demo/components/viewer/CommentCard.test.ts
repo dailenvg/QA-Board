@@ -54,7 +54,7 @@ function card(
   return render(
     createElement(CommentCard, {
       comment,
-      number: 1,
+      number: "1",
       placement: null,
       pageNumber: null,
       breakpoint: null,
@@ -80,7 +80,7 @@ function popover(comment: Comment, people: CommentPeople | null = null): string 
     createElement(PinPopover, {
       id: "popover",
       comment,
-      number: 1,
+      number: "1",
       placement: null,
       now: NOW,
       canModerate: true,
@@ -298,6 +298,7 @@ describe("the thread (U1)", () => {
     edit: noop,
     remove: noop,
     getInfo: noop,
+    setTeamOnly: noop,
     keepsBox: () => false,
   });
   const withThreads = (element: ReactElement, value: CommentThreads | null) =>
@@ -312,7 +313,7 @@ describe("the thread (U1)", () => {
     return withThreads(
       createElement(CommentCard, {
         comment,
-        number: 1,
+        number: "1",
         placement: null,
         pageNumber: null,
         breakpoint: null,
@@ -388,6 +389,7 @@ describe("the thread (U1)", () => {
       onSend: () => Promise.resolve({ ok: true as const, value: null }),
       onDraftChange: noop,
       onOpen: noop,
+      visibility: "choose" as const,
     };
     const closed = renderToStaticMarkup(createElement(CardReplyBox, { ...props, open: false }));
     expect(closed).toContain('data-testid="reply-start"');
@@ -442,7 +444,7 @@ describe("the thread (U1)", () => {
         createElement(PinPopover, {
           id: "popover",
           comment,
-          number: 1,
+          number: "1",
           placement: null,
           now: NOW,
           canModerate: false,
@@ -497,7 +499,7 @@ describe("the thread (U1)", () => {
         withThreads(
           createElement(CommentCard, {
             comment: { ...RESOLVED, mine: true },
-            number: 1,
+            number: "1",
             placement: null,
             pageNumber: null,
             breakpoint: null,
@@ -564,7 +566,7 @@ describe("the thread (U1)", () => {
       createElement(PinPopover, {
         id: "popover",
         comment: COMMENT,
-        number: 1,
+        number: "1",
         placement: null,
         now: NOW,
         canModerate: true,

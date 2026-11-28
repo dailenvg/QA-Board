@@ -3,9 +3,14 @@ import { pagesOf } from "../store/pages";
 import { commentsFor } from "../store/selectors";
 import { snapshotsFor } from "../store/snapshots";
 import type { Comment, Page, Project, Snapshot, SquintData } from "../store/types";
-import { buildExportDocument, type PageAsset, type SnapshotAsset } from "./build-document";
+import {
+  buildExportDocument,
+  forAudience,
+  type PageAsset,
+  type SnapshotAsset,
+} from "./build-document";
 import { pagePath, snapshotPath } from "./paths";
-import type { ExportDocument } from "./types";
+import type { ExportAudience, ExportDocument } from "./types";
 
 /**
  * Page and full-page snapshot images are big; past this many bytes together,
@@ -120,22 +125,29 @@ async function readPages(
 /**
  * Gathers a project's comments and the images that go with them (from this
  * browser's storage, or a share's), and builds the export model around what was found.
+ * One for a client (`audience`) reads only what it may hold (`forAudience`), so no
+ * team-only comment's screenshot or snapshot goes in its ZIP.
  */
 export async function collectExport(
   data: SquintData,
   project: Project,
   exportedAt: number,
   blobs: BlobSource,
+  audience: ExportAudience = "team",
 ): Promise<CollectedExport> {
-  const comments = commentsFor(data, project.id);
+  const { comments, replies } = forAudience(
+    audience,
+    commentsFor(data, project.id),
+    data.replies.filter((reply) => reply.projectId === project.id),
+  );
   const used = new Set(comments.flatMap((comment) => comment.snapshotId ?? []));
   const snapshots = snapshotsFor(data, project.id).filter((snapshot) => used.has(snapshot.id));
   const budget: Budget = { left: MAX_IMAGE_BYTES };
   const crops = await readCrops(comments, blobs);
   const pages = await readPages(project, comments, blobs, budget);
   const stored = await readSnapshots(snapshots, blobs, budget);
-  const replies = data.replies.filter((reply) => reply.projectId === project.id);
   const document = buildExportDocument({
+    audience,
     project,
     comments,
     replies,

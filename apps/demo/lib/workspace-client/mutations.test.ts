@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { reduce, type Action } from "../store/reducer";
 import type { Comment, Project, Reply, SquintData } from "../store/types";
-import { passwordRefusal, refusalMessage, SAVE_FAILED, writesFor } from "./mutations";
+import {
+  HAS_CLIENT_REPLIES,
+  passwordRefusal,
+  refusalMessage,
+  SAVE_FAILED,
+  writesFor,
+} from "./mutations";
 
 const project = (id: string, folderId: string): Project => ({
   id,
@@ -71,6 +77,55 @@ describe("writesFor", () => {
     expect(writes(action)).toEqual([{ method: "POST", path: "/projects/p1/abandon", body: {} }]);
     expect(reduce(DATA, action).projects.map((entry) => entry.id)).not.toContain("p1");
     expect(reduce(DATA, action).comments.filter((entry) => entry.projectId === "p1")).toEqual([]);
+  });
+
+  it("sends who sees a comment or reply on its own, and says why a client's reply refuses it", () => {
+    const hide: Action = { type: "comment/set-team-only", id: "c1", teamOnly: true, at: 9 };
+    expect(writes(hide)).toEqual([
+      { method: "PATCH", path: "/projects/p1/comments/c1", body: { teamOnly: true } },
+    ]);
+    const hidden = reduce(DATA, hide);
+    const show: Action = { type: "comment/set-team-only", id: "c1", teamOnly: false, at: 10 };
+    expect(writesFor(show, hidden, reduce(hidden, show))).toEqual([
+      { method: "PATCH", path: "/projects/p1/comments/c1", body: { teamOnly: false } },
+    ]);
+    // Already as asked: the store changes nothing, so nothing is sent.
+    expect(reduce(DATA, { ...hide, teamOnly: false })).toBe(DATA);
+    expect(refusalMessage(hide, 409, { error: "has-client-replies" }, CONTEXT)).toBe(
+      HAS_CLIENT_REPLIES,
+    );
+    const reply: Reply = {
+      id: "r1",
+      projectId: "p1",
+      commentId: "c1",
+      body: "Hi",
+      author: "A",
+      createdAt: 6,
+    };
+    const withReply = { ...DATA, replies: [reply] };
+    const hideReply: Action = { type: "reply/set-team-only", id: "r1", teamOnly: true };
+    expect(writesFor(hideReply, withReply, reduce(withReply, hideReply))).toEqual([
+      { method: "PATCH", path: "/projects/p1/comments/c1/replies/r1", body: { teamOnly: true } },
+    ]);
+  });
+
+  it("carries a new or restored comment's and reply's team-only flag", () => {
+    const hidden: Comment = { ...comment, id: "c9", teamOnly: true };
+    const [added] = writes({ type: "comment/add", comment: hidden });
+    expect(added?.body).toMatchObject({ id: "c9", teamOnly: true });
+    const [restored] = writes({ type: "comment/restore", comment: hidden });
+    expect(restored?.body).toMatchObject({ id: "c9", teamOnly: true });
+    const reply: Reply = {
+      id: "r9",
+      projectId: "p1",
+      commentId: "c1",
+      body: "Hi",
+      author: "A",
+      createdAt: 6,
+      teamOnly: true,
+    };
+    expect(writes({ type: "reply/add", reply })[0]?.body).toMatchObject({ teamOnly: true });
+    expect(writes({ type: "reply/restore", reply })[0]?.body).toMatchObject({ teamOnly: true });
   });
 
   it("finds a comment's project for its edits, and sends nothing for one it doesn't know", () => {

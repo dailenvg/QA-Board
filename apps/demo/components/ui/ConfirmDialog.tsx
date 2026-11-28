@@ -34,12 +34,20 @@ interface ConfirmDialogProps {
    * says): the confirm stays focusable but does nothing; Cancel still closes.
    */
   confirmDisabled?: boolean;
+  /**
+   * The confirm button's look: `danger` (the default) for what loses or takes
+   * away something, `primary` for a change that isn't data loss but still asks
+   * first, such as showing a team-only comment to clients. Cancel keeps the
+   * first focus either way.
+   */
+  confirmVariant?: "danger" | "primary";
 }
 
 /**
- * Destructive confirmation. Cancel is focused first so Enter never deletes by
- * accident; with `confirmText`, the field to type it in is, and Enter deletes
- * only once it matches.
+ * Confirmation before a change that can't be taken lightly, destructive by
+ * default. Cancel is focused first so Enter never confirms by accident; with
+ * `confirmText`, the field to type it in is, and Enter deletes only once it
+ * matches.
  */
 export function ConfirmDialog({
   open,
@@ -53,6 +61,7 @@ export function ConfirmDialog({
   pendingLabel,
   error = null,
   confirmDisabled = false,
+  confirmVariant = "danger",
 }: ConfirmDialogProps) {
   return (
     <Dialog
@@ -86,7 +95,7 @@ export function ConfirmDialog({
               Cancel
             </Button>
             <Button
-              variant="danger"
+              variant={confirmVariant}
               onClick={pending || confirmDisabled ? undefined : onConfirm}
               aria-disabled={pending || confirmDisabled || undefined}
             >

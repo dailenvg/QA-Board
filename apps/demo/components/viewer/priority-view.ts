@@ -60,16 +60,17 @@ const rank = (priority: CommentPriority | undefined) =>
 
 /**
  * The comments in `sort` order: as given for pin number (they come in pin
- * order), or Must fix, Should fix, Nit, none, each by pin number (D11). Pin
- * numbers (`numbers`) never change.
+ * order), or Must fix, Should fix, Nit, none, each in pin order (D11): when
+ * each was made (`order`, `pinOrder`), across clients' numbers and the team's
+ * T numbers alike. Pin numbers never change.
  */
 export function sortComments<T extends Pick<Comment, "id" | "priority">>(
   comments: readonly T[],
   sort: CommentSort,
-  numbers: ReadonlyMap<string, number>,
+  order: ReadonlyMap<string, number>,
 ): readonly T[] {
   if (sort === "pin") return comments;
-  const number = (comment: T) => numbers.get(comment.id) ?? 0;
+  const number = (comment: T) => order.get(comment.id) ?? 0;
   return [...comments].sort((a, b) => rank(a.priority) - rank(b.priority) || number(a) - number(b));
 }
 
@@ -78,7 +79,7 @@ export function sortComments<T extends Pick<Comment, "id" | "priority">>(
  * goes back to the More button and the new chip isn't read: "Comment 3 marked Must fix." or
  * "Comment 3 has no priority now."
  */
-export function priorityChangeNote(number: number, priority: CommentPriority | null): string {
+export function priorityChangeNote(number: string, priority: CommentPriority | null): string {
   return priority
     ? `Comment ${number} marked ${PRIORITY_LABEL[priority]}.`
     : `Comment ${number} has no priority now.`;

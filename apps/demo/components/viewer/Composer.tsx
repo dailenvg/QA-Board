@@ -20,6 +20,7 @@ import { Button } from "../ui/Button";
 import { FieldError } from "../ui/FieldError";
 import { Icon } from "../ui/Icon";
 import { FIELD_CLASS } from "../ui/field-styles";
+import { Switch } from "../ui/Switch";
 import { PriorityField } from "./PriorityField";
 import type { Draft } from "./types";
 
@@ -32,6 +33,11 @@ interface ComposerProps {
   onAuthorChange: (author: string) => void;
   /** The priority as it's picked (missing for none), so it stays with the draft. */
   onPriorityChange: (priority: CommentPriority | undefined) => void;
+  /**
+   * The team's composer only: the "Team only" switch (057), so it stays with the draft. A
+   * guest's has none.
+   */
+  onTeamOnlyChange?: (teamOnly: boolean) => void;
   onSubmit: (body: string, author: string) => void;
   onCancel: () => void;
 }
@@ -77,6 +83,7 @@ export function Composer({
   onChange,
   onAuthorChange,
   onPriorityChange,
+  onTeamOnlyChange,
   onSubmit,
   onCancel,
 }: ComposerProps) {
@@ -106,6 +113,9 @@ export function Composer({
   const errorId = useId();
   const sendErrorId = useId();
   const cancelHintId = useId();
+  const teamOnlyId = useId();
+  const teamOnlyLabelId = useId();
+  const teamOnly = draft.teamOnly === true;
   const sending = draft.sending !== false;
   const nameError = error?.field === "name" ? error.message : null;
   const bodyError = error?.field === "body" ? error.message : null;
@@ -180,7 +190,7 @@ export function Composer({
     >
       <form onSubmit={submit} noValidate className="flex flex-col gap-3" onKeyDown={onKeyDown}>
         <h2 id={titleId} className="text-body font-bold">
-          New comment
+          {onTeamOnlyChange && teamOnly ? "New team-only comment" : "New comment"}
         </h2>
         {editingName ? (
           <div>
@@ -259,6 +269,28 @@ export function Composer({
             if (!sending) onPriorityChange(priority);
           }}
         />
+        {onTeamOnlyChange ? (
+          // No negative margin: the Switch's track fills its 44px target, edge to edge.
+          <div className="flex min-h-11 items-center justify-between gap-3">
+            <label
+              id={teamOnlyLabelId}
+              htmlFor={teamOnlyId}
+              className="flex min-h-11 flex-1 cursor-pointer items-center gap-2 text-meta font-semibold"
+            >
+              <Icon name="lock" className="size-4 shrink-0" />
+              Team only
+            </label>
+            <Switch
+              id={teamOnlyId}
+              checked={teamOnly}
+              onChange={() => onTeamOnlyChange(!teamOnly)}
+              labelledBy={teamOnlyLabelId}
+              // The post already carries the choice: one changed while it's sent would be lost.
+              inactive={sending}
+              testId="composer-team-only"
+            />
+          </div>
+        ) : null}
         {/* Always present, so each change is announced (a region added with its words isn't). */}
         <p role="status" className="sr-only" data-testid="composer-status">
           {status}

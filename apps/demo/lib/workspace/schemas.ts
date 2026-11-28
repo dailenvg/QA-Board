@@ -131,42 +131,51 @@ const cropSchema = z.object({ blobKey: blobKeySchema, rect });
 /** Must fix, Should fix or Nit; null for none. */
 const prioritySchema = z.enum(COMMENT_PRIORITIES).nullable();
 
-export const commentCreateSchema = z.object({
-  id: idSchema,
-  x: percent,
-  y: percent,
-  body: text(LIMITS.body),
-  author: text(LIMITS.author),
-  status: z.enum(["active", "resolved"]).default("active"),
-  createdAt: time.optional(),
-  updatedAt: time.optional(),
-  resolvedAt: time.optional(),
-  /**
-   * When its words last changed: only an Undo of the member's own comment
-   * sends it, and it's kept between `createdAt` and now. Ignored on a guest's.
-   */
-  editedAt: time.optional(),
-  snapshotId: idSchema.optional(),
-  pageId: idSchema.optional(),
-  crop: cropSchema.optional(),
-  /**
-   * How much it matters, picked when posting; missing or null for none. A
-   * guest's (`fromShare`) comes as the owner's browser pulled it from the link.
-   */
-  priority: prioritySchema.optional(),
-  /**
-   * The browser it's posted from. A new comment leaves out `userAgent`: the
-   * server records the request's. An Undo of the member's own comment sends
-   * back what was recorded, `userAgent` included. Ignored on a guest's,
-   * whose details come from the review link.
-   */
-  clientInfo: clientInfoSchema.partial({ userAgent: true }).optional(),
-  /**
-   * A guest's comment, pulled from the project's review link: saved without
-   * an author account. Only accepted for a comment a guest posted on that link.
-   */
-  fromShare: z.literal(true).optional(),
-});
+export const commentCreateSchema = z
+  .object({
+    id: idSchema,
+    x: percent,
+    y: percent,
+    body: text(LIMITS.body),
+    author: text(LIMITS.author),
+    status: z.enum(["active", "resolved"]).default("active"),
+    createdAt: time.optional(),
+    updatedAt: time.optional(),
+    resolvedAt: time.optional(),
+    /**
+     * When its words last changed: only an Undo of the member's own comment
+     * sends it, and it's kept between `createdAt` and now. Ignored on a guest's.
+     */
+    editedAt: time.optional(),
+    snapshotId: idSchema.optional(),
+    pageId: idSchema.optional(),
+    crop: cropSchema.optional(),
+    /**
+     * How much it matters, picked when posting; missing or null for none. A
+     * guest's (`fromShare`) comes as the owner's browser pulled it from the link.
+     */
+    priority: prioritySchema.optional(),
+    /**
+     * The browser it's posted from. A new comment leaves out `userAgent`: the
+     * server records the request's. An Undo of the member's own comment sends
+     * back what was recorded, `userAgent` included. Ignored on a guest's,
+     * whose details come from the review link.
+     */
+    clientInfo: clientInfoSchema.partial({ userAgent: true }).optional(),
+    /**
+     * A guest's comment, pulled from the project's review link: saved without
+     * an author account. Only accepted for a comment a guest posted on that link.
+     */
+    fromShare: z.literal(true).optional(),
+    /**
+     * Kept off review links (057): only the team's own, so never with
+     * `fromShare`. An Undo of a team-only comment sends it back.
+     */
+    teamOnly: z.boolean().optional(),
+  })
+  .refine((comment) => !(comment.fromShare && comment.teamOnly), {
+    message: "A client's comment is never team only",
+  });
 
 export const commentPatchSchema = z
   .object({
@@ -175,10 +184,20 @@ export const commentPatchSchema = z
     crop: cropSchema.optional(),
     /** Any member sets or clears it (null), on anyone's comment, as they resolve. */
     priority: prioritySchema.optional(),
+    /**
+     * Whether review links leave it out (057): its author or the owner changes
+     * it, both ways, and always on its own (`setCommentTeamOnly`).
+     */
+    teamOnly: z.boolean().optional(),
   })
   .refine((patch) => Object.values(patch).some((value) => value !== undefined), {
     message: "Nothing to change",
-  });
+  })
+  .refine(
+    ({ teamOnly, ...rest }) =>
+      teamOnly === undefined || Object.values(rest).every((value) => value === undefined),
+    { message: "Who sees a comment changes on its own" },
+  );
 
 /**
  * A reply by the signed-in member, posted under their own name (`author`
@@ -188,22 +207,38 @@ export const commentPatchSchema = z
  * leaves out `userAgent`, which the server reads from the request. A guest's
  * (`fromShare`) takes everything but its id from the review link.
  */
-export const replyCreateSchema = z.object({
-  id: idSchema,
-  body: text(LIMITS.body),
-  author: text(LIMITS.author),
-  createdAt: time.optional(),
-  editedAt: time.optional(),
-  clientInfo: clientInfoSchema.partial({ userAgent: true }).optional(),
-  /**
-   * A guest's reply, pulled from the project's review link: saved without an
-   * author account. Only accepted for a reply a guest posted on that link.
-   */
-  fromShare: z.literal(true).optional(),
-});
+export const replyCreateSchema = z
+  .object({
+    id: idSchema,
+    body: text(LIMITS.body),
+    author: text(LIMITS.author),
+    createdAt: time.optional(),
+    editedAt: time.optional(),
+    clientInfo: clientInfoSchema.partial({ userAgent: true }).optional(),
+    /**
+     * A guest's reply, pulled from the project's review link: saved without an
+     * author account. Only accepted for a reply a guest posted on that link.
+     */
+    fromShare: z.literal(true).optional(),
+    /**
+     * Kept off review links (057): only the team's own, so never with
+     * `fromShare`. A reply under a team-only comment is stored team only anyway.
+     */
+    teamOnly: z.boolean().optional(),
+  })
+  .refine((reply) => !(reply.fromShare && reply.teamOnly), {
+    message: "A client's reply is never team only",
+  });
 
-/** A reply's new words: the only thing about a reply that changes. */
-export const replyPatchSchema = z.object({ body: text(LIMITS.body) });
+/**
+ * A reply's new words, or whether review links leave it out (057): one of
+ * the two at a time.
+ */
+export const replyPatchSchema = z
+  .object({ body: text(LIMITS.body).optional(), teamOnly: z.boolean().optional() })
+  .refine((patch) => (patch.body === undefined) !== (patch.teamOnly === undefined), {
+    message: "Change the words or who sees it",
+  });
 
 const reviewWindow = z.enum(REVIEW_WINDOWS);
 

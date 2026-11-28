@@ -1,8 +1,9 @@
 import { pagesOf } from "../store/pages";
-import { pinNumbers } from "../store/selectors";
+import { pinNumbers, pinOrder } from "../store/pin-numbers";
 import type { Comment, Project, Reply, Snapshot } from "../store/types";
 import { screenshotPath } from "./paths";
 import type {
+  ExportAudience,
   ExportComment,
   ExportDocument,
   ExportLocation,
@@ -28,6 +29,8 @@ export interface ExportAssets {
 }
 
 export interface ExportInput {
+  /** Who it's for (D14): the team by default. */
+  audience?: ExportAudience;
   project: Project;
   /** The project's comments, oldest first (pin order). */
   comments: readonly Comment[];
@@ -111,7 +114,8 @@ function exportSnapshot(snapshot: Snapshot, asset: SnapshotAsset | undefined): E
   };
 }
 
-function exportReply(reply: Reply): ExportReply {
+/** A reply as exported: under a team-only comment it's the team's too, whatever its own flag. */
+function exportReply(reply: Reply, underTeamOnly: boolean): ExportReply {
   return {
     id: reply.id,
     author: reply.author,
@@ -119,42 +123,77 @@ function exportReply(reply: Reply): ExportReply {
     createdAt: reply.createdAt,
     editedAt: reply.editedAt ?? null,
     fromClient: reply.fromClient === true,
+    teamOnly: underTeamOnly || reply.teamOnly === true,
     clientInfo: reply.clientInfo ?? null,
   };
 }
 
 /** Each comment's replies as exported, oldest first, by comment id. */
-function threads(replies: readonly Reply[]): Map<string, ExportReply[]> {
+function threads(
+  comments: readonly Comment[],
+  replies: readonly Reply[],
+): Map<string, ExportReply[]> {
+  const teamOnly = new Set(comments.flatMap((comment) => (comment.teamOnly ? comment.id : [])));
   const byComment = new Map<string, ExportReply[]>();
   const oldestFirst = [...replies].sort((a, b) => a.createdAt - b.createdAt);
   for (const reply of oldestFirst) {
-    byComment.set(reply.commentId, [...(byComment.get(reply.commentId) ?? []), exportReply(reply)]);
+    const exported = exportReply(reply, teamOnly.has(reply.commentId));
+    byComment.set(reply.commentId, [...(byComment.get(reply.commentId) ?? []), exported]);
   }
   return byComment;
 }
 
+/**
+ * What an export for `audience` may hold (D14): everything for the team; for a client, what the
+ * review link shows, without team-only comments, their replies, team-only replies, or anyone's
+ * browser details.
+ */
+export function forAudience(
+  audience: ExportAudience,
+  comments: readonly Comment[],
+  replies: readonly Reply[],
+): { comments: readonly Comment[]; replies: readonly Reply[] } {
+  if (audience === "team") return { comments, replies };
+  const shown = comments
+    .filter((comment) => !comment.teamOnly)
+    .map(({ clientInfo: _info, ...comment }) => comment);
+  const ids = new Set(shown.map((comment) => comment.id));
+  return {
+    comments: shown,
+    replies: replies
+      .filter((reply) => ids.has(reply.commentId) && !reply.teamOnly)
+      .map(({ clientInfo: _info, ...reply }) => reply),
+  };
+}
+
 /** Turns a project's comments into the export model: numbered, located and linked to files. */
 export function buildExportDocument({
+  audience = "team",
   project,
-  comments,
-  replies,
   snapshots,
   assets,
   exportedAt,
+  ...input
 }: ExportInput): ExportDocument {
+  const { comments, replies } = forAudience(audience, input.comments, input.replies);
   const numbers = pinNumbers(comments);
-  const repliesOf = threads(replies);
+  const order = pinOrder(comments);
+  const teamOnlyCount = comments.filter((comment) => comment.teamOnly).length;
+  const repliesOf = threads(comments, replies);
   const byId = new Map(snapshots.map((snapshot) => [snapshot.id, snapshot]));
   const pages = exportPages(project, assets.pages);
   const pagesById = new Map(pages.map((page) => [page.id, page]));
   const entries: ExportComment[] = comments.map((comment) => {
-    const number = numbers.get(comment.id) ?? 0;
+    const pin = numbers.get(comment.id) ?? { number: 0, teamOnly: false, label: "" };
+    const total = pin.teamOnly ? teamOnlyCount : comments.length - teamOnlyCount;
     const snapshot = comment.snapshotId ? byId.get(comment.snapshotId) : undefined;
     const page = comment.pageId && !comment.snapshotId ? pagesById.get(comment.pageId) : undefined;
     const onPage = page ? { number: page.number, total: pages.length } : null;
     const cropType = assets.crops.get(comment.id);
     return {
-      number,
+      number: pin.number,
+      label: pin.label,
+      teamOnly: pin.teamOnly,
       id: comment.id,
       status: comment.status,
       priority: comment.priority ?? null,
@@ -168,7 +207,7 @@ export function buildExportDocument({
       screenshot:
         comment.crop && cropType !== undefined
           ? {
-              file: screenshotPath(number, comment.id, comments.length, cropType, onPage),
+              file: screenshotPath(pin, comment.id, total, cropType, onPage),
               rect: comment.crop.rect,
             }
           : null,
@@ -176,10 +215,12 @@ export function buildExportDocument({
       replies: repliesOf.get(comment.id) ?? [],
     };
   });
-  const order = (entry: ExportComment) => (entry.status === "active" ? 0 : 1);
-  entries.sort((a, b) => order(a) - order(b) || a.number - b.number);
+  const group = (entry: ExportComment) => (entry.status === "active" ? 0 : 1);
+  const made = (entry: ExportComment) => order.get(entry.id) ?? 0;
+  entries.sort((a, b) => group(a) - group(b) || made(a) - made(b));
   const used = new Set(comments.flatMap((comment) => comment.snapshotId ?? []));
   return {
+    audience,
     exportedAt,
     project: {
       id: project.id,

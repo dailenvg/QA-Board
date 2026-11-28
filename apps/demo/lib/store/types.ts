@@ -197,6 +197,12 @@ export interface Comment {
    */
   fromClient?: true;
   /**
+   * Kept to the team (057): never on a review link, nor any reply under it.
+   * Only the team's own comments; its author or the owner changes it. Never
+   * pushed (`toShareState` leaves the comment out).
+   */
+  teamOnly?: true;
+  /**
    * Written by the signed-in member (the server says so on every read; a new
    * comment is theirs). Only they edit it. Never pushed to a review link. On
    * a review link: posted from this browser, which holds its edit key (4.12).
@@ -246,6 +252,12 @@ export interface Reply {
   editedAt?: number;
   /** Posted by a client on the project's review link, then pulled into the workspace. */
   fromClient?: true;
+  /**
+   * Kept to the team (057): never on a review link. A reply written while its
+   * comment is team only is stored so for good, so showing the comment later
+   * doesn't show it. Only the team's own. Never pushed.
+   */
+  teamOnly?: true;
   /** Written by the signed-in member (the server says so on every read). Only they edit it. */
   mine?: true;
   /** The author's photo, as on `Comment.authorAvatar`. Set by the server only; never pushed. */

@@ -11,6 +11,7 @@ const STATUS: Record<Refusal, number> = {
   cycle: 409,
   "not-empty": 409,
   linked: 409,
+  "has-client-replies": 409,
   "unknown-folder": 422,
   "unknown-parent": 422,
   "unknown-surface": 422,

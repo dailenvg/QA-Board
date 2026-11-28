@@ -212,6 +212,12 @@ export interface SharePassword {
   setAt: number;
 }
 
+/** The ids a project keeps to its team (057), which no review link may hold. */
+export interface TeamOnlyIds {
+  comments: ReadonlySet<string>;
+  replies: ReadonlySet<string>;
+}
+
 export type BlobLocation = { kind: "inline"; bytes: Uint8Array } | { kind: "vercel"; url: string };
 
 export interface StoredBlob {

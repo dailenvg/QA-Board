@@ -1,5 +1,7 @@
 /** File layout inside the ZIP. The bare Markdown and JSON downloads describe the same layout. */
 
+import type { ExportAudience } from "./types";
+
 export const MARKDOWN_FILE = "comments.md";
 export const JSON_FILE = "comments.json";
 
@@ -28,10 +30,12 @@ export interface PageNumber {
 /**
  * `screenshots/03-1a2b3c4d.jpg`: pin number, padded so files sort in pin
  * order. A pin on a page names it too: `screenshots/03-p02-1a2b3c4d.jpg`.
- * The extension follows the crop's type (older crops are PNG).
+ * A team-only comment's is `screenshots/T01-…`, padded over the team-only
+ * count (`total` is its own sequence's). The extension follows the crop's
+ * type (older crops are PNG).
  */
 export function screenshotPath(
-  number: number,
+  pin: { number: number; teamOnly: boolean },
   commentId: string,
   total: number,
   mimeType: string,
@@ -39,7 +43,8 @@ export function screenshotPath(
 ): string {
   const shortId = commentId.replace(/[^a-z\d]/gi, "").slice(0, 8) || "comment";
   const onPage = page ? `p${padded(page.number, page.total)}-` : "";
-  return `screenshots/${padded(number, total)}-${onPage}${shortId}.${extensionFor(mimeType)}`;
+  const number = `${pin.teamOnly ? "T" : ""}${padded(pin.number, total)}`;
+  return `screenshots/${number}-${onPage}${shortId}.${extensionFor(mimeType)}`;
 }
 
 export function snapshotPath(snapshotId: string, mimeType: string): string {
@@ -64,10 +69,19 @@ export function slugify(text: string): string {
   return slug || "project";
 }
 
-/** `homepage-comments-2026-10-24.zip`, dated in the exporter's time zone. */
-export function exportFileName(projectName: string, at: Date, extension: string): string {
+/**
+ * `homepage-comments-2026-10-24.zip`, dated in the exporter's time zone; one for a client is
+ * `homepage-comments-for-client-2026-10-24.zip`.
+ */
+export function exportFileName(
+  projectName: string,
+  at: Date,
+  extension: string,
+  audience: ExportAudience = "team",
+): string {
   const date = [at.getFullYear(), at.getMonth() + 1, at.getDate()]
     .map((part) => String(part).padStart(2, "0"))
     .join("-");
-  return `${slugify(projectName)}-comments-${date}.${extension}`;
+  const forWhom = audience === "client" ? "-for-client" : "";
+  return `${slugify(projectName)}-comments${forWhom}-${date}.${extension}`;
 }

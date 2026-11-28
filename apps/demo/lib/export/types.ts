@@ -38,12 +38,19 @@ export interface ExportReply {
   editedAt: number | null;
   /** Posted by a client on the review link. */
   fromClient: boolean;
+  /** Kept to the team (057): written as team only, or under a team-only comment. Team exports only. */
+  teamOnly: boolean;
   /** The browser it was posted from, as recorded; null when not. In the JSON only, as a comment's. */
   clientInfo: ClientInfo | null;
 }
 
 export interface ExportComment {
+  /** Its number within its own sequence (D13): 1..n for clients' comments, 1..n for team-only ones. */
   number: number;
+  /** What its pin shows: "4", or "T1" for a team-only comment. */
+  label: string;
+  /** Kept to the team (057). Team exports only: one for a client leaves these out. */
+  teamOnly: boolean;
   id: string;
   status: CommentStatus;
   /** Must fix, Should fix or Nit (055); null for none. */
@@ -96,11 +103,18 @@ export type ExportSource =
     };
 
 /** Everything an export says, before it's written as Markdown or JSON. */
+/**
+ * Who an export is for (D14): the team gets every comment and reply, team-only ones marked; a
+ * client gets only what the review link shows, without anyone's browser details.
+ */
+export type ExportAudience = "team" | "client";
+
 export interface ExportDocument {
+  audience: ExportAudience;
   exportedAt: number;
   project: { id: string; name: string; source: ExportSource; createdAt: number; updatedAt: number };
   /** Only the snapshots that exported comments sit on, oldest first. */
   snapshots: ExportSnapshot[];
-  /** Active comments first, then resolved, each in pin-number order. */
+  /** Active comments first, then resolved, each in pin order (when each was made). */
   comments: ExportComment[];
 }

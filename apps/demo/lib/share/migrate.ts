@@ -54,6 +54,7 @@ import commentReplies from "../../migrations/053_comment_replies.sql";
 import shareReplies from "../../migrations/054_squint_share_replies.sql";
 import commentPriority from "../../migrations/055_comment_priority.sql";
 import projectStage from "../../migrations/056_project_stage.sql";
+import teamOnly from "../../migrations/057_team_only.sql";
 
 /** The slice of `pg.Pool` the stores use (PGlite matches it in tests). */
 export interface Queryable {
@@ -118,6 +119,7 @@ export const MIGRATIONS: ReadonlyArray<{ id: string; sql: string }> = [
   { id: "054_squint_share_replies", sql: shareReplies },
   { id: "055_comment_priority", sql: commentPriority },
   { id: "056_project_stage", sql: projectStage },
+  { id: "057_team_only", sql: teamOnly },
 ];
 
 type Migration = (typeof MIGRATIONS)[number];

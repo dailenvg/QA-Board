@@ -88,8 +88,10 @@ function sharedSnapshot({
  * the team's priority, D26) and the replies to those comments, without local keys. The one place that decides
  * what reaches a review link (D21): a reply only under a comment it carries;
  * of a comment or a reply, whose it is, the author's photo and the browser it
- * was posted from (`clientInfo`, team only) never do. `replies` may be the
- * workspace's: only this project's are taken.
+ * was posted from (`clientInfo`, team only) never do. Team-only comments and
+ * replies (057) never do either, nor any reply under a team-only comment; the
+ * server leaves them out too (D41), so this only saves the bytes.
+ * `replies` may be the workspace's: only this project's are taken.
  */
 export function toShareState(
   project: Project,
@@ -97,7 +99,8 @@ export function toShareState(
   snapshots: readonly Snapshot[],
   replies: readonly Reply[],
 ): ShareState {
-  const shared = new Set(comments.map((comment) => comment.id));
+  const visible = comments.filter((comment) => !comment.teamOnly);
+  const shared = new Set(visible.map((comment) => comment.id));
   return {
     project: {
       name: cap(project.name, SHARE_LIMITS.projectName) || "Untitled",
@@ -105,11 +108,35 @@ export function toShareState(
       createdAt: project.createdAt,
     },
     snapshots: snapshots.map(sharedSnapshot),
-    comments: comments.map(sharedComment),
+    comments: visible.map(sharedComment),
     replies: replies
-      .filter((reply) => reply.projectId === project.id && shared.has(reply.commentId))
+      .filter(
+        (reply) => reply.projectId === project.id && shared.has(reply.commentId) && !reply.teamOnly,
+      )
       .map(sharedReply),
   };
+}
+
+/**
+ * The project's comments and replies the owner keeps to the team (057): its
+ * team-only comments, their replies, and team-only replies. `toShareState`
+ * leaves them out, and a push never asks the link to delete them
+ * (`diffState`'s `kept`): the server does, once it knows no client replied.
+ */
+export function teamOnlyIds(
+  projectId: string,
+  comments: readonly Comment[],
+  replies: readonly Reply[],
+): Set<string> {
+  const hidden = new Set(
+    comments
+      .filter((comment) => comment.projectId === projectId && comment.teamOnly)
+      .map((comment) => comment.id),
+  );
+  const hiddenReplies = replies.filter(
+    (reply) => reply.projectId === projectId && (reply.teamOnly || hidden.has(reply.commentId)),
+  );
+  return new Set([...hidden, ...hiddenReplies.map((reply) => reply.id)]);
 }
 
 /**

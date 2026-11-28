@@ -2,6 +2,7 @@
 
 import { AnimatePresence } from "motion/react";
 import type { ReactNode, Ref, RefObject } from "react";
+import type { PinNumber } from "@/lib/store/pin-numbers";
 import { PRIORITY_LABEL } from "@/lib/store/priority";
 import type { Comment, CommentPriority } from "@/lib/store/types";
 import { CommentOverlay } from "./CommentOverlay";
@@ -12,7 +13,7 @@ import type { Draft, PinPoint, ViewerMode } from "./types";
 interface CanvasLayerProps {
   /** The pins to draw: this surface's comments shown on the current tab. */
   comments: readonly Comment[];
-  numbers: ReadonlyMap<string, number>;
+  numbers: ReadonlyMap<string, PinNumber>;
   mode: ViewerMode;
   selectedId: string | null;
   /** The comment whose popover is open, and that popover's element id. */
@@ -30,14 +31,20 @@ interface CanvasLayerProps {
   onDraftChange: (body: string) => void;
   onDraftAuthorChange: (author: string) => void;
   onDraftPriorityChange: (priority: CommentPriority | undefined) => void;
+  /** The team's composer only: its "Team only" switch (057). */
+  onDraftTeamOnlyChange?: (teamOnly: boolean) => void;
   onDraftSubmit: (body: string, author: string) => void;
   onDraftCancel: () => void;
 }
 
-/** "Comment 3 by Ana", then ", resolved" and ", must fix" as they apply. */
-function pinLabel(number: number, { author, status, priority }: Comment): string {
+/**
+ * "Comment 3 by Ana", or "Comment T1 by Ana, team only", then ", resolved" and ", must fix" as
+ * they apply.
+ */
+function pinLabel(number: string, { author, status, priority, teamOnly }: Comment): string {
+  const team = teamOnly ? ", team only" : "";
   const resolved = status === "resolved" ? ", resolved" : "";
-  return `Comment ${number} by ${author}${resolved}${priority ? `, ${spoken(priority)}` : ""}`;
+  return `Comment ${number} by ${author}${team}${resolved}${priority ? `, ${spoken(priority)}` : ""}`;
 }
 
 const spoken = (priority: CommentPriority) => PRIORITY_LABEL[priority].toLowerCase();
@@ -65,6 +72,7 @@ export function CanvasLayer({
   onDraftChange,
   onDraftAuthorChange,
   onDraftPriorityChange,
+  onDraftTeamOnlyChange,
   onDraftSubmit,
   onDraftCancel,
 }: CanvasLayerProps) {
@@ -77,7 +85,7 @@ export function CanvasLayer({
       ) : null}
       <AnimatePresence>
         {comments.map((comment) => {
-          const number = numbers.get(comment.id) ?? 0;
+          const number = numbers.get(comment.id)?.label ?? "";
           const resolved = comment.status === "resolved";
           return (
             <Pin
@@ -89,6 +97,7 @@ export function CanvasLayer({
               tone={resolved ? "resolved" : "active"}
               author={comment.author}
               priority={comment.priority}
+              teamOnly={comment.teamOnly === true}
               selected={comment.id === selectedId}
               expanded={comment.id === openId}
               popoverId={popoverId}
@@ -104,6 +113,7 @@ export function CanvasLayer({
             x={draft.x}
             y={draft.y}
             tone={draft.error ? "unsent" : "draft"}
+            teamOnly={draft.teamOnly === true}
             label={draft.error ? "Unsent comment position" : "New comment position"}
           />
         ) : null}
@@ -121,6 +131,7 @@ export function CanvasLayer({
               onChange={onDraftChange}
               onAuthorChange={onDraftAuthorChange}
               onPriorityChange={onDraftPriorityChange}
+              onTeamOnlyChange={onDraftTeamOnlyChange}
               onSubmit={onDraftSubmit}
               onCancel={onDraftCancel}
             />

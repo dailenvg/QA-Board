@@ -32,6 +32,7 @@ import type {
   ShareRecord,
   ShareState,
   TeamAvatar,
+  TeamOnlyIds,
 } from "./types";
 
 export type Failure = {
@@ -175,6 +176,12 @@ async function dropUnreferenced({ store, blobs }: ShareServices, share: ShareRec
   await blobs.discard(await store.deleteBlobs(share.id, stale));
 }
 
+/** `dropUnreferenced` for a share by id, once something took rows off it; nothing when it's gone. */
+export async function sweepShareBlobs(services: ShareServices, shareId: string): Promise<void> {
+  const share = await services.store.byId(shareId);
+  if (share) await dropUnreferenced(services, share);
+}
+
 /** Checks size limits and the image type, then stores the bytes under `key`. */
 async function storeBlob(
   { store, blobs }: ShareServices,
@@ -247,6 +254,57 @@ function deletable<T extends { id: string }>(
     .map((row) => row.item.id);
 }
 
+/** Of the link's rows, the owner's whose ids are in `ids`. */
+function ownerRowsOf<T extends { id: string }>(
+  rows: readonly Sequenced<T>[],
+  ids: ReadonlySet<string>,
+): string[] {
+  return rows
+    .filter((row) => row.origin === "owner" && ids.has(row.item.id))
+    .map((row) => row.item.id);
+}
+
+/**
+ * `change` with what the project keeps to its team (`hidden`) taken out
+ * (D41, layer 2): no team-only comment or reply goes in, nor any reply under
+ * a team-only comment, and the owner's rows of them already on the link are
+ * deleted. A stale tab (an older bundle, another member's) can't publish one.
+ */
+function clientVisible(
+  change: ShareChange,
+  hidden: TeamOnlyIds,
+  comments: readonly Sequenced<SharedComment>[],
+  replies: readonly Sequenced<SharedReply>[],
+): ShareChange {
+  return {
+    ...change,
+    comments: change.comments.filter((comment) => !hidden.comments.has(comment.id)),
+    replies: change.replies.filter(
+      (reply) => !hidden.replies.has(reply.id) && !hidden.comments.has(reply.commentId),
+    ),
+    deleteComments: [...change.deleteComments, ...ownerRowsOf(comments, hidden.comments)],
+    deleteReplies: [...change.deleteReplies, ...ownerRowsOf(replies, hidden.replies)],
+  };
+}
+
+/**
+ * Deletes the owner's rows of what the share's project keeps to its team: a
+ * link made before it had a project (`createShare` is anonymous) may hold
+ * some. Run under the share's lock (`withShareLock`); the caller drops their
+ * crops once that commits (`sweepShareBlobs`). How many rows went.
+ */
+export async function purgeTeamOnly(store: ShareStore, shareId: string): Promise<number> {
+  // One after another: `store` is bound to one transaction's connection.
+  const hidden = await store.teamOnlyIds(shareId);
+  const comments = await store.comments(shareId, { includePending: true });
+  const replies = await store.replies(shareId);
+  const commentIds = ownerRowsOf(comments, hidden.comments);
+  const replyIds = ownerRowsOf(replies, hidden.replies);
+  await store.deleteReplies(shareId, replyIds);
+  await store.deleteComments(shareId, commentIds);
+  return commentIds.length + replyIds.length;
+}
+
 /** How many rows remain after upserting and deleting. */
 function countAfter<T extends { id: string }>(
   rows: readonly Sequenced<T>[],
@@ -291,15 +349,34 @@ export async function shareManifest(store: ShareStore, share: ShareRecord): Prom
 export async function applyChanges(
   services: ShareServices,
   share: ShareRecord,
-  change: ShareChange,
+  sent: ShareChange,
   now: number,
 ): Promise<Outcome<{ missingBlobs: string[] }>> {
   const { store } = services;
-  const [snapshots, comments, replies] = await Promise.all([
-    store.snapshots(share.id),
-    store.comments(share.id),
-    store.replies(share.id),
-  ]);
+  // The rows are written under the share's lock, which a team-only change takes too (D41).
+  const written = await store.withShareLock(share.id, (locked) =>
+    writeChanges(locked, share, sent, now),
+  );
+  if (!written.ok) return written;
+  const updated = sent.project ? { ...share, project: sent.project } : share;
+  await store.deleteStalePending(share.id, now - PENDING_STALE_MS);
+  await dropUnreferenced(services, updated);
+  return ok({ missingBlobs: await missingBlobs(store, updated) });
+}
+
+/** `applyChanges`' row writes, on a store holding the share's lock. */
+async function writeChanges(
+  store: ShareStore,
+  share: ShareRecord,
+  sent: ShareChange,
+  now: number,
+): Promise<Outcome<null>> {
+  // One after another: `store` holds the share's lock on one transaction's connection.
+  const hidden = await store.teamOnlyIds(share.id);
+  const snapshots = await store.snapshots(share.id);
+  const comments = await store.comments(share.id);
+  const replies = await store.replies(share.id);
+  const change = clientVisible(sent, hidden, comments, replies);
   const deleteSnapshots = deletable(snapshots, change.deleteSnapshots, change.cursor);
   const deleteComments = deletable(comments, change.deleteComments, change.cursor);
   const deleteReplies = deletable(replies, change.deleteReplies, change.cursor);
@@ -325,10 +402,7 @@ export async function applyChanges(
   await store.deleteSnapshots(share.id, deleteSnapshots);
   await store.deleteReplies(share.id, deleteReplies);
   await store.deleteComments(share.id, deleteComments);
-  const updated = change.project ? { ...share, project: change.project } : share;
-  await store.deleteStalePending(share.id, now - PENDING_STALE_MS);
-  await dropUnreferenced(services, updated);
-  return ok({ missingBlobs: await missingBlobs(store, updated) });
+  return ok(null);
 }
 
 /** The highest of a row's sequences: its insert's, and its latest client edit's. */
@@ -446,9 +520,12 @@ export async function readBlob(
   share: ShareRecord,
   key: string,
 ): Promise<{ bytes: Uint8Array; contentType: string } | null> {
-  // `crop:<id>` is a comment's public crop key; its row says where the bytes really are.
+  // `crop:<id>` is a comment's public crop key; its row says where the bytes really are, and
+  // without a visible comment with a crop there's nothing to serve (A42): a comment gone team
+  // only takes its crop off the link at once, whatever blob is left behind.
   const comment = /^crop:([A-Za-z0-9_-]+)$/.exec(key)?.[1];
-  const resolved = (comment && (await store.cropKeyOf(share.id, comment))) || key;
+  const resolved = comment ? await store.cropKeyOf(share.id, comment) : key;
+  if (!resolved) return null;
   const stored = await store.getBlob(share.id, resolved);
   if (!stored) return null;
   const bytes = await blobs.read(stored.location);

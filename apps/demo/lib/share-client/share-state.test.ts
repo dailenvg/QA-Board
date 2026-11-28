@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { stateSchema } from "../share/schemas";
 import type { Comment, Project, Reply, Snapshot } from "../store/types";
-import { fromSharedComment, fromSharedSnapshot, localBlobKey, toShareState } from "./share-state";
+import { diffState } from "./diff";
+import {
+  fromSharedComment,
+  fromSharedSnapshot,
+  localBlobKey,
+  teamOnlyIds,
+  toShareState,
+} from "./share-state";
 
 const project: Project = {
   id: "p1",
@@ -170,6 +177,59 @@ describe("toShareState", () => {
       [],
     );
     expect(pushed).toEqual(without);
+  });
+
+  it("leaves out team-only comments, every reply under one, and team-only replies (057)", () => {
+    const reply = (id: string, commentId: string, teamOnly?: true): Reply => ({
+      id,
+      projectId: "p1",
+      commentId,
+      body: "Yes",
+      author: "Leo",
+      createdAt: 7,
+      ...(teamOnly ? { teamOnly } : {}),
+    });
+    const pushed = toShareState(
+      project,
+      [comment, { ...pageComment, teamOnly: true }],
+      [],
+      [reply("r1", "c1"), reply("r2", "c1", true), reply("r3", "c2")],
+    );
+    expect(pushed.comments.map((shared) => shared.id)).toEqual(["c1"]);
+    expect(pushed.replies.map((shared) => shared.id)).toEqual(["r1"]);
+    expect(JSON.stringify(pushed)).not.toContain("teamOnly");
+  });
+
+  it("never asks the link to delete what the owner keeps to the team: the server takes it off (D10)", () => {
+    const hidden: Comment = { ...pageComment, teamOnly: true };
+    const replies: Reply[] = [
+      { id: "r-under", projectId: "p1", commentId: "c2", body: "Hm", author: "Leo", createdAt: 7 },
+      {
+        id: "r-kept",
+        projectId: "p1",
+        commentId: "c1",
+        body: "Us",
+        author: "Leo",
+        createdAt: 8,
+        teamOnly: true,
+      },
+      { id: "r-shown", projectId: "p1", commentId: "c1", body: "Ok", author: "Leo", createdAt: 9 },
+    ];
+    const kept = teamOnlyIds("p1", [comment, hidden], replies);
+    expect([...kept].sort()).toEqual(["c2", "r-kept", "r-under"]);
+    const state = toShareState(project, [comment, hidden], [], replies);
+    // The link still has them all, as before the change reached the server.
+    const manifest = {
+      project: "",
+      snapshots: [],
+      comments: ["c1", "c2", "gone"].map((id) => ({ id, digest: "" })),
+      replies: ["r-under", "r-kept", "r-shown"].map((id) => ({ id, digest: "" })),
+      missingBlobs: [],
+      expiresAt: null,
+    };
+    const changes = diffState(state, manifest, new Set(), kept);
+    expect(changes.deleteComments).toEqual(["gone"]);
+    expect(changes.deleteReplies).toEqual([]);
   });
 
   it("keeps a pulled comment's browser details in the workspace", () => {

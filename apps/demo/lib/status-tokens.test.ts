@@ -151,6 +151,13 @@ describe.each([
     expect(worst(ink, surfaces(tokens, ["panel", "hover", "seg"]))).toBeGreaterThanOrEqual(TEXT);
   });
 
+  it("draws a team-only pin's lock on its band, and the Team only chip's word, at 4.5:1", () => {
+    expect(contrast(color(tokens, "pin-halo"), color(tokens, "pin-band"))).toBeGreaterThanOrEqual(
+      TEXT,
+    );
+    expect(contrast(color(tokens, "on-inv"), color(tokens, "inv"))).toBeGreaterThanOrEqual(TEXT);
+  });
+
   it("edges resolved pins at 3:1 on their white halo and on their Mint fill", () => {
     // Mint is about as light as the halo, so this line is what draws the pin's edge.
     const line = color(tokens, "resolved-pin-line");

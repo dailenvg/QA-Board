@@ -16,13 +16,23 @@ import {
 const JPEG_SIGNATURE = [0xff, 0xd8, 0xff];
 const HOSTILE = "# Not a heading\n```\n[x](javascript:alert(1))";
 
-/** Picks a format from the Export menu and returns the downloaded file's name and bytes. */
-async function exportAs(page: Page, item: string): Promise<{ name: string; bytes: Buffer }> {
+/**
+ * Picks a format from the Export menu and returns the downloaded file's name and bytes: by name
+ * from the team's group, or a client's item by its test id.
+ */
+async function exportAs(
+  page: Page,
+  item: string | { testId: string },
+): Promise<{ name: string; bytes: Buffer }> {
   await page.getByTestId("export-menu").click();
-  const [download] = await Promise.all([
-    page.waitForEvent("download"),
-    page.getByRole("menuitem", { name: item, exact: true }).click(),
-  ]);
+  const menuItem =
+    typeof item === "string"
+      ? page.getByRole("group", { name: "For your team" }).getByRole("menuitem", {
+          name: item,
+          exact: true,
+        })
+      : page.getByTestId(item.testId);
+  const [download] = await Promise.all([page.waitForEvent("download"), menuItem.click()]);
   const path = await download.path();
   return { name: download.suggestedFilename(), bytes: await readFile(path) };
 }
@@ -86,7 +96,7 @@ test("a website project exports its comments as ZIP, Markdown and JSON", async (
     filesIncluded: boolean;
     comments: Array<{ number: number; body: string; author: string; screenshot: { file: string } }>;
   };
-  expect(json).toMatchObject({ schema: "squint.comments/2", filesIncluded: true });
+  expect(json).toMatchObject({ schema: "squint.comments/3", filesIncluded: true });
   expect(json.comments).toEqual([
     expect.objectContaining({
       number: 1,
@@ -105,7 +115,7 @@ test("a website project exports its comments as ZIP, Markdown and JSON", async (
   const bareJson = await exportAs(page, "JSON");
   expect(bareJson.name).toMatch(new RegExp(`^launch-page${date.source}\\.json$`));
   expect(JSON.parse(bareJson.bytes.toString("utf8"))).toMatchObject({
-    schema: "squint.comments/2",
+    schema: "squint.comments/3",
     filesIncluded: false,
     counts: { active: 1, resolved: 0 },
   });
@@ -139,4 +149,33 @@ test("an image project's ZIP carries its page and each comment's screenshot", as
     surface: "page",
     page: { number: 1, name: "checkout.png" },
   });
+});
+
+test("an export for the client leaves team-only comments out; the team's marks them", async ({
+  page,
+}) => {
+  await openFolder(page);
+  await createImageProject(page, "audiences.png");
+  await postComment(page, "For the client", { x: 100, y: 80 }, "Leo");
+  await postComment(page, "Internal note", { x: 220, y: 140 });
+  await showComments(page);
+  // Without a review link, making it team only asks nothing (D11).
+  const internal = page.getByTestId("comment-card").filter({ hasText: "Internal note" });
+  await internal.getByRole("button", { name: "Actions for comment 2" }).click();
+  await page.getByRole("menuitem", { name: "Make team only" }).click();
+  await expect(internal.getByTestId("team-only-chip")).toBeVisible();
+
+  const team = await exportAs(page, "Markdown");
+  expect(team.name).toMatch(/^audiences-comments-\d{4}-\d{2}-\d{2}\.md$/);
+  const teamText = team.bytes.toString("utf8");
+  expect(teamText).toContain("### Comment T1 · Team only");
+  expect(teamText).toContain("Internal note");
+
+  const client = await exportAs(page, { testId: "export-client-markdown" });
+  expect(client.name).toMatch(/^audiences-comments-for-client-\d{4}-\d{2}-\d{2}\.md$/);
+  const clientText = client.bytes.toString("utf8");
+  expect(clientText).toContain("### Comment 1");
+  expect(clientText).toContain("For the client");
+  expect(clientText).not.toContain("Internal note");
+  expect(clientText).not.toContain("Team only");
 });

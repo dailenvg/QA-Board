@@ -29,6 +29,8 @@ export interface NewComment {
   priority?: CommentPriority;
   /** The browser posting it (`captureClientInfo`), when it could be read. */
   clientInfo?: ClientInfo;
+  /** The team's composer only: kept off review links (057). */
+  teamOnly?: boolean;
 }
 
 export interface NewReply {
@@ -40,6 +42,8 @@ export interface NewReply {
   author: string;
   /** The browser posting it (`captureClientInfo`), when it could be read. */
   clientInfo?: ClientInfo;
+  /** The team's reply box only: kept off review links (057). Under a team-only comment it is anyway. */
+  teamOnly?: boolean;
 }
 
 /** A crop being encoded: the picture arrives a moment after the screen was read. */
@@ -101,6 +105,11 @@ export interface ViewerBackend {
    * Missing for the owner, whose edits go through `editComment` at once.
    */
   editOwnComment?(id: string, body: string): Promise<EditOutcome>;
+  /**
+   * The team's: keeps a comment to the team, or shows it to clients (057; its author or the
+   * owner). Resolves once the server has it; a refusal is rolled back, and its `error` says why.
+   */
+  setCommentTeamOnly(id: string, teamOnly: boolean): Promise<Result>;
   deleteComment(id: string): Result;
   /** Undo for `deleteComment`, with the comment's replies when they're all the member's own (D25). */
   restoreComment(comment: Comment, replies?: Reply[]): Result;
@@ -111,6 +120,8 @@ export interface ViewerBackend {
   addReply(input: NewReply): Promise<Result<Reply>>;
   /** New words for the member's own reply. */
   editReply(id: string, body: string): Result;
+  /** The team's: keeps a reply to the team, or shows it to clients, as `setCommentTeamOnly`. */
+  setReplyTeamOnly(id: string, teamOnly: boolean): Promise<Result>;
   /** Deletes the member's own reply; `restoreReply` is its Undo. */
   deleteReply(id: string): Result;
   restoreReply(reply: Reply): Result;

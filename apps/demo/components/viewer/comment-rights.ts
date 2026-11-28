@@ -29,9 +29,14 @@ export interface CommentRights {
    * so its words are locked (4.12).
    */
   resolvedNote: boolean;
+  /**
+   * Make it team only, or show it to clients again (057, D9 a): its author or
+   * the owner, both ways, on the team's own comments only.
+   */
+  share: boolean;
 }
 
-const NONE: CommentRights = { edit: false, delete: null, resolvedNote: false };
+const NONE: CommentRights = { edit: false, delete: null, resolvedNote: false, share: false };
 
 /**
  * A shared link's guest: only their own comments (posted from this browser,
@@ -41,18 +46,29 @@ const NONE: CommentRights = { edit: false, delete: null, resolvedNote: false };
 function guestRights(comment: Comment, viewer: CommentViewer): CommentRights {
   if (!comment.mine) return NONE;
   const active = comment.status === "active";
-  return { edit: active && viewer.reviewOpen !== false, delete: null, resolvedNote: !active };
+  return {
+    edit: active && viewer.reviewOpen !== false,
+    delete: null,
+    resolvedNote: !active,
+    share: false,
+  };
 }
 
 /**
  * What `viewer` may do to `comment` beyond resolving it (decision 6): only
- * its author edits it; its author or the owner deletes it. A client's has no
- * author here, so only the owner deletes it, and nobody on the team edits it:
- * its guest does, on the review link (`guestRights`).
+ * its author edits it; its author or the owner deletes it, and makes it team
+ * only or shows it again (D9). A client's has no author here, so only the
+ * owner deletes it, nobody on the team edits it (its guest does, on the
+ * review link, `guestRights`), and it's never team only (D8).
  */
 export function commentRights(comment: Comment, viewer: CommentViewer): CommentRights {
   if (!viewer.team) return guestRights(comment, viewer);
-  if (comment.mine) return { edit: true, delete: "undo", resolvedNote: false };
+  if (comment.mine) return { edit: true, delete: "undo", resolvedNote: false, share: true };
   if (!viewer.moderator) return NONE;
-  return { edit: false, delete: comment.fromClient ? "undo" : "confirm", resolvedNote: false };
+  return {
+    edit: false,
+    delete: comment.fromClient ? "undo" : "confirm",
+    resolvedNote: false,
+    share: !comment.fromClient,
+  };
 }

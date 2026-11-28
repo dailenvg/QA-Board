@@ -153,6 +153,68 @@ describe("snapshots in the reducer", () => {
     ).toBe(nit);
   });
 
+  it("keeps a team comment to the team and back, never a client's, and never marks it edited", () => {
+    const hidden = reduce(legacy(), {
+      type: "comment/set-team-only",
+      id: "c1",
+      teamOnly: true,
+      at: 40,
+    });
+    expect(hidden.comments.find((entry) => entry.id === "c1")).toMatchObject({
+      teamOnly: true,
+      updatedAt: 40,
+    });
+    expect(hidden.comments.find((entry) => entry.id === "c1")).not.toHaveProperty("editedAt");
+    expect(
+      reduce(hidden, { type: "comment/set-team-only", id: "c1", teamOnly: true, at: 41 }),
+    ).toBe(hidden);
+    const shown = reduce(hidden, {
+      type: "comment/set-team-only",
+      id: "c1",
+      teamOnly: false,
+      at: 42,
+    });
+    expect(shown.comments.find((entry) => entry.id === "c1")).not.toHaveProperty("teamOnly");
+    const client = {
+      ...legacy(),
+      comments: legacy().comments.map((entry) => ({ ...entry, fromClient: true as const })),
+    };
+    expect(
+      reduce(client, { type: "comment/set-team-only", id: "c1", teamOnly: true, at: 43 }),
+    ).toBe(client);
+  });
+
+  it("keeps a new team reply under a team-only comment to the team, never a client's (B2)", () => {
+    const hidden = reduce(legacy(), {
+      type: "comment/set-team-only",
+      id: "c1",
+      teamOnly: true,
+      at: 40,
+    });
+    const reply = {
+      id: "r1",
+      projectId: "site",
+      commentId: "c1",
+      body: "Hm",
+      author: "A",
+      createdAt: 41,
+    };
+    const team = reduce(hidden, { type: "reply/add", reply });
+    expect(team.replies[0]).toMatchObject({ id: "r1", teamOnly: true });
+    const client = reduce(hidden, { type: "reply/add", reply: { ...reply, fromClient: true } });
+    expect(client.replies[0]).not.toHaveProperty("teamOnly");
+    // Shown again, the comment leaves the reply written while it was hidden as it is.
+    const shown = reduce(team, {
+      type: "comment/set-team-only",
+      id: "c1",
+      teamOnly: false,
+      at: 42,
+    });
+    expect(shown.replies[0]).toMatchObject({ teamOnly: true });
+    const replyShown = reduce(shown, { type: "reply/set-team-only", id: "r1", teamOnly: false });
+    expect(replyShown.replies[0]).not.toHaveProperty("teamOnly");
+  });
+
   it("marks a comment edited only when its words change", () => {
     const same = reduce(legacy(), { type: "comment/edit", id: "c1", body: "same", at: 50 });
     const body = same.comments.find((entry) => entry.id === "c1")?.body ?? "";

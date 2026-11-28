@@ -16,8 +16,8 @@ import { useModeratedDelete } from "./use-moderated-delete";
 export interface ForGoodComment {
   comment: Comment;
   reason: "others" | "replied";
-  /** Its pin number. */
-  number: number;
+  /** Its pin number as shown ("4", "T1"). */
+  number: string;
   /** How many replies go with it. */
   replyCount: number;
 }

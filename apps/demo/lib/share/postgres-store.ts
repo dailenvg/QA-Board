@@ -1,6 +1,8 @@
 import type { ClientInfo } from "../client-info/schema";
+import type { Database } from "../db/database";
 import { brandColor, SQUINT_BRAND } from "./brand";
 import type { Queryable } from "./migrate";
+import { lockShare } from "./share-lock";
 import { sameShareKey, SHARE_PERSON_KEY, shareAvatarVersion, sharePersonKey } from "./share-people";
 import type { ShareStore } from "./store";
 import { hashesMatch } from "./tokens";
@@ -15,6 +17,7 @@ import type {
   ShareRecord,
   StoredBlob,
   TeamAvatar,
+  TeamOnlyIds,
 } from "./types";
 
 interface ShareRow {
@@ -278,24 +281,61 @@ const CLIENT_REPLY_REFUSAL = `SELECT
 const CLIENT_ROW = "share_id = $1 AND id = $2 AND origin = 'client' AND NOT pending";
 
 /**
+ * What the share's project keeps to its team (057): its team-only comments,
+ * and the replies that are team only or under one, through the share's
+ * project. A share without one matches nothing.
+ */
+const TEAM_ONLY_IDS = `SELECT 'comment' AS kind, comment.id FROM squint_shares AS share
+    JOIN comments AS comment ON comment.project_id = share.project_id
+    WHERE share.id = $1 AND comment.team_only
+  UNION ALL
+  SELECT 'reply' AS kind, reply.id FROM squint_shares AS share
+    JOIN comment_replies AS reply ON reply.project_id = share.project_id
+    JOIN comments AS parent ON parent.project_id = reply.project_id AND parent.id = reply.comment_id
+    WHERE share.id = $1 AND (reply.team_only OR parent.team_only)`;
+
+/**
  * A reply's comment deleted between the statement's check and its insert:
  * the foreign key refuses the row, which is the same as finding no comment.
  */
 const isForeignKeyViolation = (error: unknown) =>
   (error as { code?: unknown } | null)?.code === "23503";
 
-/** Runs a reply insert; null when its comment went while it ran (`isForeignKeyViolation`). */
-async function unlessCommentGone<T>(insert: () => Promise<T>): Promise<T | null> {
+/**
+ * Runs a reply insert; null when its comment went while it ran
+ * (`isForeignKeyViolation`). Inside a transaction (`inTransaction`) it runs
+ * under a savepoint, so that refusal doesn't abort the rest (I1): a push
+ * holding the share's lock still commits everything else.
+ */
+async function unlessCommentGone<T>(
+  db: Queryable,
+  inTransaction: boolean,
+  insert: () => Promise<T>,
+): Promise<T | null> {
+  if (inTransaction) await db.query("SAVEPOINT squint_reply");
   try {
-    return await insert();
+    const result = await insert();
+    if (inTransaction) await db.query("RELEASE SAVEPOINT squint_reply");
+    return result;
   } catch (error) {
-    if (isForeignKeyViolation(error)) return null;
-    throw error;
+    if (!isForeignKeyViolation(error)) throw error;
+    if (inTransaction) await db.query("ROLLBACK TO SAVEPOINT squint_reply");
+    return null;
   }
 }
 
-/** Shares in Postgres. Call `migrate()` on the pool first (see `server.ts`). */
-export function createPostgresStore(db: Queryable): ShareStore {
+const canTransact = (db: Queryable | Database): db is Database =>
+  typeof (db as Partial<Database>).transaction === "function";
+
+/**
+ * Shares in Postgres. Call `migrate()` on the pool first (see `server.ts`).
+ * `withShareLock` opens a transaction over a `Database`; over a plain
+ * `Queryable` it needs `inTransaction`, set by whoever knows `db` is a
+ * transaction already (a route's own, as attaching a share hands over), and
+ * refuses otherwise. Each reply insert of an `inTransaction` store runs under
+ * a savepoint (`unlessCommentGone`).
+ */
+export function createPostgresStore(db: Queryable | Database, inTransaction = false): ShareStore {
   const one = async (where: string, value: string) => {
     const { rows } = await db.query<ShareRow>(
       `SELECT ${READ_COLUMNS} FROM squint_shares WHERE ${where} = $1 AND ${SHARE_ANSWERS}`,
@@ -559,11 +599,12 @@ export function createPostgresStore(db: Queryable): ShareStore {
       return rows.length === 1;
     },
     async cropKeyOf(id, commentId) {
-      const { rows } = await db.query<{ crop_key: string | null }>(
-        "SELECT crop_key FROM squint_share_comments WHERE share_id = $1 AND id = $2 AND NOT pending",
+      const { rows } = await db.query<{ key: string }>(
+        `SELECT COALESCE(crop_key, 'crop:' || id) AS key FROM squint_share_comments
+         WHERE share_id = $1 AND id = $2 AND NOT pending AND jsonb_typeof(data->'crop') = 'object'`,
         [id, commentId],
       );
-      return rows[0]?.crop_key ?? null;
+      return rows[0]?.key ?? null;
     },
     async pendingSince(id, commentId) {
       const { rows } = await db.query<{ since: string | number }>(
@@ -597,12 +638,12 @@ export function createPostgresStore(db: Queryable): ShareStore {
     },
     replies: (id) => list<SharedReply>("squint_share_replies", id, "", ", client_info"),
     async upsertReply(id, reply) {
-      await unlessCommentGone(() =>
+      await unlessCommentGone(db, inTransaction, () =>
         db.query(UPSERT_REPLY, [id, reply.commentId, reply.id, JSON.stringify(reply)]),
       );
     },
     async addClientReply(id, reply, caps, clientInfo) {
-      const inserted = await unlessCommentGone(() =>
+      const inserted = await unlessCommentGone(db, inTransaction, () =>
         db.query(ADD_CLIENT_REPLY, [
           id,
           reply.commentId,
@@ -629,6 +670,27 @@ export function createPostgresStore(db: Queryable): ShareStore {
         id,
         [...ids],
       ]);
+    },
+    async withShareLock(id, run) {
+      if (!canTransact(db)) {
+        // An xact lock outside a transaction would be let go at once (a bare pool runs each
+        // statement on its own), so only a store known to be in one may take it here.
+        if (!inTransaction) throw new Error("withShareLock needs a Database or a transaction.");
+        await lockShare(db, id);
+        return run(createPostgresStore(db, true));
+      }
+      return db.transaction(async (tx) => {
+        await lockShare(tx, id);
+        return run(createPostgresStore(tx, true));
+      });
+    },
+    async teamOnlyIds(id) {
+      const { rows } = await db.query<{ kind: "comment" | "reply"; id: string }>(TEAM_ONLY_IDS, [
+        id,
+      ]);
+      const ids = (kind: string) =>
+        new Set(rows.filter((row) => row.kind === kind).map((row) => row.id));
+      return { comments: ids("comment"), replies: ids("reply") } satisfies TeamOnlyIds;
     },
     async blobSizes(id) {
       const { rows } = await db.query<Pick<BlobRow, "key" | "size">>(

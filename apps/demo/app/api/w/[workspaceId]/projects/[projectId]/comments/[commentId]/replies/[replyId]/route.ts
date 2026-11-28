@@ -1,7 +1,7 @@
 import { can } from "@/lib/auth/permissions";
 import { json } from "@/lib/share/http";
-import { noContent, notFound, param, readBody } from "@/lib/workspace/http";
-import { deleteReply, updateReply } from "@/lib/workspace/replies";
+import { noContent, notFound, param, readBody, refusal } from "@/lib/workspace/http";
+import { deleteReply, setReplyTeamOnly, updateReply } from "@/lib/workspace/replies";
 import { idSchema, replyPatchSchema } from "@/lib/workspace/schemas";
 import { withMember } from "@/lib/workspace/with-member";
 
@@ -21,15 +21,30 @@ function ids(params: Params) {
  * `PATCH { body }`: changes the words of the caller's own reply. Nobody
  * edits anyone else's, the owner included, nor a client's. 404 for a reply
  * the caller may not change, as for one that isn't there.
+ *
+ * `PATCH { teamOnly }`: makes a team reply team only or shows it to clients
+ * (its author or the owner), under a comment clients see; making it team
+ * only takes it off the review link at once (`setReplyTeamOnly`).
  */
-export const PATCH = withMember<Params>(async (request, { db, user, workspaceId, now }, params) => {
-  const target = ids(params);
-  if (!target) return notFound();
-  const body = await readBody(request, replyPatchSchema);
-  if (!body.ok) return body.response;
-  const reply = await updateReply(db, workspaceId, target, body.value, now, { userId: user.id });
-  return reply ? json(reply) : notFound();
-});
+export const PATCH = withMember<Params>(
+  async (request, { db, user, membership, workspaceId, now }, params) => {
+    const target = ids(params);
+    if (!target) return notFound();
+    const body = await readBody(request, replyPatchSchema);
+    if (!body.ok) return body.response;
+    const { body: words, teamOnly } = body.value;
+    if (teamOnly !== undefined) {
+      const actor = { userId: user.id, canModerate: can(membership, "comment.moderate") };
+      const changed = await setReplyTeamOnly(db, workspaceId, target, teamOnly, actor);
+      return changed.ok ? json(changed.value) : refusal(changed.reason);
+    }
+    if (words === undefined) return notFound();
+    const reply = await updateReply(db, workspaceId, target, { body: words }, now, {
+      userId: user.id,
+    });
+    return reply ? json(reply) : notFound();
+  },
+);
 
 /**
  * `DELETE`: the author deletes their own reply; the owner, anyone's

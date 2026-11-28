@@ -3,6 +3,11 @@ import { type ClientInfo, parseClientInfo } from "../client-info/schema";
 import { hashPassword } from "../auth/password";
 import type { Database } from "../db/database";
 import type { Queryable } from "../share/migrate";
+import { createPostgresStore } from "../share/postgres-store";
+import { purgeTeamOnly } from "../share/service";
+import { shareServices } from "../share/server";
+import { lockShare } from "../share/share-lock";
+import type { BlobLocation } from "../share/types";
 import { isExpired } from "../share/retention";
 import { reviewDeadline, windowHours } from "../share/review-window";
 import { secretMatches } from "../share/tokens";
@@ -132,7 +137,11 @@ interface AttachExtras {
  * workspace and stops deleting itself after 30 days. With a `reviewWindow`
  * the link takes it; without one it keeps the window it has. A share already
  * in another workspace, or on another project, answers like an unknown one.
- * Run inside a transaction.
+ * It's the first moment the share has a project, so the owner's rows of
+ * anything the project keeps to its team go (D41, layer 3): an older browser
+ * may have made the link with them. How many went (`purged`): the caller
+ * then drops their crops (`sweepShareBlobs`), once this commits. Run inside a
+ * transaction: it takes the share's lock (`lockShare`) first.
  */
 export async function attachShare(
   tx: Queryable,
@@ -141,7 +150,8 @@ export async function attachShare(
   input: ShareAttach & AttachExtras,
   now: number,
   secret?: string,
-): Promise<QueryResult<null>> {
+): Promise<QueryResult<{ purged: number }>> {
+  await lockShare(tx, input.shareId);
   const { rows: project } = await tx.query(
     `SELECT 1 FROM projects WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NULL FOR UPDATE`,
     [workspaceId, projectId],
@@ -189,7 +199,7 @@ export async function attachShare(
       input.lastSyncedAt === undefined ? null : toDate(input.lastSyncedAt),
     ],
   );
-  return done(null);
+  return done({ purged: await purgeTeamOnly(createPostgresStore(tx, true), input.shareId) });
 }
 
 /** Records the owner's pull position; the cursor never moves back. False without a link. */
@@ -432,6 +442,16 @@ export async function findGuestReply(
   if (createdAt === null) return null;
   const { body, author } = data;
   return { body, author, createdAt, clientInfo: parseClientInfo(row?.client_info) };
+}
+
+/**
+ * Discards the files of blob rows a committed change took off a review link
+ * (a comment gone team only: its crop). Best effort, as every discard.
+ */
+export async function discardLinkFiles(locations: readonly BlobLocation[]): Promise<void> {
+  if (locations.length === 0) return;
+  const { blobs } = await shareServices();
+  await blobs.discard(locations);
 }
 
 /** The id of the share linked to the workspace's live project, or null without one. */

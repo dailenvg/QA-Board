@@ -21,37 +21,51 @@ const member = { team: true, moderator: false };
 const guest = { team: false, moderator: false };
 
 describe("commentRights", () => {
-  it("lets the author edit and delete their own, with Undo", () => {
+  it("lets the author edit and delete their own, with Undo, and change who sees it (D9)", () => {
     expect(commentRights(MINE, member)).toEqual({
       edit: true,
       delete: "undo",
       resolvedNote: false,
+      share: true,
     });
-    expect(commentRights(MINE, owner)).toEqual({ edit: true, delete: "undo", resolvedNote: false });
+    expect(commentRights(MINE, owner)).toEqual({
+      edit: true,
+      delete: "undo",
+      resolvedNote: false,
+      share: true,
+    });
   });
 
   it("gives a member nothing on someone else's comment or a client's", () => {
-    expect(commentRights(TEAM, member)).toEqual({ edit: false, delete: null, resolvedNote: false });
+    expect(commentRights(TEAM, member)).toEqual({
+      edit: false,
+      delete: null,
+      resolvedNote: false,
+      share: false,
+    });
     expect(commentRights(CLIENT, member)).toEqual({
       edit: false,
       delete: null,
       resolvedNote: false,
+      share: false,
     });
   });
 
-  it("lets the owner delete someone else's only after a confirm, so there's no Undo toast", () => {
+  it("lets the owner delete someone else's only after a confirm, and change who sees it", () => {
     expect(commentRights(TEAM, owner)).toEqual({
       edit: false,
       delete: "confirm",
       resolvedNote: false,
+      share: true,
     });
   });
 
-  it("lets the owner delete a client's at once, with Undo, but never edit it", () => {
+  it("lets the owner delete a client's at once, with Undo, but never edit it or make it team only", () => {
     expect(commentRights(CLIENT, owner)).toEqual({
       edit: false,
       delete: "undo",
       resolvedNote: false,
+      share: false,
     });
   });
 
@@ -61,16 +75,23 @@ describe("commentRights", () => {
         edit: false,
         delete: null,
         resolvedNote: false,
+        share: false,
       });
     }
   });
 
   it("lets a guest edit their own while it's active and the review is open, never delete it", () => {
-    expect(commentRights(MINE, guest)).toEqual({ edit: true, delete: null, resolvedNote: false });
+    expect(commentRights(MINE, guest)).toEqual({
+      edit: true,
+      delete: null,
+      resolvedNote: false,
+      share: false,
+    });
     expect(commentRights(MINE, { ...guest, reviewOpen: false })).toEqual({
       edit: false,
       delete: null,
       resolvedNote: false,
+      share: false,
     });
   });
 
@@ -80,6 +101,7 @@ describe("commentRights", () => {
       edit: false,
       delete: null,
       resolvedNote: true,
+      share: false,
     });
     expect(commentRights(resolved, { ...guest, reviewOpen: false }).resolvedNote).toBe(true);
   });

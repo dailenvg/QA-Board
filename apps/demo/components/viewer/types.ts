@@ -38,6 +38,11 @@ export interface Draft extends PinPoint {
   author?: string;
   /** The priority picked in this draft (missing for none), kept with it like the name. */
   priority?: CommentPriority;
+  /**
+   * The team's: kept to the team (057). Off for every new draft (D15), and kept with this one
+   * like its priority, so a reload never posts it for clients to see.
+   */
+  teamOnly?: boolean;
 }
 
 /** Saves an uploaded screenshot as the project's image; resolves to an error message, or null. */
